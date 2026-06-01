@@ -16,7 +16,7 @@ export type TerraformImportSessionSnapshot = {
 export type TerraformImportSession = {
   sources: TerraformPlanParsingSources;
   semanticLayout: boolean;
-  pipelineLayout: boolean;
+  layoutMode?: "module" | "semantic" | "pipeline";
   moduleLayoutOptions: TerraformModuleLayoutOptions;
   preset: TerraformImportPreset | null;
   importedTfdTexts: string[];

@@ -12,8 +12,9 @@ import {
   DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   type TerraformModuleLayoutOptions,
 } from "./terraformModuleLayoutOptions";
+import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
+
 import {
-  terraformPlanParsingFromSources,
   type TerraformImportWarning,
   type TerraformPlanParsingSources,
 } from "./terraformPlanParsing";
@@ -23,6 +24,8 @@ import {
   getTerraformImportSession,
   setTerraformImportSession,
 } from "./terraformImportSession";
+
+import type { TerraformLayoutProgress } from "./terraformLayoutWorkerTypes";
 
 import type React from "react";
 
@@ -123,12 +126,14 @@ export const applyTerraformExcalidrawScene = (
 
 export type RunTerraformImportFromSourcesOptions = {
   semanticLayout: boolean;
-  pipelineLayout?: boolean;
+  layoutMode?: "module" | "semantic" | "pipeline";
   moduleLayoutOptions?: TerraformModuleLayoutOptions;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   updateSession?: boolean;
   scrollToContent?: boolean;
+  onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
+  signal?: AbortSignal;
 };
 
 export type RunTerraformImportFromSourcesResult = {
@@ -143,23 +148,21 @@ export const runTerraformImportFromSources = async (
 ): Promise<RunTerraformImportFromSourcesResult> => {
   const moduleLayoutOptions =
     options.moduleLayoutOptions ?? DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS;
-  const pipelineLayout = options.pipelineLayout === true;
-  const res = await terraformPlanParsingFromSources(sources, {
-    semanticLayout: options.semanticLayout,
-    pipelineLayout,
-    moduleLayoutOptions:
-      options.semanticLayout || pipelineLayout
-        ? undefined
-        : moduleLayoutOptions,
-  });
-  const scene = await res.json();
-  if (!res.ok) {
-    const err =
-      scene && typeof scene === "object" && "error" in scene
-        ? String((scene as { error?: unknown }).error)
-        : "";
-    throw new Error(err || "Local parse failed");
-  }
+  const layoutMode =
+    options.layoutMode ?? (options.semanticLayout ? "semantic" : "module");
+  const scene = await layoutTerraformViaWorkers(
+    sources,
+    {
+      semanticLayout: options.semanticLayout,
+      ...(options.layoutMode ? { layoutMode } : {}),
+      moduleLayoutOptions:
+        layoutMode === "module" ? moduleLayoutOptions : undefined,
+    },
+    {
+      onProgress: options.onLayoutProgress,
+      signal: options.signal,
+    },
+  );
 
   const importedTfdTexts = options.importedTfdTexts ?? [];
   const enableDeclaredDataFlow = importedTfdTexts.some((t) => t.trim());
@@ -177,7 +180,7 @@ export const runTerraformImportFromSources = async (
     setTerraformImportSession({
       sources,
       semanticLayout: options.semanticLayout,
-      pipelineLayout,
+      ...(options.layoutMode ? { layoutMode } : {}),
       moduleLayoutOptions,
       preset: options.preset ?? null,
       importedTfdTexts,
@@ -247,7 +250,7 @@ export const refreshTerraformLayout = async (
 
   return runTerraformImportFromSources(app, setAppState, sources, {
     semanticLayout: session.semanticLayout,
-    pipelineLayout: session.pipelineLayout,
+    layoutMode: session.layoutMode,
     moduleLayoutOptions: session.moduleLayoutOptions,
     importedTfdTexts,
     preset: session.preset,

@@ -1,11 +1,11 @@
 {
   "presets": [
     {
-      "id": "staging-multi-state",
-      "name": "Staging multi-state",
-      "description": "All staging Terraform stacks (plan+dot), optional tfstate, and pipeline.tfd.",
+      "id": "staging-multi-state-expanded",
+      "name": "Staging multi-state (expanded)",
+      "description": "Four-region staging (us-east-1 hub, us-west-2, us-west-1, us-east-2): 25 stacks, paired regional lanes, api-6 triple fanout, api-7 west-2 lane B, trunk ingress+egress, pipeline.tfd.",
       "builtin": true,
-      "view": "semantic",
+      "view": "pipeline",
       "rootPath": "packages/backend/terraform/staging-multi-state",
       "stacks": [
         {
@@ -21,6 +21,48 @@
           "planPath": "01-west-network/plan.json",
           "dotPath": "01-west-network/graph.dot",
           "statePath": "01-west-network/terraform.tfstate"
+        },
+        {
+          "id": "04-west-1-network",
+          "label": "04-west-1-network",
+          "planPath": "04-west-1-network/plan.json",
+          "dotPath": "04-west-1-network/graph.dot",
+          "statePath": "04-west-1-network/terraform.tfstate"
+        },
+        {
+          "id": "05-east-2-network",
+          "label": "05-east-2-network",
+          "planPath": "05-east-2-network/plan.json",
+          "dotPath": "05-east-2-network/graph.dot",
+          "statePath": "05-east-2-network/terraform.tfstate"
+        },
+        {
+          "id": "02-east-datastores",
+          "label": "02-east-datastores",
+          "planPath": "02-east-datastores/plan.json",
+          "dotPath": "02-east-datastores/graph.dot",
+          "statePath": "02-east-datastores/terraform.tfstate"
+        },
+        {
+          "id": "03-west-datastores",
+          "label": "03-west-datastores",
+          "planPath": "03-west-datastores/plan.json",
+          "dotPath": "03-west-datastores/graph.dot",
+          "statePath": "03-west-datastores/terraform.tfstate"
+        },
+        {
+          "id": "04-west-1-datastores",
+          "label": "04-west-1-datastores",
+          "planPath": "04-west-1-datastores/plan.json",
+          "dotPath": "04-west-1-datastores/graph.dot",
+          "statePath": "04-west-1-datastores/terraform.tfstate"
+        },
+        {
+          "id": "05-east-2-datastores",
+          "label": "05-east-2-datastores",
+          "planPath": "05-east-2-datastores/plan.json",
+          "dotPath": "05-east-2-datastores/graph.dot",
+          "statePath": "05-east-2-datastores/terraform.tfstate"
         },
         {
           "id": "10-east-ecs-edge",
@@ -70,233 +112,79 @@
           "planPath": "44-east-api-5/plan.json",
           "dotPath": "44-east-api-5/graph.dot",
           "statePath": "44-east-api-5/terraform.tfstate"
+        },
+        {
+          "id": "45-east-api-6",
+          "label": "45-east-api-6",
+          "planPath": "45-east-api-6/plan.json",
+          "dotPath": "45-east-api-6/graph.dot",
+          "statePath": "45-east-api-6/terraform.tfstate"
+        },
+        {
+          "id": "46-east-api-7",
+          "label": "46-east-api-7",
+          "planPath": "46-east-api-7/plan.json",
+          "dotPath": "46-east-api-7/graph.dot",
+          "statePath": "46-east-api-7/terraform.tfstate"
+        },
+        {
+          "id": "50-west-api-8",
+          "label": "50-west-api-8",
+          "planPath": "50-west-api-8/plan.json",
+          "dotPath": "50-west-api-8/graph.dot",
+          "statePath": "50-west-api-8/terraform.tfstate"
+        },
+        {
+          "id": "51-west-api-9",
+          "label": "51-west-api-9",
+          "planPath": "51-west-api-9/plan.json",
+          "dotPath": "51-west-api-9/graph.dot",
+          "statePath": "51-west-api-9/terraform.tfstate"
+        },
+        {
+          "id": "52-west-api-10",
+          "label": "52-west-api-10",
+          "planPath": "52-west-api-10/plan.json",
+          "dotPath": "52-west-api-10/graph.dot",
+          "statePath": "52-west-api-10/terraform.tfstate"
+        },
+        {
+          "id": "53-west-api-11",
+          "label": "53-west-api-11",
+          "planPath": "53-west-api-11/plan.json",
+          "dotPath": "53-west-api-11/graph.dot",
+          "statePath": "53-west-api-11/terraform.tfstate"
+        },
+        {
+          "id": "54-west-1-api-12",
+          "label": "54-west-1-api-12",
+          "planPath": "54-west-1-api-12/plan.json",
+          "dotPath": "54-west-1-api-12/graph.dot",
+          "statePath": "54-west-1-api-12/terraform.tfstate"
+        },
+        {
+          "id": "55-west-1-api-14",
+          "label": "55-west-1-api-14",
+          "planPath": "55-west-1-api-14/plan.json",
+          "dotPath": "55-west-1-api-14/graph.dot",
+          "statePath": "55-west-1-api-14/terraform.tfstate"
+        },
+        {
+          "id": "56-east-2-api-15",
+          "label": "56-east-2-api-15",
+          "planPath": "56-east-2-api-15/plan.json",
+          "dotPath": "56-east-2-api-15/graph.dot",
+          "statePath": "56-east-2-api-15/terraform.tfstate"
+        },
+        {
+          "id": "57-east-2-api-16",
+          "label": "57-east-2-api-16",
+          "planPath": "57-east-2-api-16/plan.json",
+          "dotPath": "57-east-2-api-16/graph.dot",
+          "statePath": "57-east-2-api-16/terraform.tfstate"
         }
       ],
       "tfdPaths": ["pipeline.tfd"]
-    },
-    {
-      "id": "allplanmodules",
-      "name": "All plan modules",
-      "description": "AWS allplanmodules plan+dot, tfstate, and allplanmodules.tfd.",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "AWS modules",
-          "planPath": "allplanmodules.json",
-          "dotPath": "allplanmodules.dot",
-          "statePath": "terraform_allplanmodules.tfstate"
-        }
-      ],
-      "tfdPaths": ["allplanmodules.tfd"]
-    },
-    {
-      "id": "allplan",
-      "name": "All plan",
-      "description": "AWS allplan plan+dot and root terraform.tfstate.",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "AWS",
-          "planPath": "allplan.json",
-          "dotPath": "allplan.dot",
-          "statePath": "terraform.tfstate"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "addplan",
-      "name": "Add plan",
-      "description": "Incremental add scenario (addplan.json + addplan.dot).",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "Add",
-          "planPath": "addplan.json",
-          "dotPath": "addplan.dot"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "addplan2",
-      "name": "Add plan 2",
-      "description": "Second add scenario (addplan2.json + addplan2.dot).",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "Add 2",
-          "planPath": "addplan2.json",
-          "dotPath": "addplan2.dot"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "newplan",
-      "name": "New plan",
-      "description": "Greenfield new plan (newplan.json + newplan.dot).",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "New",
-          "planPath": "newplan.json",
-          "dotPath": "newplan.dot"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "newplan2",
-      "name": "New plan 2",
-      "description": "Second new plan (newplan2.json + newplan2.dot).",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "New 2",
-          "planPath": "newplan2.json",
-          "dotPath": "newplan2.dot"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "delplan",
-      "name": "Delete plan",
-      "description": "Delete/shrink scenario (delplan.json + delplan.dot).",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "Delete",
-          "planPath": "delplan.json",
-          "dotPath": "delplan.dot"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "cloudflare",
-      "name": "Cloudflare",
-      "description": "Cloudflare plan+dot and terraform.tfstate.",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform/cloudflare",
-      "stacks": [
-        {
-          "id": "main",
-          "label": "Cloudflare",
-          "planPath": "cloudflare-plan.json",
-          "dotPath": "cloudflare-plan.dot",
-          "statePath": "terraform.tfstate"
-        }
-      ],
-      "tfdPaths": []
-    },
-    {
-      "id": "localstack-geo-fanout",
-      "name": "LocalStack geo fanout",
-      "description": "Consumer Lambda fanout to 6 APIs across two accounts, regions, and VPCs (LocalStack fixture).",
-      "builtin": true,
-      "view": "pipeline",
-      "rootPath": "packages/backend/terraform/localstack-geo-fanout",
-      "stacks": [
-        {
-          "id": "00-consumer",
-          "label": "00-consumer",
-          "planPath": "stacks/00-consumer/plan.json",
-          "dotPath": "stacks/00-consumer/graph.dot",
-          "statePath": "stacks/00-consumer/terraform.tfstate"
-        },
-        {
-          "id": "10-a-api-1",
-          "label": "10-a-api-1",
-          "planPath": "stacks/10-a-api-1/plan.json",
-          "dotPath": "stacks/10-a-api-1/graph.dot",
-          "statePath": "stacks/10-a-api-1/terraform.tfstate"
-        },
-        {
-          "id": "11-a-api-2",
-          "label": "11-a-api-2",
-          "planPath": "stacks/11-a-api-2/plan.json",
-          "dotPath": "stacks/11-a-api-2/graph.dot",
-          "statePath": "stacks/11-a-api-2/terraform.tfstate"
-        },
-        {
-          "id": "12-a-api-3",
-          "label": "12-a-api-3",
-          "planPath": "stacks/12-a-api-3/plan.json",
-          "dotPath": "stacks/12-a-api-3/graph.dot",
-          "statePath": "stacks/12-a-api-3/terraform.tfstate"
-        },
-        {
-          "id": "20-b-api-4",
-          "label": "20-b-api-4",
-          "planPath": "stacks/20-b-api-4/plan.json",
-          "dotPath": "stacks/20-b-api-4/graph.dot",
-          "statePath": "stacks/20-b-api-4/terraform.tfstate"
-        },
-        {
-          "id": "21-b-api-5",
-          "label": "21-b-api-5",
-          "planPath": "stacks/21-b-api-5/plan.json",
-          "dotPath": "stacks/21-b-api-5/graph.dot",
-          "statePath": "stacks/21-b-api-5/terraform.tfstate"
-        },
-        {
-          "id": "22-b-api-6",
-          "label": "22-b-api-6",
-          "planPath": "stacks/22-b-api-6/plan.json",
-          "dotPath": "stacks/22-b-api-6/graph.dot",
-          "statePath": "stacks/22-b-api-6/terraform.tfstate"
-        }
-      ],
-      "tfdPaths": ["pipeline.tfd"]
-    },
-    {
-      "id": "aws-cloudflare-modules",
-      "name": "AWS + Cloudflare modules",
-      "description": "Multi-provider: allplanmodules + Cloudflare plan/dot, with allplanmodules.tfd.",
-      "builtin": true,
-      "view": "semantic",
-      "rootPath": "packages/backend/terraform",
-      "stacks": [
-        {
-          "id": "aws",
-          "label": "AWS modules",
-          "planPath": "allplanmodules.json",
-          "dotPath": "allplanmodules.dot",
-          "statePath": "terraform_allplanmodules.tfstate"
-        },
-        {
-          "id": "cloudflare",
-          "label": "Cloudflare",
-          "planPath": "cloudflare/cloudflare-plan.json",
-          "dotPath": "cloudflare/cloudflare-plan.dot",
-          "statePath": "cloudflare/terraform.tfstate"
-        }
-      ],
-      "tfdPaths": ["allplanmodules.tfd"]
     }
   ]
 }

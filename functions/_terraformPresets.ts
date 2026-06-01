@@ -1,6 +1,6 @@
 import { loadPresetBlobText } from "./_terraformPresetBlobStorage";
 
-export type TerraformImportPresetView = "semantic" | "module";
+export type TerraformImportPresetView = "semantic" | "module" | "pipeline";
 
 export type TerraformImportPresetWarning = {
   code: "missing_state_file" | "missing_optional_tfd";
@@ -41,6 +41,17 @@ export type TerraformImportPresetSources = {
   tfdTexts: string[];
   tfdLabels: string[];
   warnings: TerraformImportPresetWarning[];
+  repoName?: string;
+  stackCatalog?: Array<{
+    stackId: string;
+    label: string;
+    planPath: string;
+    dotPath: string;
+    statePath?: string;
+    planText?: string;
+    dotText?: string;
+    stateText?: string;
+  }>;
 };
 
 type PresetRow = {
@@ -177,22 +188,35 @@ export async function getTerraformImportPresetSourcesFromD1(
 
   const stackRows = await db
     .prepare(
-      `SELECT stack_id, label, plan_text, dot_text, state_text
+      `SELECT stack_id, label, plan_path, dot_path, state_path,
+              plan_text, dot_text, state_text
        FROM terraform_import_preset_stacks
        WHERE preset_id = ?
        ORDER BY sort_order ASC`,
     )
     .bind(presetId)
-    .all<{
-      stack_id: string;
-      label: string;
-      plan_text: string | null;
-      dot_text: string | null;
-      state_text: string | null;
-    }>();
+    .all<StackRow>();
+
+  const repoName =
+    preset.rootPath
+      .replace(/\\/g, "/")
+      .replace(/\/+$/, "")
+      .split("/")
+      .filter(Boolean)
+      .pop() ?? "terraform";
 
   const warnings: TerraformImportPresetWarning[] = [];
   const planDotBundles: TerraformImportPresetSources["planDotBundles"] = [];
+  /** Paths only — blob text stays in D1 chunks; clients use `planDotBundles`. */
+  const stackCatalog: NonNullable<
+    TerraformImportPresetSources["stackCatalog"]
+  > = (stackRows.results ?? []).map((stack) => ({
+    stackId: stack.stack_id,
+    label: stack.label,
+    planPath: stack.plan_path,
+    dotPath: stack.dot_path,
+    ...(stack.state_path ? { statePath: stack.state_path } : {}),
+  }));
 
   for (const stack of stackRows.results ?? []) {
     const planText = await loadPresetBlobText(
@@ -209,6 +233,7 @@ export async function getTerraformImportPresetSourcesFromD1(
       stack.stack_id,
       stack.dot_text,
     );
+
     if (!planText || !dotText) {
       throw new Error(
         `Preset "${presetId}" is missing stored plan or graph for stack "${stack.stack_id}".`,
@@ -232,6 +257,9 @@ export async function getTerraformImportPresetSourcesFromD1(
   const states: unknown[] = [];
   const stateLabels: string[] = [];
   for (const stack of stackRows.results ?? []) {
+    if (!stack.state_path) {
+      continue;
+    }
     const stateText = await loadPresetBlobText(
       db,
       presetId,
@@ -295,6 +323,8 @@ export async function getTerraformImportPresetSourcesFromD1(
     tfdTexts,
     tfdLabels,
     warnings,
+    repoName,
+    stackCatalog,
   };
 }
 

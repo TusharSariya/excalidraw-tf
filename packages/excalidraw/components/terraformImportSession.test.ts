@@ -26,7 +26,6 @@ describe("terraformImportSession", () => {
     setTerraformImportSession({
       sources,
       semanticLayout: true,
-      pipelineLayout: false,
       moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
       preset: null,
       importedTfdTexts: [],
@@ -55,7 +54,6 @@ describe("terraformImportSession", () => {
     setTerraformImportSession({
       sources: { planDotBundles: [], states: [], tfdTexts: [] },
       semanticLayout: false,
-      pipelineLayout: false,
       moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
       preset: null,
       importedTfdTexts: [],

@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import Database from "better-sqlite3";
+
+import { loadPresetBlobTextSqlite } from "./loadPresetBlobTextSqlite.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
@@ -28,14 +31,14 @@ function nowIso() {
 const joinRootRelative = (rootPath, relativePath) =>
   `${rootPath.replace(/\/+$/, "")}/${relativePath.replace(/^\/+/, "")}`;
 
-function migratePresetViewConstraint(db) {
+function migrateAddPipelineViewConstraint(db) {
   const row = db
     .prepare(
       `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'terraform_import_presets'`,
     )
     .get();
   const ddl = typeof row?.sql === "string" ? row.sql : "";
-  if (ddl.includes("'pipeline'")) {
+  if (!ddl || ddl.includes("'pipeline'")) {
     return;
   }
   db.exec(`
@@ -49,8 +52,18 @@ function migratePresetViewConstraint(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-    INSERT INTO terraform_import_presets__new
-      SELECT id, name, description, builtin, view, root_path, created_at, updated_at
+    INSERT INTO terraform_import_presets__new (
+      id, name, description, builtin, view, root_path, created_at, updated_at
+    )
+      SELECT
+        id,
+        name,
+        description,
+        builtin,
+        view,
+        root_path,
+        created_at,
+        updated_at
       FROM terraform_import_presets;
     DROP TABLE terraform_import_presets;
     ALTER TABLE terraform_import_presets__new RENAME TO terraform_import_presets;
@@ -93,7 +106,50 @@ function ensureSchema(db) {
       PRIMARY KEY (preset_id, sort_order),
       FOREIGN KEY (preset_id) REFERENCES terraform_import_presets(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS terraform_import_artifacts (
+      repo_name TEXT NOT NULL,
+      relative_path TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('plan', 'dot', 'state')),
+      stack_id TEXT,
+      label TEXT,
+      content TEXT,
+      content_hash TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo_name, relative_path)
+    );
+
+    CREATE TABLE IF NOT EXISTS terraform_import_compositions (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      default_view TEXT NOT NULL CHECK (default_view IN ('semantic', 'module', 'pipeline')),
+      tfd_content TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS terraform_import_preset_blob_chunks (
+      preset_id TEXT NOT NULL,
+      blob_kind TEXT NOT NULL,
+      blob_key TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      PRIMARY KEY (preset_id, blob_kind, blob_key, chunk_index),
+      FOREIGN KEY (preset_id) REFERENCES terraform_import_presets(id) ON DELETE CASCADE
+    );
   `);
+
+  const presetColumns = db
+    .prepare(`PRAGMA table_info(terraform_import_presets)`)
+    .all()
+    .map((column) => column.name);
+  if (!presetColumns.includes("composition_id")) {
+    db.exec(
+      `ALTER TABLE terraform_import_presets ADD COLUMN composition_id TEXT`,
+    );
+  }
 
   const stackColumns = db
     .prepare(`PRAGMA table_info(terraform_import_preset_stacks)`)
@@ -119,7 +175,350 @@ function ensureSchema(db) {
     db.exec(`ALTER TABLE terraform_import_preset_tfd ADD COLUMN content TEXT`);
   }
 
-  migratePresetViewConstraint(db);
+  migrateAddPipelineViewConstraint(db);
+  migratePresetStacksToArtifacts(db);
+}
+
+function repoNameFromRootPath(rootPath) {
+  const normalized = String(rootPath).replace(/\\/g, "/").replace(/\/+$/, "");
+  const segments = normalized.split("/").filter(Boolean);
+  return segments[segments.length - 1] ?? "terraform";
+}
+
+function hashArtifactContent(text) {
+  return crypto.createHash("sha256").update(text).digest("hex");
+}
+
+function formatArtifactRef(repoName, relativePath) {
+  return `${repoName}/${relativePath}`;
+}
+
+function generateUseBlocksFromStackCatalog(repoName, stacks) {
+  return stacks
+    .map((stack) => {
+      const planRef = formatArtifactRef(repoName, stack.planPath);
+      const dotRef = formatArtifactRef(repoName, stack.dotPath);
+      const stateLine = stack.statePath
+        ? `\n  state ${formatArtifactRef(repoName, stack.statePath)}`
+        : "";
+      return `use ${stack.stackId ?? stack.id} {\n  plan ${planRef}\n  dot ${dotRef}${stateLine}\n}`;
+    })
+    .join("\n\n");
+}
+
+function ensureTfdHasUseBlocks(tfdText, repoName, stacks) {
+  if (/\buse\s+[A-Za-z0-9][\w.-]*\s*\{/.test(tfdText)) {
+    return tfdText;
+  }
+  const useSection = generateUseBlocksFromStackCatalog(
+    repoName,
+    stacks.map((stack) => ({
+      stackId: stack.id,
+      planPath: stack.planPath,
+      dotPath: stack.dotPath,
+      statePath: stack.statePath,
+    })),
+  );
+  const body = String(tfdText).replace(/^tfd\s+\d+\s*\n?/i, "").trim();
+  return `tfd 3\n\n${useSection}\n\n${body}\n`;
+}
+
+function upsertArtifactRow(
+  db,
+  { repoName, relativePath, kind, stackId, label, content },
+) {
+  const timestamp = nowIso();
+  const contentHash = content ? hashArtifactContent(content) : null;
+  db.prepare(
+    `INSERT INTO terraform_import_artifacts
+     (repo_name, relative_path, kind, stack_id, label, content, content_hash, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(repo_name, relative_path) DO UPDATE SET
+       kind = excluded.kind,
+       stack_id = excluded.stack_id,
+       label = excluded.label,
+       content = COALESCE(excluded.content, terraform_import_artifacts.content),
+       content_hash = COALESCE(excluded.content_hash, terraform_import_artifacts.content_hash),
+       updated_at = excluded.updated_at`,
+  ).run(
+    repoName,
+    relativePath,
+    kind,
+    stackId ?? null,
+    label ?? null,
+    content ?? null,
+    contentHash,
+    timestamp,
+    timestamp,
+  );
+}
+
+export function syncArtifactsFromPreset(db, presetId) {
+  const preset = db
+    .prepare(`SELECT root_path AS rootPath FROM terraform_import_presets WHERE id = ?`)
+    .get(presetId);
+  if (!preset) {
+    return null;
+  }
+  const repoName = repoNameFromRootPath(preset.rootPath);
+  const stacks = db
+    .prepare(
+      `SELECT stack_id AS id, label, plan_path AS planPath, dot_path AS dotPath,
+              state_path AS statePath, plan_text AS planText, dot_text AS dotText,
+              state_text AS stateText
+       FROM terraform_import_preset_stacks
+       WHERE preset_id = ?
+       ORDER BY sort_order ASC`,
+    )
+    .all(presetId);
+
+  for (const stack of stacks) {
+    if (stack.planText) {
+      upsertArtifactRow(db, {
+        repoName,
+        relativePath: stack.planPath,
+        kind: "plan",
+        stackId: stack.id,
+        label: stack.label,
+        content: stack.planText,
+      });
+    }
+    if (stack.dotText) {
+      upsertArtifactRow(db, {
+        repoName,
+        relativePath: stack.dotPath,
+        kind: "dot",
+        stackId: stack.id,
+        label: stack.label,
+        content: stack.dotText,
+      });
+    }
+    if (stack.statePath && stack.stateText) {
+      upsertArtifactRow(db, {
+        repoName,
+        relativePath: stack.statePath,
+        kind: "state",
+        stackId: stack.id,
+        label: stack.label,
+        content: stack.stateText,
+      });
+    }
+  }
+  return { repoName, stackCount: stacks.length };
+}
+
+function upsertCompositionForPreset(db, presetId) {
+  const preset = db
+    .prepare(
+      `SELECT id, name, description, view, root_path AS rootPath
+       FROM terraform_import_presets WHERE id = ?`,
+    )
+    .get(presetId);
+  if (!preset) {
+    return null;
+  }
+  const repoName = repoNameFromRootPath(preset.rootPath);
+  const stacks = db
+    .prepare(
+      `SELECT stack_id AS id, plan_path AS planPath, dot_path AS dotPath, state_path AS statePath
+       FROM terraform_import_preset_stacks
+       WHERE preset_id = ?
+       ORDER BY sort_order ASC`,
+    )
+    .all(presetId);
+  const tfdRows = db
+    .prepare(
+      `SELECT sort_order AS sortOrder, path, content FROM terraform_import_preset_tfd
+       WHERE preset_id = ?
+       ORDER BY sort_order ASC`,
+    )
+    .all(presetId);
+  const primaryTfd =
+    tfdRows.find((row) => String(row.path).endsWith("pipeline.tfd")) ??
+    tfdRows[0];
+  if (!primaryTfd?.content) {
+    return null;
+  }
+  const compositionId = `${presetId}-composition`;
+  const tfdContent = ensureTfdHasUseBlocks(
+    primaryTfd.content,
+    repoName,
+    stacks,
+  );
+  const timestamp = nowIso();
+  db.prepare(
+    `INSERT INTO terraform_import_compositions
+     (id, name, description, default_view, tfd_content, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       description = excluded.description,
+       default_view = excluded.default_view,
+       tfd_content = excluded.tfd_content,
+       updated_at = excluded.updated_at`,
+  ).run(
+    compositionId,
+    preset.name,
+    preset.description ?? null,
+    preset.view,
+    tfdContent,
+    timestamp,
+    timestamp,
+  );
+  db.prepare(
+    `UPDATE terraform_import_presets SET composition_id = ?, updated_at = ? WHERE id = ?`,
+  ).run(compositionId, timestamp, presetId);
+
+  const updateTfd = db.prepare(
+    `UPDATE terraform_import_preset_tfd SET content = ?
+     WHERE preset_id = ? AND sort_order = ?`,
+  );
+  updateTfd.run(tfdContent, presetId, primaryTfd.sortOrder);
+
+  return { compositionId, tfdContent };
+}
+
+function migratePresetStacksToArtifacts(db) {
+  const presetIds = db
+    .prepare(`SELECT id FROM terraform_import_presets ORDER BY id ASC`)
+    .all()
+    .map((row) => row.id);
+  for (const presetId of presetIds) {
+    syncArtifactsFromPreset(db, presetId);
+    upsertCompositionForPreset(db, presetId);
+  }
+}
+
+export function listTerraformImportArtifactsFromDb() {
+  const db = getTerraformImportPresetDb();
+  return db
+    .prepare(
+      `SELECT repo_name AS repoName, relative_path AS relativePath, kind,
+              stack_id AS stackId, label, content_hash AS contentHash,
+              CASE WHEN content IS NOT NULL THEN 1 ELSE 0 END AS hasContent
+       FROM terraform_import_artifacts
+       ORDER BY repo_name ASC, relative_path ASC`,
+    )
+    .all()
+    .map((row) => ({
+      ...row,
+      hasContent: Boolean(row.hasContent),
+    }));
+}
+
+export function getTerraformImportArtifactFromDb(repoName, relativePath) {
+  const db = getTerraformImportPresetDb();
+  const row = db
+    .prepare(
+      `SELECT repo_name AS repoName, relative_path AS relativePath, kind,
+              stack_id AS stackId, label, content, content_hash AS contentHash
+       FROM terraform_import_artifacts
+       WHERE repo_name = ? AND relative_path = ?`,
+    )
+    .get(repoName, relativePath);
+  return row ?? null;
+}
+
+export function saveTerraformImportArtifactToDb(payload) {
+  const repoName = String(payload.repoName ?? "").trim();
+  const relativePath = normalizeRepoRelativePath(payload.relativePath ?? "");
+  const kind = String(payload.kind ?? "").trim();
+  const content = typeof payload.content === "string" ? payload.content : null;
+  if (!repoName || !relativePath || !["plan", "dot", "state"].includes(kind)) {
+    throw new Error("Artifact requires repoName, relativePath, and kind.");
+  }
+  if (!content) {
+    throw new Error("Artifact content is required.");
+  }
+  const db = getTerraformImportPresetDb();
+  const existing = getTerraformImportArtifactFromDb(repoName, relativePath);
+  if (
+    existing?.contentHash &&
+    existing.contentHash === hashArtifactContent(content)
+  ) {
+    return {
+      repoName,
+      relativePath,
+      kind,
+      stackId: payload.stackId ?? existing.stackId ?? undefined,
+      label: payload.label ?? existing.label ?? undefined,
+      contentHash: existing.contentHash,
+      hasContent: true,
+      deduped: true,
+    };
+  }
+  upsertArtifactRow(db, {
+    repoName,
+    relativePath,
+    kind,
+    stackId: payload.stackId,
+    label: payload.label,
+    content,
+  });
+  const saved = getTerraformImportArtifactFromDb(repoName, relativePath);
+  return {
+    repoName: saved.repoName,
+    relativePath: saved.relativePath,
+    kind: saved.kind,
+    stackId: saved.stackId ?? undefined,
+    label: saved.label ?? undefined,
+    contentHash: saved.contentHash ?? undefined,
+    hasContent: Boolean(saved.content),
+    deduped: false,
+  };
+}
+
+export function getTerraformImportCompositionFromDb(compositionId) {
+  const db = getTerraformImportPresetDb();
+  const row = db
+    .prepare(
+      `SELECT id, name, description, default_view AS defaultView, tfd_content AS tfdContent
+       FROM terraform_import_compositions
+       WHERE id = ?`,
+    )
+    .get(compositionId);
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    defaultView: row.defaultView,
+    tfdContent: row.tfdContent,
+  };
+}
+
+export function saveTerraformImportCompositionToDb(composition) {
+  const db = getTerraformImportPresetDb();
+  const timestamp = nowIso();
+  const id = String(composition.id ?? "").trim();
+  const name = String(composition.name ?? "").trim();
+  const tfdContent = String(composition.tfdContent ?? "").trim();
+  const defaultView = composition.defaultView ?? "module";
+  if (!id || !name || !tfdContent) {
+    throw new Error("Composition requires id, name, and tfdContent.");
+  }
+  db.prepare(
+    `INSERT INTO terraform_import_compositions
+     (id, name, description, default_view, tfd_content, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       description = excluded.description,
+       default_view = excluded.default_view,
+       tfd_content = excluded.tfd_content,
+       updated_at = excluded.updated_at`,
+  ).run(
+    id,
+    name,
+    composition.description ?? null,
+    defaultView,
+    tfdContent,
+    timestamp,
+    timestamp,
+  );
+  return getTerraformImportCompositionFromDb(id);
 }
 
 function presetHasStoredContent(db, presetId) {
@@ -412,11 +811,28 @@ export function loadImportPresetsCatalog() {
 /** Upsert and hydrate every built-in preset from import-presets.catalog.json. */
 export function seedAllBuiltinsFromCatalog(db) {
   const presets = loadImportPresetsCatalog();
+  const catalogIds = new Set(presets.map((preset) => preset.id));
+  const staleBuiltins = db
+    .prepare(`SELECT id FROM terraform_import_presets WHERE builtin = 1`)
+    .all()
+    .filter((row) => !catalogIds.has(row.id));
+  for (const row of staleBuiltins) {
+    db.prepare(`DELETE FROM terraform_import_preset_stacks WHERE preset_id = ?`).run(
+      row.id,
+    );
+    db.prepare(`DELETE FROM terraform_import_preset_tfd WHERE preset_id = ?`).run(
+      row.id,
+    );
+    db.prepare(`DELETE FROM terraform_import_presets WHERE id = ?`).run(row.id);
+  }
+
   const results = [];
 
   for (const preset of presets) {
     upsertPreset(db, preset);
     const hydrateResult = hydratePresetContentsFromDisk(db, preset.id);
+    syncArtifactsFromPreset(db, preset.id);
+    upsertCompositionForPreset(db, preset.id);
     results.push({
       id: preset.id,
       ...hydrateResult,
@@ -538,11 +954,18 @@ export function getTerraformImportPresetFromDb(presetId, options = {}) {
 }
 
 export function getTerraformImportPresetSourcesFromDb(presetId) {
-  const db = getTerraformImportPresetDb();
-  const preset = getTerraformImportPresetFromDb(presetId);
-  if (!preset) {
+  const db = getTerraformImportPresetTestDb();
+  const row = db
+    .prepare(
+      `SELECT id, name, description, builtin, view, root_path
+       FROM terraform_import_presets
+       WHERE id = ?`,
+    )
+    .get(presetId);
+  if (!row) {
     return null;
   }
+  const preset = rowToPreset(db, row, { includeContent: true });
 
   if (!preset.hasContent) {
     throw new Error(
@@ -552,7 +975,8 @@ export function getTerraformImportPresetSourcesFromDb(presetId) {
 
   const stackRows = db
     .prepare(
-      `SELECT stack_id AS id, label, plan_text AS planText, dot_text AS dotText,
+      `SELECT stack_id AS id, label, plan_path AS planPath, dot_path AS dotPath,
+              state_path AS statePath, plan_text AS planText, dot_text AS dotText,
               state_text AS stateText
        FROM terraform_import_preset_stacks
        WHERE preset_id = ?
@@ -560,24 +984,48 @@ export function getTerraformImportPresetSourcesFromDb(presetId) {
     )
     .all(presetId);
 
+  const repoName = repoNameFromRootPath(preset.rootPath);
+  /** Paths only — blob bodies live in stacks/chunks; clients use `planDotBundles`. */
+  const stackCatalog = stackRows.map((stack) => ({
+    stackId: stack.id,
+    label: stack.label,
+    planPath: stack.planPath,
+    dotPath: stack.dotPath,
+    ...(stack.statePath ? { statePath: stack.statePath } : {}),
+  }));
+
   const warnings = [];
   const planDotBundles = [];
 
   for (const stack of stackRows) {
-    if (!stack.planText || !stack.dotText) {
+    const planText = loadPresetBlobTextSqlite(
+      db,
+      presetId,
+      "plan",
+      stack.id,
+      stack.planText,
+    );
+    const dotText = loadPresetBlobTextSqlite(
+      db,
+      presetId,
+      "dot",
+      stack.id,
+      stack.dotText,
+    );
+    if (!planText || !dotText) {
       throw new Error(
         `Preset "${presetId}" is missing stored plan or graph for stack "${stack.id}".`,
       );
     }
     let parsedPlan;
     try {
-      parsedPlan = JSON.parse(stack.planText);
+      parsedPlan = JSON.parse(planText);
     } catch {
       throw new Error(`Stored plan JSON is invalid for stack "${stack.id}".`);
     }
     planDotBundles.push({
       plan: parsedPlan,
-      dotText: stack.dotText,
+      dotText,
       label: stack.label,
     });
   }
@@ -585,7 +1033,17 @@ export function getTerraformImportPresetSourcesFromDb(presetId) {
   const states = [];
   const stateLabels = [];
   for (const stack of stackRows) {
-    if (!stack.stateText) {
+    if (!stack.statePath) {
+      continue;
+    }
+    const stateText = loadPresetBlobTextSqlite(
+      db,
+      presetId,
+      "state",
+      stack.id,
+      stack.stateText,
+    );
+    if (!stateText) {
       warnings.push({
         code: "missing_state_file",
         message: `Optional state file missing for stack "${stack.id}".`,
@@ -594,7 +1052,7 @@ export function getTerraformImportPresetSourcesFromDb(presetId) {
     }
     let parsedState;
     try {
-      parsedState = JSON.parse(stack.stateText);
+      parsedState = JSON.parse(stateText);
     } catch {
       throw new Error(`Stored state JSON is invalid for stack "${stack.id}".`);
     }
@@ -613,14 +1071,21 @@ export function getTerraformImportPresetSourcesFromDb(presetId) {
   const tfdTexts = [];
   const tfdLabels = [];
   for (const tfdRow of tfdRows) {
-    if (!tfdRow.content) {
+    const tfdContent = loadPresetBlobTextSqlite(
+      db,
+      presetId,
+      "tfd",
+      tfdRow.path,
+      tfdRow.content,
+    );
+    if (!tfdContent) {
       warnings.push({
         code: "missing_optional_tfd",
         message: `Optional dataflow file missing: ${tfdRow.path}`,
       });
       continue;
     }
-    tfdTexts.push(tfdRow.content);
+    tfdTexts.push(tfdContent);
     tfdLabels.push(tfdRow.path);
   }
 
@@ -631,6 +1096,8 @@ export function getTerraformImportPresetSourcesFromDb(presetId) {
     tfdTexts,
     tfdLabels,
     warnings,
+    repoName,
+    stackCatalog,
   };
 }
 
@@ -642,7 +1109,10 @@ export function syncTerraformImportPresetFromDisk(presetId) {
   if (!row) {
     throw new Error("Preset does not exist.");
   }
-  return hydratePresetContentsFromDisk(db, presetId);
+  const result = hydratePresetContentsFromDisk(db, presetId);
+  syncArtifactsFromPreset(db, presetId);
+  upsertCompositionForPreset(db, presetId);
+  return result;
 }
 
 export function saveTerraformImportPresetToDb(preset) {
@@ -715,7 +1185,8 @@ export function readTerraformImportRepoFileText(repoRelativePath) {
 
   const stackRows = db
     .prepare(
-      `SELECT p.root_path AS rootPath, s.plan_path AS planPath, s.dot_path AS dotPath,
+      `SELECT p.id AS presetId, p.root_path AS rootPath, s.stack_id AS stackId,
+              s.plan_path AS planPath, s.dot_path AS dotPath,
               s.state_path AS statePath, s.plan_text AS planText, s.dot_text AS dotText,
               s.state_text AS stateText
        FROM terraform_import_preset_stacks s
@@ -730,13 +1201,29 @@ export function readTerraformImportRepoFileText(repoRelativePath) {
       if (!row.planText) {
         break;
       }
-      return row.planText;
+      return (
+        loadPresetBlobTextSqlite(
+          db,
+          row.presetId,
+          "plan",
+          row.stackId,
+          row.planText,
+        ) ?? row.planText
+      );
     }
     if (dotRepoPath === normalized) {
       if (!row.dotText) {
         break;
       }
-      return row.dotText;
+      return (
+        loadPresetBlobTextSqlite(
+          db,
+          row.presetId,
+          "dot",
+          row.stackId,
+          row.dotText,
+        ) ?? row.dotText
+      );
     }
     if (row.statePath) {
       const stateRepoPath = repoPathFromPresetParts(
@@ -747,14 +1234,22 @@ export function readTerraformImportRepoFileText(repoRelativePath) {
         if (!row.stateText) {
           break;
         }
-        return row.stateText;
+        return (
+          loadPresetBlobTextSqlite(
+            db,
+            row.presetId,
+            "state",
+            row.stackId,
+            row.stateText,
+          ) ?? row.stateText
+        );
       }
     }
   }
 
   const tfdRows = db
     .prepare(
-      `SELECT p.root_path AS rootPath, t.path AS path, t.content AS content
+      `SELECT p.id AS presetId, p.root_path AS rootPath, t.path AS path, t.content AS content
        FROM terraform_import_preset_tfd t
        JOIN terraform_import_presets p ON p.id = t.preset_id`,
     )
@@ -766,12 +1261,25 @@ export function readTerraformImportRepoFileText(repoRelativePath) {
       if (!row.content) {
         break;
       }
-      return row.content;
+      return (
+        loadPresetBlobTextSqlite(
+          db,
+          row.presetId,
+          "tfd",
+          row.path,
+          row.content,
+        ) ?? row.content
+      );
     }
   }
 
+  const fromDisk = readTextFileAtRepoPath(normalized);
+  if (fromDisk !== null) {
+    return fromDisk;
+  }
+
   throw new Error(
-    `Terraform fixture not found in import preset DB: ${normalized}. Run yarn export:terraform-presets-test-db after yarn seed:terraform-presets.`,
+    `Terraform fixture not found in import preset DB or on disk: ${normalized}. Run yarn hydrate:terraform-preset staging-multi-state-expanded && yarn export:terraform-presets-test-db.`,
   );
 }
 
@@ -781,26 +1289,64 @@ export function loadStagingMultiStatePlanDotBundlesFromDb() {
     .prepare(
       `SELECT stack_id AS id, label, plan_text AS planText, dot_text AS dotText
        FROM terraform_import_preset_stacks
-       WHERE preset_id = 'staging-multi-state'
+       WHERE preset_id = 'staging-multi-state-expanded'
        ORDER BY sort_order ASC`,
     )
     .all();
 
+  const presetId = "staging-multi-state-expanded";
   return rows.map((row) => {
-    if (!row.planText || !row.dotText) {
+    const planText = loadPresetBlobTextSqlite(
+      db,
+      presetId,
+      "plan",
+      row.id,
+      row.planText,
+    );
+    const dotText = loadPresetBlobTextSqlite(
+      db,
+      presetId,
+      "dot",
+      row.id,
+      row.dotText,
+    );
+    if (!planText || !dotText) {
       throw new Error(
-        `staging-multi-state stack "${row.id}" is missing plan or dot content in the preset DB.`,
+        `staging-multi-state-expanded stack "${row.id}" is missing plan or dot content in the preset DB.`,
       );
     }
     return {
-      plan: JSON.parse(row.planText),
-      dotText: row.dotText,
+      plan: JSON.parse(planText),
+      dotText,
       label: row.label || row.id,
     };
   });
 }
 
+/** Upsert a single built-in preset from catalog and hydrate its disk contents. */
+export function upsertAndHydratePresetFromCatalog(db, presetId) {
+  const presets = loadImportPresetsCatalog();
+  const preset = presets.find((entry) => entry.id === presetId);
+  if (!preset) {
+    throw new Error(`Preset not found in catalog: ${presetId}`);
+  }
+  upsertPreset(db, preset);
+  return hydratePresetContentsFromDisk(db, presetId);
+}
+
 export function readStagingMultiStatePipelineTfdFromDb() {
+  const db = getTerraformImportPresetTestDb();
+  const row = db
+    .prepare(
+      `SELECT content FROM terraform_import_preset_tfd
+       WHERE preset_id = 'staging-multi-state-expanded' AND path = 'pipeline.tfd'
+       ORDER BY sort_order ASC
+       LIMIT 1`,
+    )
+    .get();
+  if (row?.content) {
+    return row.content;
+  }
   return readTerraformImportRepoFileText(
     "packages/backend/terraform/staging-multi-state/pipeline.tfd",
   );
@@ -876,9 +1422,9 @@ export function verifyTerraformImportPresetTestDb(
     )
     .get().count;
   db.close();
-  if (presetCount < 10 || withContent < 10) {
+  if (presetCount < 1 || withContent < 1) {
     throw new Error(
-      `Test preset DB is incomplete (${withContent}/${presetCount} presets with plan+dot). Run yarn export:terraform-presets-test-db.`,
+      `Test preset DB is incomplete (${withContent}/${presetCount} presets with plan+dot). Run yarn hydrate:terraform-preset staging-multi-state-expanded && yarn export:terraform-presets-test-db.`,
     );
   }
   return { presetCount, withContent };

@@ -13,16 +13,12 @@ import {
   getTerraformImportSession,
   setTerraformImportSession,
 } from "./terraformImportSession";
-import { terraformPlanParsingFromSources } from "./terraformPlanParsing";
+import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
 import { DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS } from "./terraformModuleLayoutOptions";
 
-vi.mock("./terraformPlanParsing", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("./terraformPlanParsing")>();
-  return {
-    ...mod,
-    terraformPlanParsingFromSources: vi.fn(),
-  };
-});
+vi.mock("./terraformLayoutWorkerClient", () => ({
+  layoutTerraformViaWorkers: vi.fn(),
+}));
 
 vi.mock("./terraformImportPresetLoader", () => ({
   loadTerraformImportPresetSources: vi.fn(),
@@ -50,7 +46,7 @@ const mockApp = () =>
 describe("terraformSceneApply", () => {
   beforeEach(() => {
     clearTerraformImportSession();
-    vi.mocked(terraformPlanParsingFromSources).mockReset();
+    vi.mocked(layoutTerraformViaWorkers).mockReset();
     hoisted.addFiles.mockReset();
     hoisted.replaceAllElements.mockReset();
     hoisted.scrollToContent.mockReset();
@@ -84,9 +80,9 @@ describe("terraformSceneApply", () => {
       y: 0,
       customData: { terraformVisibilityRole: "resource" },
     });
-    vi.mocked(terraformPlanParsingFromSources).mockResolvedValue(
-      new Response(JSON.stringify({ elements: [parsedEl] }), { status: 200 }),
-    );
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [parsedEl],
+    });
     hoisted.replaceAllElements.mockImplementation((els) => {
       hoisted.getElementsIncludingDeleted.mockReturnValue(els);
     });
@@ -98,13 +94,13 @@ describe("terraformSceneApply", () => {
       { semanticLayout: true },
     );
 
-    expect(terraformPlanParsingFromSources).toHaveBeenCalledWith(
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
       expect.anything(),
       {
         semanticLayout: true,
-        pipelineLayout: false,
         moduleLayoutOptions: undefined,
       },
+      expect.anything(),
     );
     const session = getTerraformImportSession();
     expect(session).not.toBeNull();
@@ -116,7 +112,6 @@ describe("terraformSceneApply", () => {
     setTerraformImportSession({
       sources: { planDotBundles: [], states: [], tfdTexts: [] },
       semanticLayout: true,
-      pipelineLayout: false,
       moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
       preset: null,
       importedTfdTexts: [],
@@ -134,7 +129,7 @@ describe("terraformSceneApply", () => {
 
     const ok = resetTerraformLayout(mockApp(), hoisted.setAppState);
     expect(ok).toBe(true);
-    expect(terraformPlanParsingFromSources).not.toHaveBeenCalled();
+    expect(layoutTerraformViaWorkers).not.toHaveBeenCalled();
     expect(hoisted.replaceAllElements).toHaveBeenCalled();
   });
 
@@ -146,7 +141,6 @@ describe("terraformSceneApply", () => {
         tfdTexts: [],
       },
       semanticLayout: false,
-      pipelineLayout: false,
       moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
       preset: null,
       importedTfdTexts: [],
@@ -157,18 +151,16 @@ describe("terraformSceneApply", () => {
       },
     });
 
-    vi.mocked(terraformPlanParsingFromSources).mockResolvedValue(
-      new Response(JSON.stringify({ elements: [] }), { status: 200 }),
-    );
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
 
     await refreshTerraformLayout(mockApp(), hoisted.setAppState);
-    expect(terraformPlanParsingFromSources).toHaveBeenCalledWith(
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
       expect.anything(),
       {
         semanticLayout: false,
-        pipelineLayout: false,
         moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
       },
+      expect.anything(),
     );
   });
 
@@ -184,7 +176,6 @@ describe("terraformSceneApply", () => {
         tfdTexts: [],
       },
       semanticLayout: false,
-      pipelineLayout: false,
       moduleLayoutOptions: rectpackingOptions,
       preset: null,
       importedTfdTexts: [],
@@ -195,18 +186,47 @@ describe("terraformSceneApply", () => {
       },
     });
 
-    vi.mocked(terraformPlanParsingFromSources).mockResolvedValue(
-      new Response(JSON.stringify({ elements: [] }), { status: 200 }),
-    );
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
 
     await refreshTerraformLayout(mockApp(), hoisted.setAppState);
-    expect(terraformPlanParsingFromSources).toHaveBeenCalledWith(
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
       expect.anything(),
       {
         semanticLayout: false,
-        pipelineLayout: false,
         moduleLayoutOptions: rectpackingOptions,
       },
+      expect.anything(),
+    );
+  });
+
+  it("refreshTerraformLayout preserves semantic layout and tfd overlay from session", async () => {
+    setTerraformImportSession({
+      sources: {
+        planDotBundles: [{ plan: {}, dotText: "digraph {}", label: "s" }],
+        states: [],
+        tfdTexts: ["a -> b"],
+      },
+      semanticLayout: true,
+      moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
+      preset: null,
+      importedTfdTexts: ["a -> b"],
+      snapshot: {
+        elements: [],
+        terraformEdgeLayerPins: null,
+        enableDeclaredDataFlow: true,
+      },
+    });
+
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
+
+    await refreshTerraformLayout(mockApp(), hoisted.setAppState);
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        semanticLayout: true,
+        moduleLayoutOptions: undefined,
+      },
+      expect.anything(),
     );
   });
 });

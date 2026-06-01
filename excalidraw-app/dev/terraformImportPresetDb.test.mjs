@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  getTerraformImportPresetSourcesFromDb,
   openTerraformImportPresetDb,
   resetTerraformImportPresetDbSingleton,
   seedAllBuiltinsFromCatalog,
@@ -21,8 +22,8 @@ describe("terraformImportPresetDb seed", () => {
     }
     const { presetCount, withContent } =
       verifyTerraformImportPresetTestDb(TEST_FIXTURE_DB_PATH);
-    expect(presetCount).toBe(11);
-    expect(withContent).toBe(11);
+    expect(presetCount).toBe(1);
+    expect(withContent).toBe(1);
   });
 
   it("seeds all catalog presets with plan+dot content when disk files exist", () => {
@@ -36,7 +37,7 @@ describe("terraformImportPresetDb seed", () => {
     const { presetCount, results } = seedAllBuiltinsFromCatalog(db);
     const missing = results.flatMap((entry) => entry.missing ?? []);
 
-    expect(presetCount).toBe(11);
+    expect(presetCount).toBe(1);
     if (missing.length > 0) {
       return;
     }
@@ -44,13 +45,13 @@ describe("terraformImportPresetDb seed", () => {
     const presetCountRow = db
       .prepare(`SELECT COUNT(*) AS count FROM terraform_import_presets`)
       .get();
-    expect(presetCountRow.count).toBe(11);
+    expect(presetCountRow.count).toBe(1);
 
     const stack = db
       .prepare(
         `SELECT plan_text AS planText, dot_text AS dotText
          FROM terraform_import_preset_stacks
-         WHERE preset_id = 'allplanmodules'
+         WHERE preset_id = 'staging-multi-state-expanded'
          LIMIT 1`,
       )
       .get();
@@ -64,5 +65,23 @@ describe("terraformImportPresetDb seed", () => {
         fs.unlinkSync(filePath);
       }
     }
+  });
+
+  it("sources use paths-only stackCatalog and resolve TFD use blocks", () => {
+    if (!fs.existsSync(TEST_FIXTURE_DB_PATH)) {
+      return;
+    }
+    resetTerraformImportPresetDbSingleton();
+    const sources = getTerraformImportPresetSourcesFromDb(
+      "staging-multi-state-expanded",
+    );
+    expect(sources).not.toBeNull();
+    expect(sources.planDotBundles).toHaveLength(25);
+    expect(sources.stackCatalog).toHaveLength(25);
+    expect(sources.stackCatalog[0]).not.toHaveProperty("planText");
+    expect(sources.repoName).toBe("staging-multi-state");
+    expect(sources.tfdTexts[0]).toMatch(/^tfd 3/);
+    expect(sources.tfdTexts[0]).toMatch(/^use 00-east-network/m);
+    resetTerraformImportPresetDbSingleton();
   });
 });

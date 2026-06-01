@@ -51,6 +51,13 @@ if (presetCount < 1 || withContent < 1) {
   process.exit(1);
 }
 
+// verifyTerraformImportPresetTestDb opens the DB writable and re-syncs stack text
+// into terraform_import_artifacts (duplicate of preset_stacks + blob_chunks).
+// D1 cannot ingest those multi-MB INSERTs; preset import uses stacks/chunks only.
+const dbPrep = new Database(sourcePath);
+dbPrep.prepare(`DELETE FROM terraform_import_artifacts`).run();
+dbPrep.close();
+
 const db = new Database(sourcePath, { readonly: true });
 
 const presets = db
@@ -75,6 +82,14 @@ const tfdRows = db
     `SELECT preset_id, sort_order, path, content
      FROM terraform_import_preset_tfd
      ORDER BY preset_id ASC, sort_order ASC`,
+  )
+  .all();
+
+const compositions = db
+  .prepare(
+    `SELECT id, name, description, default_view, tfd_content, created_at, updated_at
+     FROM terraform_import_compositions
+     ORDER BY id ASC`,
   )
   .all();
 
@@ -123,6 +138,8 @@ const lines = [
   "DELETE FROM terraform_import_preset_blob_chunks;",
   "DELETE FROM terraform_import_preset_tfd;",
   "DELETE FROM terraform_import_preset_stacks;",
+  "DELETE FROM terraform_import_compositions;",
+  "DELETE FROM terraform_import_artifacts;",
   "DELETE FROM terraform_import_presets;",
   "",
 ];
@@ -147,6 +164,31 @@ writeInsert(
     row.builtin,
     row.view,
     row.root_path,
+    row.created_at,
+    row.updated_at,
+  ]),
+);
+
+// Artifacts omitted from D1 export (see DELETE above).
+
+writeInsert(
+  lines,
+  "terraform_import_compositions",
+  [
+    "id",
+    "name",
+    "description",
+    "default_view",
+    "tfd_content",
+    "created_at",
+    "updated_at",
+  ],
+  compositions.map((row) => [
+    row.id,
+    row.name,
+    row.description,
+    row.default_view,
+    row.tfd_content,
     row.created_at,
     row.updated_at,
   ]),

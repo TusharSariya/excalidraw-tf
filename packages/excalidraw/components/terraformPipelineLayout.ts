@@ -1,1301 +1,751 @@
-/**
- * TFD pipeline layout: geographic frames + primaryCluster atoms left-to-right.
- */
-
 import { convertToExcalidrawElements } from "@excalidraw/element";
 
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
-import { injectTerraformAwsIconsIntoElements } from "./terraformAwsIcons";
 import {
-  mirrorAndDetachTerraformResourceLabels,
+  buildTerraformDeclaredDataFlowLineSkeletons,
+  buildTerraformResourceCardCustomData,
+  shortTerraformResourceLabel,
   type TerraformDependencyLayoutBox,
 } from "./terraformElkLayout";
-import { tfComfortPx } from "./terraformLayoutComfort";
-import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
-import { buildPipelineAtomGraph } from "./terraformPipelineAtoms";
+import { collectDeclaredDataFlowEdges } from "./terraformExplodeGraph";
+import { isPrimaryVisibleResourceType } from "./terraformPrimaryVisibility";
+import { getTerraformCardResourceType } from "./terraformResourceCardLabel";
 import {
-  buildPipelineAccountLaneBands,
-  buildPipelineLayoutPlan,
-  type PipelineAccountLaneBand,
-  type PipelineAtomPlacement,
-  type PipelineColumn,
-} from "./terraformPipelineContainers";
-import { buildPipelineDeclaredDataFlowLineSkeletons } from "./terraformPipelineEdges";
+  DECLARED_DATAFLOW_ORDERED_KEY,
+  type DeclaredDataFlowEdge,
+} from "./terraformDeclaredDataFlow";
+import { buildArnIndexForTopology } from "./terraformTopologyIamLinks";
+import { filterPlanByProviderFamily } from "./terraformProviderClassification";
 import {
-  buildPipelineAtomGeoMap,
-  pipelineGeoTierLabel,
-  type PipelineGeoPath,
-} from "./terraformPipelineGeo";
+  buildEnrichedTopologyPlacements,
+  topologyAddressPlacementMap,
+  type TopologyAddressPlacement,
+} from "./terraformTopologyPlacementBuild";
 import {
   buildTopologyPrimaryClusterSkeletonForPipeline,
-  reorderTopologyElementsZStack,
+  type PipelinePrimaryClusterBuildResult,
 } from "./terraformTopologyLayout";
+import { resolveAlbCompanionParentLbAddressFromPlan } from "./terraformTopologyAlbLinks";
+import { collectTopologySatelliteAddressesFromRegistry } from "./terraformTopologySatelliteRegistry";
 import {
   reconcileTerraformVisibility,
   repairTerraformEdgeBindings,
   TERRAFORM_IMPORT_EDGE_LAYER_PINS,
 } from "./terraformVisibility";
+import { injectTerraformAwsIconsIntoElements } from "./terraformAwsIcons";
 
-import type { BinaryFiles } from "../types";
-import type { TerraformPlanNodesMap } from "./terraformPlanParsing";
+import type {
+  TerraformPlanGraphNode,
+  TerraformPlanNodesMap,
+} from "./terraformPlanParsing";
+import type { TerraformImportWarning } from "./terraformImportMerge";
 
-const px = tfComfortPx;
-
-const MARGIN = px(50);
-const COLUMN_GAP = px(48);
-const LANE_GAP = px(24);
-const INNER_PAD = px(28);
-const FRAME_PAD = px(20);
-const AWS_FRAME_PAD = px(32);
-/** Extra vertical gap between multi-account lane bands (region padding on both sides). */
-const ACCOUNT_BAND_GAP = LANE_GAP + 2 * INNER_PAD;
-const MIN_FRAME_W = px(200);
-const MIN_FRAME_H = px(160);
-
-export type TerraformPipelineSceneMeta = {
-  layoutEngine: "pipeline";
-  atomCount: number;
-  columnCount: number;
-  geoInstanceCount: number;
-  declaredEdgeCount: number;
-  skippedLayout?: boolean;
-  skipReason?: string;
+type ResourceChange = {
+  address?: string;
+  type?: string;
 };
 
-type ClusterBuild = {
-  primaryAddress: string;
-  skeleton: ExcalidrawElementSkeleton[];
-  width: number;
-  height: number;
-  clusterFrameId: string;
-};
+type PipelinePlacement = TopologyAddressPlacement;
 
-type Bounds = { x: number; y: number; width: number; height: number };
-
-export type PipelineZoneFrameSpec = {
+type PipelineCluster = {
   id: string;
-  label: string;
-  role: string;
-  path: string[];
-  bounds: Bounds;
-  clusterFrameIds: string[];
-  vpcKey: string | null;
-  regionalBandKey: string | null;
-  accountId: string;
-  region: string;
-  columnIndex: number;
-  laneIndex: number;
+  primaryAddress: string;
+  firstSequence: number;
+  depth: number;
+  placement: PipelinePlacement;
+  build: PipelinePrimaryClusterBuildResult;
 };
 
-type ZoneFrameSpec = PipelineZoneFrameSpec;
+const MARGIN = 50;
+const FRAME_PAD = 28;
+const COLUMN_GAP = 150;
+const CLUSTER_GAP_Y = 36;
+const LANE_GAP_Y = 96;
+const FALLBACK_W = 220;
+const FALLBACK_H = 96;
 
-type ClusterPlacementDraft = {
-  col: PipelineColumn;
-  lane: number;
-  placement: PipelineAtomPlacement;
-  build: ClusterBuild;
-  columnX: number;
-  clusterX: number;
-  clusterY: number;
-  bounds: Bounds;
-  vpcKey: string | null;
-  regionalBandKey: string | null;
-  zoneKey: string;
-  zoneFrameId: string;
-  preFanoutColumn: boolean;
-};
-
-type PipelineRowGeometry = {
-  maxLaneCount: number;
-  rowHeights: number[];
-  rowTops: number[];
-  sharedColumnHeight: number;
-};
-
-function computeRowTops(
-  rowHeights: readonly number[],
-  contentTop: number,
-  accountBands?: readonly PipelineAccountLaneBand[],
-  multiAccountBandLayout = false,
-): { rowTops: number[]; sharedColumnHeight: number } {
-  if (!multiAccountBandLayout || !accountBands || accountBands.length <= 1) {
-    const rowTops: number[] = [];
-    let y = contentTop + INNER_PAD;
-    for (let i = 0; i < rowHeights.length; i++) {
-      rowTops[i] = y;
-      y += rowHeights[i]! + LANE_GAP;
-    }
-    return { rowTops, sharedColumnHeight: y - contentTop + INNER_PAD };
-  }
-
-  const rowTops: number[] = [];
-  const sortedBands = [...accountBands].sort((a, b) => a.minLane - b.minLane);
-  let y = contentTop + INNER_PAD;
-
-  for (let bi = 0; bi < sortedBands.length; bi++) {
-    const band = sortedBands[bi]!;
-    const lanes = [...band.laneIndices].sort((a, b) => a - b);
-    if (bi > 0) {
-      const prevBand = sortedBands[bi - 1]!;
-      const prevMaxLane = Math.max(...prevBand.laneIndices);
-      y = rowTops[prevMaxLane]! + rowHeights[prevMaxLane]! + ACCOUNT_BAND_GAP;
-    }
-    for (const lane of lanes) {
-      rowTops[lane] = y;
-      y += rowHeights[lane]! + LANE_GAP;
-    }
-  }
-
-  for (let i = 0; i < rowHeights.length; i++) {
-    if (rowTops[i] == null) {
-      rowTops[i] = y;
-      y += rowHeights[i]! + LANE_GAP;
-    }
-  }
-
-  return { rowTops, sharedColumnHeight: y - contentTop + INNER_PAD };
+function getPrimaryResource(
+  node: TerraformPlanGraphNode | undefined,
+): Record<string, unknown> | undefined {
+  const first = Object.values(node?.resources || {})[0];
+  return first && typeof first === "object"
+    ? (first as Record<string, unknown>)
+    : undefined;
 }
 
-function computePipelineRowGeometry(
-  layoutPlan: { columns: PipelineColumn[] },
-  clusterBuilds: Map<string, ClusterBuild>,
-  contentTop: number,
-  rowHeightsOverride?: readonly number[],
-  accountBands?: readonly PipelineAccountLaneBand[],
-  multiAccountBandLayout = false,
-): PipelineRowGeometry {
-  const maxLaneCount = Math.max(
-    1,
-    ...layoutPlan.columns.map((c) => c.laneCount),
-  );
-  const rowHeights =
-    rowHeightsOverride != null
-      ? [...rowHeightsOverride]
-      : Array.from({ length: maxLaneCount }, () => px(88));
+function resourceTypeFor(
+  nodes: TerraformPlanNodesMap,
+  address: string,
+): string {
+  const node = nodes[address] as TerraformPlanGraphNode | undefined;
+  return getTerraformCardResourceType(address, getPrimaryResource(node));
+}
 
-  if (rowHeightsOverride == null) {
-    for (const col of layoutPlan.columns) {
-      for (let lane = 0; lane < col.atoms.length; lane++) {
-        const addr = col.atoms[lane];
-        const build = addr ? clusterBuilds.get(addr) : undefined;
-        if (build) {
-          rowHeights[lane] = Math.max(
-            rowHeights[lane]!,
-            minRowHeightForPrimaryCenteredCluster(build),
-          );
-        }
+function providerFamilyForType(type: string): string {
+  const i = type.indexOf("_");
+  return i > 0 ? type.slice(0, i) : "terraform";
+}
+
+function planChanges(plan: unknown): ResourceChange[] {
+  const changes = (plan as { resource_changes?: unknown[] })?.resource_changes;
+  return Array.isArray(changes) ? (changes as ResourceChange[]) : [];
+}
+
+function buildSatelliteOwnerMap(
+  nodes: TerraformPlanNodesMap,
+  plan: unknown,
+): Map<string, string> {
+  const arnIndex = buildArnIndexForTopology(nodes);
+  const primaryAddresses = Object.keys(nodes)
+    .filter((key) => !key.startsWith("__"))
+    .filter((addr) =>
+      isPrimaryVisibleResourceType(resourceTypeFor(nodes, addr)),
+    )
+    .sort();
+  const out = new Map<string, string>();
+
+  for (const primaryAddress of primaryAddresses) {
+    for (const sat of collectTopologySatelliteAddressesFromRegistry(
+      nodes,
+      arnIndex,
+      [primaryAddress],
+      plan,
+    )) {
+      if (!out.has(sat)) {
+        out.set(sat, primaryAddress);
       }
     }
   }
 
-  const { rowTops, sharedColumnHeight } = computeRowTops(
-    rowHeights,
-    contentTop,
-    accountBands,
-    multiAccountBandLayout,
-  );
+  const changes = planChanges(plan);
+  for (const rc of changes) {
+    if (!rc.address) {
+      continue;
+    }
+    const parent = resolveAlbCompanionParentLbAddressFromPlan(
+      rc as any,
+      changes as any,
+    );
+    if (parent) {
+      out.set(rc.address, parent);
+    }
+  }
+  return out;
+}
 
+function collapseEndpoint(
+  nodes: TerraformPlanNodesMap,
+  satelliteOwners: ReadonlyMap<string, string>,
+  address: string,
+): string {
+  const owner = satelliteOwners.get(address);
+  if (owner && nodes[owner]) {
+    return owner;
+  }
+  const type = resourceTypeFor(nodes, address);
+  if (isPrimaryVisibleResourceType(type)) {
+    return address;
+  }
+  return address;
+}
+
+function buildPlacementMap(
+  nodes: TerraformPlanNodesMap,
+  plan: unknown,
+): Map<string, PipelinePlacement> {
+  const awsPlan = filterPlanByProviderFamily(plan as any, "aws");
+  const enriched = buildEnrichedTopologyPlacements(awsPlan, nodes);
+  const out = topologyAddressPlacementMap(enriched, awsPlan);
+
+  for (const address of Object.keys(nodes)) {
+    if (address.startsWith("__") || out.has(address)) {
+      continue;
+    }
+    const type = resourceTypeFor(nodes, address);
+    out.set(address, {
+      providerFamily: providerFamilyForType(type),
+      accountId: "unknown-account",
+      region: "unknown-region",
+      vpcId: null,
+    });
+  }
+  return out;
+}
+
+function buildFallbackCluster(
+  address: string,
+  nodes: TerraformPlanNodesMap,
+  plan: unknown,
+  placement: PipelinePlacement,
+): PipelinePrimaryClusterBuildResult {
+  const frameId = `tf-pipeline:cluster:${encodeURIComponent(address)}`;
+  const node = nodes[address] as TerraformPlanGraphNode | undefined;
+  const resource = getPrimaryResource(node);
+  const skeleton: ExcalidrawElementSkeleton[] = [
+    {
+      type: "rectangle",
+      id: address,
+      x: 10,
+      y: 10,
+      width: FALLBACK_W,
+      height: FALLBACK_H,
+      strokeWidth: 1.5,
+      strokeColor: "#64748b",
+      backgroundColor: "#f8fafc",
+      roundness: { type: 3, value: 8 },
+      label: {
+        text: shortTerraformResourceLabel(address),
+        fontSize: 12,
+        strokeColor: "#0f172a",
+      },
+      customData: {
+        terraform: true,
+        terraformSemanticOverview: true,
+        terraformVisibilityRole: "resource",
+        terraformVisibilityKey: address,
+        terraformNodeKind: "resource",
+        terraformInitiallyVisible: true,
+        terraformExplodeParentKeys: [],
+        terraformExplodeParent: null,
+        terraformExpandAllView: false,
+        ...buildTerraformResourceCardCustomData(address, resource, node, plan),
+      },
+    },
+    {
+      type: "frame",
+      id: frameId,
+      name: shortTerraformResourceLabel(address).slice(0, 48),
+      x: 0,
+      y: 0,
+      width: FALLBACK_W + 20,
+      height: FALLBACK_H + 20,
+      children: [address],
+      customData: pipelineFrameCustomData(
+        "primaryCluster",
+        placement,
+        frameId,
+        {
+          terraformPrimaryAddress: address,
+        },
+      ),
+    },
+  ];
   return {
-    maxLaneCount,
-    rowHeights,
-    rowTops,
-    sharedColumnHeight,
+    skeleton,
+    width: FALLBACK_W + 20,
+    height: FALLBACK_H + 20,
+    clusterFrameId: frameId,
   };
 }
 
-function inflateRowHeightsFromZoneBounds(
-  rowHeights: number[],
-  drafts: readonly ClusterPlacementDraft[],
-  contentTop: number,
-  accountLaneIndicesByAccount: ReadonlyMap<string, readonly number[]>,
-  multiAccountBandLayout: boolean,
-  accountBands?: readonly PipelineAccountLaneBand[],
-): boolean {
-  let changed = false;
-  for (const draft of drafts) {
-    const needed = draft.bounds.height + 2 * FRAME_PAD + INNER_PAD;
-    const accountLanes = accountLaneIndicesByAccount.get(
-      draft.placement.geo.accountId,
+function computeDepths(
+  clusterEdges: Array<{ source: string; target: string; sequence: number }>,
+  clusterIds: readonly string[],
+): { depths: Map<string, number>; hasCycle: boolean } {
+  const indegree = new Map(clusterIds.map((id) => [id, 0]));
+  const outgoing = new Map<
+    string,
+    Array<{ target: string; sequence: number }>
+  >();
+  for (const edge of clusterEdges) {
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge]);
+    indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+  }
+  const firstSeq = new Map<string, number>();
+  for (const edge of clusterEdges) {
+    firstSeq.set(
+      edge.source,
+      Math.min(firstSeq.get(edge.source) ?? edge.sequence, edge.sequence),
     );
-    const maxBandLane =
-      multiAccountBandLayout && accountLanes?.length
-        ? Math.max(...accountLanes)
-        : rowHeights.length - 1;
-
-    if (draft.preFanoutColumn && multiAccountBandLayout) {
-      const targetBottom = draft.bounds.y + draft.bounds.height + FRAME_PAD;
-      const tops = computeRowTops(
-        rowHeights,
-        contentTop,
-        accountBands,
-        multiAccountBandLayout,
-      ).rowTops;
-      let startLane = draft.lane;
-      for (let i = 0; i <= maxBandLane; i++) {
-        const laneBottom = tops[i]! + rowHeights[i]!;
-        if (draft.bounds.y < laneBottom + LANE_GAP) {
-          startLane = i;
-          break;
-        }
+    firstSeq.set(
+      edge.target,
+      Math.min(firstSeq.get(edge.target) ?? edge.sequence, edge.sequence),
+    );
+  }
+  const ready = clusterIds
+    .filter((id) => (indegree.get(id) ?? 0) === 0)
+    .sort(
+      (a, b) =>
+        (firstSeq.get(a) ?? 0) - (firstSeq.get(b) ?? 0) || a.localeCompare(b),
+    );
+  const depths = new Map(clusterIds.map((id) => [id, 0]));
+  let visited = 0;
+  while (ready.length > 0) {
+    const id = ready.shift()!;
+    visited += 1;
+    for (const edge of (outgoing.get(id) ?? []).sort(
+      (a, b) => a.sequence - b.sequence,
+    )) {
+      depths.set(
+        edge.target,
+        Math.max(depths.get(edge.target) ?? 0, (depths.get(id) ?? 0) + 1),
+      );
+      const nextIn = (indegree.get(edge.target) ?? 0) - 1;
+      indegree.set(edge.target, nextIn);
+      if (nextIn === 0) {
+        ready.push(edge.target);
+        ready.sort(
+          (a, b) =>
+            (firstSeq.get(a) ?? 0) - (firstSeq.get(b) ?? 0) ||
+            a.localeCompare(b),
+        );
       }
-      for (let lane = startLane; lane <= maxBandLane; lane++) {
-        const laneTops = computeRowTops(
-          rowHeights,
-          contentTop,
-          accountBands,
-          multiAccountBandLayout,
-        ).rowTops;
-        const laneBottom = laneTops[lane]! + rowHeights[lane]!;
-        if (targetBottom <= laneBottom + 0.5) {
-          break;
-        }
-        const laneNeeded = targetBottom - laneTops[lane]! + FRAME_PAD;
-        if (laneNeeded > rowHeights[lane]!) {
-          rowHeights[lane] = laneNeeded;
-          changed = true;
-        }
-      }
-      continue;
-    }
-
-    if (needed > rowHeights[draft.lane]!) {
-      rowHeights[draft.lane] = needed;
-      changed = true;
     }
   }
-  return changed;
-}
-
-function inflateRowHeightsFromZoneSpecBounds(
-  rowHeights: number[],
-  zoneSpecs: ReadonlyMap<string, ZoneFrameSpec>,
-  contentTop: number,
-  accountBands?: readonly PipelineAccountLaneBand[],
-  multiAccountBandLayout = false,
-): boolean {
-  let changed = false;
-  const tops = computeRowTops(
-    rowHeights,
-    contentTop,
-    accountBands,
-    multiAccountBandLayout,
-  ).rowTops;
-  for (const spec of zoneSpecs.values()) {
-    const targetBottom =
-      spec.bounds.y + spec.bounds.height + FRAME_PAD + INNER_PAD;
-    const laneBottom = tops[spec.laneIndex]! + rowHeights[spec.laneIndex]!;
-    if (targetBottom > laneBottom + 0.5) {
-      rowHeights[spec.laneIndex]! += targetBottom - laneBottom;
-      changed = true;
+  if (visited === clusterIds.length) {
+    return { depths, hasCycle: false };
+  }
+  for (const id of clusterIds) {
+    if ((indegree.get(id) ?? 0) > 0) {
+      depths.set(id, firstSeq.get(id) ?? 0);
     }
   }
-  return changed;
+  return { depths, hasCycle: true };
 }
 
-function populateSkeletonFromDrafts(
-  drafts: readonly ClusterPlacementDraft[],
-  skeleton: ExcalidrawElementSkeleton[],
-  zoneSpecs: Map<string, ZoneFrameSpec>,
-): void {
-  for (const draft of drafts) {
-    const { placement, build, clusterX, clusterY } = draft;
-    skeleton.push(...translateSkeleton(build.skeleton, clusterX, clusterY));
-    zoneSpecs.set(draft.zoneKey, {
-      id: draft.zoneFrameId,
-      label: zoneLabelForGeo(placement.geo),
-      role: "subnetZone",
-      path: [
-        placement.geo.accountId,
-        placement.geo.region,
-        placement.geo.vpcId ?? "regional",
-        String(placement.geoInstanceId),
-        String(draft.col.columnIndex),
-        String(draft.lane),
-      ],
-      bounds: clusterBoundsForZone(clusterX, clusterY, build),
-      clusterFrameIds: [build.clusterFrameId],
-      vpcKey: draft.vpcKey,
-      regionalBandKey: draft.regionalBandKey,
-      accountId: placement.geo.accountId,
-      region: placement.geo.region,
-      columnIndex: draft.col.columnIndex,
-      laneIndex: draft.lane,
-    });
-  }
-}
-
-function primaryResourceCenterYInCluster(build: ClusterBuild): number {
-  for (const el of build.skeleton) {
-    if (el.type !== "rectangle") {
-      continue;
-    }
-    const cd = el.customData as Record<string, unknown> | undefined;
-    if (
-      cd?.terraformVisibilityRole === "resource" &&
-      cd.nodePath === build.primaryAddress
-    ) {
-      return (el.y ?? 0) + (el.height ?? 0) / 2;
-    }
-  }
-  return build.height / 2;
-}
-
-function minRowHeightForPrimaryCenteredCluster(build: ClusterBuild): number {
-  const primaryCy = primaryResourceCenterYInCluster(build);
-  return 2 * Math.max(primaryCy, build.height - primaryCy);
-}
-
-function firstMultiLaneColumnIndex(columns: readonly PipelineColumn[]): number {
-  return columns.findIndex((c) => c.laneCount > 1);
-}
-
-function fanoutSpanCenterY(rowGeo: PipelineRowGeometry): number {
-  const { rowHeights, rowTops, maxLaneCount } = rowGeo;
-  const spanTop = rowTops[0]!;
-  const spanBottom = rowTops[maxLaneCount - 1]! + rowHeights[maxLaneCount - 1]!;
-  return (spanTop + spanBottom) / 2;
-}
-
-function clusterYForPlacement(
-  col: PipelineColumn,
-  colIdx: number,
-  lane: number,
-  build: ClusterBuild,
-  rowGeo: PipelineRowGeometry,
-  columns: readonly PipelineColumn[],
-  accountLaneIndices?: readonly number[],
-  multiAccountBandLayout = false,
-): number {
-  const { rowHeights, rowTops, maxLaneCount } = rowGeo;
-  const primaryCy = primaryResourceCenterYInCluster(build);
-  const firstFanoutCol = firstMultiLaneColumnIndex(columns);
-
-  let rowCenterY: number;
-  if (col.laneCount === 1 && firstFanoutCol >= 0 && colIdx < firstFanoutCol) {
-    if (multiAccountBandLayout && accountLaneIndices?.length) {
-      const minLane = Math.min(...accountLaneIndices);
-      rowCenterY = rowTops[minLane]! + primaryCy;
-    } else {
-      rowCenterY = fanoutSpanCenterY(rowGeo);
-    }
-  } else if (col.laneCount === maxLaneCount) {
-    rowCenterY = rowTops[lane]! + rowHeights[lane]! / 2;
-  } else {
-    rowCenterY = rowTops[0]! + rowHeights[0]! / 2;
-  }
-
-  return rowCenterY - primaryCy;
+function laneKey(p: PipelinePlacement): string {
+  return [
+    p.providerFamily,
+    p.accountId,
+    p.region,
+    p.vpcId ?? "",
+    p.subnetSignature ?? "",
+  ].join("\0");
 }
 
 function translateSkeleton(
-  skeleton: readonly ExcalidrawElementSkeleton[],
+  skeleton: ExcalidrawElementSkeleton[],
   dx: number,
   dy: number,
 ): ExcalidrawElementSkeleton[] {
   return skeleton.map((el) => ({
     ...el,
-    x: (el.x ?? 0) + dx,
-    y: (el.y ?? 0) + dy,
+    x: (typeof el.x === "number" ? el.x : 0) + dx,
+    y: (typeof el.y === "number" ? el.y : 0) + dy,
   }));
 }
 
-function leafZoneFrameSkeleton(
-  id: string,
-  name: string,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  children: readonly string[],
-  path: string[],
-): ExcalidrawElementSkeleton {
-  return {
-    type: "frame",
-    id,
-    name: name.slice(0, 48),
-    x,
-    y,
-    width,
-    height,
-    children,
-    customData: {
-      terraform: true,
-      terraformPipelineOverview: true,
-      terraformTopologyRole: "subnetZone",
-      terraformTopologyPath: path,
-    },
-  };
+function boundsOf(
+  ids: readonly string[],
+  boxes: ReadonlyMap<string, TerraformDependencyLayoutBox>,
+) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const id of ids) {
+    const b = boxes.get(id);
+    if (!b) {
+      continue;
+    }
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width);
+    maxY = Math.max(maxY, b.y + b.height);
+  }
+  if (!Number.isFinite(minX)) {
+    return null;
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-/** Container frames: omit x/y/width/height so convert sizes from children (inner → outer order). */
-function containerFrameSkeleton(
-  id: string,
-  name: string,
-  children: readonly string[],
+function pipelineFrameCustomData(
   role: string,
-  path: string[],
-  customDataExtras?: Record<string, unknown>,
-): ExcalidrawElementSkeleton {
+  p: PipelinePlacement,
+  key: string,
+  extras?: Record<string, unknown>,
+) {
   return {
-    type: "frame",
-    id,
-    name: name.slice(0, 48),
-    children,
-    customData: {
-      terraform: true,
-      terraformPipelineOverview: true,
-      terraformTopologyRole: role,
-      terraformTopologyPath: path,
-      ...customDataExtras,
-    },
+    terraform: true,
+    terraformSemanticOverview: true,
+    terraformPipelineView: true,
+    terraformTopologyRole: role,
+    terraformTopologyKey: key,
+    terraformTopologyPath:
+      role === "provider"
+        ? [p.providerFamily]
+        : role === "account"
+        ? [p.providerFamily, p.accountId]
+        : role === "region"
+        ? [p.providerFamily, p.accountId, p.region]
+        : role === "vpc"
+        ? [p.providerFamily, p.accountId, p.region, p.vpcId]
+        : [
+            p.providerFamily,
+            p.accountId,
+            p.region,
+            p.vpcId,
+            p.subnetSignature,
+          ].filter(Boolean),
+    ...(p.subnetIds ? { terraformSubnetIds: p.subnetIds } : {}),
+    ...(extras ?? {}),
   };
 }
 
-function pipelineContainerPad(role: string): number {
-  switch (role) {
-    case "vpc":
-      return FRAME_PAD;
-    case "region":
-      return INNER_PAD;
-    case "account":
-      return AWS_FRAME_PAD / 2;
-    case "provider":
-      return AWS_FRAME_PAD;
-    default:
-      return FRAME_PAD;
-  }
-}
-
-function setFrameBounds(
-  frame: ExcalidrawElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): void {
-  const mutable = frame as ExcalidrawElement & {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  mutable.x = x;
-  mutable.y = y;
-  mutable.width = width;
-  mutable.height = height;
-}
-
-function resizePipelineContainerFrames(elements: ExcalidrawElement[]): void {
-  const roles = ["vpc", "region", "account", "provider"] as const;
-  for (const role of roles) {
-    const pad = pipelineContainerPad(role);
-    for (const frame of elements) {
-      if (frame.type !== "frame" || frame.isDeleted) {
-        continue;
-      }
-      const cd = frame.customData as Record<string, unknown> | undefined;
-      if (cd?.terraformTopologyRole !== role) {
-        continue;
-      }
-      const children = elements.filter(
-        (el) => !el.isDeleted && el.frameId === frame.id,
-      );
-      if (children.length === 0) {
-        continue;
-      }
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      for (const child of children) {
-        minX = Math.min(minX, child.x);
-        minY = Math.min(minY, child.y);
-        maxX = Math.max(maxX, child.x + child.width);
-        maxY = Math.max(maxY, child.y + child.height);
-      }
-      setFrameBounds(
-        frame,
-        minX - pad,
-        minY - pad,
-        maxX - minX + 2 * pad,
-        maxY - minY + 2 * pad,
-      );
-    }
-  }
-}
-
-function childBounds(
-  elements: ExcalidrawElement[],
-  frameId: string,
-): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const child of elements) {
-    if (child.isDeleted || child.frameId !== frameId) {
-      continue;
-    }
-    minX = Math.min(minX, child.x);
-    minY = Math.min(minY, child.y);
-    maxX = Math.max(maxX, child.x + child.width);
-    maxY = Math.max(maxY, child.y + child.height);
-  }
-  if (!Number.isFinite(minX)) {
-    return null;
-  }
-  return { minX, minY, maxX, maxY };
-}
-
-function translateElementsForAccount(
-  elements: ExcalidrawElement[],
-  accountId: string,
-  dx: number,
-  dy: number,
-): void {
-  if (dx === 0 && dy === 0) {
-    return;
-  }
-  for (const el of elements) {
-    if (el.isDeleted) {
-      continue;
-    }
-    const path = (el.customData as Record<string, unknown> | undefined)
-      ?.terraformTopologyPath;
-    if (!Array.isArray(path) || path[0] !== accountId) {
-      continue;
-    }
-    (el as { x: number; y: number }).x += dx;
-    (el as { y: number }).y += dy;
-  }
-}
-
-function alignMultiAccountPipelineFrames(
-  elements: ExcalidrawElement[],
-  accountBands: readonly PipelineAccountLaneBand[],
-): void {
-  const frameRole = (el: ExcalidrawElement) =>
-    String(
-      (el.customData as Record<string, unknown> | undefined)
-        ?.terraformTopologyRole ?? "",
-    );
-
-  const sortedBands = [...accountBands].sort(
-    (a, b) => a.minLane - b.minLane || a.accountId.localeCompare(b.accountId),
-  );
-
-  let prevAccountBottom = -Infinity;
-  for (const band of sortedBands) {
-    const accountFrame = elements.find((e) => {
-      if (e.isDeleted || e.type !== "frame" || frameRole(e) !== "account") {
-        return false;
-      }
-      const path = (e.customData as Record<string, unknown> | undefined)
-        ?.terraformTopologyPath as string[] | undefined;
-      return path?.[0] === band.accountId;
-    });
-    if (!accountFrame) {
-      continue;
-    }
-
-    const bounds = childBounds(elements, accountFrame.id);
-    if (!bounds) {
-      continue;
-    }
-
-    const pad = pipelineContainerPad("account");
-    const targetTop = Math.max(bounds.minY - pad, prevAccountBottom + LANE_GAP);
-    const dy = targetTop - (bounds.minY - pad);
-    if (dy > 0.5) {
-      translateElementsForAccount(elements, band.accountId, 0, dy);
-      bounds.minY += dy;
-      bounds.maxY += dy;
-    }
-
-    setFrameBounds(
-      accountFrame,
-      bounds.minX - pad,
-      bounds.minY - pad,
-      bounds.maxX - bounds.minX + 2 * pad,
-      bounds.maxY - bounds.minY + 2 * pad,
-    );
-    prevAccountBottom = accountFrame.y + accountFrame.height;
-  }
-
-  const awsFrame = elements.find(
-    (e) => !e.isDeleted && e.type === "frame" && frameRole(e) === "provider",
-  );
-  if (awsFrame) {
-    const bounds = childBounds(elements, awsFrame.id);
-    if (bounds) {
-      const pad = pipelineContainerPad("provider");
-      setFrameBounds(
-        awsFrame,
-        bounds.minX - pad,
-        bounds.minY - pad,
-        bounds.maxX - bounds.minX + 2 * pad,
-        bounds.maxY - bounds.minY + 2 * pad,
-      );
-    }
-  }
-}
-
-function specInAccountBand(
-  spec: ZoneFrameSpec,
-  accountBands: readonly {
-    accountId: string;
-    laneIndices: ReadonlySet<number>;
-  }[],
-  multiAccountBandLayout: boolean,
-): boolean {
-  if (!multiAccountBandLayout) {
-    return true;
-  }
-  const band = accountBands.find((b) => b.accountId === spec.accountId);
-  return band ? band.laneIndices.has(spec.laneIndex) : true;
-}
-
-function skeletonUnionBounds(
-  skeleton: readonly ExcalidrawElementSkeleton[],
-  pad: number,
-): Bounds {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const el of skeleton) {
-    const x = el.x ?? 0;
-    const y = el.y ?? 0;
-    const w = el.width ?? 0;
-    const h = el.height ?? 0;
-    if (w <= 0 && h <= 0) {
-      continue;
-    }
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x + w);
-    maxY = Math.max(maxY, y + h);
-  }
-  if (!Number.isFinite(minX)) {
-    return { x: 0, y: 0, width: MIN_FRAME_W, height: MIN_FRAME_H };
-  }
-  return {
-    x: minX - pad,
-    y: minY - pad,
-    width: maxX - minX + 2 * pad,
-    height: maxY - minY + 2 * pad,
-  };
-}
-
-function clusterBoundsForZone(
-  clusterX: number,
-  clusterY: number,
-  build: ClusterBuild,
-): Bounds {
-  return skeletonUnionBounds(
-    translateSkeleton(build.skeleton, clusterX, clusterY),
-    FRAME_PAD,
-  );
-}
-
-function regionGroupKey(accountId: string, region: string): string {
-  return `${accountId}|${region}`;
-}
-
-function zoneLabelForGeo(geo: PipelineGeoPath): string {
-  return geo.tier === "regional"
-    ? "Regional"
-    : `${geo.vpcId ? "VPC" : "Zone"} · ${pipelineGeoTierLabel(geo.tier)}`;
-}
-
-function unionZoneBounds(a: Bounds, b: Bounds): Bounds {
-  const minX = Math.min(a.x, b.x);
-  const minY = Math.min(a.y, b.y);
-  const maxX = Math.max(a.x + a.width, b.x + b.width);
-  const maxY = Math.max(a.y + a.height, b.y + b.height);
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
-}
-
-/** Coalesce key when fanout lanes share the same geo parent bucket, tier label, and column. */
-export function pipelineZoneCoalesceKey(
-  spec: PipelineZoneFrameSpec,
-): string | null {
-  const parentBucket = spec.vpcKey ?? spec.regionalBandKey;
-  if (!parentBucket) {
-    return null;
-  }
-  return `${parentBucket}|${spec.label}|col${spec.columnIndex}`;
-}
-
-function pipelineZoneFrameIdFromCoalesceKey(coalesceKey: string): string {
-  return `tf-pipe-zone:${coalesceKey.replace(/\|/g, ":")}`;
-}
-
-function mergedZonePath(first: ZoneFrameSpec): string[] {
-  if (first.vpcKey) {
-    const parts = first.vpcKey.split("|");
-    return [
-      parts[0] ?? first.accountId,
-      parts[1] ?? first.region,
-      parts[2] ?? "vpc",
-      parts[3] ?? "0",
-      String(first.columnIndex),
-    ];
-  }
-  const bandParts = first.regionalBandKey?.split("|");
-  const geoInstanceId = bandParts?.[3] ?? "0";
-  return [
-    first.accountId,
-    first.region,
-    "regional",
-    geoInstanceId,
-    String(first.columnIndex),
-  ];
-}
-
-/** Merge leaf subnetZone specs that share the same geographic parent and pipeline column. */
-export function coalescePipelineZoneSpecs(
-  zoneSpecs: Map<string, ZoneFrameSpec>,
-): Map<string, ZoneFrameSpec> {
-  const groups = new Map<string, ZoneFrameSpec[]>();
-
-  for (const spec of zoneSpecs.values()) {
-    const coalesceKey = pipelineZoneCoalesceKey(spec);
-    if (!coalesceKey) {
-      continue;
-    }
-    const group = groups.get(coalesceKey) ?? [];
-    group.push(spec);
-    groups.set(coalesceKey, group);
-  }
-
-  const out = new Map<string, ZoneFrameSpec>();
-
-  for (const [coalesceKey, group] of groups) {
-    if (group.length === 1) {
-      const only = group[0]!;
-      out.set(only.id, only);
-      continue;
-    }
-
-    const sorted = [...group].sort((a, b) => a.laneIndex - b.laneIndex);
-    const first = sorted[0]!;
-    let bounds = first.bounds;
-    const clusterFrameIds: string[] = [...first.clusterFrameIds];
-    let minLane = first.laneIndex;
-
-    for (let i = 1; i < sorted.length; i++) {
-      const spec = sorted[i]!;
-      bounds = unionZoneBounds(bounds, spec.bounds);
-      clusterFrameIds.push(...spec.clusterFrameIds);
-      minLane = Math.min(minLane, spec.laneIndex);
-    }
-
-    const id = pipelineZoneFrameIdFromCoalesceKey(coalesceKey);
-    out.set(id, {
-      id,
-      label: first.label,
+function pushContextFrames(
+  skeleton: ExcalidrawElementSkeleton[],
+  clusters: readonly PipelineCluster[],
+  boxes: Map<string, TerraformDependencyLayoutBox>,
+) {
+  const levels: Array<{
+    role: "subnetZone" | "vpc" | "region" | "account" | "provider";
+    keyOf: (c: PipelineCluster) => string | null;
+  }> = [
+    {
       role: "subnetZone",
-      path: mergedZonePath(first),
-      bounds,
-      clusterFrameIds,
-      vpcKey: first.vpcKey,
-      regionalBandKey: first.regionalBandKey,
-      accountId: first.accountId,
-      region: first.region,
-      columnIndex: first.columnIndex,
-      laneIndex: minLane,
-    });
+      keyOf: (c) =>
+        c.placement.vpcId && c.placement.subnetSignature != null
+          ? laneKey(c.placement)
+          : null,
+    },
+    {
+      role: "vpc",
+      keyOf: (c) =>
+        c.placement.vpcId
+          ? [
+              c.placement.providerFamily,
+              c.placement.accountId,
+              c.placement.region,
+              c.placement.vpcId,
+            ].join("\0")
+          : null,
+    },
+    {
+      role: "region",
+      keyOf: (c) =>
+        [
+          c.placement.providerFamily,
+          c.placement.accountId,
+          c.placement.region,
+        ].join("\0"),
+    },
+    {
+      role: "account",
+      keyOf: (c) =>
+        [c.placement.providerFamily, c.placement.accountId].join("\0"),
+    },
+    {
+      role: "provider",
+      keyOf: (c) => c.placement.providerFamily,
+    },
+  ];
+
+  const childIdsByKey = new Map<string, string[]>();
+  for (const cluster of clusters) {
+    childIdsByKey.set(cluster.id, [cluster.build.clusterFrameId]);
   }
 
-  return out;
-}
-
-/** @deprecated Use {@link pipelineZoneCoalesceKey}. */
-export const regionalZoneCoalesceKey = pipelineZoneCoalesceKey;
-
-/** @deprecated Use {@link coalescePipelineZoneSpecs}. */
-export const coalesceRegionalZoneSpecs = coalescePipelineZoneSpecs;
-
-function collectLayoutBoxesFromSkeleton(
-  skeleton: readonly ExcalidrawElementSkeleton[],
-): Record<string, TerraformDependencyLayoutBox> {
-  const boxes: Record<string, TerraformDependencyLayoutBox> = {};
-  for (const el of skeleton) {
-    if (el.type !== "rectangle" || typeof el.id !== "string") {
-      continue;
+  for (const level of levels) {
+    const groups = new Map<string, PipelineCluster[]>();
+    for (const cluster of clusters) {
+      const key = level.keyOf(cluster);
+      if (!key) {
+        continue;
+      }
+      groups.set(key, [...(groups.get(key) ?? []), cluster]);
     }
-    const cd = el.customData as Record<string, unknown> | undefined;
-    if (cd?.terraformVisibilityRole !== "resource") {
-      continue;
+    for (const [key, group] of groups) {
+      const childIds = group.map((c) => {
+        const lower =
+          level.role === "subnetZone"
+            ? c.id
+            : level.role === "vpc"
+            ? laneKey(c.placement)
+            : level.role === "region"
+            ? c.placement.vpcId
+              ? [
+                  c.placement.providerFamily,
+                  c.placement.accountId,
+                  c.placement.region,
+                  c.placement.vpcId,
+                ].join("\0")
+              : c.id
+            : level.role === "account"
+            ? [
+                c.placement.providerFamily,
+                c.placement.accountId,
+                c.placement.region,
+              ].join("\0")
+            : [c.placement.providerFamily, c.placement.accountId].join("\0");
+        return childIdsByKey.get(lower)?.[0] ?? group[0]!.build.clusterFrameId;
+      });
+      const uniqueChildIds = [...new Set(childIds)];
+      const b = boundsOf(uniqueChildIds, boxes);
+      if (!b) {
+        continue;
+      }
+      const placement = group[0]!.placement;
+      const id = `tf-pipeline:${level.role}:${encodeURIComponent(key)}`;
+      const pad = FRAME_PAD;
+      skeleton.push({
+        type: "frame",
+        id,
+        name:
+          level.role === "provider"
+            ? placement.providerFamily
+            : level.role === "account"
+            ? `Account ${placement.accountId}`
+            : level.role === "region"
+            ? `Region ${placement.region}`
+            : level.role === "vpc"
+            ? `VPC ${placement.vpcId}`
+            : placement.subnetTier
+            ? `${placement.subnetTier} subnet zone`
+            : "subnet zone",
+        x: b.x - pad,
+        y: b.y - pad,
+        width: b.width + 2 * pad,
+        height: b.height + 2 * pad,
+        children: uniqueChildIds,
+        customData: pipelineFrameCustomData(level.role, placement, id, {
+          terraformSubnetSignature: placement.subnetSignature,
+          terraformSubnetTier: placement.subnetTier,
+        }),
+      });
+      boxes.set(id, {
+        x: b.x - pad,
+        y: b.y - pad,
+        width: b.width + 2 * pad,
+        height: b.height + 2 * pad,
+      });
+      childIdsByKey.set(key, [id]);
     }
-    boxes[el.id] = {
-      x: el.x ?? 0,
-      y: el.y ?? 0,
-      width: el.width ?? 0,
-      height: el.height ?? 0,
-    };
-  }
-  return boxes;
-}
-
-function normalizeOrigin(elements: ExcalidrawElement[]) {
-  let minX = Infinity;
-  let minY = Infinity;
-  for (const el of elements) {
-    if (el.isDeleted) {
-      continue;
-    }
-    minX = Math.min(minX, el.x);
-    minY = Math.min(minY, el.y);
-  }
-  if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
-    return;
-  }
-  const dx = MARGIN - minX;
-  const dy = MARGIN - minY;
-  if (dx === 0 && dy === 0) {
-    return;
-  }
-  for (const el of elements) {
-    if (el.isDeleted) {
-      continue;
-    }
-    (el as { x: number; y: number }).x += dx;
-    (el as { y: number }).y += dy;
   }
 }
 
 export async function buildTerraformPipelineExcalidrawScene(
   nodes: TerraformPlanNodesMap,
   plan: unknown,
-  tfdTexts: readonly string[],
 ): Promise<{
   elements: ExcalidrawElement[];
-  meta: TerraformPipelineSceneMeta;
-  files?: BinaryFiles;
+  meta: Record<string, unknown>;
+  warnings: TerraformImportWarning[];
 }> {
-  const atomGraph = buildPipelineAtomGraph(nodes, plan, tfdTexts);
-  if (!atomGraph || atomGraph.atoms.size === 0) {
-    return {
-      elements: [],
-      meta: {
-        layoutEngine: "pipeline",
-        atomCount: 0,
-        columnCount: 0,
-        geoInstanceCount: 0,
-        declaredEdgeCount: 0,
-        skippedLayout: true,
-        skipReason: "empty_pipeline",
-      },
-    };
+  const declared = nodes[DECLARED_DATAFLOW_ORDERED_KEY];
+  if (!Array.isArray(declared) || declared.length === 0) {
+    throw new Error(
+      "Pipeline view requires at least one resolved .tfd dataflow edge.",
+    );
   }
 
-  const geoMap = buildPipelineAtomGeoMap(atomGraph, nodes, plan);
-  const layoutPlan = buildPipelineLayoutPlan(atomGraph, geoMap);
-
-  const clusterBuilds = new Map<string, ClusterBuild>();
-  for (const placement of layoutPlan.placements) {
-    const { primaryAddress, geo } = placement;
-    if (clusterBuilds.has(primaryAddress)) {
-      continue;
+  const satelliteOwners = buildSatelliteOwnerMap(nodes, plan);
+  const placementByAddress = buildPlacementMap(nodes, plan);
+  const firstSequence = new Map<string, number>();
+  const collapsedEdges: Array<{
+    source: string;
+    target: string;
+    sequence: number;
+    original: DeclaredDataFlowEdge;
+  }> = [];
+  for (const edge of [...declared].sort((a, b) => a.sequence - b.sequence)) {
+    const source = collapseEndpoint(nodes, satelliteOwners, edge.source);
+    const target = collapseEndpoint(nodes, satelliteOwners, edge.target);
+    firstSequence.set(
+      source,
+      Math.min(firstSequence.get(source) ?? edge.sequence, edge.sequence),
+    );
+    firstSequence.set(
+      target,
+      Math.min(firstSequence.get(target) ?? edge.sequence, edge.sequence),
+    );
+    if (source !== target) {
+      collapsedEdges.push({
+        source,
+        target,
+        sequence: edge.sequence,
+        original: edge,
+      });
     }
-    const built = buildTopologyPrimaryClusterSkeletonForPipeline(
-      primaryAddress,
+  }
+
+  const clusterIds = [...firstSequence.keys()].sort(
+    (a, b) =>
+      (firstSequence.get(a) ?? 0) - (firstSequence.get(b) ?? 0) ||
+      a.localeCompare(b),
+  );
+  const depthResult = computeDepths(collapsedEdges, clusterIds);
+
+  const clusters: PipelineCluster[] = clusterIds.map((address) => {
+    const placement = placementByAddress.get(address) ?? {
+      providerFamily: providerFamilyForType(resourceTypeFor(nodes, address)),
+      accountId: "unknown-account",
+      region: "unknown-region",
+      vpcId: null,
+    };
+    let build = buildTopologyPrimaryClusterSkeletonForPipeline(
+      address,
       nodes,
       plan,
       {
-        accountId: geo.accountId,
-        region: geo.region,
-        vpcId: geo.vpcId,
+        accountId: placement.accountId,
+        region: placement.region,
+        vpcId: placement.vpcId,
+        subnetTier: placement.subnetTier,
+        subnetSignature: placement.subnetSignature,
       },
     );
-    clusterBuilds.set(primaryAddress, {
-      primaryAddress,
-      ...built,
-    });
-  }
-
-  const columnWidths: number[] = layoutPlan.columns.map((col) => {
-    let maxW = 0;
-    for (const addr of col.atoms) {
-      const b = clusterBuilds.get(addr);
-      if (b) {
-        maxW = Math.max(maxW, b.width);
-      }
+    if (build.skeleton.length === 0 || build.width <= 0 || build.height <= 0) {
+      build = buildFallbackCluster(address, nodes, plan, placement);
     }
-    return maxW + 2 * INNER_PAD;
+    return {
+      id: address,
+      primaryAddress: address,
+      firstSequence: firstSequence.get(address) ?? 0,
+      depth: depthResult.depths.get(address) ?? 0,
+      placement,
+      build,
+    };
   });
 
-  const contentTop = AWS_FRAME_PAD;
-  const accountBands = buildPipelineAccountLaneBands(layoutPlan.placements);
-  const multiAccountBandLayout = accountBands.length > 1;
-  let rowGeo = computePipelineRowGeometry(
-    layoutPlan,
-    clusterBuilds,
-    contentTop,
-    undefined,
-    accountBands,
-    multiAccountBandLayout,
+  const maxDepth = Math.max(0, ...clusters.map((c) => c.depth));
+  const columnWidths = Array.from({ length: maxDepth + 1 }, (_, depth) =>
+    Math.max(
+      260,
+      ...clusters.filter((c) => c.depth === depth).map((c) => c.build.width),
+    ),
   );
-
-  const columnXByIndex = new Map<number, number>();
-  let columnX = AWS_FRAME_PAD;
-  for (const col of layoutPlan.columns) {
-    columnXByIndex.set(col.columnIndex, columnX);
-    columnX += (columnWidths[col.columnIndex] ?? MIN_FRAME_W) + COLUMN_GAP;
+  const columnX: number[] = [];
+  let x = MARGIN + FRAME_PAD * 5;
+  for (let i = 0; i < columnWidths.length; i++) {
+    columnX[i] = x;
+    x += columnWidths[i]! + COLUMN_GAP;
   }
 
-  const accountLaneIndicesByAccount = new Map(
-    accountBands.map((band) => [
-      band.accountId,
-      [...band.laneIndices].sort((a, b) => a - b),
-    ]),
-  );
-  const firstFanoutCol = firstMultiLaneColumnIndex(layoutPlan.columns);
-
-  const buildDrafts = (geo: PipelineRowGeometry): ClusterPlacementDraft[] => {
-    const drafts: ClusterPlacementDraft[] = [];
-    for (const col of layoutPlan.columns) {
-      const colX = columnXByIndex.get(col.columnIndex) ?? AWS_FRAME_PAD;
-      const preFanoutColumn =
-        col.laneCount === 1 &&
-        firstFanoutCol >= 0 &&
-        col.columnIndex < firstFanoutCol;
-      for (let lane = 0; lane < col.atoms.length; lane++) {
-        const addr = col.atoms[lane]!;
-        const placement = layoutPlan.placements.find(
-          (p) => p.primaryAddress === addr && p.columnIndex === col.columnIndex,
-        );
-        if (!placement) {
-          continue;
-        }
-        const build = clusterBuilds.get(addr);
-        if (!build) {
-          continue;
-        }
-        const clusterX = colX + INNER_PAD;
-        const clusterY = clusterYForPlacement(
-          col,
-          col.columnIndex,
-          lane,
-          build,
-          geo,
-          layoutPlan.columns,
-          accountLaneIndicesByAccount.get(placement.geo.accountId),
-          multiAccountBandLayout,
-        );
-        const vpcKey = placement.geo.vpcId
-          ? `${placement.geo.accountId}|${placement.geo.region}|${placement.geo.vpcId}|${placement.geoInstanceId}`
-          : null;
-        const regionalBandKey =
-          placement.geo.tier === "regional"
-            ? `${placement.geo.accountId}|${placement.geo.region}|regional|${placement.geoInstanceId}`
-            : null;
-        const zoneKey = `${placement.geoInstanceKey}|col${col.columnIndex}|lane${lane}`;
-        drafts.push({
-          col,
-          lane,
-          placement,
-          build,
-          columnX: colX,
-          clusterX,
-          clusterY,
-          bounds: clusterBoundsForZone(clusterX, clusterY, build),
-          vpcKey,
-          regionalBandKey,
-          zoneKey,
-          zoneFrameId: `tf-pipe-zone:${zoneKey}`,
-          preFanoutColumn,
-        });
-      }
-    }
-    return drafts;
-  };
-
-  let drafts = buildDrafts(rowGeo);
-  if (
-    inflateRowHeightsFromZoneBounds(
-      rowGeo.rowHeights,
-      drafts,
-      contentTop,
-      accountLaneIndicesByAccount,
-      multiAccountBandLayout,
-      accountBands,
-    )
-  ) {
-    rowGeo = computePipelineRowGeometry(
-      layoutPlan,
-      clusterBuilds,
-      contentTop,
-      rowGeo.rowHeights,
-      accountBands,
-      multiAccountBandLayout,
-    );
-    drafts = buildDrafts(rowGeo);
+  const lanes = new Map<string, PipelineCluster[]>();
+  for (const cluster of clusters) {
+    const key = laneKey(cluster.placement);
+    lanes.set(key, [...(lanes.get(key) ?? []), cluster]);
   }
-
+  const laneEntries = [...lanes.entries()].sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
   const skeleton: ExcalidrawElementSkeleton[] = [];
-  const zoneSpecs = new Map<string, ZoneFrameSpec>();
+  const layoutBoxes = new Map<string, TerraformDependencyLayoutBox>();
 
-  populateSkeletonFromDrafts(drafts, skeleton, zoneSpecs);
-  if (
-    inflateRowHeightsFromZoneSpecBounds(
-      rowGeo.rowHeights,
-      zoneSpecs,
-      contentTop,
-      accountBands,
-      multiAccountBandLayout,
-    )
-  ) {
-    rowGeo = computePipelineRowGeometry(
-      layoutPlan,
-      clusterBuilds,
-      contentTop,
-      rowGeo.rowHeights,
-      accountBands,
-      multiAccountBandLayout,
+  let laneY = MARGIN + FRAME_PAD * 5;
+  for (const [, laneClusters] of laneEntries) {
+    const colY = new Map<number, number>();
+    for (let d = 0; d <= maxDepth; d++) {
+      colY.set(d, laneY);
+    }
+    const ordered = [...laneClusters].sort(
+      (a, b) =>
+        a.depth - b.depth ||
+        a.firstSequence - b.firstSequence ||
+        a.id.localeCompare(b.id),
     );
-    skeleton.length = 0;
-    zoneSpecs.clear();
-    drafts = buildDrafts(rowGeo);
-    populateSkeletonFromDrafts(drafts, skeleton, zoneSpecs);
-  }
-
-  // Pass 2: AWS → account → region → vpc → subnetZone (container bounds from children post-convert).
-  const coalescedZoneSpecs = coalescePipelineZoneSpecs(zoneSpecs);
-  const zoneFrames: ExcalidrawElementSkeleton[] = [];
-  for (const spec of coalescedZoneSpecs.values()) {
-    zoneFrames.push(
-      leafZoneFrameSkeleton(
-        spec.id,
-        spec.label,
-        spec.bounds.x,
-        spec.bounds.y,
-        spec.bounds.width,
-        spec.bounds.height,
-        spec.clusterFrameIds,
-        spec.path,
-      ),
-    );
-  }
-
-  const vpcGroups = new Map<string, ZoneFrameSpec[]>();
-  for (const spec of coalescedZoneSpecs.values()) {
-    if (!spec.vpcKey) {
-      continue;
-    }
-    if (!specInAccountBand(spec, accountBands, multiAccountBandLayout)) {
-      continue;
-    }
-    const groupKey = multiAccountBandLayout
-      ? `${spec.vpcKey}|lane${spec.laneIndex}`
-      : spec.vpcKey!;
-    const list = vpcGroups.get(groupKey) ?? [];
-    list.push(spec);
-    vpcGroups.set(groupKey, list);
-  }
-
-  const regionalZonesByRegion = new Map<string, ZoneFrameSpec[]>();
-  for (const spec of coalescedZoneSpecs.values()) {
-    if (spec.vpcKey) {
-      continue;
-    }
-    if (!specInAccountBand(spec, accountBands, multiAccountBandLayout)) {
-      continue;
-    }
-    const key = regionGroupKey(spec.accountId, spec.region);
-    const list = regionalZonesByRegion.get(key) ?? [];
-    list.push(spec);
-    regionalZonesByRegion.set(key, list);
-  }
-
-  const vpcFrames: ExcalidrawElementSkeleton[] = [];
-  for (const [groupKey, zones] of vpcGroups) {
-    const parts = zones[0]!.vpcKey!.split("|");
-    const vpcId = parts[2] ?? "vpc";
-    const accountId = parts[0] ?? "unknown-account";
-    const regionName = parts[1] ?? "unknown-region";
-    vpcFrames.push(
-      containerFrameSkeleton(
-        `tf-pipe-vpc:${groupKey}`,
-        `VPC ${vpcId.slice(0, 16)}`,
-        zones.map((z) => z.id),
-        "vpc",
-        [accountId, regionName, vpcId, parts[3] ?? "0"],
-      ),
-    );
-  }
-
-  const regionKeys = new Set<string>([
-    ...regionalZonesByRegion.keys(),
-    ...[...vpcGroups.values()].map((zones) =>
-      regionGroupKey(zones[0]!.accountId, zones[0]!.region),
-    ),
-  ]);
-
-  const regionFrames: ExcalidrawElementSkeleton[] = [];
-  const accountRegionIds = new Map<string, string[]>();
-
-  for (const key of regionKeys) {
-    const [accountId, regionName] = key.split("|");
-    if (!accountId || !regionName) {
-      continue;
-    }
-    const childIds: string[] = [];
-
-    for (const [groupKey, zones] of vpcGroups) {
-      const sample = zones[0]!;
-      if (sample.accountId !== accountId || sample.region !== regionName) {
-        continue;
-      }
-      childIds.push(`tf-pipe-vpc:${groupKey}`);
-    }
-
-    for (const spec of regionalZonesByRegion.get(key) ?? []) {
-      childIds.push(spec.id);
-    }
-
-    if (childIds.length === 0) {
-      continue;
-    }
-
-    const regionFrameId = `tf-pipe-region:${accountId}/${regionName}`;
-    regionFrames.push(
-      containerFrameSkeleton(regionFrameId, regionName, childIds, "region", [
-        accountId,
-        regionName,
-      ]),
-    );
-    const regionIds = accountRegionIds.get(accountId) ?? [];
-    regionIds.push(regionFrameId);
-    accountRegionIds.set(accountId, regionIds);
-  }
-
-  const accountFrames: ExcalidrawElementSkeleton[] = [];
-  for (const band of accountBands) {
-    const regionIds = (accountRegionIds.get(band.accountId) ?? []).filter(
-      (regionFrameId) => {
-        if (!multiAccountBandLayout) {
-          return true;
-        }
-        const suffix = regionFrameId.replace(
-          `tf-pipe-region:${band.accountId}/`,
-          "",
-        );
-        return [...coalescedZoneSpecs.values()].some(
-          (z) =>
-            z.accountId === band.accountId &&
-            z.region === suffix &&
-            band.laneIndices.has(z.laneIndex),
-        );
-      },
-    );
-    if (regionIds.length === 0) {
-      continue;
-    }
-    accountFrames.push(
-      containerFrameSkeleton(
-        `tf-pipe-account:${band.accountId}`,
-        `Account ${band.accountId}`,
-        regionIds,
-        "account",
-        [band.accountId],
-      ),
-    );
-  }
-
-  const awsFrames: ExcalidrawElementSkeleton[] = [];
-  if (accountFrames.length > 0) {
-    awsFrames.push(
-      containerFrameSkeleton(
-        "tf-pipe-provider:aws",
-        "AWS",
-        accountFrames.map((f) => f.id!),
-        "provider",
-        ["aws"],
-        { terraformProviderFamily: "aws" },
-      ),
-    );
-  }
-
-  // Inner → outer so convertToExcalidrawElements sizes parents from sized children.
-  skeleton.push(
-    ...zoneFrames,
-    ...vpcFrames,
-    ...regionFrames,
-    ...accountFrames,
-    ...awsFrames,
-  );
-
-  const layoutBoxes = collectLayoutBoxesFromSkeleton(skeleton);
-  const declaredEdges = nodes[DECLARED_DATAFLOW_ORDERED_KEY] ?? [];
-
-  const declaredEdgeRecords = declaredEdges.map((e) => ({
-    source: e.source,
-    target: e.target,
-    type: "declared_dataflow",
-    label: "declared",
-    origin: "tfd" as const,
-    detail: String(e.sequence),
-  }));
-
-  skeleton.push(
-    ...buildPipelineDeclaredDataFlowLineSkeletons(
-      nodes,
-      layoutBoxes,
-      declaredEdgeRecords,
-    ),
-  );
-
-  for (const el of skeleton) {
-    if (el.customData && typeof el.customData === "object") {
-      (el as { customData: Record<string, unknown> }).customData = {
-        ...(el.customData as Record<string, unknown>),
-        terraformPipelineOverview: true,
+    for (const cluster of ordered) {
+      const cx = columnX[cluster.depth]!;
+      const cy = colY.get(cluster.depth)!;
+      const translated = translateSkeleton(cluster.build.skeleton, cx, cy);
+      skeleton.push(...translated);
+      const frame = translated.find(
+        (el) => el.id === cluster.build.clusterFrameId,
+      );
+      const frameBox = {
+        x: typeof frame?.x === "number" ? frame.x : cx,
+        y: typeof frame?.y === "number" ? frame.y : cy,
+        width:
+          typeof frame?.width === "number" ? frame.width : cluster.build.width,
+        height:
+          typeof frame?.height === "number"
+            ? frame.height
+            : cluster.build.height,
       };
+      layoutBoxes.set(cluster.build.clusterFrameId, {
+        ...frameBox,
+      });
+      layoutBoxes.set(cluster.id, {
+        ...frameBox,
+      });
+      colY.set(cluster.depth, frameBox.y + frameBox.height + CLUSTER_GAP_Y);
     }
+    laneY =
+      Math.max(...Array.from(colY.values()), laneY + 1) +
+      LANE_GAP_Y +
+      FRAME_PAD * 4;
   }
+
+  pushContextFrames(skeleton, clusters, layoutBoxes);
+
+  const pipelineNodes = { ...nodes } as TerraformPlanNodesMap;
+  pipelineNodes[DECLARED_DATAFLOW_ORDERED_KEY] = collapsedEdges.map((edge) => ({
+    source: edge.source,
+    target: edge.target,
+    sequence: edge.sequence,
+    origin: "tfd",
+  }));
+  const originalBySequence = new Map(
+    collapsedEdges.map((edge) => [edge.sequence, edge.original]),
+  );
+  skeleton.push(
+    ...buildTerraformDeclaredDataFlowLineSkeletons(
+      pipelineNodes,
+      Object.fromEntries(layoutBoxes.entries()),
+      collectDeclaredDataFlowEdges(pipelineNodes),
+      new Set(),
+      { terraformSemanticOverview: true },
+    ).map((line) => ({
+      ...line,
+      customData: {
+        ...(line.customData ?? {}),
+        terraformPipelineView: true,
+        relationship: {
+          ...((line.customData as { relationship?: Record<string, unknown> })
+            ?.relationship ?? {}),
+          ...(() => {
+            const sequence = (
+              line.customData as {
+                relationship?: { sequence?: unknown };
+              }
+            )?.relationship?.sequence;
+            const original =
+              typeof sequence === "number"
+                ? originalBySequence.get(sequence)
+                : undefined;
+            return original
+              ? {
+                  terraformPipelineOriginalSource: original.source,
+                  terraformPipelineOriginalTarget: original.target,
+                  terraformPipelineOriginalSequence: original.sequence,
+                }
+              : {};
+          })(),
+        },
+      },
+    })),
+  );
 
   let elements = convertToExcalidrawElements(skeleton, {
     regenerateIds: true,
   }) as ExcalidrawElement[];
-
-  resizePipelineContainerFrames(elements);
-  if (multiAccountBandLayout) {
-    alignMultiAccountPipelineFrames(elements, accountBands);
-  }
-
-  elements = mirrorAndDetachTerraformResourceLabels(elements);
   elements = await injectTerraformAwsIconsIntoElements(elements);
   elements = reconcileTerraformVisibility(
     repairTerraformEdgeBindings(elements),
     {
-      pins: {
-        ...TERRAFORM_IMPORT_EDGE_LAYER_PINS,
-        declaredDataFlow: true,
-      },
+      pins: TERRAFORM_IMPORT_EDGE_LAYER_PINS,
       hoverPeekKey: null,
     },
   );
-  elements = reorderTopologyElementsZStack(elements);
-  normalizeOrigin(elements);
 
   return {
     elements,
     meta: {
       layoutEngine: "pipeline",
-      atomCount: atomGraph.atoms.size,
-      columnCount: layoutPlan.columns.length,
-      geoInstanceCount: layoutPlan.geoInstanceCount,
-      declaredEdgeCount: declaredEdges.length,
+      pipelineClusterCount: clusters.length,
+      pipelineEdgeCount: collapsedEdges.length,
+      pipelineColumnCount: maxDepth + 1,
     },
+    warnings: depthResult.hasCycle
+      ? [
+          {
+            code: "pipeline_cycle",
+            message:
+              "Pipeline view detected a cycle after collapsing .tfd endpoints; order fell back to first .tfd occurrence.",
+          } as TerraformImportWarning,
+        ]
+      : [],
   };
 }
