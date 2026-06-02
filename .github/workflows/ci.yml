@@ -1,5 +1,5 @@
 # Mirrors local git hooks:
-#   pre-push    → lint job (ESLint, Prettier, tsc) + prepush job (coverage, ESM build, size-limit)
+#   pre-push    → lint job (ESLint, Prettier, tsc, Knip, depcheck) + prepush job (coverage, ESM build, size-limit)
 #   test:commit → test job (vitest) — manual / workflow_dispatch only
 name: CI
 
@@ -43,6 +43,19 @@ jobs:
 
       - name: Typecheck
         run: yarn test:typecheck
+
+      - name: Architecture lint (dependency-cruiser)
+        run: yarn lint:arch
+
+      - name: Oxlint (report-only)
+        run: yarn lint:oxlint
+        continue-on-error: true
+
+      - name: Knip
+        run: yarn knip
+
+      - name: Depcheck
+        run: yarn depcheck
 
   test:
     name: Test

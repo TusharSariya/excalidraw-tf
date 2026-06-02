@@ -59,6 +59,104 @@
           }
         ]
       }
+    },
+    {
+      "files": ["packages/excalidraw/components/terraform*.{ts,tsx}", "packages/excalidraw/components/Terraform*.{ts,tsx}"],
+      "excludedFiles": [
+        "packages/excalidraw/components/terraformTopologyLayout.ts",
+        "packages/excalidraw/components/terraformTopologyPlacement.ts",
+        "packages/excalidraw/components/terraformElkLayout.ts",
+        "packages/excalidraw/components/terraformVisibility.ts",
+        "packages/excalidraw/components/terraformTopologySatelliteRenderers.ts",
+        "packages/excalidraw/components/terraformTopologyEcsLinks.ts",
+        "packages/excalidraw/components/terraformTopologySgLinks.ts",
+        "packages/excalidraw/components/terraformPlanParsing.tsx",
+        "packages/excalidraw/components/terraformDataFlowEdges.ts",
+        "packages/excalidraw/components/terraformTopologyApiGatewayLinks.ts",
+        "packages/excalidraw/components/terraformTopologyLayout.test.ts",
+        "packages/excalidraw/components/terraformTopologyPlacement.test.ts",
+        "packages/excalidraw/components/terraformElkLayout.test.ts",
+        "packages/excalidraw/components/terraformPlanParsing.test.ts",
+        "packages/excalidraw/components/terraformTopologySgLinks.test.ts"
+      ],
+      "rules": {
+        "max-lines": [
+          "error",
+          {
+            "max": 800,
+            "skipComments": true,
+            "skipBlankLines": true
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/excalidraw/components/terraformTopologyLayout.ts",
+        "packages/excalidraw/components/terraformTopologyPlacement.ts",
+        "packages/excalidraw/components/terraformElkLayout.ts",
+        "packages/excalidraw/components/terraformVisibility.ts",
+        "packages/excalidraw/components/terraformTopologySatelliteRenderers.ts",
+        "packages/excalidraw/components/terraformTopologyEcsLinks.ts",
+        "packages/excalidraw/components/terraformTopologySgLinks.ts",
+        "packages/excalidraw/components/terraformPlanParsing.tsx",
+        "packages/excalidraw/components/terraformDataFlowEdges.ts",
+        "packages/excalidraw/components/terraformTopologyApiGatewayLinks.ts",
+        "packages/excalidraw/components/terraformTopologyLayout.test.ts",
+        "packages/excalidraw/components/terraformTopologyPlacement.test.ts",
+        "packages/excalidraw/components/terraformElkLayout.test.ts",
+        "packages/excalidraw/components/terraformPlanParsing.test.ts",
+        "packages/excalidraw/components/terraformTopologySgLinks.test.ts"
+      ],
+      "rules": {
+        "max-lines": "off"
+      }
+    },
+    {
+      "files": [
+        "packages/excalidraw/components/terraformLayoutCore.ts",
+        "packages/excalidraw/components/terraformSceneApply.ts",
+        "packages/excalidraw/components/terraformImportMerge.ts",
+        "packages/excalidraw/components/terraformImportDialogUtils.ts",
+        "packages/excalidraw/components/terraformElementActionsSelection.ts",
+        "packages/excalidraw/components/useTerraformImportDialog.ts",
+        "packages/excalidraw/components/useTerraformRelationshipFocusEffect.ts",
+        "packages/excalidraw/components/TerraformSelectedShapeActions.tsx"
+      ],
+      "plugins": ["sonarjs", "@typescript-eslint"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "project": "./tsconfig.json",
+        "tsconfigRootDir": "."
+      },
+      "rules": {
+        "sonarjs/cognitive-complexity": ["error", 25],
+        "sonarjs/no-duplicate-string": ["warn", { "threshold": 5 }],
+        "sonarjs/no-identical-functions": "warn",
+        "sonarjs/no-all-duplicated-branches": "warn",
+        "sonarjs/no-collapsible-if": "warn",
+        "@typescript-eslint/no-floating-promises": "error",
+        "@typescript-eslint/no-misused-promises": "error",
+        "@typescript-eslint/await-thenable": "error",
+        "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+        "@typescript-eslint/restrict-template-expressions": "warn"
+      }
+    },
+    {
+      "files": ["packages/excalidraw/components/terraformDataFlowEdges.ts"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "project": "./tsconfig.json",
+        "tsconfigRootDir": "."
+      },
+      "plugins": ["@typescript-eslint"],
+      "rules": {
+        "@typescript-eslint/no-floating-promises": "error",
+        "@typescript-eslint/no-misused-promises": "error",
+        "@typescript-eslint/await-thenable": "error",
+        "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+        "@typescript-eslint/restrict-template-expressions": "warn"
+      }
     }
   ]
 }
