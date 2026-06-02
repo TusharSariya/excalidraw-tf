@@ -12,13 +12,13 @@ Import Terraform/OpenTofu plan JSON and graph DOT files, review the generated in
     <img alt="CI" src="https://github.com/TusharSariya/excalidraw-tf/actions/workflows/ci.yml/badge.svg" />
   </a>
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-339933" />
-  <a href="https://master-ainur.tushar-sariya77.workers.dev/demo">
+  <a href="https://tfdraw.dev/demo">
     <img alt="Live demo" src="https://img.shields.io/badge/live-demo-0f766e" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://master-ainur.tushar-sariya77.workers.dev/demo">Open live demo</a>
+  <a href="https://tfdraw.dev/demo">Open live demo</a>
   |
   <a href="https://github.com/TusharSariya/excalidraw-tf">GitHub repository</a>
 </p>
@@ -28,14 +28,14 @@ Import Terraform/OpenTofu plan JSON and graph DOT files, review the generated in
 ## How it works
 
 1. You run Terraform or OpenTofu locally and export **plan JSON** (`terraform show -json`) and **graph DOT** (`terraform graph -type=plan`) from the same working directory.
-2. You open the [hosted demo](https://master-ainur.tushar-sariya77.workers.dev/demo) or a local dev build and choose **Import Terraform** (`Ctrl/Cmd+Shift+K`).
+2. You open the [hosted demo](https://tfdraw.dev/demo) or a local dev build and choose **Import Terraform** (`Ctrl/Cmd+Shift+K`).
 3. The browser parses those files into Excalidraw elements: resource cards, dependency edges, module frames, and cloud hierarchy (account, region, VPC, subnets).
 4. Optionally you attach a **`.tfd`** file to add **declared dataflow** arrows (blue) in a fixed order; IAM-inferred **data flow** (grey) still comes from the plan.
 5. You edit, save locally, or export the scene like any other Excalidraw drawing.
 
 ## Quick start
 
-**Hosted app:** [https://master-ainur.tushar-sariya77.workers.dev/demo](https://master-ainur.tushar-sariya77.workers.dev/demo)
+**Hosted app:** [https://tfdraw.dev/demo](https://tfdraw.dev/demo)
 
 **Local dev** (Node.js 22+, see [`.nvmrc`](./.nvmrc)):
 
@@ -130,7 +130,7 @@ If the same resource address appears in more than one file, the **last file wins
 
 Example import bundles live under [`packages/backend/terraform/staging-multi-state/`](./packages/backend/terraform/staging-multi-state/) (`plan.json` + `graph.dot` per stack, `pipeline.tfd`, etc.). Those files are **gitignored**; hydrate them locally with the dev preset commands below or generate plans from your own Terraform roots.
 
-Unit tests may still read other gitignored fixtures under [`packages/backend/terraform/`](./packages/backend/terraform/) (for example `allplanmodules.json`) directly from disk; those are not import presets.
+Unit tests read plan/dot content from the committed preset test database and optional gitignored exports under [`packages/backend/terraform/cloudflare/`](./packages/backend/terraform/cloudflare/) and [`packages/backend/terraform/staging-multi-state/`](./packages/backend/terraform/staging-multi-state/).
 
 ### Dev import presets (SQLite)
 
@@ -205,18 +205,15 @@ jq -r '.resource_changes[] | select(.mode == "managed") | .address' plan.json | 
 
 **Order matters:** edges are drawn in file order.
 
-### Example ([`allplanmodules.tfd`](./packages/backend/terraform/allplanmodules.tfd))
+### Example ([`staging-multi-state/pipeline.tfd`](./packages/backend/terraform/staging-multi-state/pipeline.tfd))
+
+See the committed preset catalog for a full multi-stack pipeline; a minimal pattern is:
 
 ```tfd
-bind writer = module.workload_writer_lambda.module.lambda.aws_lambda_function.this[0]
-bind reader = module.workload_reader_lambda.module.lambda.aws_lambda_function.this[0]
-bind bucket = module.application_data_bucket.module.bucket.aws_s3_bucket.this[0]
-bind queue  = module.application_job_queue.module.queue.aws_sqs_queue.this[0]
+bind api = module.example.aws_api_gateway_rest_api.this
+bind fn  = module.example.aws_lambda_function.this
 
-writer -> bucket
-writer -> queue
-queue -> reader
-bucket -> reader
+api -> fn
 ```
 
 ### Import
@@ -309,19 +306,11 @@ yarn build:packages
 yarn build:app
 ```
 
-Parser tests: [`terraformPlanParsing.test.ts`](./packages/excalidraw/components/terraformPlanParsing.test.ts) using [`packages/backend/terraform/allplanmodules.*`](./packages/backend/terraform/).
-
-### Fixture corpus (maintainers)
-
-For regression testing, the repo can generate **100 real plan exports** from the sample stack in [`packages/backend/terraform/`](./packages/backend/terraform/). See [`packages/backend/README.md`](./packages/backend/README.md) for bootstrap, `yarn fixtures:*` commands, AWS prerequisites, and corpus debugging.
+Parser tests: [`terraformPlanParsing.test.ts`](./packages/excalidraw/components/terraformPlanParsing.test.ts) using the committed preset test DB plus [`packages/backend/terraform/cloudflare/`](./packages/backend/terraform/cloudflare/) and [`packages/backend/terraform/staging-multi-state/`](./packages/backend/terraform/staging-multi-state/) exports.
 
 ### Hosted telemetry (maintainers)
 
 Pages Functions under [`functions/`](./functions/) provide `/api/subscribe` and `/api/event`. Setup: [docs/telemetry-setup.md](./docs/telemetry-setup.md).
-
-## Local fixtures
-
-For pipeline geo fanout testing without AWS, use the LocalStack fixture under [`packages/backend/terraform/localstack-geo-fanout/`](packages/backend/terraform/localstack-geo-fanout/README.md): `yarn localstack:geo-fanout:generate-bundles` (offline CI) or `yarn localstack:geo-fanout:up`, `yarn localstack:geo-fanout:apply`, `yarn localstack:geo-fanout:export` (real LocalStack).
 
 ## Deployment
 
@@ -351,11 +340,11 @@ yarn deploy:pages -- --project-name=YOUR_PAGES_PROJECT_NAME
 npx wrangler@4 pages deploy ./excalidraw-app/build --project-name=YOUR_PAGES_PROJECT_NAME
 ```
 
-Use **`wrangler pages deploy`**, not `wrangler deploy`. [`wrangler.jsonc`](./wrangler.jsonc) is Pages-only (no `assets`); Workers static previews use [`wrangler.workers.jsonc`](./wrangler.workers.jsonc).
+Use **`wrangler pages deploy`**, not `wrangler deploy`. [`wrangler.jsonc`](./wrangler.jsonc) is **Pages-only** (no `assets` key).
 
-Ensure **Pages → Settings → Production branch** is `master` (or your prod branch) so production uses `env.production` D1 bindings.
+Hosted deploys use **Cloudflare Pages** (GitHub Actions). The old **Workers Builds** Worker (`ainur`) was removed — it could not serve Pages Functions (`/api/*`).
 
-**Workers `*.workers.dev` previews do not run Pages Functions** (`/api/subscribe`, `/api/terraform-import-presets`, etc.) — use a **Pages** URL from GitHub Actions. Setup: [docs/cloudflare-deploy.md](./docs/cloudflare-deploy.md).
+Setup: [docs/cloudflare-deploy.md](./docs/cloudflare-deploy.md).
 
 ## Upstream Excalidraw
 
