@@ -62,6 +62,16 @@ import {
   type TerraformPlanParsingSources,
 } from "./terraformPlanParsing";
 import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
+import {
+  buildTerraformImportPrepCache,
+  clearTerraformImportPrepCache,
+  getTerraformImportPrepCache,
+  terraformImportPrepFingerprint,
+} from "./terraformImportPrepCache";
+import {
+  terraformImportProfilerMeasure,
+  terraformImportProfilerMeasureAsync,
+} from "./terraformImportProfiler";
 
 import type { TerraformModuleLayoutOptions } from "./terraformModuleLayoutOptions";
 
@@ -174,8 +184,12 @@ function collectSemanticRepresentedResourceAddresses(
 function formatImportWarnings(
   warnings: TerraformImportWarning[],
   tfdWarnings: string[],
+  tfdErrors: string[] = [],
 ): TerraformImportWarning[] {
   const out = [...warnings];
+  for (const message of tfdErrors) {
+    out.push({ code: "tfd_error", message });
+  }
   for (const message of tfdWarnings) {
     out.push({ code: "duplicate_tfd_bind", message });
   }
@@ -263,6 +277,25 @@ type LayoutPlanResolution =
 function resolveLayoutPlanFromSources(
   sources: TerraformPlanParsingSources,
 ): LayoutPlanResolution {
+  if (sources.planDotBundles.length > 0) {
+    const cache = getTerraformImportPrepCache();
+    if (
+      cache &&
+      cache.fingerprint === terraformImportPrepFingerprint(sources)
+    ) {
+      return {
+        ok: true,
+        plan: cache.mergedPlan,
+        adjacency: cache.adjacency,
+        importSource: "plan",
+        sourcePlans: cache.sourcePlans,
+        stackIds: cache.stackIds,
+        addressToStack: cache.addressToStack,
+        importWarnings: cache.importWarnings,
+      };
+    }
+  }
+
   const importWarnings: TerraformImportWarning[] = [];
   const states = sources.states ?? [];
   let plan: unknown;
@@ -366,9 +399,12 @@ type LayoutSceneContext = {
   nodes5: ReturnType<typeof buildTerraformLocalImportNodesMap>;
   importSource: "plan" | "state-only";
   importWarnings: TerraformImportWarning[];
+  tfdErrors: string[];
   tfdWarnings: string[];
   stackIds: string[];
   addressToStack: Record<string, string>;
+  deferDecorations?: boolean;
+  pipelineCompact?: boolean;
 };
 
 async function buildPipelineLayoutSceneBody(
@@ -377,6 +413,7 @@ async function buildPipelineLayoutSceneBody(
   const pipelineScene = await buildTerraformPipelineExcalidrawScene(
     ctx.nodes5,
     ctx.plan,
+    { compact: ctx.pipelineCompact !== false },
   );
   emitLocalParseDebug({
     phase: "pipelineLayout",
@@ -396,6 +433,7 @@ async function buildPipelineLayoutSceneBody(
       formatImportWarnings(
         [...ctx.importWarnings, ...pipelineScene.warnings],
         ctx.tfdWarnings,
+        ctx.tfdErrors,
       ),
       { stackIds: ctx.stackIds, addressToStack: ctx.addressToStack },
     ),
@@ -505,6 +543,7 @@ async function buildSemanticLayoutSceneBody(
         endpointSecurityGroupBuckets,
         natZonePlacements,
         interfaceVpcEndpointZonePlacements,
+        ctx.deferDecorations,
       );
       if (topoScene.elements.length > 0) {
         providerBlocks.push({
@@ -571,7 +610,7 @@ async function buildSemanticLayoutSceneBody(
         providerBlockCount: providerBlocks.length,
       },
       ctx.sources,
-      formatImportWarnings(ctx.importWarnings, ctx.tfdWarnings),
+      formatImportWarnings(ctx.importWarnings, ctx.tfdWarnings, ctx.tfdErrors),
       { stackIds: ctx.stackIds, addressToStack: ctx.addressToStack },
     ),
   };
@@ -601,7 +640,7 @@ async function buildModuleLayoutSceneBody(
         plannedChanges: ctx.importSource !== "state-only",
       },
       ctx.sources,
-      formatImportWarnings(ctx.importWarnings, ctx.tfdWarnings),
+      formatImportWarnings(ctx.importWarnings, ctx.tfdWarnings, ctx.tfdErrors),
     ),
   };
 }
@@ -625,7 +664,17 @@ export async function layoutTerraformFromSources(
     (options?.semanticLayout === true ? "semantic" : "module");
   const semanticLayout = layoutMode === "semantic";
   const pipelineLayout = layoutMode === "pipeline";
-  const planResolution = resolveLayoutPlanFromSources(sources);
+  if (sources.planDotBundles.length > 0) {
+    terraformImportProfilerMeasure("prep.cache", () => {
+      buildTerraformImportPrepCache(sources, options);
+    });
+  } else {
+    clearTerraformImportPrepCache();
+  }
+
+  const planResolution = terraformImportProfilerMeasure("merge.plans", () =>
+    resolveLayoutPlanFromSources(sources),
+  );
   if (!planResolution.ok) {
     return planResolution;
   }
@@ -663,18 +712,35 @@ export async function layoutTerraformFromSources(
     ...(options?.dataflowLinks?.trim() ? [options.dataflowLinks] : []),
   ];
 
-  const nodes5 = buildTerraformLocalImportNodesMap(plan, graph, states, {
-    adjacency,
-    priorStatePlans: sourcePlans,
-    stackIds,
-  });
+  const prepCache = getTerraformImportPrepCache();
+  const useCachedNodes =
+    prepCache &&
+    prepCache.fingerprint === terraformImportPrepFingerprint(sources) &&
+    states.length === 0;
 
-  const tfdWarnings = applyTfdOverlayToNodes(
-    nodes5,
-    sources.tfdTexts,
-    sources.tfdLabels,
-    options?.dataflowLinks,
-  );
+  let nodes5: ReturnType<typeof buildTerraformLocalImportNodesMap>;
+  let tfdErrors: string[] = [];
+  let tfdWarnings: string[] = [];
+  if (useCachedNodes) {
+    nodes5 = prepCache.nodes;
+  } else {
+    nodes5 = terraformImportProfilerMeasure("parse.nodes", () =>
+      buildTerraformLocalImportNodesMap(plan, graph, states, {
+        adjacency,
+        priorStatePlans: sourcePlans,
+        stackIds,
+      }),
+    );
+    ({ errors: tfdErrors, warnings: tfdWarnings } =
+      terraformImportProfilerMeasure("parse.tfd", () =>
+        applyTfdOverlayToNodes(
+          nodes5,
+          sources.tfdTexts,
+          sources.tfdLabels,
+          options?.dataflowLinks,
+        ),
+      ));
+  }
 
   const hasTfdEdgeSyntax = tfdTexts.some((t) => /\S+\s*->\s*\S+/.test(t));
   const declaredEdges = nodes5[DECLARED_DATAFLOW_ORDERED_KEY];
@@ -706,18 +772,24 @@ export async function layoutTerraformFromSources(
     nodes5,
     importSource,
     importWarnings,
+    tfdErrors,
     tfdWarnings,
     stackIds,
     addressToStack,
+    deferDecorations: options?.deferDecorations === true,
+    pipelineCompact: options?.pipelineCompact,
   };
 
   const sceneBody = pipelineLayout
-    ? await buildPipelineLayoutSceneBody(sceneContext)
+    ? await terraformImportProfilerMeasureAsync("layout.pipeline", () =>
+        buildPipelineLayoutSceneBody(sceneContext),
+      )
     : semanticLayout
-    ? await buildSemanticLayoutSceneBody(sceneContext)
-    : await buildModuleLayoutSceneBody(
-        sceneContext,
-        options?.moduleLayoutOptions,
+    ? await terraformImportProfilerMeasureAsync("layout.semantic", () =>
+        buildSemanticLayoutSceneBody(sceneContext),
+      )
+    : await terraformImportProfilerMeasureAsync("layout.elk", () =>
+        buildModuleLayoutSceneBody(sceneContext, options?.moduleLayoutOptions),
       );
 
   return { ok: true, scene: sceneBody };

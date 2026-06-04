@@ -52,6 +52,11 @@ import {
 } from "./terraformPlanParsing";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 
+import {
+  terraformImportProfilerMeasure,
+  terraformImportProfilerMeasureAsync,
+} from "./terraformImportProfiler";
+
 import type { LayoutTerraformResult } from "./terraformLayoutCore";
 import type {
   SemanticAwsLayoutPrep,
@@ -281,6 +286,7 @@ export function prepareSemanticAwsLayoutPrep(
     endpointSecurityGroupBuckets,
     natZonePlacements,
     interfaceVpcEndpointZonePlacements,
+    deferDecorations: options?.deferDecorations === true,
   };
 
   return {
@@ -327,6 +333,9 @@ export async function runSemanticAwsLayoutJob(
     interfaceVpcEndpointZonePlacements: Parameters<
       typeof buildTerraformTopologyExcalidrawScene
     >[11];
+    deferDecorations?: Parameters<
+      typeof buildTerraformTopologyExcalidrawScene
+    >[12];
   };
   const topoScene = await buildTerraformTopologyExcalidrawScene(
     p.topoModel,
@@ -341,6 +350,7 @@ export async function runSemanticAwsLayoutJob(
     p.endpointSecurityGroupBuckets,
     p.natZonePlacements,
     p.interfaceVpcEndpointZonePlacements,
+    p.deferDecorations,
   );
   return {
     type: "semanticAws",
@@ -384,7 +394,9 @@ export async function layoutSemanticViewParallel(
   onProgress?: (p: TerraformLayoutProgress) => void,
 ): Promise<LayoutTerraformResult> {
   onProgress?.({ phase: "prepare semantic", done: 0, total: 1 });
-  const prepared = prepareSemanticAwsLayoutPrep(sources, options);
+  const prepared = terraformImportProfilerMeasure("prep.semantic", () =>
+    prepareSemanticAwsLayoutPrep(sources, options),
+  );
   if (!prepared.semPlan) {
     return {
       ok: false,
@@ -430,7 +442,7 @@ export async function layoutSemanticViewParallel(
   if (prepared.prep) {
     jobs.push(
       runJob({ type: "semanticAws", prep: prepared.prep }).then((r) => {
-        reportProgress("AWS topology");
+        reportProgress("AWS");
         return r;
       }),
     );
@@ -456,7 +468,10 @@ export async function layoutSemanticViewParallel(
     }),
   );
 
-  const results = await Promise.all(jobs);
+  const results = await terraformImportProfilerMeasureAsync(
+    "layout.semantic.workers",
+    () => Promise.all(jobs),
+  );
   for (const result of results) {
     if (result.type === "semanticAws" && result.elements.length > 0) {
       providerBlocks.push({

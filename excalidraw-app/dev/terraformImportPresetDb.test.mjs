@@ -12,6 +12,8 @@ import {
   TEST_FIXTURE_DB_PATH,
   verifyTerraformImportPresetTestDb,
 } from "./terraformImportPresetDb.mjs";
+import { loadPresetBlobTextSqlite } from "./loadPresetBlobTextSqlite.mjs";
+import { GZIP_PREFIX } from "./terraformPresetCompression.mjs";
 
 describe("terraformImportPresetDb seed", () => {
   it("committed test DB has all catalog presets with plan+dot content", () => {
@@ -22,8 +24,8 @@ describe("terraformImportPresetDb seed", () => {
     }
     const { presetCount, withContent } =
       verifyTerraformImportPresetTestDb(TEST_FIXTURE_DB_PATH);
-    expect(presetCount).toBe(1);
-    expect(withContent).toBe(1);
+    expect(presetCount).toBe(3);
+    expect(withContent).toBe(3);
   });
 
   it("seeds all catalog presets with plan+dot content when disk files exist", () => {
@@ -37,7 +39,7 @@ describe("terraformImportPresetDb seed", () => {
     const { presetCount, results } = seedAllBuiltinsFromCatalog(db);
     const missing = results.flatMap((entry) => entry.missing ?? []);
 
-    expect(presetCount).toBe(1);
+    expect(presetCount).toBe(3);
     if (missing.length > 0) {
       return;
     }
@@ -45,18 +47,33 @@ describe("terraformImportPresetDb seed", () => {
     const presetCountRow = db
       .prepare(`SELECT COUNT(*) AS count FROM terraform_import_presets`)
       .get();
-    expect(presetCountRow.count).toBe(1);
+    expect(presetCountRow.count).toBe(3);
 
     const stack = db
       .prepare(
-        `SELECT plan_text AS planText, dot_text AS dotText
+        `SELECT stack_id AS stackId, plan_text AS planText, dot_text AS dotText
          FROM terraform_import_preset_stacks
          WHERE preset_id = 'staging-multi-state-expanded'
          LIMIT 1`,
       )
       .get();
-    expect(stack.planText).toMatch(/"resource_changes"/);
-    expect(stack.dotText).toMatch(/digraph/i);
+    expect(stack.planText.startsWith(GZIP_PREFIX)).toBe(true);
+    const planText = loadPresetBlobTextSqlite(
+      db,
+      "staging-multi-state-expanded",
+      "plan",
+      stack.stackId,
+      stack.planText,
+    );
+    const dotText = loadPresetBlobTextSqlite(
+      db,
+      "staging-multi-state-expanded",
+      "dot",
+      stack.stackId,
+      stack.dotText,
+    );
+    expect(planText).toMatch(/"resource_changes"/);
+    expect(dotText).toMatch(/digraph/i);
 
     resetTerraformImportPresetDbSingleton();
     for (const suffix of ["", "-wal", "-shm"]) {

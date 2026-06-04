@@ -1,5 +1,7 @@
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
+import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
+
 import type { TerraformImportPreset } from "./terraformImportPresetsTypes";
 import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
 
@@ -15,9 +17,12 @@ export type TerraformImportSessionSnapshot = {
 
 export type TerraformImportSession = {
   sources: TerraformPlanParsingSources;
+  sourceFingerprint?: string;
   semanticLayout: boolean;
   layoutMode?: "module" | "semantic" | "pipeline";
   moduleLayoutOptions: TerraformModuleLayoutOptions;
+  /** Pipeline compact mode — primary-card-only clusters, satellites added on click. */
+  pipelineCompact?: boolean;
   preset: TerraformImportPreset | null;
   importedTfdTexts: string[];
   snapshot: TerraformImportSessionSnapshot;
@@ -44,6 +49,7 @@ export const getTerraformImportSession = (): TerraformImportSession | null =>
 
 export const clearTerraformImportSession = () => {
   activeSession = null;
+  clearTerraformImportPrepCache();
 };
 
 export const hasTerraformImportSession = (): boolean => activeSession != null;

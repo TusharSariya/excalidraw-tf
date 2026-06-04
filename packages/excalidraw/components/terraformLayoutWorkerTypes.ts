@@ -1,6 +1,5 @@
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
-import type { TerraformModuleLayoutOptions } from "./terraformModuleLayoutOptions";
 import type {
   TerraformLayoutOptions,
   TerraformPlanParsingSources,
@@ -15,13 +14,6 @@ export type TerraformLayoutProgress = {
 };
 
 export type TerraformLayoutWorkerJob =
-  | {
-      type: "moduleStack";
-      stackId: string;
-      plan: unknown;
-      dotText: string;
-      moduleLayoutOptions?: Partial<TerraformModuleLayoutOptions>;
-    }
   | {
       type: "semanticAws";
       prep: SemanticAwsLayoutPrep;
@@ -48,15 +40,10 @@ export type SemanticAwsLayoutPrep = {
   endpointSecurityGroupBuckets: unknown[];
   natZonePlacements: unknown;
   interfaceVpcEndpointZonePlacements: unknown;
+  deferDecorations?: boolean;
 };
 
 export type TerraformLayoutWorkerJobResult =
-  | {
-      type: "moduleStack";
-      stackId: string;
-      elements: ExcalidrawElement[];
-      meta: Record<string, unknown>;
-    }
   | {
       type: "semanticAws";
       elements: ExcalidrawElement[];

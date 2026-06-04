@@ -129,3 +129,20 @@ rules:
 Local pre-push (`.husky/pre-push` → `yarn test:prepush:fast`): typecheck → ESLint → Prettier → **lint:arch** → **lint:oxlint** → Knip → depcheck → **fast vitest** → ESM build → size limit.
 
 CI on pull requests: **lint** + **test** (`yarn test:fast`) in parallel, then **prepush** (`yarn test:coverage` full suite + ESM + size limit). Static app build and PR previews are in [`pages-deploy.yml`](../.github/workflows/pages-deploy.yml). Bundle size comments come from [`size-limit.yml`](../.github/workflows/size-limit.yml).
+
+## Terraform import performance
+
+**Full agent handoff** (fixture, call graph, kept/reverted optimizations, measure commands, change log, **KV layout cache**): [`docs/terraform-import-performance-log.md`](terraform-import-performance-log.md).
+
+Machine baseline: [`packages/excalidraw/test-fixtures/terraform-import-perf-baseline.json`](../packages/excalidraw/test-fixtures/terraform-import-perf-baseline.json).
+
+Quick gate before a perf PR:
+
+```bash
+yarn vitest run packages/excalidraw/components/terraformLayoutSnapshot.test.ts
+yarn vitest run packages/excalidraw/components/terraformLayoutWorkerParity.test.ts
+yarn vitest run packages/excalidraw/components/terraformImportPrepCache.test.ts
+VITEST_TERRAFORM_PROFILE=1 yarn vitest run packages/excalidraw/components/terraformImportPerf.views.test.ts
+```
+
+Do not run `yarn test:update` to mask a perf regression. Slow suite before commit: `yarn test:slow` or `yarn test:update`.

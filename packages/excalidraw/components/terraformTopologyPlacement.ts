@@ -1634,9 +1634,11 @@ export function buildRouteTablePlanIndexes(
     resource_changes?: ResourceChange[];
   },
 ): RouteTablePlanIndexes {
+  const rtidToSubnets = buildRouteTableIdToSubnetIdsFromPlan(plan);
+  const addrToMeta = buildRouteTableAddressToMeta(plan);
   return {
-    rtidToSubnets: buildRouteTableIdToSubnetIdsFromPlan(plan),
-    addrToMeta: buildRouteTableAddressToMeta(plan),
+    rtidToSubnets,
+    addrToMeta,
   };
 }
 
@@ -2428,12 +2430,16 @@ export function subnetSetForRouteTableAddress(
     resource_changes?: ResourceChange[];
   },
   routeTableAddress: string,
+  indexes?: RouteTablePlanIndexes | null,
 ): ReadonlySet<string> | null {
-  const meta = buildRouteTableAddressToMeta(plan).get(routeTableAddress);
+  const addrToMeta = indexes?.addrToMeta ?? buildRouteTableAddressToMeta(plan);
+  const meta = addrToMeta.get(routeTableAddress);
   if (!meta) {
     return null;
   }
-  const set = buildRouteTableIdToSubnetIdsFromPlan(plan).get(meta.rtbId);
+  const rtidToSubnets =
+    indexes?.rtidToSubnets ?? buildRouteTableIdToSubnetIdsFromPlan(plan);
+  const set = rtidToSubnets.get(meta.rtbId);
   return set ?? null;
 }
 

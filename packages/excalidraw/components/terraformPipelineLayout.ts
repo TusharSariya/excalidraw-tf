@@ -6,6 +6,7 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import {
   buildTerraformDeclaredDataFlowLineSkeletons,
   buildTerraformResourceCardCustomData,
+  mirrorAndDetachTerraformResourceLabels,
   shortTerraformResourceLabel,
   type TerraformDependencyLayoutBox,
 } from "./terraformElkLayout";
@@ -18,12 +19,15 @@ import {
 } from "./terraformDeclaredDataFlow";
 import { buildArnIndexForTopology } from "./terraformTopologyIamLinks";
 import { filterPlanByProviderFamily } from "./terraformProviderClassification";
+import { getTerraformImportPrepCache } from "./terraformImportPrepCache";
 import {
   buildEnrichedTopologyPlacements,
   topologyAddressPlacementMap,
+  type EnrichedTopologyPlacements,
   type TopologyAddressPlacement,
 } from "./terraformTopologyPlacementBuild";
 import {
+  buildCompactPipelinePrimaryCluster,
   buildTopologyPrimaryClusterSkeletonForPipeline,
   type PipelinePrimaryClusterBuildResult,
 } from "./terraformTopologyLayout";
@@ -154,9 +158,18 @@ function collapseEndpoint(
 function buildPlacementMap(
   nodes: TerraformPlanNodesMap,
   plan: unknown,
+  enrichedOverride?: EnrichedTopologyPlacements,
 ): Map<string, PipelinePlacement> {
   const awsPlan = filterPlanByProviderFamily(plan as any, "aws");
-  const enriched = buildEnrichedTopologyPlacements(awsPlan, nodes);
+  const cache = getTerraformImportPrepCache();
+  let enriched = enrichedOverride ?? cache?.enrichedPlacements;
+  if (!enriched) {
+    enriched = buildEnrichedTopologyPlacements(awsPlan, nodes);
+    // Memoize back so a semantic→pipeline switch (same prep fingerprint) reuses it.
+    if (cache) {
+      cache.enrichedPlacements = enriched;
+    }
+  }
   const out = topologyAddressPlacementMap(enriched, awsPlan);
 
   for (const address of Object.keys(nodes)) {
@@ -469,7 +482,7 @@ function pushContextFrames(
                 c.placement.region,
               ].join("\0")
             : [c.placement.providerFamily, c.placement.accountId].join("\0");
-        return childIdsByKey.get(lower)?.[0] ?? group[0]!.build.clusterFrameId;
+        return childIdsByKey.get(lower)?.[0] ?? c.build.clusterFrameId;
       });
       const uniqueChildIds = [...new Set(childIds)];
       const b = boundsOf(uniqueChildIds, boxes);
@@ -518,11 +531,13 @@ function pushContextFrames(
 export async function buildTerraformPipelineExcalidrawScene(
   nodes: TerraformPlanNodesMap,
   plan: unknown,
+  options?: { compact?: boolean },
 ): Promise<{
   elements: ExcalidrawElement[];
   meta: Record<string, unknown>;
   warnings: TerraformImportWarning[];
 }> {
+  const compact = options?.compact !== false;
   const declared = nodes[DECLARED_DATAFLOW_ORDERED_KEY];
   if (!Array.isArray(declared) || declared.length === 0) {
     throw new Error(
@@ -574,18 +589,26 @@ export async function buildTerraformPipelineExcalidrawScene(
       region: "unknown-region",
       vpcId: null,
     };
-    let build = buildTopologyPrimaryClusterSkeletonForPipeline(
-      address,
-      nodes,
-      plan,
-      {
-        accountId: placement.accountId,
-        region: placement.region,
-        vpcId: placement.vpcId,
-        subnetTier: placement.subnetTier,
-        subnetSignature: placement.subnetSignature,
-      },
-    );
+    const clusterPlacement = {
+      accountId: placement.accountId,
+      region: placement.region,
+      vpcId: placement.vpcId,
+      subnetTier: placement.subnetTier,
+      subnetSignature: placement.subnetSignature,
+    };
+    let build = compact
+      ? buildCompactPipelinePrimaryCluster(
+          address,
+          nodes,
+          plan,
+          clusterPlacement,
+        )
+      : buildTopologyPrimaryClusterSkeletonForPipeline(
+          address,
+          nodes,
+          plan,
+          clusterPlacement,
+        );
     if (build.skeleton.length === 0 || build.width <= 0 || build.height <= 0) {
       build = buildFallbackCluster(address, nodes, plan, placement);
     }
@@ -721,6 +744,7 @@ export async function buildTerraformPipelineExcalidrawScene(
   let elements = convertToExcalidrawElements(skeleton, {
     regenerateIds: true,
   }) as ExcalidrawElement[];
+  elements = mirrorAndDetachTerraformResourceLabels(elements);
   elements = await injectTerraformAwsIconsIntoElements(elements);
   elements = reconcileTerraformVisibility(
     repairTerraformEdgeBindings(elements),
@@ -734,6 +758,7 @@ export async function buildTerraformPipelineExcalidrawScene(
     elements,
     meta: {
       layoutEngine: "pipeline",
+      pipelineCompact: compact,
       pipelineClusterCount: clusters.length,
       pipelineEdgeCount: collapsedEdges.length,
       pipelineColumnCount: maxDepth + 1,
@@ -749,3 +774,8 @@ export async function buildTerraformPipelineExcalidrawScene(
       : [],
   };
 }
+
+export {
+  collapsePipelineCluster,
+  expandPipelineCluster,
+} from "./terraformPipelineLayoutExpand";
