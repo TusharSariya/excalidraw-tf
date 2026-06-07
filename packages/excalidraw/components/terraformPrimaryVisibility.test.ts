@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
 import {
+  applyTerraformColorModeToElements,
+  getClusterFrameColorForResourceType,
+  getContextFrameColorForTopologyRole,
   getTerraformResourceTypeFromNodePath,
   isChangedTerraformAction,
   isGenericManagedProviderResourceType,
@@ -9,6 +14,9 @@ import {
   isManagedTopologyResourceType,
   isPrimaryVisibleResourceType,
   isTopologyPlacementResourceType,
+  resolveClusterFrameColors,
+  resolveContextFrameColors,
+  TERRAFORM_DEFAULT_FRAME_COLORS,
 } from "./terraformPrimaryVisibility";
 
 describe("terraformPrimaryVisibility", () => {
@@ -197,6 +205,116 @@ describe("terraformPrimaryVisibility", () => {
       expect(getTerraformResourceTypeFromNodePath("module.a")).toBe(
         "terraform_module",
       );
+    });
+    it("strips stack-qualified prefixes before parsing", () => {
+      expect(
+        getTerraformResourceTypeFromNodePath(
+          "00-east-network::module.lambda.aws_lambda_function.handler",
+        ),
+      ).toBe("aws_lambda_function");
+    });
+  });
+
+  describe("getClusterFrameColorForResourceType", () => {
+    it("maps compute, data, and messaging types to distinct palette colors", () => {
+      expect(
+        getClusterFrameColorForResourceType("aws_lambda_function").strokeColor,
+      ).toBe("#ea580c");
+      expect(
+        getClusterFrameColorForResourceType("aws_s3_bucket").strokeColor,
+      ).toBe("#059669");
+      expect(
+        getClusterFrameColorForResourceType("aws_sqs_queue").strokeColor,
+      ).toBe("#e11d48");
+    });
+  });
+
+  describe("getContextFrameColorForTopologyRole", () => {
+    it("maps hierarchy roles to distinct structural palette colors", () => {
+      expect(getContextFrameColorForTopologyRole("provider").strokeColor).toBe(
+        "#475569",
+      );
+      expect(getContextFrameColorForTopologyRole("account").strokeColor).toBe(
+        "#4f46e5",
+      );
+      expect(getContextFrameColorForTopologyRole("region").strokeColor).toBe(
+        "#0891b2",
+      );
+      expect(getContextFrameColorForTopologyRole("vpc").strokeColor).toBe(
+        "#0369a1",
+      );
+    });
+
+    it("maps subnet tiers to distinct subnet palette colors", () => {
+      expect(
+        getContextFrameColorForTopologyRole("subnetZone", {
+          subnetTier: "public",
+        }).strokeColor,
+      ).toBe("#d97706");
+      expect(
+        getContextFrameColorForTopologyRole("subnetZone", {
+          subnetTier: "private",
+        }).strokeColor,
+      ).toBe("#7c3aed");
+      expect(
+        getContextFrameColorForTopologyRole("subnetZone", {
+          subnetTier: "intra",
+        }).strokeColor,
+      ).toBe("#db2777");
+      expect(
+        getContextFrameColorForTopologyRole("subnetZone", {
+          subnetTier: "other",
+        }).strokeColor,
+      ).toBe("#64748b");
+    });
+  });
+
+  describe("terraform color mode", () => {
+    it("uses default frame colors in action mode", () => {
+      expect(
+        resolveClusterFrameColors("aws_lambda_function", "action"),
+      ).toEqual(TERRAFORM_DEFAULT_FRAME_COLORS);
+      expect(
+        resolveContextFrameColors("vpc", "action", { subnetTier: "public" }),
+      ).toEqual(TERRAFORM_DEFAULT_FRAME_COLORS);
+    });
+
+    it("preserves category colors in category mode", () => {
+      expect(
+        resolveClusterFrameColors("aws_lambda_function", "category")
+          .strokeColor,
+      ).toBe("#ea580c");
+      expect(resolveContextFrameColors("vpc", "category").strokeColor).toBe(
+        "#0369a1",
+      );
+    });
+
+    it("re-tints topology frames in place", () => {
+      const frame = {
+        id: "frame-1",
+        type: "frame",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        strokeColor: "#ea580c",
+        backgroundColor: "#fff7ed",
+        customData: {
+          terraformTopologyRole: "primaryCluster",
+          terraformPrimaryAddress: "aws_lambda_function.main",
+        },
+      } as unknown as ExcalidrawElement;
+      const [actionFrame] = applyTerraformColorModeToElements(
+        [frame],
+        "action",
+      );
+      expect(actionFrame!.strokeColor).toBe("#bbb");
+      expect(actionFrame!.backgroundColor).toBe("transparent");
+      const [categoryFrame] = applyTerraformColorModeToElements(
+        [actionFrame!],
+        "category",
+      );
+      expect(categoryFrame!.strokeColor).toBe("#ea580c");
     });
   });
 });

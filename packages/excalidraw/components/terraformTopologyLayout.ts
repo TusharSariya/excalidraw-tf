@@ -36,6 +36,7 @@ import {
 import {
   terraformResourceCardLabel,
   getTerraformCardResourceType,
+  getTerraformResourceShortDisplayName,
 } from "./terraformResourceCardLabel";
 import {
   collectDataFlowEdges,
@@ -47,6 +48,9 @@ import {
   isInitiallyVisibleTerraformTopologyTile,
   isPrimaryVisibleResourceType,
   isTopologyPlacementResourceType,
+  spreadClusterFrameColors,
+  spreadContextFrameColors,
+  getTerraformResourceTypeFromNodePath,
 } from "./terraformPrimaryVisibility";
 import {
   TERRAFORM_MODULE_TREE_KEY,
@@ -3051,6 +3055,7 @@ function appendTopologyResourceRectanglesImpl(
     const pad = layoutConfig.padding.primaryClusterFrame;
     const b = clusterBounds!;
     const clusterSkId = primaryClusterSkeletonId(addr);
+    const clusterResourceType = getTerraformResourceTypeFromNodePath(addr);
     skeleton.push({
       type: "frame",
       id: clusterSkId,
@@ -3059,6 +3064,7 @@ function appendTopologyResourceRectanglesImpl(
       y: b.minY - pad,
       width: b.maxX - b.minX + 2 * pad,
       height: b.maxY - b.minY + 2 * pad,
+      ...spreadClusterFrameColors(clusterResourceType),
       children: clusterChildIds as readonly string[],
       customData: frameCustomData(
         "primaryCluster",
@@ -3121,9 +3127,18 @@ const topologyFrameZPriority = (el: ExcalidrawElement): number => {
     case "providerBand":
       return 1;
     case "providerAccount":
+    case "account":
       return 2;
+    case "region":
+      return 3;
+    case "vpc":
+      return 4;
+    case "subnetZone":
+      return 5;
+    case "primaryCluster":
+      return 6;
     default:
-      return role ? 3 : 4;
+      return role ? 7 : 8;
   }
 };
 
@@ -3929,6 +3944,7 @@ export async function buildTerraformTopologyExcalidrawScene(
                   ...vpcBottomRtRectIdsEmpty,
                   ...vpcEpRectIdsEmpty,
                 ] as readonly string[],
+                ...spreadContextFrameColors("vpc"),
                 customData: frameCustomData(
                   "vpc",
                   accountId,
@@ -3996,6 +4012,11 @@ export async function buildTerraformTopologyExcalidrawScene(
                 );
                 zoneFrameIds.push(zoneSkId);
 
+                const zoneSubnetTier = topologySubnetTierFromZone(
+                  z,
+                  subnetNameById,
+                );
+
                 const zoneDerived = topologyZoneDerivedContext(
                   z,
                   nodes,
@@ -4030,7 +4051,7 @@ export async function buildTerraformTopologyExcalidrawScene(
                     accountId,
                     region: regionName,
                     vpcId,
-                    subnetTier: topologySubnetTierFromZone(z, subnetNameById),
+                    subnetTier: zoneSubnetTier,
                     subnetSignature: z.subnetSignature,
                   },
                   addrs,
@@ -4232,6 +4253,9 @@ export async function buildTerraformTopologyExcalidrawScene(
                     ...zoneEpClusterIds,
                     ...zoneEpCompactIds,
                   ] as readonly string[],
+                  ...spreadContextFrameColors("subnetZone", {
+                    subnetTier: zoneSubnetTier,
+                  }),
                   customData: frameCustomData(
                     "subnetZone",
                     accountId,
@@ -4314,6 +4338,7 @@ export async function buildTerraformTopologyExcalidrawScene(
                 ...vpcBottomRtRectIds,
                 ...vpcEpRectIds,
               ] as readonly string[],
+              ...spreadContextFrameColors("vpc"),
               customData: frameCustomData(
                 "vpc",
                 accountId,
@@ -4346,6 +4371,7 @@ export async function buildTerraformTopologyExcalidrawScene(
             width: regionWidth,
             height: regionHeight,
             children: regionChildIds as readonly string[],
+            ...spreadContextFrameColors("region"),
             customData: frameCustomData(
               "region",
               accountId,
@@ -4392,6 +4418,7 @@ export async function buildTerraformTopologyExcalidrawScene(
           width: accountWidth,
           height: accountHeight,
           children: regionFrameIds as readonly string[],
+          ...spreadContextFrameColors("account"),
           customData: frameCustomData(
             "account",
             accountId,
@@ -4617,9 +4644,26 @@ export function buildCompactPipelinePrimaryCluster(
     };
   }
 
+  // Append service type subtitle to the primary card label.
+  if (card && (card as Record<string, unknown>).label) {
+    const compactResourceType =
+      getTerraformResourceTypeFromNodePath(primaryAddr);
+    const subtitle = getTerraformResourceShortDisplayName(compactResourceType);
+    const existingLabel = (card as Record<string, unknown>).label as Record<
+      string,
+      unknown
+    >;
+    (card as Record<string, unknown>).label = {
+      ...existingLabel,
+      text: `${existingLabel.text}\n${subtitle}`,
+    };
+  }
+
   const clusterFrameId = primaryClusterSkeletonId(primaryAddr);
   const frameW = RESOURCE_RECT_W + 2 * INNER_PAD;
   const frameH = RESOURCE_RECT_H + 2 * INNER_PAD;
+  const compactClusterResourceType =
+    getTerraformResourceTypeFromNodePath(primaryAddr);
 
   skeleton.push({
     type: "frame",
@@ -4629,6 +4673,7 @@ export function buildCompactPipelinePrimaryCluster(
     y: 0,
     width: frameW,
     height: frameH,
+    ...spreadClusterFrameColors(compactClusterResourceType),
     children: [primaryAddr],
     customData: {
       terraform: true,
@@ -4696,6 +4741,24 @@ export function buildTopologyPrimaryClusterSkeletonForPipeline(
     typeof frame?.width === "number" ? frame.width : RESOURCE_RECT_W;
   const height =
     typeof frame?.height === "number" ? frame.height : RESOURCE_RECT_H;
+
+  // Append service type subtitle to the primary card label.
+  const primaryCard = skeleton.find(
+    (el) => el.type === "rectangle" && el.id === primaryAddr,
+  );
+  if (primaryCard && (primaryCard as Record<string, unknown>).label) {
+    const fullClusterResourceType =
+      getTerraformResourceTypeFromNodePath(primaryAddr);
+    const subtitle = getTerraformResourceShortDisplayName(
+      fullClusterResourceType,
+    );
+    const existingLabel = (primaryCard as Record<string, unknown>)
+      .label as Record<string, unknown>;
+    (primaryCard as Record<string, unknown>).label = {
+      ...existingLabel,
+      text: `${existingLabel.text}\n${subtitle}`,
+    };
+  }
 
   return { skeleton, width, height, clusterFrameId };
 }

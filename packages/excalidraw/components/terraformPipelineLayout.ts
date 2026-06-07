@@ -11,8 +11,15 @@ import {
   type TerraformDependencyLayoutBox,
 } from "./terraformElkLayout";
 import { collectDeclaredDataFlowEdges } from "./terraformExplodeGraph";
-import { isPrimaryVisibleResourceType } from "./terraformPrimaryVisibility";
-import { getTerraformCardResourceType } from "./terraformResourceCardLabel";
+import {
+  isPrimaryVisibleResourceType,
+  spreadClusterFrameColors,
+  spreadContextFrameColors,
+} from "./terraformPrimaryVisibility";
+import {
+  getTerraformCardResourceType,
+  getTerraformResourceShortDisplayName,
+} from "./terraformResourceCardLabel";
 import {
   DECLARED_DATAFLOW_ORDERED_KEY,
   type DeclaredDataFlowEdge,
@@ -29,6 +36,7 @@ import {
 import {
   buildCompactPipelinePrimaryCluster,
   buildTopologyPrimaryClusterSkeletonForPipeline,
+  reorderTopologyElementsZStack,
   type PipelinePrimaryClusterBuildResult,
 } from "./terraformTopologyLayout";
 import { resolveAlbCompanionParentLbAddressFromPlan } from "./terraformTopologyAlbLinks";
@@ -196,6 +204,9 @@ function buildFallbackCluster(
   const frameId = `tf-pipeline:cluster:${encodeURIComponent(address)}`;
   const node = nodes[address] as TerraformPlanGraphNode | undefined;
   const resource = getPrimaryResource(node);
+  const fallbackResourceType = resourceTypeFor(nodes, address);
+  const fallbackSubtitle =
+    getTerraformResourceShortDisplayName(fallbackResourceType);
   const skeleton: ExcalidrawElementSkeleton[] = [
     {
       type: "rectangle",
@@ -209,7 +220,7 @@ function buildFallbackCluster(
       backgroundColor: "#f8fafc",
       roundness: { type: 3, value: 8 },
       label: {
-        text: shortTerraformResourceLabel(address),
+        text: `${shortTerraformResourceLabel(address)}\n${fallbackSubtitle}`,
         fontSize: 12,
         strokeColor: "#0f172a",
       },
@@ -234,6 +245,7 @@ function buildFallbackCluster(
       y: 0,
       width: FALLBACK_W + 20,
       height: FALLBACK_H + 20,
+      ...spreadClusterFrameColors(fallbackResourceType),
       children: [address],
       customData: pipelineFrameCustomData(
         "primaryCluster",
@@ -512,6 +524,10 @@ function pushContextFrames(
         width: b.width + 2 * pad,
         height: b.height + 2 * pad,
         children: uniqueChildIds,
+        ...spreadContextFrameColors(level.role, {
+          subnetTier:
+            level.role === "subnetZone" ? placement.subnetTier : undefined,
+        }),
         customData: pipelineFrameCustomData(level.role, placement, id, {
           terraformSubnetSignature: placement.subnetSignature,
           terraformSubnetTier: placement.subnetTier,
@@ -753,6 +769,7 @@ export async function buildTerraformPipelineExcalidrawScene(
       hoverPeekKey: null,
     },
   );
+  elements = reorderTopologyElementsZStack(elements);
 
   return {
     elements,

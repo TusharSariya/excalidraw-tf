@@ -1,3 +1,51 @@
+import { newElementWith } from "@excalidraw/element";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
+import { stripStackPrefixForModuleParsing } from "./terraformStackAddress";
+
+/** Frame tint mode: resource/hierarchy categories vs default frames (plan action colors on cards). */
+export type TerraformColorMode = "category" | "action";
+
+export const TERRAFORM_COLOR_MODE_DEFAULT: TerraformColorMode = "category";
+
+/** Default Excalidraw frame styling used in plan-action mode (resource cards keep action tints). */
+export const TERRAFORM_DEFAULT_FRAME_COLORS = {
+  strokeColor: "#bbb",
+  backgroundColor: "transparent",
+} as const;
+
+let layoutColorMode: TerraformColorMode = TERRAFORM_COLOR_MODE_DEFAULT;
+
+export const getActiveTerraformLayoutColorMode = (): TerraformColorMode =>
+  layoutColorMode;
+
+export const withTerraformLayoutColorMode = <T>(
+  colorMode: TerraformColorMode,
+  fn: () => T,
+): T => {
+  const prev = layoutColorMode;
+  layoutColorMode = colorMode;
+  try {
+    return fn();
+  } finally {
+    layoutColorMode = prev;
+  }
+};
+
+export const withTerraformLayoutColorModeAsync = async <T>(
+  colorMode: TerraformColorMode,
+  fn: () => Promise<T>,
+): Promise<T> => {
+  const prev = layoutColorMode;
+  layoutColorMode = colorMode;
+  try {
+    return await fn();
+  } finally {
+    layoutColorMode = prev;
+  }
+};
+
 /**
  * Default “primary” resource visibility for Terraform diagrams (explode / overview).
  * Primary types and `getResourceType` / `isPrimaryVisibleResourceType` live in this module.
@@ -256,11 +304,255 @@ export function isInitiallyVisibleTerraformTopologyTile(
   return isInitiallyVisibleTerraformResource(resourceType, action);
 }
 
+const CLUSTER_FRAME_COLORS = {
+  compute: { strokeColor: "#ea580c", backgroundColor: "#fff7ed" },
+  data: { strokeColor: "#059669", backgroundColor: "#ecfdf5" },
+  messaging: { strokeColor: "#e11d48", backgroundColor: "#fff1f2" },
+  networking: { strokeColor: "#0284c7", backgroundColor: "#f0f9ff" },
+  security: { strokeColor: "#d97706", backgroundColor: "#fffbeb" },
+  management: { strokeColor: "#7c3aed", backgroundColor: "#f5f3ff" },
+  default: { strokeColor: "#64748b", backgroundColor: "#f8fafc" },
+} as const;
+
+/** Frame border + background color keyed by primary resource type for pipeline/topology cluster frames. */
+export function getClusterFrameColorForResourceType(resourceType: string): {
+  strokeColor: string;
+  backgroundColor: string;
+} {
+  if (PRIMARY_COMPUTE_TYPES.has(resourceType)) {
+    return CLUSTER_FRAME_COLORS.compute;
+  }
+  if (PRIMARY_STORAGE_TYPES.has(resourceType)) {
+    return CLUSTER_FRAME_COLORS.data;
+  }
+  if (PRIMARY_MESSAGING_TYPES.has(resourceType)) {
+    return CLUSTER_FRAME_COLORS.messaging;
+  }
+  if (
+    PRIMARY_NETWORKING_TYPES.has(resourceType) ||
+    PRIMARY_API_TYPES.has(resourceType) ||
+    resourceType.startsWith("aws_vpc") ||
+    resourceType.startsWith("aws_route53_") ||
+    resourceType.startsWith("aws_cloudfront_") ||
+    resourceType === "aws_lb"
+  ) {
+    return CLUSTER_FRAME_COLORS.networking;
+  }
+  if (
+    PRIMARY_CRYPTO_TYPES.has(resourceType) ||
+    resourceType.startsWith("aws_iam_") ||
+    resourceType.startsWith("aws_secretsmanager_") ||
+    resourceType.startsWith("aws_acm_") ||
+    resourceType.startsWith("aws_wafv2_") ||
+    resourceType.startsWith("aws_waf_") ||
+    resourceType.startsWith("aws_shield_")
+  ) {
+    return CLUSTER_FRAME_COLORS.security;
+  }
+  if (
+    resourceType.startsWith("aws_organizations_") ||
+    resourceType.startsWith("aws_cloudwatch_") ||
+    resourceType.startsWith("aws_ssm_") ||
+    resourceType.startsWith("aws_cloudtrail_") ||
+    resourceType.startsWith("aws_config_")
+  ) {
+    return CLUSTER_FRAME_COLORS.management;
+  }
+  return CLUSTER_FRAME_COLORS.default;
+}
+
+export function resolveClusterFrameColors(
+  resourceType: string,
+  colorMode: TerraformColorMode = layoutColorMode,
+): { strokeColor: string; backgroundColor: string } {
+  if (colorMode === "action") {
+    return TERRAFORM_DEFAULT_FRAME_COLORS;
+  }
+  return getClusterFrameColorForResourceType(resourceType);
+}
+
+/** Spread helper for layout skeletons — uses active layout color mode. */
+export function spreadClusterFrameColors(resourceType: string): {
+  strokeColor: string;
+  backgroundColor: string;
+} {
+  return resolveClusterFrameColors(resourceType, layoutColorMode);
+}
+
+export type TerraformContextFrameRole =
+  | "provider"
+  | "account"
+  | "region"
+  | "vpc"
+  | "subnetZone";
+
+const CONTEXT_FRAME_COLORS = {
+  provider: { strokeColor: "#475569", backgroundColor: "#f8fafc" },
+  account: { strokeColor: "#4f46e5", backgroundColor: "#eef2ff" },
+  region: { strokeColor: "#0891b2", backgroundColor: "#ecfeff" },
+  vpc: { strokeColor: "#0369a1", backgroundColor: "#e0f2fe" },
+  subnetPublic: { strokeColor: "#d97706", backgroundColor: "#fffbeb" },
+  subnetPrivate: { strokeColor: "#7c3aed", backgroundColor: "#f5f3ff" },
+  subnetIntra: { strokeColor: "#db2777", backgroundColor: "#fdf2f8" },
+  subnetDefault: { strokeColor: "#64748b", backgroundColor: "#f1f5f9" },
+} as const;
+
+/** Frame border + background for topology context hierarchy (provider → account → region → VPC → subnet). */
+export function getContextFrameColorForTopologyRole(
+  role: TerraformContextFrameRole,
+  options?: { subnetTier?: string | null },
+): { strokeColor: string; backgroundColor: string } {
+  if (role === "subnetZone") {
+    switch (options?.subnetTier) {
+      case "public":
+        return CONTEXT_FRAME_COLORS.subnetPublic;
+      case "private":
+        return CONTEXT_FRAME_COLORS.subnetPrivate;
+      case "intra":
+        return CONTEXT_FRAME_COLORS.subnetIntra;
+      default:
+        return CONTEXT_FRAME_COLORS.subnetDefault;
+    }
+  }
+  return CONTEXT_FRAME_COLORS[role];
+}
+
+export function resolveContextFrameColors(
+  role: TerraformContextFrameRole,
+  colorMode: TerraformColorMode = layoutColorMode,
+  options?: { subnetTier?: string | null },
+): { strokeColor: string; backgroundColor: string } {
+  if (colorMode === "action") {
+    return TERRAFORM_DEFAULT_FRAME_COLORS;
+  }
+  return getContextFrameColorForTopologyRole(role, options);
+}
+
+/** Spread helper for layout skeletons — uses active layout color mode. */
+export function spreadContextFrameColors(
+  role: TerraformContextFrameRole,
+  options?: { subnetTier?: string | null },
+): { strokeColor: string; backgroundColor: string } {
+  return resolveContextFrameColors(role, layoutColorMode, options);
+}
+
+const TOPOLOGY_CONTEXT_FRAME_ROLES = new Set<TerraformContextFrameRole>([
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
+]);
+
+const isTopologyContextFrameRole = (
+  role: string,
+): role is TerraformContextFrameRole =>
+  TOPOLOGY_CONTEXT_FRAME_ROLES.has(role as TerraformContextFrameRole);
+
+/** Re-tint topology frame elements without re-running layout. */
+export function applyTerraformColorModeToElements(
+  elements: readonly ExcalidrawElement[],
+  colorMode: TerraformColorMode,
+): ExcalidrawElement[] {
+  return elements.map((el) => {
+    if (el.type !== "frame" || el.isDeleted) {
+      return el;
+    }
+    const role = el.customData?.terraformTopologyRole;
+    if (typeof role !== "string") {
+      return el;
+    }
+
+    let colors: { strokeColor: string; backgroundColor: string } | null = null;
+    if (role === "primaryCluster") {
+      const primaryAddress = el.customData?.terraformPrimaryAddress;
+      const resourceType =
+        typeof primaryAddress === "string"
+          ? getTerraformResourceTypeFromNodePath(primaryAddress)
+          : "terraform_module";
+      colors = resolveClusterFrameColors(resourceType, colorMode);
+    } else if (isTopologyContextFrameRole(role)) {
+      colors = resolveContextFrameColors(role, colorMode, {
+        subnetTier:
+          typeof el.customData?.terraformSubnetTier === "string"
+            ? el.customData.terraformSubnetTier
+            : undefined,
+      });
+    }
+
+    if (
+      !colors ||
+      (el.strokeColor === colors.strokeColor &&
+        el.backgroundColor === colors.backgroundColor)
+    ) {
+      return el;
+    }
+
+    return newElementWith(el, colors);
+  });
+}
+
+export type TerraformColorLegendEntry = {
+  id: string;
+  label: string;
+  strokeColor: string;
+  backgroundColor: string;
+};
+
+/** Primary cluster frame colors keyed by AWS resource category. */
+export const TERRAFORM_RESOURCE_CATEGORY_LEGEND: readonly TerraformColorLegendEntry[] =
+  [
+    { id: "compute", label: "Compute", ...CLUSTER_FRAME_COLORS.compute },
+    { id: "data", label: "Data", ...CLUSTER_FRAME_COLORS.data },
+    { id: "messaging", label: "Messaging", ...CLUSTER_FRAME_COLORS.messaging },
+    {
+      id: "networking",
+      label: "Networking",
+      ...CLUSTER_FRAME_COLORS.networking,
+    },
+    { id: "security", label: "Security", ...CLUSTER_FRAME_COLORS.security },
+    {
+      id: "management",
+      label: "Management",
+      ...CLUSTER_FRAME_COLORS.management,
+    },
+    { id: "default", label: "Other", ...CLUSTER_FRAME_COLORS.default },
+  ];
+
+/** Context hierarchy frame colors (provider → account → region → VPC → subnet). */
+export const TERRAFORM_HIERARCHY_LEGEND: readonly TerraformColorLegendEntry[] =
+  [
+    { id: "provider", label: "Provider", ...CONTEXT_FRAME_COLORS.provider },
+    { id: "account", label: "Account", ...CONTEXT_FRAME_COLORS.account },
+    { id: "region", label: "Region", ...CONTEXT_FRAME_COLORS.region },
+    { id: "vpc", label: "VPC", ...CONTEXT_FRAME_COLORS.vpc },
+    {
+      id: "subnet-public",
+      label: "Subnet · public",
+      ...CONTEXT_FRAME_COLORS.subnetPublic,
+    },
+    {
+      id: "subnet-private",
+      label: "Subnet · private",
+      ...CONTEXT_FRAME_COLORS.subnetPrivate,
+    },
+    {
+      id: "subnet-intra",
+      label: "Subnet · intra",
+      ...CONTEXT_FRAME_COLORS.subnetIntra,
+    },
+    {
+      id: "subnet-other",
+      label: "Subnet · other",
+      ...CONTEXT_FRAME_COLORS.subnetDefault,
+    },
+  ];
+
 /**
  * Terraform provider type segment parsed from `nodePath` (handles `module.*` prefixes and `data`).
  */
 export function getTerraformResourceTypeFromNodePath(nodePath: string): string {
-  const parts = nodePath.split(".");
+  const parts = stripStackPrefixForModuleParsing(nodePath).split(".");
   let i = 0;
   while (i < parts.length - 1 && parts[i] === "module") {
     i += 2;

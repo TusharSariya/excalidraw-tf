@@ -59,7 +59,11 @@ import { HintViewer } from "./HintViewer";
 import { ImageExportDialog } from "./ImageExportDialog";
 import { TerraformImportDialog } from "./TerraformImportDialog";
 import { TerraformDemoAutoImport } from "./TerraformDemoAutoImport";
-import { TerraformDebugToolbar } from "./TerraformDebugToolbar";
+import {
+  TerraformScenePanel,
+  isTerraformSceneElements,
+} from "./TerraformScenePanel";
+import "./TerraformOverlays.scss";
 import { TerraformElementActions } from "./TerraformSelectedShapeActions";
 import {
   findTerraformElementByNodePath,
@@ -687,13 +691,19 @@ const LayerUI = ({
               actionManager={actionManager}
               showExitZenModeBtn={showExitZenModeBtn}
               renderWelcomeScreen={renderWelcomeScreen}
+              hideHelpButton={
+                !appState.viewModeEnabled && isTerraformSceneElements(elements)
+              }
             />
             {!appState.viewModeEnabled && (
-              <TerraformDebugToolbar
-                app={app}
-                actionManager={actionManager}
-                elements={elements}
-              />
+              <div className="terraform-overlays">
+                <TerraformScenePanel
+                  app={app}
+                  actionManager={actionManager}
+                  elements={elements}
+                  renderWelcomeScreen={renderWelcomeScreen}
+                />
+              </div>
             )}
             {(appState.toast || appState.scrolledOutside) && (
               <div className="floating-status-stack">
