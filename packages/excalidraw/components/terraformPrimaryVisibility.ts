@@ -2,6 +2,10 @@ import { newElementWith } from "@excalidraw/element";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
+import {
+  TERRAFORM_CLUSTER_FRAME_COLORS,
+  TERRAFORM_CONTEXT_FRAME_COLORS,
+} from "./terraformPastelColors";
 import { stripStackPrefixForModuleParsing } from "./terraformStackAddress";
 
 /** Frame tint mode: resource/hierarchy categories vs default frames (plan action colors on cards). */
@@ -304,15 +308,7 @@ export function isInitiallyVisibleTerraformTopologyTile(
   return isInitiallyVisibleTerraformResource(resourceType, action);
 }
 
-const CLUSTER_FRAME_COLORS = {
-  compute: { strokeColor: "#ea580c", backgroundColor: "#fff7ed" },
-  data: { strokeColor: "#059669", backgroundColor: "#ecfdf5" },
-  messaging: { strokeColor: "#e11d48", backgroundColor: "#fff1f2" },
-  networking: { strokeColor: "#0284c7", backgroundColor: "#f0f9ff" },
-  security: { strokeColor: "#d97706", backgroundColor: "#fffbeb" },
-  management: { strokeColor: "#7c3aed", backgroundColor: "#f5f3ff" },
-  default: { strokeColor: "#64748b", backgroundColor: "#f8fafc" },
-} as const;
+const CLUSTER_FRAME_COLORS = TERRAFORM_CLUSTER_FRAME_COLORS;
 
 /** Frame border + background color keyed by primary resource type for pipeline/topology cluster frames. */
 export function getClusterFrameColorForResourceType(resourceType: string): {
@@ -386,16 +382,7 @@ export type TerraformContextFrameRole =
   | "vpc"
   | "subnetZone";
 
-const CONTEXT_FRAME_COLORS = {
-  provider: { strokeColor: "#475569", backgroundColor: "#f8fafc" },
-  account: { strokeColor: "#4f46e5", backgroundColor: "#eef2ff" },
-  region: { strokeColor: "#0891b2", backgroundColor: "#ecfeff" },
-  vpc: { strokeColor: "#0369a1", backgroundColor: "#e0f2fe" },
-  subnetPublic: { strokeColor: "#d97706", backgroundColor: "#fffbeb" },
-  subnetPrivate: { strokeColor: "#7c3aed", backgroundColor: "#f5f3ff" },
-  subnetIntra: { strokeColor: "#db2777", backgroundColor: "#fdf2f8" },
-  subnetDefault: { strokeColor: "#64748b", backgroundColor: "#f1f5f9" },
-} as const;
+const CONTEXT_FRAME_COLORS = TERRAFORM_CONTEXT_FRAME_COLORS;
 
 /** Frame border + background for topology context hierarchy (provider → account → region → VPC → subnet). */
 export function getContextFrameColorForTopologyRole(
