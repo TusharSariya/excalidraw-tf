@@ -2410,6 +2410,14 @@ function pushResourceRectangleSkeleton(
   const initiallyVisible =
     options.initiallyVisible ??
     isInitiallyVisibleTerraformTopologyTile(resourceType, action);
+  const satelliteTier: 0 | 1 | 2 =
+    options.satelliteTier === 2
+      ? 2
+      : options.satelliteTier === 1
+      ? 1
+      : initiallyVisible
+      ? 0
+      : 1;
 
   skeleton.push({
     type: "rectangle",
@@ -2440,6 +2448,7 @@ function pushResourceRectangleSkeleton(
       terraformVisibilityKey: visibilityKey,
       terraformNodeKind: "resource",
       terraformInitiallyVisible: initiallyVisible,
+      terraformSatelliteTier: satelliteTier,
       terraformExplodeParentKeys: explodeKeys,
       terraformExplodeParent: explodeParent,
       terraformExpandAllView: false,
@@ -3135,10 +3144,12 @@ const topologyFrameZPriority = (el: ExcalidrawElement): number => {
       return 4;
     case "subnetZone":
       return 5;
-    case "primaryCluster":
+    case "ancillaryStrip":
       return 6;
+    case "primaryCluster":
+      return 7;
     default:
-      return role ? 7 : 8;
+      return role ? 8 : 9;
   }
 };
 
@@ -4737,6 +4748,19 @@ export function buildTopologyPrimaryClusterSkeletonForPipeline(
   const frame = skeleton.find(
     (el) => el.type === "frame" && el.id === clusterFrameId,
   );
+  // RCLL M5 (gate-fix): the topology cluster frame carries the `primaryCluster`
+  // role but not its `terraformPrimaryAddress`, so the rendered hub-centering /
+  // fanout / semantic-edge diagnostics — which resolve hubs by address — go BLIND
+  // in Full mode (the M0b debt). Tag the address here (emit-path only, customData;
+  // geometry-invisible) so the Full-mode rendered metrics resolve, matching the
+  // Compact card builder (`buildFallbackCluster`) and the model-level gate.
+  if (frame) {
+    (frame as { customData?: Record<string, unknown> }).customData = {
+      ...((frame as { customData?: Record<string, unknown> }).customData ?? {}),
+      terraformTopologyRole: "primaryCluster",
+      terraformPrimaryAddress: primaryAddr,
+    };
+  }
   const width =
     typeof frame?.width === "number" ? frame.width : RESOURCE_RECT_W;
   const height =

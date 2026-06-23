@@ -10,6 +10,16 @@ import type {
 
 import type { Scene } from "@excalidraw/element";
 
+import {
+  buildTerraformLodContext,
+  filterTerraformLodVisibleElements,
+  isTerraformLodScene,
+} from "../components/terraformLod";
+import {
+  filterTerraformRuntimeVisibleElements,
+  getTerraformRuntimePerformanceSnapshot,
+} from "../components/terraformRuntimePerformance";
+
 import { renderStaticSceneThrottled } from "../renderer/staticScene";
 
 import type { RenderableElementsMap } from "./types";
@@ -106,6 +116,12 @@ export class Renderer {
         width,
         editingTextElement,
         newElementId,
+        terraformLodEnabled,
+        terraformLodPreset,
+        selectedElementIds,
+        terraformEdgeHoverPeekKey,
+        terraformRuntimePerformanceRevision:
+          _terraformRuntimePerformanceRevision,
         // cache-invalidation nonce
         sceneNonce: _sceneNonce,
       }: {
@@ -120,6 +136,11 @@ export class Renderer {
         /** note: first render of newElement will always bust the cache
          * (we'd have to prefilter elements outside of this function) */
         newElementId: ExcalidrawElement["id"] | undefined;
+        terraformLodEnabled: AppState["terraformLodEnabled"];
+        terraformLodPreset: AppState["terraformLodPreset"];
+        selectedElementIds: AppState["selectedElementIds"];
+        terraformEdgeHoverPeekKey: AppState["terraformEdgeHoverPeekKey"];
+        terraformRuntimePerformanceRevision: number;
         sceneNonce: ReturnType<InstanceType<typeof Scene>["getSceneNonce"]>;
       }) => {
         const elements = this.scene.getNonDeletedElements();
@@ -130,7 +151,7 @@ export class Renderer {
           newElementId,
         });
 
-        const visibleElements = getVisibleCanvasElements({
+        let visibleElements = getVisibleCanvasElements({
           elementsMap,
           zoom,
           offsetLeft,
@@ -140,6 +161,27 @@ export class Renderer {
           height,
           width,
         });
+
+        if (terraformLodEnabled && isTerraformLodScene(elements)) {
+          visibleElements = filterTerraformLodVisibleElements(
+            visibleElements,
+            buildTerraformLodContext(
+              terraformLodEnabled,
+              zoom.value,
+              selectedElementIds,
+              terraformEdgeHoverPeekKey,
+              elements,
+              terraformLodPreset,
+            ),
+            elementsMap,
+          );
+        }
+
+        visibleElements = filterTerraformRuntimeVisibleElements(
+          visibleElements,
+          zoom.value,
+          getTerraformRuntimePerformanceSnapshot().value,
+        );
 
         return { elementsMap, visibleElements };
       },

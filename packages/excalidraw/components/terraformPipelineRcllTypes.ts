@@ -1,0 +1,202 @@
+/**
+ * RCLL (Recursive Compound Layered Layout) — §28 module-contract types.
+ *
+ * Source of truth: docs/pipeline-rcll-layout-design.md §6.2 (data model) and §28
+ * (module API surface). These are the types the import→pipeline→export seam is
+ * built against. At milestone M0 the pipeline registers ZERO stages and control
+ * falls through to the compound builder (the §27 fallback rung), so nothing here
+ * is exercised yet — but the seam type-checks against the real `Stage` contract,
+ * so later milestones (M1 tree/lattice, M2 layering, …) register stages without
+ * re-cutting the seam. The full `RcllOptions` knob set is filled in as modules
+ * land; M0 needs only the content/detail flags it passes to the fallback.
+ */
+import type {
+  AncillaryStrip,
+  PipelineCluster,
+} from "./terraformPipelineLayoutShared";
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
+
+/** Topology nesting role (§6.2). */
+export type RcllTopologyRole =
+  | "root"
+  | "provider"
+  | "account"
+  | "region"
+  | "vpc"
+  | "subnetZone"
+  | "primaryCluster"
+  | "ancillaryBand";
+
+/** A node in the compound tree T (§6.2); fields filled progressively in layout. */
+export type CompoundNode = {
+  key: string;
+  role: RcllTopologyRole;
+  level: number;
+  /** min `firstSequence` over descendants — forced-stack ordering tiebreak. */
+  minDescendantSequence: number;
+  /** set iff `role === "primaryCluster"`. */
+  cluster?: PipelineCluster;
+  /** set iff `role === "ancillaryBand"`. */
+  ancillaryStrip?: AncillaryStrip;
+  /** Width reserved for laying out the ancillary strip. */
+  ancillaryWrapWidth?: number;
+  children: CompoundNode[];
+  /** local then global box, assigned during layout. */
+  box?: { x: number; y: number; width: number; height: number };
+  localColumn?: number;
+};
+
+/** A sibling-hull dependency in a container's hull-edge DAG (§6.3, REQ-9). */
+export type HullEdge = {
+  from: string;
+  to: string;
+  weight: number;
+  declared: boolean;
+};
+
+/**
+ * Lattice state threaded between stages (§28): the priority-lattice inputs —
+ * column floors/ceilings + slack, fan-out/fan-in sets, per-container hull-edge
+ * DAGs. Populated at M1; fields are optional so the seam compiles before the
+ * producers exist.
+ */
+export type Lattice = {
+  /** LB(v): longest-path column floor, by cluster id. */
+  floor?: ReadonlyMap<string, number>;
+  /** UB(v): rightmost legal column, by cluster id. */
+  ceil?: ReadonlyMap<string, number>;
+  /** slack(v) = UB − LB, by cluster id. */
+  slack?: ReadonlyMap<string, number>;
+  /** out(u): fan-out target ids, by source id. */
+  fanout?: ReadonlyMap<string, readonly string[]>;
+  /** in(w): fan-in source ids, by target id. */
+  fanin?: ReadonlyMap<string, readonly string[]>;
+  /** per-container hull-edge DAG, by container key. */
+  hullEdges?: ReadonlyMap<string, readonly HullEdge[]>;
+  /**
+   * Container keys whose hull-edge DAG `D_H` contains a cycle (CON-2). M1 flags
+   * these only; the localized model-order-stack fallback for a cyclic subtree is
+   * M3 (when boxes are first placed). Independent of `computeDepths`' global
+   * cluster-level `hasCycle`.
+   */
+  cyclicContainers?: ReadonlySet<string>;
+};
+
+/**
+ * Options selecting modules + tunables (§28). M0 uses only the pass-through
+ * detail/content flags; the forced/packed policy, aspect, routing, and EXT-*
+ * knobs are added as their modules land.
+ */
+export type RcllOptions = {
+  /** primary-card-only clusters (true) vs satellites inline (false). */
+  compact?: boolean;
+  /** draw non-TFD resources in per-hull "Unconnected" strips. */
+  includeAncillary?: boolean;
+  /**
+   * DEC-1 / FLEX-2 (default **true**): inside a cyclic container, X-disjoint SCC
+   * groups laid out as a staircase **rise** in Y to share rows (the height lever).
+   * `false` = each group stacked sequentially below the last (taller; the
+   * off-switch). Internal only (no dialog/URL surface).
+   */
+  staircaseBandOverlap?: boolean;
+  /**
+   * M4 (default **false**): inside a swimlane (a multi-hull SCC group), X-disjoint
+   * **lanes rise** to share Y rows (DEC-1 extended to swimlane interiors) instead of
+   * pure Y-stacking. Each lane's frame is tightened to its content shared-column
+   * range while **leaf X is preserved** (CON-12-safe — cross-member edges stay
+   * forward). `false` ⇒ M3b lane Y-stack. The A/B toggle (dialog + URL):
+   * "Swimlanes · Stacked / Compact".
+   */
+  swimlaneLaneRise?: boolean;
+  /**
+   * M6 (default **false**): crossing minimization (RFC §7.2c). The within-column
+   * leaf Y-order is chosen by a per-container **barycenter** reorder, accepted only
+   * when it **strictly reduces** a model-level crossing count (else model order).
+   * X (columns) is untouched — order only, so the iron rule is unaffected.
+   * `false` ⇒ model-order stacking. The A/B toggle: "Ordering · Off / On".
+   */
+  reorder?: boolean;
+  /**
+   * M6c (default **false**): container-aware crossing minimization (RFC §7.2c / §9.5).
+   * The hierarchical superset of M6 `reorder`: it permutes **lanes / sub-hulls within
+   * their parent AND leaves within columns** (sibling slots only ⇒ contiguity by
+   * construction), proposing orders by a Sander/Forster barycenter but accepting them
+   * only when the **rendered** crossing count (`box.x/box.y`, the diagnostic's basis)
+   * strictly drops — a measure-driven re-place loop (the M5c precedent), not a
+   * floor-coordinate pre-pass. Pays back the `rankSeparate` +45 % crossings follow-on.
+   * X (columns) is never a function of order ⇒ only Y moves, CON-12 untouched. Height/
+   * width are reported but UNGATED (user decision). `false` ⇒ model/M6 order. Wins over
+   * `reorder` when both set (terraformPipelineToggleGuards.ts).
+   */
+  crossingMin?: boolean;
+  /**
+   * M5 (default **false**): coordinate assignment / **straightening** (RFC §9, Axis-1
+   * = Brandes–Köpf). After M6 settles the within-column order, each leaf is assigned a
+   * Y that aligns it with its dataflow neighbours in adjacent columns (the spine reads
+   * flat), replacing the naive top→down stack. **Y only** — column X + within-column
+   * order (M6) untouched, so the iron rule (CON-12) holds. `false` ⇒ plain stack. The
+   * A/B toggle: "Straighten · Off / On".
+   */
+  straighten?: boolean;
+  /**
+   * M5b (default **false**): de-density (Axis-2 B, RFC §9.3). On the swimlane path the
+   * dense-rank axis piles independent same-floor clusters into one column; de-density
+   * promotes a SAFE subset one column right to make Y-room for the straightener.
+   * Column-preserving, single-column, forward-only ⇒ CON-12-safe by construction.
+   * Exposed in the import dialog as "De-densify" (RCLL-only); the UI supplies a
+   * default `deDensifyMaxCols` of 2 (terraformPipelineToggleGuards.ts).
+   * `deDensifyMaxCols` is the width dial; 0 (default) disables the pass.
+   */
+  deDensify?: boolean;
+  deDensifyMaxCols?: number;
+  /**
+   * M5c (default **false**): column compaction (Axis-2 A, RFC §9.4) — the mirror of
+   * de-density. Pulls SAFE independent leaves LEFT into an earlier column's vertical
+   * whitespace to shrink the swimlane group's width, spending hull height the parent
+   * already reserves. Measure-driven: a move is accepted only if re-placing a clone for
+   * the trial column map grows neither the hull width nor any inner frame height, so the
+   * "free space" is observed, not guessed. Emptied columns are removed + re-dense-ranked.
+   * CON-12-safe by construction and re-verified. Mutually exclusive with `deDensify`
+   * (one is the left mirror of the other). Exposed in the dialog as the `Compact` arm of
+   * the "Column packing" tri-state (RCLL-only).
+   */
+  columnCompact?: boolean;
+  /**
+   * De-band **depth** (default **`"none"`**): dissolve the chosen container level AND
+   * every deeper level, lifting their leaf clusters to be direct children of the surviving
+   * parent so that subtree's resources share ONE column stack (height → the merged
+   * max-column-occupancy) instead of `Σ(bands)`. The ladder cascades downward:
+   * `subnet` (subnet→VPC, the original probe) → `vpc` (vpc+subnet→region) → `region` →
+   * `account` → `provider` (everything → one stack). X (`colByCluster`) is untouched ⇒
+   * CON-12-safe at any level. Suppresses the dissolved frames; membership is restored as
+   * per-card rails (terraformPipelineSubnetAnnotation.ts).
+   */
+  deBandLevel?: DeBandLevel;
+  /**
+   * `rankSeparate` (default **false**): sibling-separation ranking (RFC §9.6 / DEC-13).
+   * On the swimlane path, one-way-dependent sibling lanes (regions in an account, VPCs
+   * in a region, …) are re-ranked into **disjoint column ranges** so the M4 lane rise
+   * can lift them off the Y-stack (trade width for height). Independent lanes are
+   * untouched (shift 0 ⇒ they still Y-stack); mutual cycles stay co-axial. Replaces the
+   * `floor` fed to `denseClusterColumns`; falls back to base floor if the constraint
+   * graph is infeasible. Exposed in the import dialog as "Separation" (RCLL-only),
+   * gated to require `swimlaneLaneRise` (terraformPipelineToggleGuards.ts).
+   */
+  rankSeparate?: boolean;
+};
+
+/** A stage's output: the updated tree plus stage-scoped meta (§28). */
+export type StageResult = {
+  tree: CompoundNode;
+  meta?: Record<string, unknown>;
+};
+
+/**
+ * The module contract (§22.1 / §28): a deterministic transform that may optimize
+ * only its own tier and must never violate a higher one. M0 registers none.
+ */
+export type Stage = (
+  tree: CompoundNode,
+  lattice: Lattice,
+  opts: RcllOptions,
+) => StageResult;

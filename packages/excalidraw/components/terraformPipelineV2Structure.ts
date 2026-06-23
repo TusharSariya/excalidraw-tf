@@ -1,0 +1,321 @@
+/**
+ * Pipeline view v2 — structural analysis.
+ *
+ * Pure (ELK-free, deterministic, unit-testable) graph reasoning that the v2 ELK
+ * layout (`terraformPipelineV2ElkGraph.ts`) consumes:
+ *
+ * 1. {@link buildHullTree} groups clusters into the semantic hull hierarchy
+ *    (root → provider → account → region → vpc → subnetZone), mirroring
+ *    `PIPELINE_TOPOLOGY_LEVELS`. Each hull's *units* are its direct child hulls
+ *    plus the leaf clusters that terminate at that level.
+ * 2. {@link liftEdges} projects the global collapsed TFD edges onto a single
+ *    hull's units (an edge `u → v` between clusters becomes an edge between the
+ *    units of `u` and `v` under that hull) — the standard compound-graph edge
+ *    lifting (Sander 1996).
+ * 3. {@link classifyHullLayout} decides, per hull, whether its units read best as
+ *    a left-to-right **flow** (layered) or a **pack** (rectpacking square), and
+ *    detects **fan-out target bundles** — sibling units that share a dominant
+ *    predecessor and have no edges among themselves (e.g. `us-east-1` fanning out
+ *    to `us-west-1/2`, `us-east-2`). A flow level pre-packs each bundle into a
+ *    2-D block instead of stacking it into one tall layered column — this is what
+ *    makes v2 "square, role-separated" instead of tall.
+ */
+
+import { topologyPathForCluster } from "./terraformPipelineTopologyFrames";
+
+import type { TopologyFrameRole } from "./terraformPipelineTopologyFrames";
+import type {
+  CollapsedPipelineEdge,
+  PipelineCluster,
+  PipelinePlacement,
+} from "./terraformPipelineLayoutShared";
+
+export type V2HullRole = TopologyFrameRole | "root";
+
+/** A semantic hull node: child hulls + the leaf clusters that terminate here. */
+export type V2Hull = {
+  role: V2HullRole;
+  /** `\0`-joined topology prefix; "" for the synthetic root. Unique per node. */
+  key: string;
+  placement: PipelinePlacement | null;
+  childHulls: V2Hull[];
+  leafClusters: PipelineCluster[];
+  /** Smallest cluster `firstSequence` anywhere in this subtree (model order). */
+  minFirstSequence: number;
+};
+
+/** A layout unit inside a hull: either a nested hull or a single leaf cluster. */
+export type V2Unit =
+  | { kind: "hull"; id: string; hull: V2Hull; minFirstSequence: number }
+  | {
+      kind: "cluster";
+      id: string;
+      cluster: PipelineCluster;
+      minFirstSequence: number;
+    };
+
+export type V2LiftedEdge = { from: string; to: string };
+
+export type V2HullLayout =
+  | { kind: "pack" }
+  | {
+      kind: "flow";
+      /** Unit-id groups to pre-pack into a 2-D block before the layered pass. */
+      bundles: string[][];
+    };
+
+const ROLE_BY_DEPTH: V2HullRole[] = [
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
+];
+
+/**
+ * Build the hull tree from cluster topology paths. Child hulls and leaf clusters
+ * are sorted by model order (`minFirstSequence`, then key) for determinism.
+ */
+export function buildHullTree(clusters: readonly PipelineCluster[]): V2Hull {
+  const root: V2Hull = {
+    role: "root",
+    key: "",
+    placement: null,
+    childHulls: [],
+    leafClusters: [],
+    minFirstSequence: Number.MAX_SAFE_INTEGER,
+  };
+  const byKey = new Map<string, V2Hull>([["", root]]);
+
+  for (const cluster of clusters) {
+    const path = topologyPathForCluster(cluster);
+    let parent = root;
+    let prefix = "";
+    for (let i = 0; i < path.length; i++) {
+      prefix = i === 0 ? path[0]! : `${prefix}\0${path[i]!}`;
+      let hull = byKey.get(prefix);
+      if (!hull) {
+        hull = {
+          role: ROLE_BY_DEPTH[i] ?? "subnetZone",
+          key: prefix,
+          placement: cluster.placement,
+          childHulls: [],
+          leafClusters: [],
+          minFirstSequence: Number.MAX_SAFE_INTEGER,
+        };
+        byKey.set(prefix, hull);
+        parent.childHulls.push(hull);
+      }
+      parent = hull;
+    }
+    parent.leafClusters.push(cluster);
+  }
+
+  finalizeHullOrder(root);
+  return root;
+}
+
+/** Recursively set `minFirstSequence` and sort children/leaves by model order. */
+function finalizeHullOrder(hull: V2Hull): number {
+  let min = Number.MAX_SAFE_INTEGER;
+  for (const cluster of hull.leafClusters) {
+    min = Math.min(min, cluster.firstSequence);
+  }
+  for (const child of hull.childHulls) {
+    min = Math.min(min, finalizeHullOrder(child));
+  }
+  hull.minFirstSequence = min;
+  hull.childHulls.sort(
+    (a, b) =>
+      a.minFirstSequence - b.minFirstSequence || a.key.localeCompare(b.key),
+  );
+  hull.leafClusters.sort(
+    (a, b) => a.firstSequence - b.firstSequence || a.id.localeCompare(b.id),
+  );
+  return min;
+}
+
+const subtreeClusterIdCache = new WeakMap<V2Hull, Set<string>>();
+
+/** All cluster ids anywhere in this hull's subtree (memoized). */
+export function subtreeClusterIds(hull: V2Hull): Set<string> {
+  const cached = subtreeClusterIdCache.get(hull);
+  if (cached) {
+    return cached;
+  }
+  const out = new Set<string>();
+  for (const cluster of hull.leafClusters) {
+    out.add(cluster.id);
+  }
+  for (const child of hull.childHulls) {
+    for (const id of subtreeClusterIds(child)) {
+      out.add(id);
+    }
+  }
+  subtreeClusterIdCache.set(hull, out);
+  return out;
+}
+
+/** Direct layout units of a hull (child hulls + leaf clusters), in model order. */
+export function hullChildUnits(hull: V2Hull): V2Unit[] {
+  const units: V2Unit[] = [
+    ...hull.childHulls.map(
+      (child): V2Unit => ({
+        kind: "hull",
+        id: `hull:${child.key}`,
+        hull: child,
+        minFirstSequence: child.minFirstSequence,
+      }),
+    ),
+    ...hull.leafClusters.map(
+      (cluster): V2Unit => ({
+        kind: "cluster",
+        id: `cluster:${cluster.id}`,
+        cluster,
+        minFirstSequence: cluster.firstSequence,
+      }),
+    ),
+  ];
+  units.sort(
+    (a, b) =>
+      a.minFirstSequence - b.minFirstSequence || a.id.localeCompare(b.id),
+  );
+  return units;
+}
+
+/**
+ * Lift the global collapsed TFD edges onto a single hull's units. An edge whose
+ * endpoints fall into two distinct units of this hull becomes one lifted edge
+ * between those units; edges inside a single unit (or leaving the subtree) are
+ * dropped. Deduplicated and deterministically ordered.
+ */
+export function liftEdges(
+  hull: V2Hull,
+  units: readonly V2Unit[],
+  collapsedEdges: readonly CollapsedPipelineEdge[],
+): V2LiftedEdge[] {
+  const unitOfCluster = new Map<string, string>();
+  for (const unit of units) {
+    if (unit.kind === "cluster") {
+      unitOfCluster.set(unit.cluster.id, unit.id);
+    } else {
+      for (const id of subtreeClusterIds(unit.hull)) {
+        unitOfCluster.set(id, unit.id);
+      }
+    }
+  }
+  const seen = new Set<string>();
+  const edges: V2LiftedEdge[] = [];
+  for (const edge of collapsedEdges) {
+    const from = unitOfCluster.get(edge.source);
+    const to = unitOfCluster.get(edge.target);
+    if (from == null || to == null || from === to) {
+      continue;
+    }
+    const dedupeKey = `${from}\0${to}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+    edges.push({ from, to });
+  }
+  edges.sort(
+    (a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to),
+  );
+  return edges;
+}
+
+/**
+ * Decide how a hull's units should be laid out.
+ *
+ * - No lifted edges ⇒ `pack` (parallel siblings → rectpacking square block;
+ *   role-separated because a hull's direct children are all the same role).
+ * - Otherwise ⇒ `flow` (layered left-to-right), with **fan-out bundles**
+ *   pre-grouped: units that share an identical, non-empty predecessor set and
+ *   have no edges among themselves are packed as one 2-D block rather than
+ *   stacked into a single tall layered column. Pure-sink fan-outs (no outgoing
+ *   edges) are the common case (DB-subnet style terminals).
+ */
+export function classifyHullLayout(
+  units: readonly V2Unit[],
+  edges: readonly V2LiftedEdge[],
+): V2HullLayout {
+  if (edges.length === 0 || units.length <= 1) {
+    return { kind: "pack" };
+  }
+
+  const preds = new Map<string, Set<string>>();
+  const succCount = new Map<string, number>();
+  const adjacent = new Set<string>();
+  for (const unit of units) {
+    preds.set(unit.id, new Set());
+  }
+  for (const edge of edges) {
+    preds.get(edge.to)?.add(edge.from);
+    succCount.set(edge.from, (succCount.get(edge.from) ?? 0) + 1);
+    adjacent.add(`${edge.from}\0${edge.to}`);
+    adjacent.add(`${edge.to}\0${edge.from}`);
+  }
+
+  // Group units by their (sorted) predecessor signature.
+  const groupsBySignature = new Map<string, string[]>();
+  for (const unit of units) {
+    const predSet = preds.get(unit.id)!;
+    if (predSet.size === 0) {
+      continue; // sources never bundle (they anchor the flow)
+    }
+    const signature = [...predSet].sort().join("\u0001");
+    groupsBySignature.set(signature, [
+      ...(groupsBySignature.get(signature) ?? []),
+      unit.id,
+    ]);
+  }
+
+  const bundles: string[][] = [];
+  for (const group of groupsBySignature.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+    // No edges among bundle members (they must be mutually parallel).
+    let internalEdge = false;
+    for (let i = 0; i < group.length && !internalEdge; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        if (adjacent.has(`${group[i]!}\0${group[j]!}`)) {
+          internalEdge = true;
+          break;
+        }
+      }
+    }
+    if (internalEdge) {
+      continue;
+    }
+    bundles.push([...group].sort((a, b) => a.localeCompare(b)));
+  }
+  bundles.sort((a, b) => (a[0] ?? "").localeCompare(b[0] ?? ""));
+
+  return { kind: "flow", bundles };
+}
+
+/** True when every cluster in the hull's subtree is a pure sink (no outgoing TFD edge). */
+export function isPureSinkHull(
+  hull: V2Hull,
+  outgoingByCluster: ReadonlyMap<string, number>,
+): boolean {
+  for (const id of subtreeClusterIds(hull)) {
+    if ((outgoingByCluster.get(id) ?? 0) > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** clusterId → number of outgoing collapsed TFD edges (for pure-sink detection). */
+export function outgoingEdgeCounts(
+  collapsedEdges: readonly CollapsedPipelineEdge[],
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const edge of collapsedEdges) {
+    out.set(edge.source, (out.get(edge.source) ?? 0) + 1);
+  }
+  return out;
+}

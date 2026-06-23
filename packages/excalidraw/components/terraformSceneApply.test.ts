@@ -14,7 +14,10 @@ import {
   setTerraformImportSession,
 } from "./terraformImportSession";
 import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
+import { fetchPresetLayoutCache } from "./terraformLayoutCacheClient";
 import { DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS } from "./terraformModuleLayoutOptions";
+
+import type { TerraformImportPreset } from "./terraformImportPresetsTypes";
 
 vi.mock("./terraformLayoutWorkerClient", () => ({
   layoutTerraformViaWorkers: vi.fn(),
@@ -22,6 +25,10 @@ vi.mock("./terraformLayoutWorkerClient", () => ({
 
 vi.mock("./terraformImportPresetLoader", () => ({
   loadTerraformImportPresetSources: vi.fn(),
+}));
+
+vi.mock("./terraformLayoutCacheClient", () => ({
+  fetchPresetLayoutCache: vi.fn(),
 }));
 
 const hoisted = vi.hoisted(() => ({
@@ -47,6 +54,7 @@ describe("terraformSceneApply", () => {
   beforeEach(() => {
     clearTerraformImportSession();
     vi.mocked(layoutTerraformViaWorkers).mockReset();
+    vi.mocked(fetchPresetLayoutCache).mockReset();
     hoisted.addFiles.mockReset();
     hoisted.replaceAllElements.mockReset();
     hoisted.scrollToContent.mockReset();
@@ -123,6 +131,7 @@ describe("terraformSceneApply", () => {
           dataFlow: false,
           declaredDataFlow: true,
           networking: false,
+          topologyFrameFlow: false,
         },
         enableDeclaredDataFlow: true,
       },
@@ -234,6 +243,65 @@ describe("terraformSceneApply", () => {
     );
   });
 
+  it("refreshTerraformLayout preserves all RCLL pipeline options from session", async () => {
+    setTerraformImportSession({
+      sources: {
+        planDotBundles: [{ plan: {}, dotText: "digraph {}", label: "s" }],
+        states: [],
+        tfdTexts: [],
+      },
+      semanticLayout: false,
+      layoutMode: "rcll",
+      moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
+      pipelineCompact: false,
+      pipelinePacked: false,
+      pipelinePackedPullLeft: false,
+      pipelineIncludeAncillary: true,
+      pipelineSemanticPlacement: false,
+      pipelineSwimlaneLaneRise: true,
+      pipelineReorder: true,
+      pipelineCrossingMin: true,
+      pipelineDeBandLevel: "none",
+      pipelineRankSeparate: true,
+      pipelineStraighten: true,
+      pipelineDeDensify: false,
+      pipelineColumnPacking: "compact",
+      pipelineLayoutProfile: "compact",
+      pipelineStaircaseBandOverlap: true,
+      preset: null,
+      importedTfdTexts: [],
+      snapshot: {
+        elements: [],
+        terraformEdgeLayerPins: null,
+        enableDeclaredDataFlow: false,
+      },
+    });
+
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
+
+    await refreshTerraformLayout(mockApp(), hoisted.setAppState);
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineCompact: false,
+        pipelineLayoutVariant: "rcll",
+        pipelineIncludeAncillary: true,
+        pipelineSwimlaneLaneRise: true,
+        pipelineReorder: true,
+        pipelineCrossingMin: true,
+        pipelineDeBandLevel: "none",
+        pipelineRankSeparate: true,
+        pipelineStraighten: true,
+        pipelineDeDensify: false,
+        pipelineColumnPacking: "compact",
+        pipelineLayoutProfile: "compact",
+        pipelineStaircaseBandOverlap: true,
+      }),
+      expect.anything(),
+    );
+  });
+
   it("relayouts when switching layout mode for identical sources", async () => {
     const semanticEl = newTextElement({
       text: "semantic",
@@ -283,5 +351,57 @@ describe("terraformSceneApply", () => {
     );
 
     expect(layoutTerraformViaWorkers).toHaveBeenCalledTimes(3);
+  });
+
+  it("rcll skips the KV layout cache; module consults it (§31)", async () => {
+    // RCLL's dials aren't part of the cache key yet, so an rcll import must
+    // never return a stale cached compound layout. Guard: rcll skips the cache,
+    // module (a cached view) consults it — the contrast proves the assertion.
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [
+        newTextElement({
+          text: "x",
+          x: 0,
+          y: 0,
+          customData: { terraformVisibilityRole: "resource" },
+        }),
+      ],
+    });
+    vi.mocked(fetchPresetLayoutCache).mockResolvedValue(null); // cache miss → proceed to worker
+    hoisted.replaceAllElements.mockImplementation((els) => {
+      hoisted.getElementsIncludingDeleted.mockReturnValue(els);
+    });
+
+    const preset = { id: "demo-preset" } as unknown as TerraformImportPreset;
+    const sources = { planDotBundles: [], states: [], tfdTexts: [] };
+
+    // module → cache IS consulted (vacuity guard).
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "module",
+        preset,
+      },
+    );
+    expect(fetchPresetLayoutCache).toHaveBeenCalledTimes(1);
+
+    vi.mocked(fetchPresetLayoutCache).mockClear();
+
+    // rcll → cache is SKIPPED; the worker still runs.
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "rcll",
+        preset,
+      },
+    );
+    expect(fetchPresetLayoutCache).not.toHaveBeenCalled();
+    expect(layoutTerraformViaWorkers).toHaveBeenCalled();
   });
 });

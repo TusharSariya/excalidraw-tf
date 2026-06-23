@@ -83,6 +83,23 @@ export const TerraformDemoAutoImport = ({
         await runTerraformPresetImport(app, setAppState, preset, {
           view,
           moduleLayoutOptions,
+          pipelineCompact: params.compact,
+          pipelineLayoutVariant: params.pipelineVariant,
+          pipelinePacked: params.packed,
+          pipelinePackedPullLeft: params.packedPullLeft,
+          pipelineIncludeAncillary: params.ancillary,
+          pipelineSemanticPlacement: params.semanticPlace,
+          pipelineSwimlaneLaneRise: params.swimlaneRise,
+          pipelineReorder: params.reorder,
+          pipelineCrossingMin: params.crossingMin,
+          pipelineDeBandLevel: params.deBandLevel,
+          pipelineSubnetDeBand: params.subnetDeBand,
+          pipelineRankSeparate: params.rankSeparate,
+          pipelineStraighten: params.straighten,
+          pipelineDeDensify: params.deDensify,
+          pipelineColumnPacking: params.columnPacking,
+          pipelineLayoutProfile: params.profile,
+          pipelineStaircaseBandOverlap: params.staircaseBandOverlap,
           signal,
           onLayoutProgress: (progress) => {
             const label =

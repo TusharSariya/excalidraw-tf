@@ -52,6 +52,67 @@ yarn health           # fix + typecheck + eslint + arch + knip + depcheck
 
 See [docs/code-quality.md](docs/code-quality.md) for SonarJS, type-checked ESLint scopes, Oxlint rollout, and SonarQube Community Build setup.
 
+### Terraform import and canvas performance
+
+- **Import/layout wall-clock:** [docs/terraform-import-performance-log.md](docs/terraform-import-performance-log.md)
+- **Canvas runtime (pan/zoom/hover/expand after import):** [docs/excalidraw-canvas-architecture.md](docs/excalidraw-canvas-architecture.md)
+- **Pipeline import toggles (compact/compound/packed/ancillary):** [docs/terraform-pipeline-import-agent-guide.md](docs/terraform-pipeline-import-agent-guide.md)
+
+### Local-first RAG
+
+All three tools share [`tools/rag-common`](../tools/rag-common) embed profiles. **Repo-rag on this M4 Pro defaults to:** `mlx-qwen4b` (Qwen3-Embedding-4B, 4-bit MLX, 1024 dims, local-only, $0 API). The older `cuda-qwen0.6b-1024` desktop GPU workflow remains available for graph/PDF corpora and comparison runs.
+
+```bash
+# Optional desktop GPU example: rag-literature-rag
+RAG_EMBED_PROFILE=gemini-2-structure-v1 uv run rag-literature-rag ingest --force --rebuild
+RAG_GPU_TOOL=tools/rag-literature-rag tools/rag-literature-rag/scripts/gpu_dense_reembed.sh
+yarn rag-lit:query "Self-RAG" --top 8 --json
+```
+
+### Repo RAG (code + docs search)
+
+Local hybrid search over this monorepo (AST chunking, BM25 + vector). Per-profile indexes under `data/indexes/{profile}/`. The default local path uses Qwen3 4B on Apple Silicon and needs no `OPENAI_API_KEY`, `RAG_GPU_SSH`, or CUDA settings.
+
+```bash
+cd tools/repo-rag && uv sync && cp .env.example .env
+RAG_EMBED_PROFILE=mlx-qwen4b uv run repo-rag index --force --rebuild
+RAG_EMBED_PROFILE=mlx-qwen4b uv run repo-rag query "terraform pipeline compound layout" --top 8 --json
+uv run repo-rag status
+
+# Optional higher-fidelity local benchmark profile: Qwen3-Embedding-4B native 2560 dims
+RAG_EMBED_PROFILE=qwen3-code uv run repo-rag eval benchmark --compare
+```
+
+See [tools/repo-rag/README.md](tools/repo-rag/README.md). Agent skill: [.agents/skills/repo-rag/SKILL.md](.agents/skills/repo-rag/SKILL.md).
+
+### Graph layout RAG (literature search)
+
+Local vector search over harvested graph-drawing papers (LanceDB). Production query: `cuda-qwen0.6b-1024`; secondary: `gemini-2-structure-v1`.
+
+```bash
+cd tools/graph-layout-rag && uv sync && cp .env.example .env
+yarn graph-rag:harvest
+yarn graph-rag:ingest -- --force --rebuild --embed-profile gemini-2-structure-v1  # secondary (once)
+# RAG_GPU_TOOL=tools/graph-layout-rag tools/graph-layout-rag/scripts/gpu_dense_reembed.sh
+yarn graph-rag:ingest -- -v                  # resume after interrupt (incremental; no --force)
+yarn graph-rag:query "VPSC separation constraints" --tag constraints --json
+```
+
+See [tools/graph-layout-rag/README.md](tools/graph-layout-rag/README.md). Agent skill: [.agents/skills/graph-layout-rag/SKILL.md](.agents/skills/graph-layout-rag/SKILL.md). **Local LLM (HyDE):** Ollama on RTX 3060 Ti (`desktop` SSH); measured 2026-06-17 — **cuda hybrid still wins** (0.715/0.684 nDCG@10); use `gemma4:e4b` only if enabling `--expand auto`. `./scripts/gpu_execute_local_llm_benchmark.sh` — [docs/graph-layout-rag-local-llm-benchmark-2026.md](docs/graph-layout-rag-local-llm-benchmark-2026.md).
+
+### RAG literature RAG (RAG research papers)
+
+Local hybrid search over core retrieval-augmented generation research. Same local-first stack as graph-layout-rag.
+
+```bash
+cd tools/rag-literature-rag && uv sync && cp .env.example .env
+yarn rag-lit:harvest -- --deep-harvest --target-pdfs 1000 --resume -v
+yarn rag-lit:ingest -- --force --rebuild --embed-profile gemini-2-structure-v1
+yarn rag-lit:query "Self-RAG reflection tokens" --tag self-correcting --json
+```
+
+See [tools/rag-literature-rag/README.md](tools/rag-literature-rag/README.md). Agent skill: [.agents/skills/rag-literature-rag/SKILL.md](.agents/skills/rag-literature-rag/SKILL.md).
+
 ## Architecture Notes
 
 ### Build System

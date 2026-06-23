@@ -1,6 +1,13 @@
+/* eslint-disable max-lines */
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { BUILTIN_TERRAFORM_IMPORT_PRESETS } from "./terraformImportPresetsTypes";
 import { TerraformImportModal } from "./TerraformImportDialog";
@@ -134,9 +141,493 @@ describe("TerraformImportModal", () => {
       semanticLayout: false,
       layoutMode: "pipeline",
       pipelineCompact: true,
+      pipelineLayoutVariant: "classic",
+      pipelinePacked: false,
+      pipelinePackedPullLeft: false,
+      pipelineIncludeAncillary: false,
+      pipelineSemanticPlacement: false,
+      pipelineSwimlaneLaneRise: false,
+      pipelineReorder: false,
+      pipelineCrossingMin: false,
+      pipelineDeBandLevel: "none",
+      pipelineRankSeparate: false,
+      pipelineStraighten: false,
+      pipelineDeDensify: false,
+      pipelineColumnPacking: "none",
+      pipelineStaircaseBandOverlap: true,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
+  });
+
+  it("passes pipelineLayoutVariant compound when Compound layout is selected", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /pipeline view/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^compound$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual({
+      semanticLayout: false,
+      layoutMode: "pipeline",
+      pipelineCompact: true,
+      pipelineLayoutVariant: "compound",
+      pipelinePacked: false,
+      pipelinePackedPullLeft: false,
+      pipelineIncludeAncillary: false,
+      pipelineSemanticPlacement: false,
+      pipelineSwimlaneLaneRise: false,
+      pipelineReorder: false,
+      pipelineCrossingMin: false,
+      pipelineDeBandLevel: "none",
+      pipelineRankSeparate: false,
+      pipelineStraighten: false,
+      pipelineDeDensify: false,
+      pipelineColumnPacking: "none",
+      pipelineStaircaseBandOverlap: true,
+      moduleLayoutOptions: undefined,
+      colorMode: "category",
+    });
+  });
+
+  it("RCLL view: imports as layoutMode rcll + hides the Layout variant control", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+
+    // The Classic/Compound/V2 control is present under Pipeline view...
+    fireEvent.click(screen.getByRole("radio", { name: /pipeline view/i }));
+    expect(
+      screen.queryByRole("button", { name: /^compound$/i }),
+    ).toBeInTheDocument();
+
+    // ...and hidden under RCLL view (the view forces its own variant).
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+    expect(
+      screen.queryByRole("button", { name: /^compound$/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    // Routes as the rcll family + compact on. pipelineLayoutVariant is NOT
+    // pinned here: the dialog may pass a stale variant and the layout core
+    // forces "rcll" at context build (covered by terraformPipelineRcll.test.ts).
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        semanticLayout: false,
+        layoutMode: "rcll",
+        pipelineCompact: true,
+      }),
+    );
+  });
+
+  it("RCLL view: Swimlanes · Compact threads pipelineSwimlaneLaneRise true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // The RCLL-only Lane height control is present; flip it to Risen (rise on).
+    // Scoped to the Lane height group — "Risen" also appears under Cycle height.
+    const swimlanes = screen.getByRole("group", {
+      name: /pipeline lane height/i,
+    });
+    const risenBtn = within(swimlanes).getByRole("button", {
+      name: /^risen$/i,
+    });
+    expect(risenBtn).toBeInTheDocument();
+    fireEvent.click(risenBtn);
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineSwimlaneLaneRise: true,
+      }),
+    );
+  });
+
+  it("RCLL view: Ordering · On threads pipelineReorder true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // The RCLL-only Ordering control is present; flip it On (M6 reorder).
+    // Scoped to the Ordering group — "On" also appears under the new toggles.
+    const ordering = screen.getByRole("group", { name: /pipeline ordering/i });
+    const onBtn = within(ordering).getByRole("button", { name: /^on$/i });
+    expect(onBtn).toBeInTheDocument();
+    fireEvent.click(onBtn);
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineReorder: true,
+      }),
+    );
+  });
+
+  it("RCLL view: Cross-container · On threads pipelineCrossingMin true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // The RCLL-only nested Cross-container control (M6c). Scope to its group so
+    // the shared "On" label of the sibling toggles doesn't collide.
+    const group = screen.getByRole("group", {
+      name: /pipeline cross-container crossing-min/i,
+    });
+    const onBtn = within(group).getByRole("button", { name: /^on$/i });
+    expect(onBtn).toBeInTheDocument();
+    fireEvent.click(onBtn);
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineCrossingMin: true,
+      }),
+    );
+  });
+
+  it("RCLL view: De-band depth select threads pipelineDeBandLevel", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // The RCLL-only "De-band depth" select is present; pick a hierarchy level (vpc).
+    const debandSelect = screen.getByRole("combobox", {
+      name: /de-band depth/i,
+    });
+    expect(debandSelect).toBeInTheDocument();
+    fireEvent.change(debandSelect, { target: { value: "vpc" } });
+
+    // Touching the de-band depth (an advanced lever) flips the primary Layout to Custom.
+    const profile = screen.getByRole("group", {
+      name: /pipeline layout profile/i,
+    });
+    expect(
+      within(profile).getByRole("button", { name: /^custom$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineDeBandLevel: "vpc",
+      }),
+    );
+  });
+
+  it("RCLL view: Lane split 'On' is disabled until Lane height = Risen, then threads pipelineRankSeparate true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // Footgun guard: Lane split alone is a regression (taller/wider). Its "On"
+    // is aria-disabled (focusable, so its help stays keyboard-reachable) until
+    // the lane-rise is on.
+    const separation = screen.getByRole("group", {
+      name: /pipeline lane split/i,
+    });
+    const sepOn = within(separation).getByRole("button", { name: /^on$/i });
+    expect(sepOn).toHaveAttribute("aria-disabled", "true");
+
+    // Clicking it while gated does NOT flip rankSeparate (onClick suppressed).
+    fireEvent.click(sepOn);
+    expect(sepOn).toHaveAttribute("aria-pressed", "false");
+
+    // Enable the lane-rise → Lane split "On" becomes available.
+    const swimlanes = screen.getByRole("group", {
+      name: /pipeline lane height/i,
+    });
+    fireEvent.click(
+      within(swimlanes).getByRole("button", { name: /^risen$/i }),
+    );
+    expect(
+      within(separation).getByRole("button", { name: /^on$/i }),
+    ).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(within(separation).getByRole("button", { name: /^on$/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineSwimlaneLaneRise: true,
+        pipelineRankSeparate: true,
+      }),
+    );
+  });
+
+  it("RCLL view: turning Lane height back to Stacked clears a set Lane split", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const swimlanes = screen.getByRole("group", {
+      name: /pipeline lane height/i,
+    });
+    const separation = screen.getByRole("group", {
+      name: /pipeline lane split/i,
+    });
+    // Risen → Lane split On → then back to Stacked (should clear Lane split).
+    fireEvent.click(
+      within(swimlanes).getByRole("button", { name: /^risen$/i }),
+    );
+    fireEvent.click(within(separation).getByRole("button", { name: /^on$/i }));
+    fireEvent.click(
+      within(swimlanes).getByRole("button", { name: /^stacked$/i }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    const opts = vi.mocked(layoutTerraformViaWorkers).mock
+      .calls[0][1] as Record<string, unknown>;
+    expect(opts.pipelineSwimlaneLaneRise).toBe(false);
+    expect(opts.pipelineRankSeparate).toBe(false);
+  });
+
+  it("RCLL view: Straighten · On threads pipelineStraighten true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const straighten = screen.getByRole("group", {
+      name: /pipeline straighten/i,
+    });
+    fireEvent.click(within(straighten).getByRole("button", { name: /^on$/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineStraighten: true,
+      }),
+    );
+  });
+
+  it("RCLL view: Column packing · Spread threads pipelineColumnPacking spread", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const packing = screen.getByRole("group", {
+      name: /pipeline column packing/i,
+    });
+    fireEvent.click(within(packing).getByRole("button", { name: /^spread$/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineColumnPacking: "spread",
+      }),
+    );
+  });
+
+  it("RCLL view: Column packing · Compact threads pipelineColumnPacking compact (M5c)", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const packing = screen.getByRole("group", {
+      name: /pipeline column packing/i,
+    });
+    fireEvent.click(
+      within(packing).getByRole("button", { name: /^compact$/i }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineColumnPacking: "compact",
+      }),
+    );
+  });
+
+  it("RCLL view: primary Layout · Compact expands the whole compact bundle", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // The PRIMARY "Layout" profile control fans one click out into the seven flags.
+    const profile = screen.getByRole("group", {
+      name: /pipeline layout profile/i,
+    });
+    fireEvent.click(
+      within(profile).getByRole("button", { name: /^compact$/i }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineSwimlaneLaneRise: true,
+        pipelineRankSeparate: true,
+        pipelineDeBandLevel: "subnet",
+        pipelineReorder: true,
+        pipelineStraighten: true,
+        pipelineColumnPacking: "compact",
+      }),
+    );
+  });
+
+  it("RCLL view: touching an advanced lever flips the primary Layout to Custom", async () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const profile = screen.getByRole("group", {
+      name: /pipeline layout profile/i,
+    });
+    // Starts on the default profile; no Custom badge yet.
+    expect(
+      within(profile).getByRole("button", { name: /^balanced$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(profile).queryByRole("button", { name: /^custom$/i }),
+    ).not.toBeInTheDocument();
+
+    // Touch any advanced pass (Ordering) → the primary control must show Custom.
+    const ordering = screen.getByRole("group", { name: /pipeline ordering/i });
+    fireEvent.click(within(ordering).getByRole("button", { name: /^on$/i }));
+
+    const custom = within(profile).getByRole("button", { name: /^custom$/i });
+    expect(custom).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(profile).getByRole("button", { name: /^balanced$/i }),
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("RCLL view: Cycle height defaults to Risen (true) and threads false when set to Stacked", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const cycleBands = screen.getByRole("group", {
+      name: /pipeline cycle height/i,
+    });
+    // Default is Risen (on) — flip it to Stacked.
+    fireEvent.click(
+      within(cycleBands).getByRole("button", { name: /^stacked$/i }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineStaircaseBandOverlap: false,
+      }),
+    );
+  });
+
+  it("RCLL view: hovering a geometry option shows a schematic figure in the help panel", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    // The side help panel renders a decorative before/after <svg> for geometry
+    // toggles. Hover the Lane height "Risen" arm → its schematic appears.
+    const laneHeight = screen.getByRole("group", {
+      name: /pipeline lane height/i,
+    });
+    fireEvent.mouseEnter(
+      within(laneHeight).getByRole("button", { name: /^risen$/i }),
+    );
+    const help = screen.getByLabelText("Option explanation");
+    expect(help.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("RCLL view: 'All resources' is clickable and included in import", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const allResources = screen.getByRole("button", {
+      name: /^all resources$/i,
+    });
+    expect(allResources).not.toHaveAttribute("aria-disabled");
+    const dataflowOnly = screen.getByRole("button", {
+      name: /^dataflow only$/i,
+    });
+    expect(dataflowOnly).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(allResources);
+    expect(allResources).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineIncludeAncillary: true,
+      }),
+    );
   });
 
   it("passes semanticLayout false for module view", async () => {
@@ -206,11 +697,11 @@ describe("TerraformImportModal", () => {
     render(<TerraformImportModal onCloseRequest={vi.fn()} />);
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: /use preset manifest/i }),
+        screen.getByRole("button", { name: /edit before import/i }),
       ).not.toBeDisabled(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /use preset manifest/i }),
+      screen.getByRole("button", { name: /edit before import/i }),
     );
     fireEvent.click(screen.getByRole("radio", { name: /module view/i }));
     fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
@@ -330,13 +821,13 @@ describe("TerraformImportModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("shows preset manifest table when Use preset manifest is clicked", async () => {
+  it("shows preset manifest table when Edit before import is clicked", async () => {
     render(<TerraformImportModal onCloseRequest={vi.fn()} />);
     await waitFor(() =>
       expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /use preset manifest/i }),
+      screen.getByRole("button", { name: /edit before import/i }),
     );
     expect(
       screen.getByText(
@@ -368,10 +859,10 @@ describe("TerraformImportModal", () => {
     render(<TerraformImportModal onCloseRequest={vi.fn()} />);
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: /load & import/i }),
+        screen.getByRole("button", { name: /import preset/i }),
       ).not.toBeDisabled(),
     );
-    fireEvent.click(screen.getByRole("button", { name: /load & import/i }));
+    fireEvent.click(screen.getByRole("button", { name: /import preset/i }));
 
     await waitFor(() =>
       expect(loadTerraformImportPresetSources).toHaveBeenCalled(),
@@ -380,5 +871,41 @@ describe("TerraformImportModal", () => {
     const sources = vi.mocked(layoutTerraformViaWorkers).mock.calls[0][0];
     expect(sources.planDotBundles).toHaveLength(1);
     expect(sources.tfdLabels).toEqual(["pipeline.tfd"]);
+  });
+
+  it("keeps preset management and developer tools collapsed by default", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+
+    expect(
+      screen.getByText("Manage presets").closest("details"),
+    ).not.toHaveAttribute("open");
+    expect(
+      screen.getByText("Developer tools").closest("details"),
+    ).not.toHaveAttribute("open");
+  });
+
+  it("shows selected state file names", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/state \(/i), {
+      target: {
+        files: [
+          textFileLike(JSON.stringify({ resources: [] }), "prod.tfstate"),
+        ],
+      },
+    });
+
+    expect(screen.getByText("prod.tfstate")).toBeInTheDocument();
+  });
+
+  it("shows pipeline settings only when Pipeline view is selected", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+
+    expect(screen.queryByText("Pipeline settings")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /pipeline view/i }));
+    expect(screen.getByText("Pipeline settings")).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: /pipeline height packing/i }),
+    ).toBeInTheDocument();
   });
 });

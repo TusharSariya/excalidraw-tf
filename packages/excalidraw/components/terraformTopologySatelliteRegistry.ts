@@ -54,6 +54,7 @@ import { getTerraformCardResourceType } from "./terraformResourceCardLabel";
 import { getTopologyPrimaryLayoutJson } from "./terraformTopologyPrimaryLayoutLoader";
 
 import {
+  buildNodesByTypeIndex,
   buildSatelliteClusterForKind,
   collectSatelliteAddressesForKind,
   getAllCatalogPluginIds,
@@ -458,6 +459,46 @@ export function collectTopologySatelliteAddressesFromRegistry(
         plan,
       )) {
         out.add(addr);
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Batch satellite→primary resolution across all primaries in one structured pass.
+ * Contested satellites resolve to the primary that sorts first (first-claim-wins),
+ * matching the semantics of the per-primary loop this replaces. Centralizing the
+ * map here lets callers (placement enrichment) reuse it instead of re-deriving
+ * the same satellite set with a second scan.
+ */
+export function buildAllSatellitePrimaryMappings(
+  nodes: TerraformPlanNodesMap,
+  arnIndex: Map<string, string>,
+  primaryAddresses: readonly string[],
+  plan?: unknown,
+): Map<string, string> {
+  installSatellitePlugins();
+  const nodesByType = buildNodesByTypeIndex(nodes);
+  const sortedPrimaries = [...primaryAddresses].sort();
+  const out = new Map<string, string>();
+
+  for (const primaryAddress of sortedPrimaries) {
+    const ctx = buildSatelliteContext(nodes, primaryAddress, arnIndex, plan);
+    const kinds = enabledKindsForPrimaryType(ctx.primaryType);
+    for (const kind of kinds) {
+      for (const sat of collectSatelliteAddressesForKind(
+        kind,
+        [primaryAddress],
+        nodes,
+        arnIndex,
+        plan,
+        nodesByType,
+      )) {
+        if (!out.has(sat)) {
+          out.set(sat, primaryAddress);
+        }
       }
     }
   }

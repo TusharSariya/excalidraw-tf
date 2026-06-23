@@ -37,6 +37,7 @@ import {
   refreshTerraformLayout,
   resetTerraformLayout,
   runTerraformImportFromSources,
+  terraformPipelineReplayOptionsFromSession,
 } from "./terraformSceneApply";
 import {
   TERRAFORM_COLOR_MODE_DEFAULT,
@@ -296,6 +297,7 @@ export const TerraformScenePanel = ({
         layoutMode: session.layoutMode,
         moduleLayoutOptions: session.moduleLayoutOptions,
         pipelineCompact: !pipelineCompact,
+        ...terraformPipelineReplayOptionsFromSession(session),
         importedTfdTexts: session.importedTfdTexts,
         preset: session.preset,
       });

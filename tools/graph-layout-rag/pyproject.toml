@@ -1,0 +1,68 @@
+[project]
+name = "graph-layout-rag"
+version = "0.1.0"
+description = "Local RAG corpus for graph drawing / layout theory research"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "beautifulsoup4>=4.12.0",
+  "click>=8.1.0",
+  "httpx>=0.27.0",
+  "lancedb>=0.15.0",
+  "openai>=1.40.0",
+  "pydantic>=2.7.0",
+  "pymupdf>=1.24.0",
+  "rag-common[gemini]",
+  "tantivy>=0.22.0",
+  "tiktoken>=0.7.0",
+  "torch>=2.0.0,<2.6",
+]
+
+[tool.uv]
+# The GPU extras (onnxruntime-gpu + nvidia-*-cu12) are installed on the x86_64
+# Linux GPU box. The lock is generated on Apple Silicon (aarch64), so without
+# this uv may pin nvidia wheels that only ship aarch64 builds (e.g. cudnn
+# 9.23.2.1), which then fail to install on the box. Requiring the x86_64-linux
+# environment forces uv to resolve versions that have wheels for both.
+required-environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.uv.sources]
+rag-common = { path = "../rag-common", editable = true }
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+mlx = ["rag-common[mlx]"]
+docling = ["docling>=2.0.0"]
+retrieval-experiments = ["qdrant-client[fastembed]>=1.14.0"]
+retrieval-experiments-gpu = [
+  "accelerate>=0.33.0",
+  "bitsandbytes>=0.43.0",
+  "qdrant-client[fastembed-gpu]>=1.14.0",
+  "onnxruntime-gpu>=1.19.2,<1.27.0",
+  "nvidia-cublas-cu12",
+  "nvidia-cuda-nvrtc-cu12",
+  "nvidia-cuda-runtime-cu12",
+  "nvidia-cudnn-cu12",
+  "nvidia-cufft-cu12",
+  "nvidia-curand-cu12",
+  "nvidia-cusolver-cu12",
+  "nvidia-cusparse-cu12",
+  "nvidia-nvjitlink-cu12",
+  "sentence-transformers>=3.0.0",
+  "torch>=2.0.0",
+]
+
+[project.scripts]
+graph-layout-rag = "graph_layout_rag.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/graph_layout_rag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

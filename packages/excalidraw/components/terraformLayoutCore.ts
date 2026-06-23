@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Worker-safe Terraform layout: merge plans, run semantic / module layout,
  * return a plain scene payload (no Response, no DOM).
@@ -32,7 +33,18 @@ import {
   enrichAndReconcileTopologyPlacements,
 } from "./terraformTopologyPlacementBuild";
 import { buildTerraformTopologyExcalidrawScene } from "./terraformTopologyLayout";
-import { buildTerraformPipelineExcalidrawScene } from "./terraformPipelineLayout";
+import {
+  buildTerraformCompoundPipelineExcalidrawScene,
+  buildTerraformPipelineExcalidrawScene,
+} from "./terraformPipelineLayout";
+import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
+import { buildTerraformPipelineRcllExcalidrawScene } from "./terraformPipelineLayoutRcll";
+import { applyRcllToggleGuards } from "./terraformPipelineToggleGuards";
+import {
+  resolveRcllLayoutProfile,
+  type DeBandLevel,
+  type RcllLayoutProfile,
+} from "./terraformPipelineLayoutProfiles";
 import { TERRAFORM_MODULE_TREE_KEY } from "./terraformPlanMeta";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import {
@@ -411,6 +423,36 @@ type LayoutSceneContext = {
   addressToStack: Record<string, string>;
   deferDecorations?: boolean;
   pipelineCompact?: boolean;
+  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
+  pipelinePacked?: boolean;
+  pipelinePackedPullLeft?: boolean;
+  pipelineIncludeAncillary?: boolean;
+  pipelineSemanticPlacement?: boolean;
+  /** RCLL M4: X-disjoint swimlane lanes rise to share Y rows. */
+  pipelineSwimlaneLaneRise?: boolean;
+  /** RCLL M6: per-container barycenter crossing-min reorder. */
+  pipelineReorder?: boolean;
+  /** RCLL M6c: container-aware crossing minimization (supersedes the leaf reorder). */
+  pipelineCrossingMin?: boolean;
+  /** RCLL de-band depth: dissolve the chosen container level + all deeper levels into one
+   * shared column stack (frames → rails). `none` = today's boxed layout. */
+  pipelineDeBandLevel?: DeBandLevel;
+  /** Back-compat alias for `pipelineDeBandLevel: "subnet"`. `pipelineDeBandLevel` wins. */
+  pipelineSubnetDeBand?: boolean;
+  /** RCLL M8r: whole-model-global sibling-separation ranking (needs lane-rise). */
+  pipelineRankSeparate?: boolean;
+  /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
+  pipelineStraighten?: boolean;
+  /** RCLL M5b: de-density — spread crowded columns (dial defaulted by the guard). */
+  pipelineDeDensify?: boolean;
+  /** RCLL "Column packing" tri-state: `spread` = M5b pull-right, `compact` = M5c pull-left,
+   * `none` = neither. Front-door enum; supersedes `pipelineDeDensify` (legacy ⇒ `spread`). */
+  pipelineColumnPacking?: "spread" | "none" | "compact";
+  /** RCLL "Layout" profile, echoed into meta (when not `balanced`). The flag expansion is
+   * done at the `sceneContext` literal; this field is only carried for the meta echo. */
+  pipelineLayoutProfile?: RcllLayoutProfile;
+  /** RCLL M3b / DEC-1: X-disjoint cycle groups rise to share Y. Default true (undefined ⇒ on). */
+  pipelineStaircaseBandOverlap?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -419,11 +461,65 @@ async function buildPipelineLayoutSceneBody(
 ): Promise<Record<string, unknown>> {
   return withTerraformLayoutColorModeAsync(
     ctx.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     async () => {
-      const pipelineScene = await buildTerraformPipelineExcalidrawScene(
+      // Shared as a variable (not a literal) so v2 — which reads only `compact`
+      // / `includeAncillary` — tolerates the extra classic/compound keys.
+      // RCLL toggle coupling is enforced once here (the dialog gates the UI; this is
+      // the backstop for URL/programmatic imports): `applyRcllToggleGuards` drops
+      // rankSeparate when the lane-rise is off (solo = taller/wider) and supplies the
+      // de-density width dial. `staircaseBandOverlap` is passthrough (undefined ⇒
+      // engine default true ⇒ OFF byte-identical).
+      // "Column packing" tri-state is the single front-door; derive the two mutually
+      // exclusive engine flags from it (legacy `pipelineDeDensify` ⇒ `spread`).
+      const columnPacking: "spread" | "none" | "compact" =
+        ctx.pipelineColumnPacking ??
+        (ctx.pipelineDeDensify ? "spread" : "none");
+      const { options: pipelineOptions, suppressions: rcllSuppressions } =
+        applyRcllToggleGuards({
+          compact: ctx.pipelineCompact !== false,
+          includeAncillary: ctx.pipelineIncludeAncillary === true,
+          packed: ctx.pipelinePacked === true,
+          packedPullLeft: ctx.pipelinePackedPullLeft === true,
+          semanticPlacement: ctx.pipelineSemanticPlacement === true,
+          swimlaneLaneRise: ctx.pipelineSwimlaneLaneRise === true,
+          reorder: ctx.pipelineReorder === true,
+          crossingMin: ctx.pipelineCrossingMin === true,
+          deBandLevel: ctx.pipelineDeBandLevel ?? "none",
+          rankSeparate: ctx.pipelineRankSeparate === true,
+          straighten: ctx.pipelineStraighten === true,
+          deDensify: columnPacking === "spread",
+          columnCompact: columnPacking === "compact",
+          staircaseBandOverlap: ctx.pipelineStaircaseBandOverlap,
+        });
+      const rankSeparateSuppressed = rcllSuppressions.includes(
+        "rankSeparate-needs-rise",
+      );
+      const columnPackingConflict = rcllSuppressions.includes(
+        "column-packing-conflict-compact-wins",
+      );
+      const orderingConflict = rcllSuppressions.includes(
+        "ordering-conflict-crossing-min-wins",
+      );
+      // The applied packing arm after the guard (a conflict drops `deDensify`).
+      const appliedColumnPacking: "spread" | "none" | "compact" =
+        pipelineOptions.columnCompact
+          ? "compact"
+          : pipelineOptions.deDensify
+          ? "spread"
+          : "none";
+      const buildPipeline =
+        ctx.pipelineLayoutVariant === "rcll"
+          ? buildTerraformPipelineRcllExcalidrawScene
+          : ctx.pipelineLayoutVariant === "v2"
+          ? buildTerraformPipelineV2ExcalidrawScene
+          : ctx.pipelineLayoutVariant === "compound"
+          ? buildTerraformCompoundPipelineExcalidrawScene
+          : buildTerraformPipelineExcalidrawScene;
+      const pipelineScene = await buildPipeline(
         ctx.nodes5,
         ctx.plan,
-        { compact: ctx.pipelineCompact !== false },
+        pipelineOptions,
       );
       emitLocalParseDebug({
         phase: "pipelineLayout",
@@ -436,6 +532,68 @@ async function buildPipelineLayoutSceneBody(
         meta: appendImportMeta(
           {
             ...pipelineScene.meta,
+            ...(ctx.pipelinePacked ? { pipelinePacked: true } : {}),
+            ...(ctx.pipelinePacked && ctx.pipelinePackedPullLeft
+              ? { pipelinePackedPullLeft: true }
+              : {}),
+            ...(ctx.pipelineIncludeAncillary
+              ? { pipelineIncludeAncillary: true }
+              : {}),
+            ...(ctx.pipelineSemanticPlacement
+              ? { pipelineSemanticPlacement: true }
+              : {}),
+            ...(ctx.pipelineSwimlaneLaneRise
+              ? { pipelineSwimlaneLaneRise: true }
+              : {}),
+            // Echo the POST-guard reorder arm (the guard drops it when crossingMin
+            // wins) so the meta never claims an ordering pass the engine didn't run.
+            ...(pipelineOptions.reorder ? { pipelineReorder: true } : {}),
+            ...(pipelineOptions.crossingMin
+              ? { pipelineCrossingMin: true }
+              : {}),
+            // Observable backstop: both ordering passes were requested; the guard kept
+            // the hierarchical crossing-min and dropped the leaf reorder (superset wins).
+            ...(orderingConflict ? { pipelineOrderingConflict: true } : {}),
+            // De-band depth echo — omit "none" (the identity ⇒ OFF byte-identical). Echo the
+            // legacy `pipelineSubnetDeBand` boolean too when the level is "subnet" (back-compat
+            // for existing assertions / the dev plugin's boolean-flag view).
+            ...((ctx.pipelineDeBandLevel ?? "none") !== "none"
+              ? { pipelineDeBandLevel: ctx.pipelineDeBandLevel }
+              : {}),
+            ...((ctx.pipelineDeBandLevel ?? "none") === "subnet"
+              ? { pipelineSubnetDeBand: true }
+              : {}),
+            ...(pipelineOptions.rankSeparate
+              ? { pipelineRankSeparate: true }
+              : {}),
+            // Observable footgun backstop: the user asked for rankSeparate but it
+            // was dropped because the lane-rise was off (URL/programmatic path).
+            ...(rankSeparateSuppressed
+              ? { pipelineRankSeparateSuppressed: true }
+              : {}),
+            ...(ctx.pipelineStraighten ? { pipelineStraighten: true } : {}),
+            // "Column packing": echo the applied arm, plus the legacy `pipelineDeDensify`
+            // flag when spread (back-compat for existing M5b assertions / dev plugin).
+            ...(appliedColumnPacking !== "none"
+              ? { pipelineColumnPacking: appliedColumnPacking }
+              : {}),
+            ...(appliedColumnPacking === "spread"
+              ? { pipelineDeDensify: true }
+              : {}),
+            // Observable backstop: both packing arms requested at the engine level; the
+            // guard kept Compact and dropped Spread.
+            ...(columnPackingConflict
+              ? { pipelineColumnPackingConflict: true }
+              : {}),
+            ...(ctx.pipelineStaircaseBandOverlap === false
+              ? { pipelineStaircaseBandOverlap: false }
+              : {}),
+            // "Layout" profile echo — omit `balanced` (the identity ⇒ OFF byte-identical,
+            // like `columnPacking:"none"` / `staircaseBandOverlap:true` are omitted).
+            ...(ctx.pipelineLayoutProfile &&
+            ctx.pipelineLayoutProfile !== "balanced"
+              ? { pipelineLayoutProfile: ctx.pipelineLayoutProfile }
+              : {}),
             importSource: ctx.importSource,
             plannedChanges: ctx.importSource !== "state-only",
           },
@@ -673,6 +831,7 @@ async function buildModuleLayoutSceneBody(
 }
 
 /** Sequential layout (main-thread fallback and single-bundle paths). */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export async function layoutTerraformFromSources(
   sources: TerraformPlanParsingSources,
   options?: TerraformLayoutOptions,
@@ -690,7 +849,9 @@ export async function layoutTerraformFromSources(
     options?.layoutMode ??
     (options?.semanticLayout === true ? "semantic" : "module");
   const semanticLayout = layoutMode === "semantic";
-  const pipelineLayout = layoutMode === "pipeline";
+  // RCLL view rides the pipeline family (needs TFD edges, same validation +
+  // routing); M0 delegates to the compound builder via the §27 fallback rung.
+  const pipelineLayout = layoutMode === "pipeline" || layoutMode === "rcll";
   if (sources.planDotBundles.length > 0) {
     terraformImportProfilerMeasure("prep.cache", () => {
       buildTerraformImportPrepCache(sources, options);
@@ -793,6 +954,15 @@ export async function layoutTerraformFromSources(
     moduleTree: nodes5[TERRAFORM_MODULE_TREE_KEY],
   });
 
+  // "Layout" profile expansion — one place the outcome-first profile becomes the seven RCLL
+  // flags. An explicitly-set individual option (`options.pipelineX`) overrides the profile;
+  // absent ⇒ the profile's value; no profile ⇒ today's defaults (false / undefined). The
+  // dialog fans the profile into the flags itself, so on that path `pf` is absent and the
+  // explicit flags carry the choice (byte-identical to pre-profile behavior).
+  const pf = options?.pipelineLayoutProfile
+    ? resolveRcllLayoutProfile(options.pipelineLayoutProfile)
+    : undefined;
+
   const sceneContext: LayoutSceneContext = {
     sources,
     plan,
@@ -805,6 +975,40 @@ export async function layoutTerraformFromSources(
     addressToStack,
     deferDecorations: options?.deferDecorations === true,
     pipelineCompact: options?.pipelineCompact,
+    // Force the variant for RCLL so a stale-session/default variant can't
+    // mis-route to the plain pipeline builder (dispatch keys on the variant).
+    pipelineLayoutVariant:
+      layoutMode === "rcll" ? "rcll" : options?.pipelineLayoutVariant,
+    pipelinePacked: options?.pipelinePacked === true,
+    pipelinePackedPullLeft: options?.pipelinePackedPullLeft === true,
+    pipelineIncludeAncillary: options?.pipelineIncludeAncillary === true,
+    pipelineSemanticPlacement: options?.pipelineSemanticPlacement === true,
+    pipelineSwimlaneLaneRise:
+      options?.pipelineSwimlaneLaneRise ?? pf?.swimlaneLaneRise ?? false,
+    pipelineReorder: options?.pipelineReorder ?? pf?.reorder ?? false,
+    pipelineCrossingMin:
+      options?.pipelineCrossingMin ?? pf?.crossingMin ?? false,
+    // De-band depth: explicit enum wins, then the legacy `subnetDeBand` boolean alias,
+    // then the profile's level, defaulting to "none" (today's boxed layout).
+    pipelineDeBandLevel:
+      options?.pipelineDeBandLevel ??
+      (options?.pipelineSubnetDeBand ? "subnet" : undefined) ??
+      pf?.deBandLevel ??
+      "none",
+    // These four were declared on the context + consumed by the pipeline body but
+    // never forwarded here, so they were silently dropped on the worker/headless
+    // path (`layoutTerraformFromSources`) — rankSeparate/straighten/deDensify/
+    // staircaseBandOverlap did nothing from the dialog/URL. Forward them.
+    pipelineRankSeparate:
+      options?.pipelineRankSeparate ?? pf?.rankSeparate ?? false,
+    pipelineStraighten: options?.pipelineStraighten ?? pf?.straighten ?? false,
+    pipelineDeDensify: options?.pipelineDeDensify === true,
+    // "Column packing" tri-state (M5b spread / M5c compact) — same silent-drop hazard:
+    // forward it or the dialog/URL toggle does nothing on the worker/headless path.
+    pipelineColumnPacking: options?.pipelineColumnPacking ?? pf?.columnPacking,
+    pipelineLayoutProfile: options?.pipelineLayoutProfile,
+    pipelineStaircaseBandOverlap:
+      options?.pipelineStaircaseBandOverlap ?? pf?.staircaseBandOverlap,
     colorMode: options?.colorMode,
   };
 

@@ -48,6 +48,7 @@ import DropdownMenuItem from "../dropdownMenu/DropdownMenuItem";
 import DropdownMenuItemCheckbox from "../dropdownMenu/DropdownMenuItemCheckbox";
 import DropdownMenuItemContentRadio from "../dropdownMenu/DropdownMenuItemContentRadio";
 import DropdownMenuItemLink from "../dropdownMenu/DropdownMenuItemLink";
+import DropdownMenuSeparator from "../dropdownMenu/DropdownMenuSeparator";
 import DropdownMenuSub from "../dropdownMenu/DropdownMenuSub";
 import {
   GithubIcon,
@@ -69,7 +70,17 @@ import {
   SunIcon,
   TrashIcon,
   usersIcon,
+  ZoomOutIcon,
 } from "../icons";
+import {
+  updateTerraformImportSessionLodEnabled,
+  updateTerraformImportSessionLodPreset,
+  updateTerraformImportSessionMinimapEnabled,
+} from "../terraformImportSession";
+import {
+  TERRAFORM_LOD_DEFAULT_PRESET,
+  type TerraformLodPreset,
+} from "../terraformLod";
 
 import "./DefaultItems.scss";
 
@@ -77,7 +88,8 @@ type TerraformEdgeLayer =
   | "dependency"
   | "dataFlow"
   | "declaredDataFlow"
-  | "networking";
+  | "networking"
+  | "topologyFrameFlow";
 
 const isTerraformDependencyPreviewEdge = (element: {
   customData?: Record<string, any>;
@@ -309,12 +321,126 @@ export const TerraformLayers = () => {
         <TerraformLayerItem layer="declaredDataFlow">
           Declared data flow edges
         </TerraformLayerItem>
+        <TerraformLayerItem layer="topologyFrameFlow">
+          Topology box edges
+        </TerraformLayerItem>
       </DropdownMenuSub.Content>
     </DropdownMenuSub>
   );
 };
 TerraformLayers.displayName = "TerraformLayers";
 
+export const TerraformZoomLod = () => {
+  const app = useApp();
+  const setAppState = useExcalidrawSetAppState();
+  useExcalidrawElements();
+  const elements = app.scene.getElementsIncludingDeleted();
+
+  if (!hasTerraformResourceNodes(elements)) {
+    return null;
+  }
+
+  const lodEnabled = app.state.terraformLodEnabled;
+  const lodPreset =
+    app.state.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET;
+  const minimapEnabled = app.state.terraformMinimapEnabled;
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSub.Trigger
+        icon={ZoomOutIcon}
+        data-testid="terraform-zoom-lod-submenu"
+        aria-label="Zoom LOD settings"
+      >
+        Zoom LOD
+      </DropdownMenuSub.Trigger>
+      <DropdownMenuSub.Content>
+        <DropdownMenuItemCheckbox
+          checked={lodEnabled}
+          data-testid="terraform-zoom-lod-enable"
+          onSelect={(event) => {
+            const next = !lodEnabled;
+            updateTerraformImportSessionLodEnabled(next);
+            setAppState({ terraformLodEnabled: next });
+            event.preventDefault();
+          }}
+          aria-label="Enable zoom LOD"
+        >
+          Enable zoom LOD
+        </DropdownMenuItemCheckbox>
+        <DropdownMenuSeparator />
+        <div
+          className={clsx("terraform-zoom-lod-preset-row", {
+            "terraform-zoom-lod-preset-row--inactive": !lodEnabled,
+          })}
+        >
+          <DropdownMenuItemContentRadio<TerraformLodPreset>
+            name="terraform-lod-preset"
+            icon={ZoomOutIcon}
+            value={lodPreset}
+            onChange={(value) => {
+              updateTerraformImportSessionLodPreset(value);
+              setAppState({ terraformLodPreset: value });
+            }}
+            choices={[
+              {
+                value: "performance",
+                label: "Performance",
+                ariaLabel: "Performance — hide detail soonest when zoomed out",
+                testId: "terraform-lod-preset-performance",
+              },
+              {
+                value: "balanced",
+                label: "Balanced",
+                ariaLabel: "Balanced — default detail when zoomed out",
+                testId: "terraform-lod-preset-balanced",
+              },
+              {
+                value: "detailed",
+                label: "Detailed",
+                ariaLabel:
+                  "Detailed — show labels and satellites from farther out",
+                testId: "terraform-lod-preset-detailed",
+              },
+            ]}
+          >
+            Detail level
+          </DropdownMenuItemContentRadio>
+        </div>
+        <div
+          className="dropdown-menu-item-hint"
+          id="terraform-lod-hint"
+          role="note"
+        >
+          Hide labels and satellites when zoomed out.
+          {!lodEnabled ? " Preset applies when zoom LOD is enabled." : ""}
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItemCheckbox
+          checked={minimapEnabled}
+          data-testid="terraform-minimap-enable"
+          onSelect={(event) => {
+            const next = !minimapEnabled;
+            updateTerraformImportSessionMinimapEnabled(next);
+            setAppState({ terraformMinimapEnabled: next });
+            event.preventDefault();
+          }}
+          aria-label="Show overview minimap"
+        >
+          Show overview minimap
+        </DropdownMenuItemCheckbox>
+        <div
+          className="dropdown-menu-item-hint"
+          id="terraform-minimap-hint"
+          role="note"
+        >
+          Navigate large scenes when zoomed out.
+        </div>
+      </DropdownMenuSub.Content>
+    </DropdownMenuSub>
+  );
+};
+TerraformZoomLod.displayName = "TerraformZoomLod";
 export const CommandPalette = (opts?: { className?: string }) => {
   const setAppState = useExcalidrawSetAppState();
   const { t } = useI18n();

@@ -494,9 +494,16 @@ export interface AppState {
     dataFlow: boolean;
     declaredDataFlow: boolean;
     networking: boolean;
+    topologyFrameFlow: boolean;
   } | null;
   /** Transient graph key for revealing incident edges when `terraformEdgeLayerPins` is set. */
   terraformEdgeHoverPeekKey: string | null;
+  /** Zoom-based LOD for Terraform imports (hide labels/satellites when zoomed out). */
+  terraformLodEnabled: boolean;
+  /** LOD preset — scales zoom thresholds (detailed = visible farther out). */
+  terraformLodPreset: import("./components/terraformLod").TerraformLodPreset;
+  /** Overview minimap for large Terraform scenes (navigation when zoomed out). */
+  terraformMinimapEnabled: boolean;
 }
 
 export type SearchMatch = {
@@ -850,6 +857,7 @@ export type AppClassProperties = {
   onPointerUpEmitter: App["onPointerUpEmitter"];
   updateEditorAtom: App["updateEditorAtom"];
   onPointerDownEmitter: App["onPointerDownEmitter"];
+  onScrollChangeEmitter: App["onScrollChangeEmitter"];
   onEvent: App["onEvent"];
   onStateChange: App["onStateChange"];
 

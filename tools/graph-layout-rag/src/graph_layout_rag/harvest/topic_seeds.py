@@ -1,0 +1,837 @@
+"""Verified topic seeds for Sugiyama, ELK/Mermaid, layer reassignment, constraints, compound graphs."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+from graph_layout_rag.harvest.doi_resolver import resolve_doi_with_fallbacks
+from graph_layout_rag.harvest.download import download_to_file
+from graph_layout_rag.harvest.parallel import parallel_map
+from graph_layout_rag.manifest import ManifestItem, relative_local_path
+from graph_layout_rag.paths import PDF_DIR
+
+# Direct PDF URLs (verified or high-confidence)
+TOPIC_PDF_SEEDS = [
+    {
+        "id": "elk-eclipse-layout-kernel-arxiv",
+        "title": "The Eclipse Layout Kernel",
+        "authors": ["Domrös", "von Hanxleden", "Spönemann", "Rüegg", "Schulze"],
+        "year": 2023,
+        "url": "https://arxiv.org/pdf/2311.00533.pdf",
+        "doi": "10.48550/arXiv.2311.00533",
+        "source": "arxiv",
+        "tags": ["elk", "mermaid", "layered", "compound", "ports", "kieler"],
+    },
+    {
+        "id": "kiel-minimum-width-layering",
+        "title": "Layering Heuristics for Minimum-Width Layerings",
+        "authors": ["Rüegg", "von Hanxleden"],
+        "year": 2017,
+        "url": "https://rtsys.informatik.uni-kiel.de/~biblio/downloads/papers/report-1701.pdf",
+        "source": "kiel",
+        "tags": ["layer-assignment", "layered", "minimum-width", "elk"],
+    },
+    {
+        "id": "kiel-wrapping-layered-graphs",
+        "title": "Wrapping Layered Graphs",
+        "authors": ["Rüegg", "von Hanxleden"],
+        "year": 2018,
+        "url": "https://rtsys.informatik.uni-kiel.de/~biblio/downloads/papers/report-1803.pdf",
+        "doi": "10.1007/978-3-319-91376-6_10",
+        "source": "kiel",
+        "tags": ["layer-assignment", "layered", "wrapping", "elk"],
+    },
+    {
+        "id": "sander-compound-directed-graphs",
+        "title": "Layout of Compound Directed Graphs",
+        "authors": ["Sander"],
+        "year": 1996,
+        "url": "https://publikationen.sulb.uni-saarland.de/bitstream/20.500.11880/25862/1/tr-A03-96.pdf",
+        "source": "saarland",
+        "tags": ["compound", "layered", "dagre", "clustering"],
+    },
+    {
+        "id": "stratisfimal-layout",
+        "title": "STRATISFIMAL LAYOUT: A modular optimization model for laying out layered node-link network visualizations",
+        "authors": ["Di Bartolomeo", "Riedewald", "Gatterbauer", "Dunne"],
+        "year": 2021,
+        "url": "https://par.nsf.gov/servlets/purl/10323504",
+        "doi": "10.1109/TVCG.2021.3114756",
+        "source": "nsf-par",
+        "tags": ["layered", "compound", "grouped", "crossing", "constraints"],
+    },
+    {
+        "id": "forster-compound-crossing-gd2002",
+        "title": "Applying Crossing Reduction Strategies to Layered Compound Graphs",
+        "authors": ["Forster"],
+        "year": 2002,
+        "url": "https://link.springer.com/content/pdf/10.1007/3-540-36151-0_26.pdf",
+        "doi": "10.1007/3-540-36151-0_26",
+        "source": "springer",
+        "tags": ["compound", "crossing", "layered", "dagre"],
+    },
+    {
+        "id": "forster-constrained-two-level-crossing",
+        "title": "A Fast and Simple Heuristic for Constrained Two-Level Crossing Reduction",
+        "authors": ["Forster"],
+        "year": 2004,
+        "url": "https://link.springer.com/content/pdf/10.1007/978-3-540-31843-9_19.pdf",
+        "doi": "10.1007/978-3-540-31843-9_19",
+        "source": "springer",
+        "tags": ["compound", "crossing", "layered", "dagre"],
+    },
+    {
+        "id": "fruchterman-reingold",
+        "title": "Graph Drawing by Force-directed Placement",
+        "authors": ["Fruchterman", "Reingold"],
+        "year": 1991,
+        "url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/spe.4380211102",
+        "doi": "10.1002/spe.4380211102",
+        "source": "wiley",
+        "tags": ["force-directed", "elastic"],
+    },
+    {
+        "id": "eades-1984-spring-heuristic",
+        "title": "A Heuristic for Graph Drawing",
+        "authors": ["Eades"],
+        "year": 1984,
+        "url": "https://www.cs.ubc.ca/~will/536E/papers/Eades1984.pdf",
+        "source": "ubc",
+        "tags": ["force-directed", "elastic"],
+    },
+    {
+        "id": "hu-2005-efficient-high-quality-fdp",
+        "title": "Efficient, High-Quality Force-Directed Graph Drawing",
+        "authors": ["Hu"],
+        "year": 2005,
+        "url": "http://yifanhu.net/PUB/graph_draw_small.pdf",
+        "source": "yifanhu",
+        "tags": ["force-directed", "multilevel", "sfdp"],
+    },
+]
+
+# Resolved via doi_resolver (OpenAlex / S2 / Springer)
+TOPIC_DOI_SEEDS: list[dict] = [
+    {
+        "doi": "10.1109/TSMC.1981.4308636",
+        "tags": ["sugiyama", "layered", "hierarchical"],
+        "title_hint": "Methods for visual understanding of hierarchical system structures",
+    },
+    {
+        "doi": "10.1109/21.108630",
+        "tags": ["sugiyama", "compound", "layered"],
+        "title_hint": "How to draw a compound digraph",
+    },
+    {
+        "doi": "10.1016/j.dam.2005.05.023",
+        "tags": ["layer-assignment", "layered"],
+        "title_hint": "Graph layering by promotion of nodes",
+    },
+    {
+        "doi": "10.1145/1064546.1180618",
+        "tags": ["layer-assignment", "minimum-width", "layered"],
+        "title_hint": "Minimum-width graph layering with dummy nodes",
+    },
+    {
+        "doi": "10.1007/BF00288685",
+        "tags": ["layer-assignment", "layered", "coffman-graham"],
+        "title_hint": "Optimal scheduling for two-processor systems",
+    },
+    {
+        "doi": "10.1109/INFVIS.2005.1532130",
+        "tags": ["constraints", "elastic", "force-directed", "layered"],
+        "pdf_urls": ["http://marvl.infotech.monash.edu/~dwyer/papers/digcola2005.pdf"],
+    },
+    {
+        "doi": "10.1016/j.jvlc.2013.11.005",
+        "tags": ["ports", "layered", "compound", "elk"],
+        "title_hint": "Drawing layered graphs with port constraints",
+    },
+    {
+        "doi": "10.1007/978-3-642-11805-0_14",
+        "tags": ["ports", "layered", "compound", "elk"],
+        "title_hint": "Port constraints in hierarchical layout of data flow diagrams",
+    },
+    {
+        "doi": "10.1007/978-3-319-50106-2_16",
+        "tags": ["layer-assignment", "layered", "elk"],
+        "title_hint": "Generalization of the directed graph layering problem",
+    },
+    {
+        "doi": "10.1007/978-3-319-50106-2_17",
+        "tags": ["layer-assignment", "compact", "layered"],
+        "title_hint": "Compact layered drawings of general directed graphs",
+    },
+    {
+        "doi": "10.1007/978-3-319-27261-0_12",
+        "tags": ["coordinate-assignment", "ports", "layered", "elk"],
+        "title_hint": "Size- and port-aware horizontal node coordinate assignment",
+    },
+    {
+        "doi": "10.5220/0011656700003417",
+        "tags": ["sugiyama", "layered", "order", "elk"],
+        "title_hint": "Model order in Sugiyama layouts",
+    },
+    {
+        "doi": "10.5220/0010833800003124",
+        "tags": ["crossing", "sugiyama", "layered", "elk"],
+        "title_hint": "Preserving order during crossing minimization in Sugiyama layouts",
+    },
+    {
+        "doi": "10.1109/TVCG.2024.3456349",
+        "tags": ["crossing", "layered", "optimal"],
+        "title_hint": "Evaluating speedup techniques for optimal crossing minimization",
+    },
+    {
+        "doi": "10.1007/BFb0021828",
+        "tags": ["layered", "manhattan", "compound"],
+        "title_hint": "A fast heuristic for hierarchical Manhattan layout",
+    },
+    {
+        "doi": "10.1007/978-3-540-31843-9_25",
+        "tags": ["stress", "force-directed", "elastic"],
+        "title_hint": "Graph drawing by stress majorization",
+    },
+    {
+        "doi": "10.1016/j.comgeo.2022.101886",
+        "tags": ["ports", "layered", "constraints"],
+        "title_hint": "Layered drawing with generalized port constraints",
+    },
+    {
+        "doi": "10.1007/978-3-642-00219-9_37",
+        "tags": ["constraints", "compound"],
+        "title_hint": "Dunnart constraint-based network diagram authoring",
+    },
+    {
+        "doi": "10.1007/978-3-319-42333-3_16",
+        "tags": ["layered", "compaction", "elk"],
+        "title_hint": "One-dimensional compaction for smaller graph drawings",
+    },
+    {
+        "doi": "10.1007/978-3-642-11805-0_19",
+        "tags": ["routing", "orthogonal", "ports"],
+        "title_hint": "Orthogonal connector routing",
+    },
+    {
+        "doi": "10.1007/3-540-45848-4_3",
+        "tags": ["layered", "coordinate-assignment", "crossing"],
+        "title_hint": "Fast and Simple Horizontal Coordinate Assignment (Brandes-Köpf)",
+    },
+    {
+        "doi": "10.1007/978-3-540-46648-7_22",
+        "tags": ["crossing", "sifting", "layered"],
+        "title_hint": "Using Sifting for k-Layer Straightline Crossing Minimization",
+    },
+    {
+        "doi": "10.1007/3-540-46769-6_29",
+        "tags": ["layer-assignment", "layered", "circular"],
+        "title_hint": "Circular Drawings of Level-Planar Graphs",
+    },
+    {
+        "doi": "10.1016/0020-0190(89)90102-6",
+        "tags": ["force-directed", "kamada-kawai"],
+        "title_hint": "An algorithm for drawing general undirected graphs (Kamada-Kawai)",
+    },
+    {
+        "doi": "10.1016/0020-0190(89)90105-0",
+        "tags": ["force-directed", "constraints"],
+        "title_hint": "Drawing graphs nicely using simulated annealing (Davidson-Harel)",
+    },
+    {
+        "doi": "10.1007/978-3-642-55946-3_31",
+        "tags": ["aesthetic", "evaluation"],
+        "title_hint": "Aesthetics and the Design of Network Visualization (Purchase)",
+    },
+    {
+        "doi": "10.1007/978-3-540-24595-7_26",
+        "tags": ["force-directed", "multilevel"],
+        "title_hint": "A Multilevel Algorithm for Force-Directed Graph Drawing (Walshaw)",
+    },
+    {
+        "doi": "10.1145/2594291.2594310",
+        "tags": ["constraints", "force-directed", "stress"],
+        "title_hint": "Stress Minimization with Separation Constraints",
+    },
+    {
+        "doi": "10.1145/2976767.2976805",
+        "tags": ["metro-map", "layout"],
+        "title_hint": "Metro Map Layout via Mixed-Integer Programming",
+    },
+    {
+        "doi": "10.1007/978-3-031-19756-7_5",
+        "tags": ["edge-bundling", "layout"],
+        "title_hint": "Bundling Edges in Graph Drawings",
+    },
+    {
+        "doi": "10.1007/978-3-642-11805-0_2",
+        "tags": ["compound", "layered"],
+        "title_hint": "The Art of Cheating When Drawing a Graph",
+    },
+    {
+        "doi": "10.1007/978-3-642-16145-2_14",
+        "tags": ["compound", "clustering"],
+        "title_hint": "Drawing Clustered Graphs as Topographic Maps",
+    },
+    {
+        "doi": "10.1007/978-3-319-42333-3_2",
+        "tags": ["layered", "storyline"],
+        "title_hint": "Block Crossings in Storyline Layouts",
+    },
+    {
+        "doi": "10.1109/VLHCC.2013.6645246",
+        "tags": ["elk", "ports", "layered"],
+        "title_hint": "Port Constraints in KIELER",
+    },
+    {
+        "doi": "10.1109/VLHCC.2014.6883019",
+        "tags": ["elk", "layered"],
+        "title_hint": "KIELER Layout for Diagrams",
+    },
+    {
+        "doi": "10.1109/VLHCC.2016.7739657",
+        "tags": ["elk", "layered", "compound"],
+        "title_hint": "Layered Layout with ELK",
+    },
+    {
+        "doi": "10.1007/978-3-319-42333-3_17",
+        "tags": ["layered", "wrapping"],
+        "title_hint": "Drawing Layered Graphs with Wrapping",
+    },
+    {
+        "doi": "10.1007/978-3-642-00219-9_25",
+        "tags": ["constraints", "layout"],
+        "title_hint": "Constraint-Based Layout",
+    },
+    {
+        "doi": "10.5220/0010186400380049",
+        "tags": ["elk", "layered", "crossing"],
+        "title_hint": "KIELER layered layout crossing",
+    },
+    {
+        "doi": "10.5220/0011803000003417",
+        "tags": ["elk", "layered"],
+        "title_hint": "KIELER layout heuristics",
+    },
+    {
+        "doi": "10.21941/kcss/2019/4",
+        "tags": ["elk", "layered"],
+        "title_hint": "KIELER layout kernel technical report",
+    },
+    {
+        "doi": "10.1007/978-3-642-55946-3",
+        "tags": ["graph-drawing", "gd2001"],
+        "title_hint": "Graph Drawing GD 2001 proceedings",
+    },
+    {
+        "doi": "10.1007/978-3-540-24595-7",
+        "tags": ["graph-drawing", "gd2002"],
+        "title_hint": "Graph Drawing GD 2002 proceedings",
+    },
+    {
+        "doi": "10.1007/978-3-540-31843-9",
+        "tags": ["graph-drawing", "gd2004"],
+        "title_hint": "Graph Drawing GD 2004 proceedings",
+    },
+    {
+        "doi": "10.1007/978-3-319-50106-2",
+        "tags": ["graph-drawing", "gd2016"],
+        "title_hint": "Graph Drawing GD 2016 proceedings",
+    },
+    {
+        "doi": "10.1007/978-3-319-27261-0",
+        "tags": ["graph-drawing", "gd2014"],
+        "title_hint": "Graph Drawing GD 2014 proceedings",
+    },
+    {
+        "doi": "10.1007/978-3-031-19756-7",
+        "tags": ["graph-drawing", "gd2022"],
+        "title_hint": "Graph Drawing GD 2022 proceedings",
+    },
+    {
+        "doi": "10.7155/jgaa.00001",
+        "tags": ["crossing", "layered"],
+        "title_hint": "2-Layer Straightline Crossing Minimization (Jünger & Mutzel)",
+        "pdf_urls": [
+            "https://jgaa.info/index.php/jgaa/article/download/paper1/2965/2771"
+        ],
+    },
+    {
+        "doi": "10.7155/jgaa.00088",
+        "tags": ["crossing", "layered"],
+        "title_hint": "Simple and Efficient Bilayer Cross Counting",
+        "pdf_urls": ["https://jgaa.info/index.php/jgaa/article/download/paper88/2965/2771"],
+    },
+    {
+        "doi": "10.1007/3-540-44541-2_22",
+        "tags": ["layer-assignment", "layered"],
+        "title_hint": "A Fast Layout Algorithm for k-Level Graphs (Buchheim, Jünger & Leipert)",
+    },
+    {
+        "doi": "10.1007/3-540-45848-4_2",
+        "tags": ["layer-assignment", "layered"],
+        "title_hint": "How to Layer a Directed Acyclic Graph (Healy & Nikolov)",
+    },
+    {
+        "doi": "10.1007/978-3-540-31843-9_29",
+        "tags": ["force-directed", "multilevel"],
+        "title_hint": "Drawing Large Graphs with a Potential-Field-Based Multilevel Algorithm",
+    },
+    {
+        "doi": "10.1137/0604033",
+        "tags": ["crossing", "planar"],
+        "title_hint": "Crossing Number is NP-Complete (Garey & Johnson)",
+        "pdf_urls": [
+            "https://learn.fmi.uni-sofia.bg/pluginfile.php/160153/mod_resource/content/4/Crossing-Number-Is-NP-Complete_Garey_Johnson.pdf"
+        ],
+    },
+    {
+        "doi": "10.1109/TVCG.2006.67",
+        "tags": ["constraints", "layered"],
+        "title_hint": "Drawing Directed Graphs Using Quadratic Programming (DIG-COLA TVCG)",
+    },
+    {
+        "doi": "10.1007/978-3-540-31843-9_17",
+        "tags": ["layered", "sugiyama"],
+        "title_hint": "An Efficient Implementation of Sugiyama's Algorithm",
+    },
+    # --- canonical works added to fill coverage gaps (tree, orthogonal/TSM,
+    #     force-directed evaluation, coordinate assignment, surveys) ---
+    {
+        "doi": "10.1109/TSE.1981.234519",
+        "tags": ["tree", "tidy-tree"],
+        "title_hint": "Tidier Drawings of Trees (Reingold & Tilford)",
+    },
+    {
+        "doi": "10.1007/3-540-36151-0_32",
+        "tags": ["tree", "tidy-tree"],
+        "title_hint": "Improving Walker's Algorithm to Run in Linear Time (Buchheim et al.)",
+    },
+    {
+        "doi": "10.1002/spe.2213",
+        "tags": ["tree", "tidy-tree"],
+        "title_hint": "Drawing non-layered tidy trees in linear time (van der Ploeg)",
+    },
+    {
+        "doi": "10.7155/jgaa.00154",
+        "tags": ["force-directed", "evaluation", "multilevel"],
+        "title_hint": "Large-Graph Layout Algorithms at Work: An Experimental Study (Hachul & Jünger)",
+    },
+    {
+        "doi": "10.1137/0216030",
+        "tags": ["routing", "orthogonal", "compaction"],
+        "title_hint": "On embedding a graph in the grid with the minimum number of bends (Tamassia)",
+    },
+    {
+        "doi": "10.1109/TSE.1986.6312989",
+        "tags": ["routing", "orthogonal"],
+        "title_hint": "A Layout Algorithm for Data Flow Diagrams (GIOTTO, Batini-Nardelli-Tamassia)",
+    },
+    {
+        "doi": "10.1016/0925-7721(94)00014-X",
+        "tags": ["survey", "bibliography", "graph-drawing"],
+        "title_hint": "Algorithms for Drawing Graphs: an Annotated Bibliography (Di Battista et al.)",
+    },
+    {
+        "doi": "10.7155/jgaa.00474",
+        "tags": ["coordinate-assignment", "layered"],
+        "title_hint": "A Flow Formulation for Horizontal Coordinate Assignment with Prescribed Width",
+        "pdf_urls": ["https://arxiv.org/pdf/1806.06617.pdf"],
+    },
+    {
+        "doi": "10.1007/11618058_40",
+        "tags": ["routing", "orthogonal", "ports"],
+        "title_hint": "Incremental Connector Routing (Wybrow, Marriott, Stuckey)",
+    },
+    # --- adaptagrams / libavoid / libcola (routing + constraints) ---
+    {
+        "doi": "10.1007/978-3-642-31223-6_8",
+        "tags": ["routing", "orthogonal", "ports", "hyperedge"],
+        "title_hint": "Orthogonal Hyperedge Routing (Wybrow, Marriott, Stuckey)",
+    },
+    {
+        "doi": "10.1109/TVCG.2008.130",
+        "tags": ["constraints", "compound", "overlap"],
+        "title_hint": "Exploration of Networks using Overview+Detail with Constraint-Based Cooperative Layout",
+    },
+    {
+        "doi": "10.1007/978-3-662-45803-7_27",
+        "tags": ["constraints", "routing", "ports", "stress", "elk"],
+        "title_hint": "Stress-Minimizing Orthogonal Layout of Data Flow Diagrams with Ports",
+        "pdf_urls": ["https://arxiv.org/pdf/1408.4626.pdf"],
+    },
+]
+
+# Pipeline layout research threads: compaction, packing, overlap, VPSC/containment
+PIPELINE_LAYOUT_DOI_SEEDS: list[dict] = [
+    {
+        "doi": "10.1007/11582767_38",
+        "tags": ["constraints", "overlap", "vpsc"],
+        "title_hint": "Fast Node Overlap Removal (VPSC)",
+        "pdf_urls": ["http://marvl.infotech.monash.edu/~dwyer/papers/fnr.pdf"],
+    },
+    {
+        "doi": "10.1109/TVCG.2006.156",
+        "tags": ["constraints", "compound", "overlap"],
+        "title_hint": "IPSep-CoLa separation constraint layout",
+        "pdf_urls": ["http://marvl.infotech.monash.edu/~dwyer/papers/ipsepcola.pdf"],
+    },
+    {
+        "doi": "10.1007/978-3-642-00219-9_22",
+        "tags": ["constraints", "compound", "overlap"],
+        "title_hint": "Topology Preserving Constrained Graph Layout",
+        "pdf_urls": ["http://www.csse.monash.edu.au/~tdwyer/topology.pdf"],
+    },
+    {
+        "doi": "10.1007/BFb0021827",
+        "tags": ["overlap", "mental-map", "force-directed"],
+        "title_hint": "Layout Adjustment and the Mental Map",
+    },
+    {
+        "doi": "10.1109/TCAD.1983.1270025",
+        "tags": ["compaction", "vlsi"],
+        "title_hint": "An Algorithm to Compact a VLSI Symbolic Layout with Mixed Constraints",
+    },
+    {
+        "doi": "10.1145/285730.285792",
+        "tags": ["compaction", "vlsi"],
+        "title_hint": "Symbolic layout compaction review",
+    },
+    {
+        "doi": "10.1016/j.ins.2007.02.016",
+        "tags": ["overlap", "cluster-busting"],
+        "title_hint": "A new algorithm for removing node overlapping in graph visualization",
+    },
+    {
+        "doi": "10.7155/jgaa.00004",
+        "tags": ["overlap", "cluster-busting", "compound"],
+        "title_hint": "Algorithms for Cluster Busting in Anchored Graph Drawing",
+        "pdf_urls": ["https://jgaa.info/index.php/jgaa/article/view/paper4/4.pdf"],
+    },
+    {
+        "doi": "10.1016/j.ejor.2011.06.022",
+        "tags": ["packing", "strip-packing"],
+        "title_hint": "A skyline heuristic for the 2D rectangular packing and strip packing problems",
+    },
+    {
+        "doi": "10.1016/j.cor.2016.11.024",
+        "tags": ["packing", "strip-packing"],
+        "title_hint": "An improved skyline based heuristic for the 2D strip packing problem",
+    },
+    {
+        "doi": "10.1145/800158.805069",
+        "tags": ["packing", "channel-routing", "left-edge"],
+        "title_hint": "Wire routing by optimizing channel assignment (left-edge algorithm)",
+    },
+    {
+        "doi": "10.1587/e76-a_4_507",
+        "tags": ["compaction", "vlsi", "scanline"],
+        "title_hint": "Optimal constraint graph generation via enhanced plane-sweep (shadow propagation)",
+    },
+    {
+        "doi": "10.1109/43.543596",
+        "tags": ["packing", "floorplanning", "sequence-pair"],
+        "title_hint": "VLSI module placement based on rectangle-packing by the sequence-pair",
+    },
+    {
+        "doi": "10.1145/337292.337541",
+        "tags": ["packing", "floorplanning", "b-star-tree"],
+        "title_hint": "B*-Trees: a new representation for non-slicing floorplans",
+        "pdf_urls": [
+            "https://cecs.uci.edu/~papers/compendium94-03/papers/2000/dac00/pdffiles/27_1.pdf"
+        ],
+    },
+    # --- compaction (orthogonal grid drawings; complexity) ---
+    {
+        "doi": "10.1007/3-540-48777-8_23",
+        "tags": ["compaction", "orthogonal"],
+        "title_hint": "Optimal Compaction of Orthogonal Grid Drawings (Klau & Mutzel)",
+    },
+    {
+        "doi": "10.1016/S0925-7721(01)00010-4",
+        "tags": ["compaction", "orthogonal"],
+        "title_hint": "On the complexity of orthogonal compaction (Patrignani)",
+    },
+    # --- coordinate assignment (layered x-placement) ---
+    {
+        "doi": "10.7155/jgaa.00126",
+        "tags": ["coordinate-assignment", "layered", "sugiyama"],
+        "title_hint": "An Efficient Implementation of Sugiyama's Algorithm for Layered Graph Drawing (JGAA)",
+        "pdf_urls": ["https://jgaa.info/index.php/jgaa/article/download/paper126/2965/2771"],
+    },
+    # --- packing (disconnected component / polyomino packing) ---
+    {
+        "doi": "10.1007/3-540-45848-4_30",
+        "tags": ["packing", "disconnected"],
+        "title_hint": "Disconnected Graph Layout and the Polyomino Packing Approach (Freivalds et al.)",
+    },
+    # --- overlap removal (proximity stress; growing-tree) ---
+    {
+        "doi": "10.1007/978-3-642-00219-9_20",
+        "tags": ["overlap", "prism", "stress"],
+        "title_hint": "Efficient Node Overlap Removal Using a Proximity Stress Model (PRISM, Gansner & Hu)",
+        "pdf_urls": ["https://yifanhu.net/PUB/overlap.pdf"],
+    },
+    {
+        "doi": "10.1007/978-3-319-50106-2_3",
+        "tags": ["overlap", "node-overlap-removal"],
+        "title_hint": "Node Overlap Removal by Growing a Tree (Nachmanson et al.)",
+        "pdf_urls": ["https://arxiv.org/pdf/1608.02653.pdf"],
+    },
+]
+
+TOPIC_METADATA_SEEDS = [
+    {
+        "id": "mermaid-layouts-docs",
+        "title": "Mermaid diagram layouts (dagre, ELK, tidy-tree, cose-bilkent)",
+        "authors": ["Mermaid"],
+        "year": 2024,
+        "url": "https://mermaid.ai/open-source/config/layouts.html",
+        "source": "mermaid",
+        "tags": ["mermaid", "dagre", "elk", "layered"],
+        "abstract": (
+            "Mermaid supports multiple layout engines: dagre (layered/Sugiyama-style), "
+            "elk (Eclipse Layout Kernel for compound graphs and ports), tidy-tree, and "
+            "cose-bilkent force-directed. Configure via flowchart defaultRenderer."
+        ),
+    },
+    {
+        "id": "thesis-ruegg-sugiyama-prescribed-areas",
+        "title": "Sugiyama Layouts for Prescribed Drawing Areas (PhD dissertation)",
+        "authors": ["Ulf Rüegg"],
+        "year": 2018,
+        "url": "https://macau.uni-kiel.de/receive/macau_mods_00002268",
+        "source": "kiel",
+        "tags": ["layered", "sugiyama", "layer-assignment", "wrapping", "elk", "thesis"],
+        "abstract": (
+            "PhD dissertation (Kiel Computer Science Series 2018/1) on layered (Sugiyama) "
+            "graph drawing constrained to prescribed/fixed drawing areas: generalized "
+            "layering, wrapping of layered graphs, node promotion, and aspect-ratio-aware "
+            "layout in the KIELER/ELK layered algorithm."
+        ),
+    },
+    {
+        "id": "thesis-klau-orthogonal-placement",
+        "title": "A Combinatorial Approach to Orthogonal Placement Problems (PhD dissertation)",
+        "authors": ["Gunnar W. Klau"],
+        "year": 2002,
+        "url": "https://publikationen.sulb.uni-saarland.de/handle/20.500.11880/25889",
+        "source": "saarland",
+        "tags": ["compaction", "orthogonal", "constraints", "packing", "thesis"],
+        "abstract": (
+            "PhD dissertation on orthogonal placement: optimal two-dimensional compaction "
+            "of orthogonal grid drawings via constraint graphs and integer programming, "
+            "the relationship between compaction and rectangle packing / dissection, and "
+            "branch-and-cut for minimizing total edge length and drawing area. Foundational "
+            "for compaction and packing in graph drawing."
+        ),
+    },
+    {
+        "id": "thesis-schulze-layered-port-constraints",
+        "title": "Drawing Layered Graphs with Port Constraints (dissertation/works)",
+        "authors": ["Christoph Daniel Schulze"],
+        "year": 2014,
+        "url": "https://rtsys.informatik.uni-kiel.de/~biblio/",
+        "source": "kiel",
+        "tags": ["layered", "ports", "constraints", "routing", "elk", "edge-labels", "thesis"],
+        "abstract": (
+            "Layered drawing of graphs with port constraints and edge-label placement in "
+            "the KIELER/ELK layered algorithm: port ordering, north/south port routing, "
+            "hierarchical/compound handling, and label management for data-flow diagrams."
+        ),
+    },
+    {
+        "id": "elk-dagre-engine-docs",
+        "title": "ELK and dagre layout engine algorithms (layered, force, stress, rectangle packing)",
+        "authors": ["Eclipse Layout Kernel", "dagre"],
+        "year": 2024,
+        "url": "https://eclipse.dev/elk/reference/algorithms.html",
+        "source": "elk",
+        "tags": ["elk", "dagre", "layered", "force-directed", "packing", "routing"],
+        "abstract": (
+            "The Eclipse Layout Kernel (ELK) provides ELK Layered (Sugiyama-style "
+            "layer-based layout with port and compound-graph support), ELK Force and "
+            "ELK Stress (force-directed / stress majorization), ELK Mr. Tree, ELK "
+            "Radial, ELK Box and ELK Rectangle Packing, ELK DisCo disconnected "
+            "component packing, and ELK SpOre compaction / overlap removal; it also "
+            "bridges to the Graphviz algorithms (dot, neato, fdp, circo, twopi) and "
+            "to libavoid for orthogonal connector routing. dagre is a JavaScript "
+            "layered (Sugiyama) layout engine used by Mermaid and React Flow."
+        ),
+    },
+    {
+        "id": "research-thread-layer-assignment",
+        "title": "Minimum-width graph layering with dummy nodes",
+        "authors": ["Nikolov", "Tarassov", "Branke"],
+        "year": 2005,
+        "url": "https://doi.org/10.1145/1064546.1180618",
+        "source": "research-thread",
+        "tags": ["layer-assignment", "research-thread", "minimum-width"],
+        "abstract": (
+            "Gansner TSE93 covers network simplex rank assignment in dot. This JEA paper "
+            "(Nikolov, Tarassov, Branke) evaluates heuristics for minimum-width layering "
+            "with dummy nodes. Related: node promotion, Coffman-Graham, ALAP scheduling."
+        ),
+    },
+    {
+        "id": "research-thread-compaction",
+        "title": "VLSI layout compaction — constraint graphs and scanlines",
+        "authors": ["Liao", "Wong"],
+        "year": 1983,
+        "url": "https://doi.org/10.1109/TCAD.1983.1270025",
+        "source": "research-thread",
+        "tags": ["compaction", "research-thread"],
+        "abstract": (
+            "Reposition boxes in XY without overlap via 1D compaction (constraint graphs + "
+            "longest path), scanline constraint generation, mixed-constraint compaction. "
+            "Queries: constraint graph one-dimensional compaction longest path; scanline "
+            "shadow constraint generation VLSI; two-dimensional compaction NP-hard."
+        ),
+    },
+    {
+        "id": "research-thread-constraints",
+        "title": "Constraint-based layout with cluster containment",
+        "authors": ["Dwyer", "Marriott", "Stuckey"],
+        "year": 2005,
+        "url": "http://marvl.infotech.monash.edu/~dwyer/papers/fnr.pdf",
+        "source": "research-thread",
+        "tags": ["constraints", "research-thread"],
+        "abstract": (
+            "VPSC separation constraints, IPSep-CoLa cluster containment, topology-preserving "
+            "constrained layout. Queries: separation constraints quadratic program VPSC; "
+            "cluster containment constraint layout."
+        ),
+    },
+    {
+        "id": "research-thread-compound",
+        "title": "Compound/clustered Sugiyama layout",
+        "authors": ["Sugiyama", "Sander", "Forster"],
+        "year": 1996,
+        "url": "https://arxiv.org/abs/2311.00533",
+        "source": "research-thread",
+        "tags": ["compound", "research-thread"],
+        "abstract": (
+            "Global ranking with cluster borders, ELK layered hierarchical handling, crossing "
+            "reduction in compound graphs. Queries: compound directed graph layout global "
+            "ranking cluster borders."
+        ),
+    },
+    {
+        "id": "research-thread-packing",
+        "title": "Rectangle/strip packing with fixed coordinate",
+        "authors": ["Hashimoto", "Burke", "Wei"],
+        "year": 2011,
+        "url": "https://doi.org/10.1016/j.ejor.2011.06.022",
+        "source": "research-thread",
+        "tags": ["packing", "research-thread"],
+        "abstract": (
+            "Skyline/bottom-left strip packing heuristics; interval scheduling and track "
+            "assignment (channel routing left-edge algorithm — siblings with disjoint "
+            "X-intervals sharing Y tracks). Queries: strip packing bottom-left skyline "
+            "heuristic; left edge algorithm channel routing track assignment."
+        ),
+    },
+    {
+        "id": "research-thread-overlap",
+        "title": "Mental-map-preserving layout adjustment",
+        "authors": ["Misue", "Gansner", "Huang"],
+        "year": 1995,
+        "url": "https://doi.org/10.1007/BFb0021827",
+        "source": "research-thread",
+        "tags": ["overlap", "research-thread"],
+        "abstract": (
+            "Force-scan layout adjustment, PRISM overlap removal, cluster busting. "
+            "Queries: layout adjustment mental map graph drawing; cluster busting clutter "
+            "reduction graph layout."
+        ),
+    },
+]
+
+
+def _download_pdf_seed(spec: dict, *, dry_run: bool) -> ManifestItem:
+    item = ManifestItem(
+        id=spec["id"],
+        title=spec["title"],
+        authors=spec.get("authors", []),
+        year=spec.get("year"),
+        source=spec.get("source", "topic-seed"),
+        url=spec["url"],
+        localPath=f"data/raw/pdf/{spec['id']}.pdf",
+        contentType="application/pdf",
+        status="failed",
+        tags=[*spec.get("tags", []), "topic-seed"],
+        doi=spec.get("doi"),
+    )
+    if dry_run:
+        return item
+
+    dest = PDF_DIR / f"{spec['id']}.pdf"
+    fallback_urls = [spec["url"], *spec.get("fallback_urls", [])]
+    for url in fallback_urls:
+        insecure = any(h in url for h in ("infotech.monash.edu", "marvl.", "rtsys.informatik"))
+        try:
+            dl = download_to_file(dest, url, verify=not insecure)
+            if dl.get("ok") and dest.exists() and dest.read_bytes()[:4] == b"%PDF":
+                item.status = "ok"
+                item.url = url
+                item.sha256 = dl.get("sha256")
+                item.localPath = relative_local_path(dest)
+                return item
+            dest.unlink(missing_ok=True)
+        except Exception:
+            dest.unlink(missing_ok=True)
+    return item
+
+
+def harvest_topic_seeds(
+    *,
+    dry_run: bool = False,
+    workers: int | None = None,
+    on_doi_batch: Callable[[list[ManifestItem]], None] | None = None,
+    doi_batch_size: int = 10,
+) -> list[ManifestItem]:
+    results: list[ManifestItem] = []
+
+    results.extend(
+        parallel_map(
+            lambda spec: _download_pdf_seed(spec, dry_run=dry_run),
+            TOPIC_PDF_SEEDS,
+            workers=workers,
+        )
+    )
+
+    def _resolve_doi_seed(spec: dict) -> ManifestItem:
+        return resolve_doi_with_fallbacks(
+            spec["doi"],
+            source="topic-seed",
+            tags=[*spec.get("tags", []), "topic-seed"],
+            pdf_urls=spec.get("pdf_urls"),
+            dry_run=dry_run,
+            include_archive=False,
+            include_paywall_guesses=False,
+        )
+
+    all_doi_seeds = [*TOPIC_DOI_SEEDS, *PIPELINE_LAYOUT_DOI_SEEDS]
+    for start in range(0, len(all_doi_seeds), doi_batch_size):
+        batch = all_doi_seeds[start : start + doi_batch_size]
+        batch_items = parallel_map(_resolve_doi_seed, batch, workers=workers)
+        results.extend(batch_items)
+        if on_doi_batch and batch_items:
+            on_doi_batch(batch_items)
+
+    for spec in TOPIC_METADATA_SEEDS:
+        results.append(
+            ManifestItem(
+                id=spec["id"],
+                title=spec["title"],
+                authors=spec.get("authors", []),
+                year=spec.get("year"),
+                source=spec.get("source", "topic-seed"),
+                url=spec["url"],
+                contentType="text/html",
+                status="metadata_only",
+                tags=[*spec.get("tags", []), "topic-seed"],
+                abstract=spec.get("abstract"),
+            )
+        )
+
+    return results

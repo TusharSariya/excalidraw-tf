@@ -62,6 +62,283 @@ describe("terraformDemoUrlParams", () => {
       });
     });
 
+    it("parses pipeline variant and packed", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=staging-extended-localstack-v2&view=pipeline&pipelineVariant=compound&packed=1",
+        ),
+      ).toEqual({
+        presetId: "staging-extended-localstack-v2",
+        view: "pipeline",
+        pipelineVariant: "compound",
+        packed: true,
+      });
+      expect(parseTerraformDemoUrlParams("?preset=demo&packed=false")).toEqual({
+        presetId: "demo",
+        packed: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&packed=nope"),
+      ).toBeNull();
+    });
+
+    it("parses compact", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&compact=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        compact: true,
+      });
+      expect(parseTerraformDemoUrlParams("?preset=demo&compact=0")).toEqual({
+        presetId: "demo",
+        compact: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&compact=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses ancillary", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=pipeline&ancillary=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "pipeline",
+        ancillary: true,
+      });
+      expect(parseTerraformDemoUrlParams("?preset=demo&ancillary=0")).toEqual({
+        presetId: "demo",
+        ancillary: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&ancillary=nope"),
+      ).toBeNull();
+    });
+
+    it("parses swimlaneRise (RCLL M4 A/B)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&swimlaneRise=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        swimlaneRise: true,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&swimlaneRise=0"),
+      ).toEqual({
+        presetId: "demo",
+        swimlaneRise: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&swimlaneRise=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses reorder (RCLL M6 A/B)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&reorder=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        reorder: true,
+      });
+      expect(parseTerraformDemoUrlParams("?preset=demo&reorder=0")).toEqual({
+        presetId: "demo",
+        reorder: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&reorder=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses crossingMin (RCLL M6c container-aware crossing-min)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&crossingMin=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        crossingMin: true,
+      });
+      expect(parseTerraformDemoUrlParams("?preset=demo&crossingMin=0")).toEqual(
+        {
+          presetId: "demo",
+          crossingMin: false,
+        },
+      );
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&crossingMin=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses subnetDeBand (legacy alias ⇒ deBandLevel=subnet)", () => {
+      // The legacy boolean is preserved AND mapped to the generalized de-band enum.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&subnetDeBand=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        subnetDeBand: true,
+        deBandLevel: "subnet",
+      });
+      // `subnetDeBand=0` does not synthesize a level (stays "none" downstream).
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&subnetDeBand=0"),
+      ).toEqual({
+        presetId: "demo",
+        subnetDeBand: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&subnetDeBand=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses deBandLevel (RCLL hierarchy-level de-band depth)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&deBandLevel=vpc"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        deBandLevel: "vpc",
+      });
+      // Case-insensitive; explicit level wins over a co-present alias.
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&subnetDeBand=1&deBandLevel=Region",
+        ),
+      ).toEqual({
+        presetId: "demo",
+        subnetDeBand: true,
+        deBandLevel: "region",
+      });
+      // Invalid level hard-fails (same contract as columnPacking / profile).
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&deBandLevel=datacenter"),
+      ).toBeNull();
+    });
+
+    it("parses rankSeparate (RCLL M8r A/B)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&rankSeparate=1"),
+      ).toEqual({ presetId: "demo", view: "rcll", rankSeparate: true });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&rankSeparate=0"),
+      ).toEqual({ presetId: "demo", rankSeparate: false });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&rankSeparate=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses straighten (RCLL M5 A/B)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&straighten=1"),
+      ).toEqual({ presetId: "demo", view: "rcll", straighten: true });
+      expect(parseTerraformDemoUrlParams("?preset=demo&straighten=0")).toEqual({
+        presetId: "demo",
+        straighten: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&straighten=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses deDensify (RCLL M5b A/B) — legacy alias maps to columnPacking=spread", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&deDensify=1"),
+      ).toEqual({
+        presetId: "demo",
+        view: "rcll",
+        deDensify: true,
+        columnPacking: "spread",
+      });
+      expect(parseTerraformDemoUrlParams("?preset=demo&deDensify=0")).toEqual({
+        presetId: "demo",
+        deDensify: false,
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&deDensify=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses columnPacking (RCLL M5b/M5c tri-state) and rejects invalid", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=rcll&columnPacking=compact",
+        ),
+      ).toEqual({ presetId: "demo", view: "rcll", columnPacking: "compact" });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&columnPacking=none"),
+      ).toEqual({ presetId: "demo", columnPacking: "none" });
+      // explicit columnPacking wins over a legacy deDensify=1
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&deDensify=1&columnPacking=compact",
+        ),
+      ).toEqual({
+        presetId: "demo",
+        deDensify: true,
+        columnPacking: "compact",
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&columnPacking=sideways"),
+      ).toBeNull();
+    });
+
+    it("parses profile (RCLL Layout profile) and rejects invalid", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&profile=compact"),
+      ).toEqual({ presetId: "demo", view: "rcll", profile: "compact" });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&profile=readable"),
+      ).toEqual({ presetId: "demo", profile: "readable" });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&profile=balanced"),
+      ).toEqual({ presetId: "demo", profile: "balanced" });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&profile=sideways"),
+      ).toBeNull();
+    });
+
+    it("accepts clear aliases (laneRise/laneSplit/cycleRise) for the milestone params", () => {
+      // laneRise ⇒ swimlaneRise
+      expect(parseTerraformDemoUrlParams("?preset=demo&laneRise=1")).toEqual({
+        presetId: "demo",
+        swimlaneRise: true,
+      });
+      // laneSplit ⇒ rankSeparate
+      expect(parseTerraformDemoUrlParams("?preset=demo&laneSplit=1")).toEqual({
+        presetId: "demo",
+        rankSeparate: true,
+      });
+      // cycleRise ⇒ staircaseBandOverlap
+      expect(parseTerraformDemoUrlParams("?preset=demo&cycleRise=0")).toEqual({
+        presetId: "demo",
+        staircaseBandOverlap: false,
+      });
+      // the legacy milestone name still works
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&swimlaneRise=1"),
+      ).toEqual({ presetId: "demo", swimlaneRise: true });
+      // an invalid alias value hard-fails
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&laneSplit=maybe"),
+      ).toBeNull();
+    });
+
+    it("parses staircaseBandOverlap (RCLL DEC-1, default on — only =0 is meaningful)", () => {
+      // Default on: absent ⇒ omitted (engine default true downstream).
+      expect(parseTerraformDemoUrlParams("?preset=demo&view=rcll")).toEqual({
+        presetId: "demo",
+        view: "rcll",
+      });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&staircaseBandOverlap=0"),
+      ).toEqual({ presetId: "demo", staircaseBandOverlap: false });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&staircaseBandOverlap=maybe"),
+      ).toBeNull();
+    });
+
     it("rejects invalid view or pack", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&view=invalid"),
@@ -70,6 +347,25 @@ describe("terraformDemoUrlParams", () => {
         parseTerraformDemoUrlParams("?preset=demo&pack=invalid"),
       ).toBeNull();
       expect(parseTerraformDemoUrlParams("?preset=bad id")).toBeNull();
+    });
+
+    it("parses view=rcll (deep-link)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=staging-extended-localstack-v2&view=rcll",
+        ),
+      ).toEqual({
+        presetId: "staging-extended-localstack-v2",
+        view: "rcll",
+      });
+    });
+
+    it("rejects the retired view=experimental (graceful, no auto-import)", () => {
+      // Experimental was removed at M0; a stale deep-link must degrade to null,
+      // not crash or silently import the wrong view.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=experimental"),
+      ).toBeNull();
     });
   });
 

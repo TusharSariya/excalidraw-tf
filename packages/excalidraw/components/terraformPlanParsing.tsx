@@ -106,7 +106,7 @@ export type TerraformPlanParsingOptions = {
   /** When true, emit nested AWS topology frames (local import only); otherwise ELK module graph. */
   semanticLayout?: boolean;
   /** Preferred layout mode. `semanticLayout` is retained as a backwards-compatible input. */
-  layoutMode?: "module" | "semantic" | "pipeline";
+  layoutMode?: import("./terraformImportDialogUtils").TerraformLayoutMode;
   /** Optional `.tfd` arrow-only dataflow overlay (single file; prefer `tfdTexts` on sources). */
   dataflowLinks?: string;
   /** Module-view intra-module packing (ignored when semanticLayout is true). */
@@ -123,6 +123,50 @@ export type TerraformPlanParsingOptions = {
    * Satellites are added on demand when the user clicks the card.
    */
   pipelineCompact?: boolean;
+  /** Pipeline layout: classic global grid or compound hierarchy containers. */
+  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
+  /** Pipeline layout: enable cross-lane column slack packing (experimental). */
+  pipelinePacked?: boolean;
+  /** Packed only: pull slack clusters to their leftmost TFD-feasible column. */
+  pipelinePackedPullLeft?: boolean;
+  /** Pipeline: also draw non-TFD resources in per-hull "Unconnected" strips. */
+  pipelineIncludeAncillary?: boolean;
+  /**
+   * Pipeline (opt-in, default off): nesting-aware semantic placement —
+   * role-based forced topology bands + deterministic dataflow straightening.
+   */
+  pipelineSemanticPlacement?: boolean;
+  /**
+   * RCLL M4 (opt-in, default off): inside a swimlane, X-disjoint lanes rise to
+   * share Y rows (DEC-1 extended to swimlane interiors), reclaiming height while
+   * keeping the shared column axis (CON-12-safe).
+   */
+  pipelineSwimlaneLaneRise?: boolean;
+  /** RCLL M6: per-container barycenter crossing-min reorder (A/B toggle). */
+  pipelineReorder?: boolean;
+  /** RCLL M6c: container-aware crossing minimization (hierarchical superset of reorder). */
+  pipelineCrossingMin?: boolean;
+  /** RCLL de-band depth: dissolve the chosen container level + all deeper levels into one
+   * shared column stack (frames → rails). `none` = today's boxed layout. */
+  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** Back-compat alias for `pipelineDeBandLevel: "subnet"`. `pipelineDeBandLevel` wins. */
+  pipelineSubnetDeBand?: boolean;
+  /** RCLL M8r: whole-model-global sibling-separation ranking (needs lane-rise). */
+  pipelineRankSeparate?: boolean;
+  /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
+  pipelineStraighten?: boolean;
+  /** RCLL M5b: de-density — spread crowded columns one column right. */
+  pipelineDeDensify?: boolean;
+  /** RCLL "Column packing" tri-state: `spread` = M5b de-density (pull-right), `compact`
+   * = M5c column compaction (pull-left), `none` = neither. The single front-door enum;
+   * supersedes `pipelineDeDensify` (kept as a legacy alias ⇒ `spread`). Default `none`. */
+  pipelineColumnPacking?: "spread" | "none" | "compact";
+  /** RCLL "Layout" profile — outcome-first preset (`readable | balanced | compact`) that
+   * expands into the RCLL flags above. `balanced` = today's defaults (byte-identical). An
+   * explicitly-set individual flag overrides the profile. See terraformPipelineLayoutProfiles. */
+  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
+  /** RCLL M3b / DEC-1: X-disjoint cycle groups rise to share Y. Default on; only `=false` is meaningful. */
+  pipelineStaircaseBandOverlap?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };
@@ -494,6 +538,88 @@ function getAdjacencyListFromDot(graph: Graph) {
 }
 
 /**
+ * Scoped, per-build index of `nodes` keys for {@link resolveTerraformPlanNodeKey}, keyed two ways
+ * (`byBareKey` via {@link topologyBareAddressKey}, `byGraphId` via `stripTerraformAddressIndexes`) plus a
+ * precomputed `knownStackIds` list (mirrors {@link collectKnownStackIdsFromNodes}). Built once per
+ * {@link withTerraformPlanNodeKeyIndex} scope to avoid repeated O(N) `Object.keys(nodes)` scans across the
+ * ~12,000 resolver calls in a single pipeline-prep build. See
+ * `docs/terraform-pipeline-import-stateful-newell.md`-style perf plans for the rationale; the two maps must stay
+ * separate (`topologyBareAddressKey` strips the stack prefix before stripping indexes, `stripTerraformAddressIndexes`
+ * does not strip the stack prefix at all — merging them would change ambiguity resolution).
+ */
+type TerraformPlanNodeKeyIndex = {
+  byBareKey: Map<string, string[]>;
+  byGraphId: Map<string, string[]>;
+  knownStackIds: string[];
+};
+
+function buildTerraformPlanNodeKeyIndex(
+  nodes: Record<string, TerraformPlanGraphNode>,
+): TerraformPlanNodeKeyIndex {
+  const byBareKey = new Map<string, string[]>();
+  const byGraphId = new Map<string, string[]>();
+  const stackIds = new Set<string>();
+  const knownStackIds: string[] = [];
+
+  for (const k of Object.keys(nodes)) {
+    if (k === TERRAFORM_MODULE_TREE_KEY || k.startsWith("__")) {
+      continue;
+    }
+
+    const bareKey = topologyBareAddressKey(k);
+    const bareGroup = byBareKey.get(bareKey);
+    if (bareGroup) {
+      bareGroup.push(k);
+    } else {
+      byBareKey.set(bareKey, [k]);
+    }
+
+    const graphId = stripTerraformAddressIndexes(k);
+    const graphGroup = byGraphId.get(graphId);
+    if (graphGroup) {
+      graphGroup.push(k);
+    } else {
+      byGraphId.set(graphId, [k]);
+    }
+
+    const parsed = parseStackAddress(k);
+    if (parsed && !stackIds.has(parsed.stackId)) {
+      stackIds.add(parsed.stackId);
+      knownStackIds.push(parsed.stackId);
+    }
+  }
+
+  return { byBareKey, byGraphId, knownStackIds };
+}
+
+let activePlanNodeKeyIndex: {
+  nodes: object;
+  index: TerraformPlanNodeKeyIndex;
+} | null = null;
+
+/**
+ * Activate a scoped {@link TerraformPlanNodeKeyIndex} for `nodes` for the synchronous extent of `fn`, so every
+ * {@link resolveTerraformPlanNodeKey} call inside `fn` (directly or transitively) can use O(1)-average indexed
+ * lookups instead of the original O(N) scans. Restores the previous context (supports nested/re-entrant calls)
+ * in a `finally`, even if building the index or running `fn` throws.
+ */
+export function withTerraformPlanNodeKeyIndex<T>(
+  nodes: Record<string, TerraformPlanGraphNode>,
+  fn: () => T,
+): T {
+  const previous = activePlanNodeKeyIndex;
+  try {
+    activePlanNodeKeyIndex = {
+      nodes: nodes as unknown as object,
+      index: buildTerraformPlanNodeKeyIndex(nodes),
+    };
+    return fn();
+  } finally {
+    activePlanNodeKeyIndex = previous;
+  }
+}
+
+/**
  * Map a Terraform address (plan / prior_state / `depends_on`) to a key in `nodes`.
  * Plan keys often include instance keys (`[0]`, `["a"]`) while `prior_state.depends_on` may omit them;
  * matches backend `packages/backend/pipeline.js` `resolveCanonicalNodePath`.
@@ -508,6 +634,17 @@ export function resolveTerraformPlanNodeKey(
     address === TERRAFORM_MODULE_TREE_KEY
   ) {
     return null;
+  }
+
+  if (
+    activePlanNodeKeyIndex !== null &&
+    activePlanNodeKeyIndex.nodes === (nodes as unknown as object)
+  ) {
+    return resolveTerraformPlanNodeKeyIndexed(
+      nodes,
+      address,
+      activePlanNodeKeyIndex.index,
+    );
   }
 
   const parsed = parseStackAddress(address);
@@ -597,6 +734,97 @@ export function resolveTerraformPlanNodeKey(
       matches.push(k);
     }
   }
+  if (matches.length === 1) {
+    return matches[0];
+  }
+  if (matches.length > 1) {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Indexed counterpart of {@link resolveTerraformPlanNodeKey}'s body — same semantics, but reads from a
+ * precomputed {@link TerraformPlanNodeKeyIndex} (`byBareKey` / `byGraphId` / `knownStackIds`) instead of
+ * rescanning `Object.keys(nodes)` per call. Only ever invoked from inside an active
+ * {@link withTerraformPlanNodeKeyIndex} scope, where `index` was built from the exact same `nodes` ref.
+ */
+function resolveTerraformPlanNodeKeyIndexed(
+  nodes: Record<string, TerraformPlanGraphNode>,
+  address: string,
+  index: TerraformPlanNodeKeyIndex,
+): string | null {
+  const parsed = parseStackAddress(address);
+  const bareKey = topologyBareAddressKey(address);
+  const bareKeyCandidates = index.byBareKey.get(bareKey) ?? [];
+
+  if (parsed) {
+    const stackAliases: string[] = [];
+    const exactMatches: string[] = [];
+    for (const k of bareKeyCandidates) {
+      const kParsed = parseStackAddress(k);
+      if (kParsed?.stackId === parsed.stackId) {
+        stackAliases.push(k);
+        if (kParsed.address === parsed.address) {
+          exactMatches.push(k);
+        }
+      } else if (!kParsed) {
+        stackAliases.push(k);
+        if (k === parsed.address) {
+          exactMatches.push(k);
+        }
+      }
+    }
+    if (exactMatches.length === 1) {
+      return exactMatches[0]!;
+    }
+    if (stackAliases.length > 0) {
+      return preferTopologyNodeKeyAmongAliases(stackAliases);
+    }
+  } else {
+    const qualifiedMatches: string[] = [];
+    for (const k of bareKeyCandidates) {
+      const kParsed = parseStackAddress(k);
+      if (kParsed) {
+        qualifiedMatches.push(k);
+      }
+    }
+    if (qualifiedMatches.length === 1) {
+      return qualifiedMatches[0]!;
+    }
+    if (qualifiedMatches.length > 1) {
+      return null;
+    }
+    if (nodes[address]) {
+      return address;
+    }
+  }
+
+  const graphId = stripTerraformAddressIndexes(address);
+
+  const knownStackIds = index.knownStackIds;
+  if (knownStackIds.length > 0 && !address.includes("::")) {
+    const qualifiedMatches: string[] = [];
+    for (const stackId of knownStackIds) {
+      const qualified = prefixStackAddress(stackId, address);
+      if (nodes[qualified]) {
+        qualifiedMatches.push(qualified);
+      }
+      const qualifiedStripped = prefixStackAddress(stackId, graphId);
+      if (nodes[qualifiedStripped]) {
+        qualifiedMatches.push(qualifiedStripped);
+      }
+    }
+    const uniqueQualified = [...new Set(qualifiedMatches)];
+    if (uniqueQualified.length === 1) {
+      return uniqueQualified[0]!;
+    }
+    if (uniqueQualified.length > 1) {
+      return null;
+    }
+  }
+
+  const matches = index.byGraphId.get(graphId) ?? [];
   if (matches.length === 1) {
     return matches[0];
   }

@@ -21,6 +21,7 @@ import {
 } from "./terraformPlanParsing";
 import { loadTerraformImportPresetSources } from "./terraformImportPresetLoader";
 import { terraformImportPrepFingerprint } from "./terraformImportPrepCache";
+import { TERRAFORM_LOD_DEFAULT_PRESET } from "./terraformLod";
 import {
   cloneTerraformElementsForSnapshot,
   getTerraformImportSession,
@@ -37,6 +38,7 @@ import type { TerraformLayoutProgress } from "./terraformLayoutWorkerTypes";
 import type React from "react";
 
 import type { TerraformImportPreset } from "./terraformImportPresetsTypes";
+import type { TerraformImportSession } from "./terraformImportSession";
 import type { TerraformView } from "./terraformImportDialogUtils";
 import type { AppClassProperties, AppState, BinaryFileData } from "../types";
 
@@ -51,6 +53,8 @@ export type TerraformExcalidrawScenePayload = {
 export type ApplyTerraformExcalidrawSceneOptions = {
   enableDeclaredDataFlow?: boolean;
   terraformEdgeLayerPins?: AppState["terraformEdgeLayerPins"];
+  terraformLodEnabled?: boolean;
+  terraformLodPreset?: AppState["terraformLodPreset"];
   scrollToContent?: boolean;
 };
 
@@ -61,6 +65,7 @@ const defaultTerraformEdgeLayerPins = (
   dataFlow: false,
   declaredDataFlow: enableDeclaredDataFlow,
   networking: false,
+  topologyFrameFlow: false,
 });
 
 export const applyTerraformExcalidrawScene = (
@@ -120,6 +125,9 @@ export const applyTerraformExcalidrawScene = (
   setAppState({
     terraformEdgeLayerPins,
     terraformEdgeHoverPeekKey: null,
+    terraformLodEnabled: options.terraformLodEnabled ?? true,
+    terraformLodPreset:
+      options.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
   });
   if (options.scrollToContent !== false) {
     app.scrollToContent();
@@ -134,10 +142,46 @@ export const applyTerraformExcalidrawScene = (
 
 export type RunTerraformImportFromSourcesOptions = {
   semanticLayout: boolean;
-  layoutMode?: "module" | "semantic" | "pipeline";
+  layoutMode?: import("./terraformImportDialogUtils").TerraformLayoutMode;
   moduleLayoutOptions?: TerraformModuleLayoutOptions;
   /** Pipeline compact mode — primary-card-only clusters, satellites added on click. Default true. */
   pipelineCompact?: boolean;
+  /** Zoom LOD — hide labels/satellites when zoomed out. Default true. */
+  terraformLodEnabled?: boolean;
+  terraformLodPreset?: AppState["terraformLodPreset"];
+  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
+  /** Pipeline packed mode — push sink-only groups right and re-pack lanes in Y. Default false. */
+  pipelinePacked?: boolean;
+  /** Packed only — pull slack clusters to their leftmost TFD-feasible column. Default false. */
+  pipelinePackedPullLeft?: boolean;
+  /** Pipeline — draw non-TFD resources in per-hull "Unconnected" strips. Default false. */
+  pipelineIncludeAncillary?: boolean;
+  /** Pipeline — nesting-aware semantic placement (forced bands + straightening). Default false. */
+  pipelineSemanticPlacement?: boolean;
+  /** RCLL M4 — X-disjoint swimlane lanes rise to share Y rows. Default false. */
+  pipelineSwimlaneLaneRise?: boolean;
+  /** RCLL M6 — per-container barycenter crossing-min reorder. Default false. */
+  pipelineReorder?: boolean;
+  /** RCLL M6c — container-aware crossing minimization (superset of reorder). Default false. */
+  pipelineCrossingMin?: boolean;
+  /** RCLL de-band depth — dissolve the chosen container level + all deeper levels into one
+   * shared column stack. Default "none" (today's boxed layout). */
+  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** Back-compat alias for `pipelineDeBandLevel: "subnet"`. `pipelineDeBandLevel` wins. */
+  pipelineSubnetDeBand?: boolean;
+  /** RCLL M8r — whole-model-global sibling-separation ranking (needs lane-rise). Default false. */
+  pipelineRankSeparate?: boolean;
+  /** RCLL M5 — Brandes–Köpf leaf straightening. Default false. */
+  pipelineStraighten?: boolean;
+  /** RCLL M5b — de-density: spread crowded columns. Default false. */
+  pipelineDeDensify?: boolean;
+  /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
+  pipelineColumnPacking?: "spread" | "none" | "compact";
+  /** RCLL "Layout" profile — `readable | balanced | compact` (expands into the RCLL flags;
+   * `balanced` = today's defaults). An explicit individual flag overrides it. */
+  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
+  /** RCLL M3b / DEC-1 — X-disjoint cycle groups rise to share Y. Default on (undefined). */
+  pipelineStaircaseBandOverlap?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -152,6 +196,120 @@ export type RunTerraformImportFromSourcesResult = {
   importWarnings?: TerraformImportWarning[];
 };
 
+export const terraformPipelineReplayOptionsFromSession = (
+  session: TerraformImportSession,
+): Pick<
+  RunTerraformImportFromSourcesOptions,
+  | "pipelineLayoutVariant"
+  | "pipelinePacked"
+  | "pipelinePackedPullLeft"
+  | "pipelineIncludeAncillary"
+  | "pipelineSemanticPlacement"
+  | "pipelineSwimlaneLaneRise"
+  | "pipelineReorder"
+  | "pipelineCrossingMin"
+  | "pipelineDeBandLevel"
+  | "pipelineRankSeparate"
+  | "pipelineStraighten"
+  | "pipelineDeDensify"
+  | "pipelineColumnPacking"
+  | "pipelineLayoutProfile"
+  | "pipelineStaircaseBandOverlap"
+> => ({
+  pipelineLayoutVariant:
+    session.pipelineLayoutVariant ??
+    (session.layoutMode === "rcll" ? "rcll" : "classic"),
+  pipelinePacked: session.pipelinePacked === true,
+  pipelinePackedPullLeft: session.pipelinePackedPullLeft === true,
+  pipelineIncludeAncillary: session.pipelineIncludeAncillary === true,
+  pipelineSemanticPlacement: session.pipelineSemanticPlacement === true,
+  pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise === true,
+  pipelineReorder: session.pipelineReorder === true,
+  pipelineCrossingMin: session.pipelineCrossingMin === true,
+  pipelineDeBandLevel:
+    session.pipelineDeBandLevel ??
+    (session.pipelineSubnetDeBand ? "subnet" : "none"),
+  pipelineRankSeparate: session.pipelineRankSeparate === true,
+  pipelineStraighten: session.pipelineStraighten === true,
+  pipelineDeDensify: session.pipelineDeDensify === true,
+  pipelineColumnPacking: session.pipelineColumnPacking,
+  pipelineLayoutProfile: session.pipelineLayoutProfile,
+  pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap,
+});
+
+async function layoutTerraformSceneFromSources(
+  sources: TerraformPlanParsingSources,
+  options: RunTerraformImportFromSourcesOptions,
+  layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode,
+  moduleLayoutOptions: TerraformModuleLayoutOptions,
+): Promise<TerraformExcalidrawScenePayload> {
+  const presetId = options.preset?.id?.trim();
+  // Packed and ancillary pipeline scenes are not part of the KV layout cache
+  // key yet; skip the cache so such imports never return the default layout.
+  // RCLL view is never cached (M0 delegates; no cache key for its dials yet).
+  const skipLayoutCache =
+    layoutMode === "rcll" ||
+    (layoutMode === "pipeline" &&
+      (options.pipelineLayoutVariant === "v2" ||
+        options.pipelinePacked === true ||
+        options.pipelinePackedPullLeft === true ||
+        options.pipelineIncludeAncillary === true ||
+        options.pipelineSemanticPlacement === true));
+  if (presetId && !skipLayoutCache) {
+    const cached = await fetchPresetLayoutCache(
+      presetId,
+      layoutMode as TerraformView,
+      layoutMode === "module" ? moduleLayoutOptions : undefined,
+      { signal: options.signal },
+    );
+    if (cached) {
+      return cached;
+    }
+  }
+
+  return layoutTerraformViaWorkers(
+    sources,
+    {
+      semanticLayout: options.semanticLayout,
+      ...(options.layoutMode ? { layoutMode } : {}),
+      moduleLayoutOptions:
+        layoutMode === "module" ? moduleLayoutOptions : undefined,
+      ...(layoutMode === "pipeline" || layoutMode === "rcll"
+        ? {
+            pipelineCompact: options.pipelineCompact !== false,
+            pipelineLayoutVariant:
+              options.pipelineLayoutVariant ??
+              (layoutMode === "rcll" ? "rcll" : "classic"),
+            pipelinePacked: options.pipelinePacked === true,
+            pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
+            pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
+            pipelineSemanticPlacement:
+              options.pipelineSemanticPlacement === true,
+            pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
+            pipelineReorder: options.pipelineReorder === true,
+            pipelineCrossingMin: options.pipelineCrossingMin === true,
+            pipelineDeBandLevel:
+              options.pipelineDeBandLevel ??
+              (options.pipelineSubnetDeBand ? "subnet" : "none"),
+            pipelineRankSeparate: options.pipelineRankSeparate === true,
+            pipelineStraighten: options.pipelineStraighten === true,
+            pipelineDeDensify: options.pipelineDeDensify === true,
+            pipelineColumnPacking: options.pipelineColumnPacking,
+            pipelineLayoutProfile: options.pipelineLayoutProfile,
+            // Default-on: undefined ⇒ engine default (true). Only an explicit
+            // false (Stacked) flows through.
+            pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+          }
+        : {}),
+      colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
+    },
+    {
+      onProgress: options.onLayoutProgress,
+      signal: options.signal,
+    },
+  );
+}
+
 export const runTerraformImportFromSources = async (
   app: AppClassProperties,
   setAppState: SetAppState,
@@ -160,41 +318,18 @@ export const runTerraformImportFromSources = async (
 ): Promise<RunTerraformImportFromSourcesResult> => {
   const moduleLayoutOptions =
     options.moduleLayoutOptions ?? DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS;
-  const layoutMode =
+  const layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode =
     options.layoutMode ?? (options.semanticLayout ? "semantic" : "module");
   const sourceFingerprint = terraformImportPrepFingerprint(sources);
   const importedTfdTexts = options.importedTfdTexts ?? [];
   const enableDeclaredDataFlow = importedTfdTexts.some((t) => t.trim());
 
-  const presetId = options.preset?.id?.trim();
-  let scene: TerraformExcalidrawScenePayload | null = null;
-  if (presetId) {
-    scene = await fetchPresetLayoutCache(
-      presetId,
-      layoutMode as TerraformView,
-      layoutMode === "module" ? moduleLayoutOptions : undefined,
-      { signal: options.signal },
-    );
-  }
-  if (!scene) {
-    scene = await layoutTerraformViaWorkers(
-      sources,
-      {
-        semanticLayout: options.semanticLayout,
-        ...(options.layoutMode ? { layoutMode } : {}),
-        moduleLayoutOptions:
-          layoutMode === "module" ? moduleLayoutOptions : undefined,
-        ...(layoutMode === "pipeline"
-          ? { pipelineCompact: options.pipelineCompact !== false }
-          : {}),
-        colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
-      },
-      {
-        onProgress: options.onLayoutProgress,
-        signal: options.signal,
-      },
-    );
-  }
+  const scene = await layoutTerraformSceneFromSources(
+    sources,
+    options,
+    layoutMode,
+    moduleLayoutOptions,
+  );
 
   const { elements, terraformEdgeLayerPins } = applyTerraformExcalidrawScene(
     app,
@@ -203,6 +338,9 @@ export const runTerraformImportFromSources = async (
     {
       enableDeclaredDataFlow,
       scrollToContent: options.scrollToContent,
+      terraformLodEnabled: options.terraformLodEnabled !== false,
+      terraformLodPreset:
+        options.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
     },
   );
 
@@ -218,8 +356,35 @@ export const runTerraformImportFromSources = async (
       semanticLayout: options.semanticLayout,
       ...(options.layoutMode ? { layoutMode } : {}),
       moduleLayoutOptions,
-      ...(layoutMode === "pipeline"
-        ? { pipelineCompact: options.pipelineCompact !== false }
+      terraformLodEnabled: options.terraformLodEnabled !== false,
+      terraformLodPreset:
+        options.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
+      ...(layoutMode === "pipeline" || layoutMode === "rcll"
+        ? {
+            pipelineCompact: options.pipelineCompact !== false,
+            pipelineLayoutVariant:
+              options.pipelineLayoutVariant ??
+              (layoutMode === "rcll" ? "rcll" : "classic"),
+            pipelinePacked: options.pipelinePacked === true,
+            pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
+            pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
+            pipelineSemanticPlacement:
+              options.pipelineSemanticPlacement === true,
+            pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
+            pipelineReorder: options.pipelineReorder === true,
+            pipelineCrossingMin: options.pipelineCrossingMin === true,
+            pipelineDeBandLevel:
+              options.pipelineDeBandLevel ??
+              (options.pipelineSubnetDeBand ? "subnet" : "none"),
+            pipelineRankSeparate: options.pipelineRankSeparate === true,
+            pipelineStraighten: options.pipelineStraighten === true,
+            pipelineDeDensify: options.pipelineDeDensify === true,
+            pipelineColumnPacking: options.pipelineColumnPacking,
+            pipelineLayoutProfile: options.pipelineLayoutProfile,
+            // Default-on: undefined ⇒ engine default (true). Only an explicit
+            // false (Stacked) flows through.
+            pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+          }
         : {}),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
       preset: options.preset ?? null,
@@ -257,6 +422,9 @@ export const resetTerraformLayout = (
     {
       enableDeclaredDataFlow: snapshot.enableDeclaredDataFlow,
       terraformEdgeLayerPins: snapshot.terraformEdgeLayerPins,
+      terraformLodEnabled: session.terraformLodEnabled !== false,
+      terraformLodPreset:
+        session.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
     },
   );
   return true;
@@ -294,7 +462,11 @@ export const refreshTerraformLayout = async (
     layoutMode: session.layoutMode,
     moduleLayoutOptions: session.moduleLayoutOptions,
     pipelineCompact: session.pipelineCompact,
+    ...terraformPipelineReplayOptionsFromSession(session),
     colorMode: session.colorMode,
+    terraformLodEnabled: session.terraformLodEnabled,
+    terraformLodPreset:
+      session.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
     importedTfdTexts,
     preset: session.preset,
   });

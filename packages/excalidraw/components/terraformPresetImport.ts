@@ -9,7 +9,10 @@ import {
   type RunTerraformImportFromSourcesResult,
 } from "./terraformSceneApply";
 
-import type { TerraformView } from "./terraformImportDialogUtils";
+import type {
+  TerraformLayoutMode,
+  TerraformView,
+} from "./terraformImportDialogUtils";
 import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
 import type { TerraformImportPreset } from "./terraformImportPresetsTypes";
 import type { TerraformImportPresetWarning } from "./terraformImportPresetsTypes";
@@ -19,7 +22,7 @@ import type React from "react";
 
 type SetAppState = React.Component<any, AppState>["setState"];
 
-export type TerraformLayoutMode = "module" | "semantic" | "pipeline";
+export type { TerraformLayoutMode };
 
 export const deriveLayoutModeFromView = (
   view: TerraformView,
@@ -27,6 +30,9 @@ export const deriveLayoutModeFromView = (
 ): TerraformLayoutMode => {
   const canUseSemanticView =
     sources.planDotBundles.length > 0 || sources.states.length > 0;
+  if (view === "rcll" && canUseSemanticView) {
+    return "rcll";
+  }
   if (view === "pipeline" && canUseSemanticView) {
     return "pipeline";
   }
@@ -44,6 +50,22 @@ export type RunTerraformImportFromSourcesArgs = {
   moduleLayoutOptions?: TerraformModuleLayoutOptions;
   /** Pipeline view: start with satellites hidden (true, default) or all visible (false). */
   pipelineCompact?: boolean;
+  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
+  pipelinePacked?: boolean;
+  pipelinePackedPullLeft?: boolean;
+  pipelineIncludeAncillary?: boolean;
+  pipelineSemanticPlacement?: boolean;
+  pipelineSwimlaneLaneRise?: boolean;
+  pipelineReorder?: boolean;
+  pipelineCrossingMin?: boolean;
+  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  pipelineSubnetDeBand?: boolean;
+  pipelineRankSeparate?: boolean;
+  pipelineStraighten?: boolean;
+  pipelineDeDensify?: boolean;
+  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
+  pipelineStaircaseBandOverlap?: boolean;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -57,6 +79,22 @@ export const runTerraformImportWithView = async ({
   view,
   moduleLayoutOptions = DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   pipelineCompact,
+  pipelineLayoutVariant,
+  pipelinePacked,
+  pipelinePackedPullLeft,
+  pipelineIncludeAncillary,
+  pipelineSemanticPlacement,
+  pipelineSwimlaneLaneRise,
+  pipelineReorder,
+  pipelineCrossingMin,
+  pipelineDeBandLevel,
+  pipelineSubnetDeBand,
+  pipelineRankSeparate,
+  pipelineStraighten,
+  pipelineDeDensify,
+  pipelineColumnPacking,
+  pipelineLayoutProfile,
+  pipelineStaircaseBandOverlap,
   importedTfdTexts,
   preset = null,
   signal,
@@ -64,12 +102,33 @@ export const runTerraformImportWithView = async ({
 }: RunTerraformImportFromSourcesArgs): Promise<RunTerraformImportFromSourcesResult> => {
   const layoutMode = deriveLayoutModeFromView(view, sources);
   const semanticLayout = layoutMode === "semantic";
+  const isPipelineFamily = layoutMode === "pipeline" || layoutMode === "rcll";
   return runTerraformImportFromSources(app, setAppState, sources, {
     semanticLayout,
-    layoutMode: layoutMode === "pipeline" ? "pipeline" : undefined,
+    layoutMode: isPipelineFamily ? layoutMode : undefined,
     moduleLayoutOptions:
       layoutMode === "module" ? moduleLayoutOptions : undefined,
-    ...(layoutMode === "pipeline" ? { pipelineCompact } : {}),
+    ...(isPipelineFamily
+      ? {
+          pipelineCompact,
+          pipelineLayoutVariant,
+          pipelinePacked,
+          pipelinePackedPullLeft,
+          pipelineIncludeAncillary,
+          pipelineSemanticPlacement,
+          pipelineSwimlaneLaneRise,
+          pipelineReorder,
+          pipelineCrossingMin,
+          pipelineDeBandLevel,
+          pipelineSubnetDeBand,
+          pipelineRankSeparate,
+          pipelineStraighten,
+          pipelineDeDensify,
+          pipelineColumnPacking,
+          pipelineLayoutProfile,
+          pipelineStaircaseBandOverlap,
+        }
+      : {}),
     importedTfdTexts,
     preset,
     signal,
@@ -81,6 +140,22 @@ export type RunTerraformPresetImportOptions = {
   view?: TerraformView;
   moduleLayoutOptions?: TerraformModuleLayoutOptions;
   pipelineCompact?: boolean;
+  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
+  pipelinePacked?: boolean;
+  pipelinePackedPullLeft?: boolean;
+  pipelineIncludeAncillary?: boolean;
+  pipelineSemanticPlacement?: boolean;
+  pipelineSwimlaneLaneRise?: boolean;
+  pipelineReorder?: boolean;
+  pipelineCrossingMin?: boolean;
+  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  pipelineSubnetDeBand?: boolean;
+  pipelineRankSeparate?: boolean;
+  pipelineStraighten?: boolean;
+  pipelineDeDensify?: boolean;
+  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
+  pipelineStaircaseBandOverlap?: boolean;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -119,6 +194,22 @@ export const runTerraformPresetImport = async (
     view,
     moduleLayoutOptions,
     pipelineCompact: options.pipelineCompact,
+    pipelineLayoutVariant: options.pipelineLayoutVariant,
+    pipelinePacked: options.pipelinePacked,
+    pipelinePackedPullLeft: options.pipelinePackedPullLeft,
+    pipelineIncludeAncillary: options.pipelineIncludeAncillary,
+    pipelineSemanticPlacement: options.pipelineSemanticPlacement,
+    pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise,
+    pipelineReorder: options.pipelineReorder,
+    pipelineCrossingMin: options.pipelineCrossingMin,
+    pipelineDeBandLevel: options.pipelineDeBandLevel,
+    pipelineSubnetDeBand: options.pipelineSubnetDeBand,
+    pipelineRankSeparate: options.pipelineRankSeparate,
+    pipelineStraighten: options.pipelineStraighten,
+    pipelineDeDensify: options.pipelineDeDensify,
+    pipelineColumnPacking: options.pipelineColumnPacking,
+    pipelineLayoutProfile: options.pipelineLayoutProfile,
+    pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

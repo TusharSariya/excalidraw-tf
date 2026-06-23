@@ -1489,6 +1489,9 @@ export function buildTerraformNetworkingDependencyLineSkeletons(
 export const TERRAFORM_DATAFLOW_EDGE_STROKE = "#868e96";
 /** Declared `.tfd` dataflow layer (blue). */
 export const TERRAFORM_DECLARED_DATAFLOW_EDGE_STROKE = "#339af0";
+
+/** Compound pipeline aggregated edges between sibling topology frames. */
+export const TERRAFORM_TOPOLOGY_FRAME_FLOW_STROKE = "#5c7cfa";
 const TERRAFORM_DATAFLOW_OFFSET_PX = 18;
 const TERRAFORM_DECLARED_DATAFLOW_OFFSET_PX = 10;
 
@@ -1701,6 +1704,12 @@ export function appendDeclaredDataFlowMissingEndpointRectangles(
             resourceType,
             action,
           ),
+          terraformSatelliteTier: isInitiallyVisibleTerraformResource(
+            resourceType,
+            action,
+          )
+            ? 0
+            : 1,
           terraformExplodeParentKeys: [],
           terraformExplodeParent: null,
           terraformDeclaredDataFlowOrphan: true,
@@ -2165,6 +2174,7 @@ export async function buildTerraformElkExcalidrawScene(
       resourceType,
       action,
     );
+    const satelliteTier: 0 | 1 | 2 = initiallyVisible ? 0 : 1;
     const actionStyle = getTerraformActionStyle(action);
     resourceSkeletons.push({
       type: "rectangle",
@@ -2188,6 +2198,7 @@ export async function buildTerraformElkExcalidrawScene(
         terraformVisibilityKey: id,
         terraformNodeKind: "resource",
         terraformInitiallyVisible: initiallyVisible,
+        terraformSatelliteTier: satelliteTier,
         terraformExplodeParentKeys: explodeKeys,
         terraformExplodeParent: explodeParent,
         ...buildTerraformResourceCardCustomData(id, resource, nodes[id], plan),
