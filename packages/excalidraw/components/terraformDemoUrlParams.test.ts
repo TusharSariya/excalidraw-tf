@@ -312,6 +312,18 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("parses columnPacking=shorten (X-axis network-simplex bundle)", () => {
+      // "shorten" is a valid VALID_COLUMN_PACKING member (case-insensitive).
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=rcll&columnPacking=shorten",
+        ),
+      ).toEqual({ presetId: "demo", view: "rcll", columnPacking: "shorten" });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&columnPacking=SHORTEN"),
+      ).toEqual({ presetId: "demo", columnPacking: "shorten" });
+    });
+
     it("parses profile (RCLL Layout profile) and rejects invalid", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&view=rcll&profile=compact"),

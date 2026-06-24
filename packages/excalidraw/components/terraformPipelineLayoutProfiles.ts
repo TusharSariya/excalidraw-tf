@@ -105,7 +105,7 @@ export type RcllLayoutProfileFlags = {
   reorder: boolean;
   crossingMin: boolean;
   straighten: boolean;
-  columnPacking: "spread" | "none" | "compact";
+  columnPacking: "spread" | "none" | "compact" | "shorten";
 };
 
 export const RCLL_LAYOUT_PROFILES: readonly RcllLayoutProfile[] = [

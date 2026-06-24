@@ -93,6 +93,7 @@ function prep(
     maxDepth: Math.max(0, ...depths.values()),
     columnX: [],
     depthResult: { depths, hasCycle },
+    networkSimplexApplied: false,
     satelliteOwners: new Map(),
     placementByAddress: new Map(),
   };

@@ -176,7 +176,7 @@ export type RunTerraformImportFromSourcesOptions = {
   /** RCLL M5b — de-density: spread crowded columns. Default false. */
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile — `readable | balanced | compact` (expands into the RCLL flags;
    * `balanced` = today's defaults). An explicit individual flag overrides it. */
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;

@@ -251,6 +251,18 @@ const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "columnpacking.shorten": {
+    title: "Column packing · Shorten",
+    body: "Re-ranks the left→right columns to make the connecting arrows as short as possible, then pulls cards left to close the gap (Compact's win on top). The diagram reads narrower and the dataflow stays straighter (−8.4% width on the staging v2 preset). Note: this is mutually exclusive with Lane split (rankSeparate) — they rewrite the same column axis in opposite ways, and Lane split's height win is larger, so when Lane split is on, Shorten yields to it (a safe no-op) rather than ballooning the height.",
+    dev: {
+      implements:
+        "Bundle: networkSimplexRank + columnCompact. networkSimplexRank replaces the longest-path depth floor with the Gansner TSE93 minimum-weighted-span ranking (computeNetworkSimplexDepths), applied via applyDepthFloorIfValid (verify-or-abort, dual-write cluster.depth + depthResult). LOSES to a live rankSeparate (mutually-exclusive column axis; rankSeparate+laneRise is the dominant height lever — NS destroys lane X-disjointness, +149% height); WINS over deDensify; compact is additive. networkSimplexApplied / nsSkipReason / pipelineNetworkSimplexRankSuppressed surfaced in scene meta. Probe (rankSeparate OFF): span 262→190 (−27.5%, the known optimum), width −8.4%, all CON gates 0.",
+      refs: [
+        "Gansner, Koutsofios, North & Vo 1993 (TSE — a technique for drawing directed graphs / the network-simplex ranker)",
+        "Rüegg et al. 2016 (1D compaction)",
+      ],
+    },
+  },
   "profile.readable": {
     title: "Layout · Readable",
     body: "The clearest, most spread-out arrangement. Mutually-dependent groups stack on their own rows, arrows are ordered to cross less, and fan-out spines are aligned. Tallest of the three — best when you want to follow the dataflow without anything sharing space.",
@@ -375,7 +387,7 @@ export const TerraformImportPipelineSettings = ({
   pipelineDeBandLevel: DeBandLevel;
   pipelineRankSeparate: boolean;
   pipelineStraighten: boolean;
-  pipelineColumnPacking: "spread" | "none" | "compact";
+  pipelineColumnPacking: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile: RcllLayoutProfileSelection;
   pipelineStaircaseBandOverlap: boolean;
   setPipelineCompact: (compact: boolean) => void;
@@ -391,7 +403,7 @@ export const TerraformImportPipelineSettings = ({
   setPipelineRankSeparate: (rankSeparate: boolean) => void;
   setPipelineStraighten: (straighten: boolean) => void;
   setPipelineColumnPacking: (
-    columnPacking: "spread" | "none" | "compact",
+    columnPacking: "spread" | "none" | "compact" | "shorten",
   ) => void;
   setPipelineLayoutProfile: (profile: RcllLayoutProfile) => void;
   setPipelineStaircaseBandOverlap: (staircaseBandOverlap: boolean) => void;
@@ -621,6 +633,12 @@ export const TerraformImportPipelineSettings = ({
                       pipelineColumnPacking === "compact",
                       "columnpacking.compact",
                       () => setPipelineColumnPacking("compact"),
+                    )}
+                    {option(
+                      "Shorten",
+                      pipelineColumnPacking === "shorten",
+                      "columnpacking.shorten",
+                      () => setPipelineColumnPacking("shorten"),
                     )}
                   </div>
                 </div>

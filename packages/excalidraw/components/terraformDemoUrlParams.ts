@@ -84,7 +84,7 @@ export type TerraformDemoUrlParams = {
   straighten?: boolean;
   deDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  columnPacking?: "spread" | "none" | "compact";
+  columnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile — `readable | balanced | compact` (outcome-first preset). */
   profile?: RcllLayoutProfile;
   /** RCLL DEC-1 cycle-band rise; default on — only `=0` (false) is meaningful.
@@ -104,11 +104,9 @@ export type TerraformDemoUrlParams = {
   runtimePerformance?: TerraformRuntimePerformanceSettings;
 };
 
-const VALID_COLUMN_PACKING = new Set<"spread" | "none" | "compact">([
-  "spread",
-  "none",
-  "compact",
-]);
+const VALID_COLUMN_PACKING = new Set<"spread" | "none" | "compact" | "shorten">(
+  ["spread", "none", "compact", "shorten"],
+);
 
 const PRESET_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -288,12 +286,13 @@ export const parseTerraformDemoUrlParams = (
   // "Column packing" tri-state. Hard-fail on an invalid value (same contract as the
   // booleans). Back-compat: a legacy `deDensify=1` (no explicit packing) ⇒ `spread`.
   const columnPackingRaw = params.get("columnPacking");
-  let columnPacking: "spread" | "none" | "compact" | undefined;
+  let columnPacking: "spread" | "none" | "compact" | "shorten" | undefined;
   if (columnPackingRaw != null && columnPackingRaw.trim() !== "") {
     const normalized = columnPackingRaw.trim().toLowerCase() as
       | "spread"
       | "none"
-      | "compact";
+      | "compact"
+      | "shorten";
     if (!VALID_COLUMN_PACKING.has(normalized)) {
       return null;
     }
@@ -522,7 +521,7 @@ export type TerraformDemoSettingsSnapshot = {
   pipelineDeBandLevel: DeBandLevel;
   pipelineRankSeparate: boolean;
   pipelineStraighten: boolean;
-  pipelineColumnPacking: "spread" | "none" | "compact";
+  pipelineColumnPacking: "spread" | "none" | "compact" | "shorten";
   /** The primary RCLL Layout control — `"custom"` once any flag is touched directly. */
   pipelineLayoutProfile: RcllLayoutProfile | "custom";
   pipelineStaircaseBandOverlap: boolean;

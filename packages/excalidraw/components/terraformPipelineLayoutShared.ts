@@ -71,6 +71,15 @@ export type PipelineLayoutPrep = {
   maxDepth: number;
   columnX: number[];
   depthResult: { depths: Map<string, number>; hasCycle: boolean };
+  /**
+   * Whether the network-simplex ranker (`networkSimplexRank`) actually rewrote the
+   * depth floor. False when the toggle is off, the candidate failed verify-or-abort
+   * (`nsSkipReason: "infeasible-fallback"`), or the DAG was cyclic
+   * (`nsSkipReason: "cyclic-skip"`) — in every non-applied case the longest-path
+   * floor is kept and `nsSkipReason` records why (surfaced in scene meta).
+   */
+  networkSimplexApplied: boolean;
+  nsSkipReason?: "infeasible-fallback" | "cyclic-skip";
   /** satellite address -> owning primary address (all plan primaries). */
   satelliteOwners: ReadonlyMap<string, string>;
   /** Every plan address -> topology placement (unknown-* fallbacks included). */
@@ -565,6 +574,409 @@ export function computeWidthBudgetedDepths(
   return depths;
 }
 
+/**
+ * Verify-or-abort guard for swapping the cluster depth floor. A candidate depth
+ * assignment is applied only if it keeps EVERY collapsed edge forward
+ * (`depth(src) < depth(tgt)`) — the order-safety invariant the whole RCLL
+ * layering relies on. Shared by the experimental ALAP arm and the X-axis
+ * network-simplex ranker so the swap + dual-write logic lives in one place.
+ *
+ * On a valid candidate it DUAL-WRITES both downstream consumers and returns the
+ * new depth result; on an infeasible candidate it returns `null` and the caller
+ * keeps the longest-path floor. The two writes are distinct and both
+ * load-bearing — writing only one ships green and changes nothing:
+ *   1. `cluster.depth` (mutated in place) → `computeGlobalColumnX` column-width
+ *      pixel geometry.
+ *   2. the returned `{ depths }` → `effectiveDepthResult` → `buildRcllModel`
+ *      `lattice.floor` (the RCLL `denseRank` column axis, primary layering input).
+ */
+export function applyDepthFloorIfValid(
+  clusters: readonly PipelineCluster[],
+  candidate: ReadonlyMap<string, number>,
+  collapsedEdges: readonly { source: string; target: string }[],
+): { depths: Map<string, number>; hasCycle: false } | null {
+  const valid = collapsedEdges.every(
+    (edge) =>
+      (candidate.get(edge.source) ?? 0) < (candidate.get(edge.target) ?? 0),
+  );
+  if (!valid) {
+    return null;
+  }
+  for (const cluster of clusters) {
+    cluster.depth = candidate.get(cluster.id) ?? cluster.depth; // DUAL-WRITE #1
+  }
+  return { depths: new Map(candidate), hasCycle: false }; // DUAL-WRITE #2
+}
+
+type NsEdge = { u: string; v: string; w: number };
+
+/**
+ * X-axis network-simplex ranker — minimum-weighted-span layering of the acyclic
+ * collapsed cluster DAG (Gansner, Koutsofios, North & Vo, TSE93 "dot": feasible
+ * tight tree → cut values → entering/leaving pivots to the EXACT optimum →
+ * balance), the proven CONFIRMED-GO edge-length lever (probe: width −8.4%, total
+ * span 262→190 on staging-extended-localstack-v2). Signature mirrors
+ * `computeWidthBudgetedDepths`. Minimizes Σ w(e)·(rank(v)−rank(u)) subject to
+ * rank(v) ≥ rank(u)+1, where the per-pair weight `w` is the parallel-edge count.
+ *
+ * Pure + fully deterministic — every tie-break (entering edge, leaving edge,
+ * balance target) resolves by sorted `(u,v)` / id order; no `Math.random`/`Date`.
+ * Leaving-edge selection uses Bland's rule (first negative-cut tree edge in fixed
+ * order), which both pins determinism AND prevents pivot cycling. EXACT to the
+ * optimum — never a capped/partial result: a heuristic stalls at a plausible-but-
+ * wrong smaller win (a balance heuristic stalled −10.3%, a sign-bug −7.3%, both
+ * still "every edge forward"), so only the true simplex is trustworthy. If the
+ * safety pivot ceiling is ever hit that is a BUG (not a slow case) → return the
+ * input unchanged so the caller keeps the longest-path floor.
+ *
+ * The caller applies the result through `applyDepthFloorIfValid` (verify-or-abort),
+ * so an out-of-order return is caught and the longest-path floor kept, never
+ * shipped. Solves each weakly-connected component independently (a disconnected
+ * DAG is min-span per component); nodes touched by no edge keep their longest-path
+ * rank.
+ */
+export function computeNetworkSimplexDepths(
+  collapsedEdges: readonly { source: string; target: string }[],
+  clusterIds: readonly string[],
+  longestPathDepths: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const ids = [...clusterIds];
+  const identity = (): Map<string, number> =>
+    new Map(ids.map((id) => [id, longestPathDepths.get(id) ?? 0]));
+  if (ids.length === 0) {
+    return new Map();
+  }
+
+  // Merge parallel edges (same u→v) into one weighted edge; drop self-loops. The
+  // objective Σ w·span is unchanged, and parallel edges can't both be tree edges
+  // (they'd form a 2-cycle). The sorted order feeds every tie-break below.
+  const SEP = " ";
+  const weightByPair = new Map<string, number>();
+  for (const e of collapsedEdges) {
+    if (e.source === e.target) {
+      continue;
+    }
+    const k = e.source + SEP + e.target;
+    weightByPair.set(k, (weightByPair.get(k) ?? 0) + 1);
+  }
+  const edges: NsEdge[] = [...weightByPair.entries()]
+    .map(([k, w]): NsEdge => {
+      const sep = k.indexOf(SEP);
+      return { u: k.slice(0, sep), v: k.slice(sep + 1), w };
+    })
+    .sort((a, b) => a.u.localeCompare(b.u) || a.v.localeCompare(b.v));
+  if (edges.length === 0) {
+    return identity();
+  }
+
+  // Ranks start at the feasible longest-path floor (slack ≥ 0 everywhere) and are
+  // mutated in place per component below.
+  const rank = new Map<string, number>(
+    ids.map((id) => [id, longestPathDepths.get(id) ?? 0]),
+  );
+
+  // Weakly-connected components (union-find over the merged edges).
+  const parent = new Map<string, string>(ids.map((id) => [id, id]));
+  const find = (x: string): string => {
+    let r = x;
+    while (parent.get(r) !== r) {
+      r = parent.get(r)!;
+    }
+    while (parent.get(x) !== r) {
+      const next = parent.get(x)!;
+      parent.set(x, r);
+      x = next;
+    }
+    return r;
+  };
+  for (const e of edges) {
+    const ru = find(e.u);
+    const rv = find(e.v);
+    if (ru !== rv) {
+      parent.set(ru, rv);
+    }
+  }
+  const componentEdges = new Map<string, NsEdge[]>();
+  for (const e of edges) {
+    const r = find(e.u);
+    const list = componentEdges.get(r);
+    if (list) {
+      list.push(e);
+    } else {
+      componentEdges.set(r, [e]);
+    }
+  }
+
+  // Solve one weakly-connected component IN PLACE (writes `rank` for its nodes).
+  // Returns false if the component could not be spanned (degenerate) so the caller
+  // can abort to the longest-path floor wholesale rather than ship a partial mix.
+  const solveComponent = (
+    compEdges: NsEdge[],
+    compNodes: string[],
+  ): boolean => {
+    if (compEdges.length === 0) {
+      return true;
+    }
+    const slack = (e: NsEdge): number =>
+      (rank.get(e.v) ?? 0) - (rank.get(e.u) ?? 0) - 1;
+    const treeEdges = new Set<number>();
+
+    // tight_tree: greedily grow the maximal node set connected to compNodes[0]
+    // through slack-0 edges; records the tree edges used.
+    const growTightTree = (): Set<string> => {
+      treeEdges.clear();
+      const nodes = new Set<string>([compNodes[0]!]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (let i = 0; i < compEdges.length; i++) {
+          const e = compEdges[i]!;
+          if (nodes.has(e.u) !== nodes.has(e.v) && slack(e) === 0) {
+            nodes.add(e.u);
+            nodes.add(e.v);
+            treeEdges.add(i);
+            grew = true;
+          }
+        }
+      }
+      return nodes;
+    };
+
+    // feasible_tree: pull the min-slack joining edge tight until the tree spans the
+    // component. Each pass adds ≥1 node, so it terminates in ≤|compNodes| passes.
+    for (let guard = 0; guard <= compNodes.length; guard++) {
+      const nodes = growTightTree();
+      if (nodes.size >= compNodes.length) {
+        break;
+      }
+      let bestIdx = -1;
+      let bestSlack = Infinity;
+      for (let i = 0; i < compEdges.length; i++) {
+        const e = compEdges[i]!;
+        if (nodes.has(e.u) === nodes.has(e.v)) {
+          continue;
+        }
+        const s = slack(e);
+        if (s < bestSlack) {
+          bestSlack = s;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx < 0) {
+        return false; // unreachable for a connected component, but be safe
+      }
+      const e = compEdges[bestIdx]!;
+      const delta = nodes.has(e.v) ? -bestSlack : bestSlack;
+      for (const n of nodes) {
+        rank.set(n, (rank.get(n) ?? 0) + delta);
+      }
+    }
+    if (treeEdges.size !== compNodes.length - 1) {
+      return false;
+    }
+
+    // Undirected adjacency for the CURRENT tree (rebuilt after every exchange).
+    const buildTreeAdj = (): Map<string, { idx: number; to: string }[]> => {
+      const adj = new Map<string, { idx: number; to: string }[]>();
+      for (const n of compNodes) {
+        adj.set(n, []);
+      }
+      for (const i of treeEdges) {
+        const e = compEdges[i]!;
+        adj.get(e.u)!.push({ idx: i, to: e.v });
+        adj.get(e.v)!.push({ idx: i, to: e.u });
+      }
+      return adj;
+    };
+
+    // Component of `start` once tree edge `exclude` is removed (the tail side).
+    const tailComponent = (
+      adj: Map<string, { idx: number; to: string }[]>,
+      start: string,
+      exclude: number,
+    ): Set<string> => {
+      const comp = new Set<string>([start]);
+      const stack = [start];
+      while (stack.length > 0) {
+        const n = stack.pop()!;
+        for (const { idx, to } of adj.get(n) ?? []) {
+          if (idx === exclude || comp.has(to)) {
+            continue;
+          }
+          comp.add(to);
+          stack.push(to);
+        }
+      }
+      return comp;
+    };
+
+    // Cut value of a tree edge: (Σ w of edges crossing tail→head) − (head→tail).
+    const cutValue = (tailComp: Set<string>): number => {
+      let value = 0;
+      for (const f of compEdges) {
+        const tailIn = tailComp.has(f.u);
+        const headIn = tailComp.has(f.v);
+        if (tailIn && !headIn) {
+          value += f.w;
+        } else if (!tailIn && headIn) {
+          value -= f.w;
+        }
+      }
+      return value;
+    };
+
+    // Re-derive ranks so every tree edge is tight (rank(v) = rank(u)+1). Fully
+    // determined by the tree (up to a global shift); a valid network-simplex tree
+    // stays feasible, and the verify-or-abort caller is the final safety net.
+    const retightenRanks = (): void => {
+      const adj = buildTreeAdj();
+      const seen = new Set<string>([compNodes[0]!]);
+      const stack = [compNodes[0]!];
+      rank.set(compNodes[0]!, 0);
+      while (stack.length > 0) {
+        const n = stack.pop()!;
+        for (const { idx, to } of adj.get(n) ?? []) {
+          if (seen.has(to)) {
+            continue;
+          }
+          const e = compEdges[idx]!;
+          rank.set(
+            to,
+            e.u === n && e.v === to
+              ? (rank.get(n) ?? 0) + 1
+              : (rank.get(n) ?? 0) - 1,
+          );
+          seen.add(to);
+          stack.push(to);
+        }
+      }
+    };
+
+    const maxPivots = 4 * compNodes.length + 16;
+    for (let pivots = 0; ; pivots++) {
+      if (pivots > maxPivots) {
+        return false; // safety ceiling = BUG → caller keeps longest-path
+      }
+      const adj = buildTreeAdj();
+      // leave_edge: first tree edge (sorted order) with a negative cut value
+      // (Bland's rule — fixed order is anti-cycling AND deterministic).
+      let leaveIdx = -1;
+      let leaveTailComp: Set<string> | null = null;
+      for (let i = 0; i < compEdges.length; i++) {
+        if (!treeEdges.has(i)) {
+          continue;
+        }
+        const tailComp = tailComponent(adj, compEdges[i]!.u, i);
+        if (cutValue(tailComp) < 0) {
+          leaveIdx = i;
+          leaveTailComp = tailComp;
+          break;
+        }
+      }
+      if (leaveIdx < 0) {
+        break; // no negative cut value ⇒ optimal
+      }
+      // enter_edge: a non-tree edge crossing the cut in the OPPOSITE direction
+      // (tail in head-side, head in tail-side) with minimum slack; ties → first.
+      const tailComp = leaveTailComp!;
+      let enterIdx = -1;
+      let enterSlack = Infinity;
+      for (let i = 0; i < compEdges.length; i++) {
+        if (treeEdges.has(i)) {
+          continue;
+        }
+        const f = compEdges[i]!;
+        if (!tailComp.has(f.u) && tailComp.has(f.v)) {
+          const s = slack(f);
+          if (s < enterSlack) {
+            enterSlack = s;
+            enterIdx = i;
+          }
+        }
+      }
+      if (enterIdx < 0) {
+        break; // no improving entering edge (should not happen with cutval<0)
+      }
+      treeEdges.delete(leaveIdx);
+      treeEdges.add(enterIdx);
+      retightenRanks();
+    }
+    return true;
+  };
+
+  for (const [root, compEdges] of componentEdges) {
+    const compNodes = ids.filter((id) => find(id) === root);
+    if (!solveComponent(compEdges, compNodes)) {
+      return identity();
+    }
+  }
+
+  // balance: a node whose total in-weight equals its out-weight can slide anywhere
+  // in its feasible window [maxInRank+1, minOutRank−1] without changing Σ w·span.
+  // Move each such node to the LEAST-populated rank in that window (ties → lowest
+  // rank), evening out column occupancy (the width win). Deterministic: nodes
+  // processed in sorted id order; population recomputed each step.
+  const inW = new Map<string, number>(ids.map((id) => [id, 0]));
+  const outW = new Map<string, number>(ids.map((id) => [id, 0]));
+  const inNbrs = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const outNbrs = new Map<string, string[]>(ids.map((id) => [id, []]));
+  for (const e of edges) {
+    outW.set(e.u, (outW.get(e.u) ?? 0) + e.w);
+    inW.set(e.v, (inW.get(e.v) ?? 0) + e.w);
+    outNbrs.get(e.u)!.push(e.v);
+    inNbrs.get(e.v)!.push(e.u);
+  }
+  for (const id of [...ids].sort((a, b) => a.localeCompare(b))) {
+    const w = inW.get(id) ?? 0;
+    if (w === 0 || w !== (outW.get(id) ?? 0)) {
+      continue;
+    }
+    let low = -Infinity;
+    for (const u of inNbrs.get(id) ?? []) {
+      low = Math.max(low, (rank.get(u) ?? 0) + 1);
+    }
+    let high = Infinity;
+    for (const v of outNbrs.get(id) ?? []) {
+      high = Math.min(high, (rank.get(v) ?? 0) - 1);
+    }
+    if (!Number.isFinite(low) || !Number.isFinite(high) || low >= high) {
+      continue;
+    }
+    const pop = new Map<number, number>();
+    for (const other of ids) {
+      if (other === id) {
+        continue;
+      }
+      const r = rank.get(other) ?? 0;
+      pop.set(r, (pop.get(r) ?? 0) + 1);
+    }
+    let bestRank = rank.get(id) ?? low;
+    let bestPop = Infinity;
+    for (let r = low; r <= high; r++) {
+      const p = pop.get(r) ?? 0;
+      if (p < bestPop) {
+        bestPop = p;
+        bestRank = r;
+      }
+    }
+    rank.set(id, bestRank);
+  }
+
+  // Normalize each weakly-connected component so its minimum rank is 0 (sources at
+  // column 0, matching the longest-path convention the rest of the layout assumes).
+  const compMin = new Map<string, number>();
+  for (const id of ids) {
+    const r = find(id);
+    compMin.set(r, Math.min(compMin.get(r) ?? Infinity, rank.get(id) ?? 0));
+  }
+  return new Map(
+    ids.map((id) => {
+      const base = compMin.get(find(id)) ?? 0;
+      return [id, (rank.get(id) ?? 0) - (Number.isFinite(base) ? base : 0)];
+    }),
+  );
+}
+
 export function laneKey(p: PipelinePlacement): string {
   return [
     p.providerFamily,
@@ -976,6 +1388,13 @@ export function placeClustersClassicGrid(
 export type PreparePipelineLayoutOptions = {
   /** Experimental Phase A: width-budgeted column assignment in place of longest-path. */
   experimentalLayout?: boolean;
+  /**
+   * X-axis network-simplex ranker (`pipelineColumnPacking:"shorten"`). Replaces the
+   * longest-path depth floor with the Gansner TSE93 minimum-weighted-span ranking,
+   * gated by verify-or-abort. Mutually exclusive with `experimentalLayout` (both
+   * rewrite the depth floor; NS takes precedence).
+   */
+  networkSimplexRank?: boolean;
 };
 
 export function preparePipelineLayout(
@@ -1091,26 +1510,49 @@ export function preparePipelineLayout(
       }),
   );
 
-  // Phase A (experimental): re-assign columns with a per-column height budget so
-  // tall TFD columns spill deeper and the scene reads wider/flatter. Needs the
-  // built cluster heights, so it runs after the cluster map. Order-safe by
-  // construction, with a verify-or-abort guard that falls back to longest-path.
-  let effectiveDepthResult = depthResult;
-  if (options?.experimentalLayout && !depthResult.hasCycle) {
-    const budgeted = computeWidthBudgetedDepths(
-      collapsedEdges,
+  // Depth-floor swap slot. Two mutually-exclusive arms rewrite the longest-path
+  // floor in place (each through the shared `applyDepthFloorIfValid` verify-or-abort
+  // guard, which dual-writes `cluster.depth` + the returned depths and falls back to
+  // longest-path on an infeasible candidate). NS takes precedence over the
+  // experimental ALAP arm — the slot collision is defined, not undefined.
+  //
+  //   - networkSimplexRank ("shorten"): minimum-weighted-span ranking (shortens
+  //     cross-column edges; the proven width win). Non-application is observable via
+  //     `networkSimplexApplied` + `nsSkipReason`.
+  //   - experimentalLayout (Phase A): width-budgeted ALAP columns so tall TFD
+  //     columns spill deeper and the scene reads wider/flatter.
+  let effectiveDepthResult: { depths: Map<string, number>; hasCycle: boolean } =
+    depthResult;
+  let networkSimplexApplied = false;
+  let nsSkipReason: "infeasible-fallback" | "cyclic-skip" | undefined;
+  if (options?.networkSimplexRank && !depthResult.hasCycle) {
+    const swapped = applyDepthFloorIfValid(
       clusters,
-      depthResult.depths,
+      computeNetworkSimplexDepths(
+        collapsedEdges,
+        clusterIds,
+        depthResult.depths,
+      ),
+      collapsedEdges,
     );
-    const valid = collapsedEdges.every(
-      (edge) =>
-        (budgeted.get(edge.source) ?? 0) < (budgeted.get(edge.target) ?? 0),
+    if (swapped) {
+      effectiveDepthResult = swapped;
+      networkSimplexApplied = true;
+    } else {
+      nsSkipReason = "infeasible-fallback";
+    }
+  } else if (options?.networkSimplexRank) {
+    // The collapsed cluster DAG has a cycle; network simplex is undefined on it, so
+    // we keep the longest-path floor (cyclic clusters clamped to firstSequence).
+    nsSkipReason = "cyclic-skip";
+  } else if (options?.experimentalLayout && !depthResult.hasCycle) {
+    const swapped = applyDepthFloorIfValid(
+      clusters,
+      computeWidthBudgetedDepths(collapsedEdges, clusters, depthResult.depths),
+      collapsedEdges,
     );
-    if (valid) {
-      for (const cluster of clusters) {
-        cluster.depth = budgeted.get(cluster.id) ?? cluster.depth;
-      }
-      effectiveDepthResult = { depths: budgeted, hasCycle: false };
+    if (swapped) {
+      effectiveDepthResult = swapped;
     }
   }
 
@@ -1132,6 +1574,8 @@ export function preparePipelineLayout(
     maxDepth,
     columnX,
     depthResult: effectiveDepthResult,
+    networkSimplexApplied,
+    ...(nsSkipReason ? { nsSkipReason } : {}),
     satelliteOwners,
     placementByAddress,
   };

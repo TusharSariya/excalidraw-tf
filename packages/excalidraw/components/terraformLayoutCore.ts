@@ -447,7 +447,7 @@ type LayoutSceneContext = {
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` = M5b pull-right, `compact` = M5c pull-left,
    * `none` = neither. Front-door enum; supersedes `pipelineDeDensify` (legacy ⇒ `spread`). */
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile, echoed into meta (when not `balanced`). The flag expansion is
    * done at the `sceneContext` literal; this field is only carried for the meta echo. */
   pipelineLayoutProfile?: RcllLayoutProfile;
@@ -472,7 +472,7 @@ async function buildPipelineLayoutSceneBody(
       // engine default true ⇒ OFF byte-identical).
       // "Column packing" tri-state is the single front-door; derive the two mutually
       // exclusive engine flags from it (legacy `pipelineDeDensify` ⇒ `spread`).
-      const columnPacking: "spread" | "none" | "compact" =
+      const columnPacking: "spread" | "none" | "compact" | "shorten" =
         ctx.pipelineColumnPacking ??
         (ctx.pipelineDeDensify ? "spread" : "none");
       const { options: pipelineOptions, suppressions: rcllSuppressions } =
@@ -489,7 +489,13 @@ async function buildPipelineLayoutSceneBody(
           rankSeparate: ctx.pipelineRankSeparate === true,
           straighten: ctx.pipelineStraighten === true,
           deDensify: columnPacking === "spread",
-          columnCompact: columnPacking === "compact",
+          // "shorten" is a BUNDLE: the X-axis network-simplex depth-floor ranker PLUS
+          // column compaction (the proven additive config — NS shortens cross-column
+          // edges, compact pulls leaves left). So compact is on for both "compact" and
+          // "shorten"; only "shorten" also turns on the NS ranker.
+          columnCompact:
+            columnPacking === "compact" || columnPacking === "shorten",
+          networkSimplexRank: columnPacking === "shorten",
           staircaseBandOverlap: ctx.pipelineStaircaseBandOverlap,
         });
       const rankSeparateSuppressed = rcllSuppressions.includes(
@@ -501,9 +507,23 @@ async function buildPipelineLayoutSceneBody(
       const orderingConflict = rcllSuppressions.includes(
         "ordering-conflict-crossing-min-wins",
       );
+      // "shorten" (NS) was DROPPED because a live rankSeparate (the dominant height
+      // lever) wins the mutually-exclusive column axis. Observable so the user learns
+      // their "shorten" pick was a safe no-op, not a silent one.
+      const networkSimplexSuppressedByRankSeparate = rcllSuppressions.includes(
+        "rank-floor-conflict-rankseparate-wins-network-simplex",
+      );
+      // "shorten" (NS, when it survived) dropped a conflicting `deDensify`.
+      const networkSimplexRankConflict = rcllSuppressions.includes(
+        "rank-floor-conflict-network-simplex-wins-dedensify",
+      );
       // The applied packing arm after the guard (a conflict drops `deDensify`).
-      const appliedColumnPacking: "spread" | "none" | "compact" =
-        pipelineOptions.columnCompact
+      // "shorten" (NS bundle) wins the echo over plain "compact" — it sets BOTH
+      // networkSimplexRank and columnCompact, so test for the discriminating flag first.
+      const appliedColumnPacking: "spread" | "none" | "compact" | "shorten" =
+        pipelineOptions.networkSimplexRank
+          ? "shorten"
+          : pipelineOptions.columnCompact
           ? "compact"
           : pipelineOptions.deDensify
           ? "spread"
@@ -584,6 +604,16 @@ async function buildPipelineLayoutSceneBody(
             // guard kept Compact and dropped Spread.
             ...(columnPackingConflict
               ? { pipelineColumnPackingConflict: true }
+              : {}),
+            // Observable backstop: "shorten" (NS) dropped a conflicting `deDensify`.
+            ...(networkSimplexRankConflict
+              ? { pipelineNetworkSimplexRankConflict: true }
+              : {}),
+            // Observable footgun backstop: the user asked for "shorten" (NS) but it was
+            // dropped because a live rankSeparate (the dominant height lever) owns the
+            // column axis — the layout is the rankSeparate one, NOT a regressed NS one.
+            ...(networkSimplexSuppressedByRankSeparate
+              ? { pipelineNetworkSimplexRankSuppressed: true }
               : {}),
             ...(ctx.pipelineStaircaseBandOverlap === false
               ? { pipelineStaircaseBandOverlap: false }

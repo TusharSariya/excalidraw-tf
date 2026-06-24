@@ -63,7 +63,7 @@ export type RunTerraformImportFromSourcesArgs = {
   pipelineRankSeparate?: boolean;
   pipelineStraighten?: boolean;
   pipelineDeDensify?: boolean;
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   pipelineStaircaseBandOverlap?: boolean;
   importedTfdTexts?: string[];
@@ -153,7 +153,7 @@ export type RunTerraformPresetImportOptions = {
   pipelineRankSeparate?: boolean;
   pipelineStraighten?: boolean;
   pipelineDeDensify?: boolean;
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   pipelineStaircaseBandOverlap?: boolean;
   signal?: AbortSignal;

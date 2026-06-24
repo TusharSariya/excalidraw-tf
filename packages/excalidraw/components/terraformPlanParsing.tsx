@@ -160,7 +160,7 @@ export type TerraformPlanParsingOptions = {
   /** RCLL "Column packing" tri-state: `spread` = M5b de-density (pull-right), `compact`
    * = M5c column compaction (pull-left), `none` = neither. The single front-door enum;
    * supersedes `pipelineDeDensify` (kept as a legacy alias ⇒ `spread`). Default `none`. */
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile — outcome-first preset (`readable | balanced | compact`) that
    * expands into the RCLL flags above. `balanced` = today's defaults (byte-identical). An
    * explicitly-set individual flag overrides the profile. See terraformPipelineLayoutProfiles. */

@@ -317,6 +317,109 @@ describe("layoutTerraformFromSources — RCLL toggle threading (regression)", ()
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );
 
+  // --- "shorten" = X-axis network-simplex bundle (rendered A/B on v2) ----------
+
+  it(
+    "forwards pipelineColumnPacking=shorten (NS bundle) to the engine — strictly NARROWER than compact, gates clean (the proven −8.4% lever)",
+    async () => {
+      // Apples-to-apples with the probe config ("other toggles ON"): run the ordering
+      // pass (crossingMin) in BOTH arms so crossings are minimized either way and the
+      // only difference under test is the NS depth-floor re-ranking. Without it, NS
+      // legitimately shuffles raw crossings (the ordering pass is what flattens them).
+      const baseOpts = { pipelineCrossingMin: true };
+      const compact = await build({
+        ...baseOpts,
+        pipelineColumnPacking: "compact",
+      });
+      const shorten = await build({
+        ...baseOpts,
+        pipelineColumnPacking: "shorten",
+      });
+
+      // 1. `shorten` reaches the engine: the enum echoes, the NS-applied flag flips
+      //    true (verify-or-abort passed), the bundle keeps columnCompact, milestone M2-NS.
+      expect(shorten.meta.pipelineColumnPacking).toBe("shorten");
+      expect(shorten.meta.rcllNetworkSimplexApplied).toBe(true);
+      expect(shorten.meta.rcllNetworkSimplexSkipReason).toBeUndefined();
+      expect(shorten.meta.rcllColumnCompact).toBe(true); // bundle keeps compact
+      expect(shorten.meta.rcllMilestone).toBe("M2-NS");
+
+      // 2. It does real work over compact alone (isolating the NS depth-floor lever,
+      //    since both arms run column compaction): the diagram gets strictly NARROWER.
+      //    The throwaway probe measured −8.4% vs compact on this preset; assert a
+      //    conservative ≥3% so the test survives preset churn / minor reflow.
+      const compactW = sceneWidth(compact.elements);
+      const shortenW = sceneWidth(shorten.elements);
+      expect(shortenW).toBeLessThan(compactW);
+      expect((compactW - shortenW) / compactW).toBeGreaterThanOrEqual(0.03);
+
+      // 3. The structural gates stay clean — this is the hard correctness bar. NS
+      //    only re-ranks columns; CON-12 X-disjointness, collisions, and semantic
+      //    edge direction all hold (the width win never comes at a structural cost).
+      const gates = shorten.meta.gates as
+        | {
+            collisions?: number;
+            acyclicBackwardEdges?: number;
+            acyclicSameColumnEdges?: number;
+            semanticEdgeViolations?: number;
+          }
+        | undefined;
+      expect(gates?.collisions ?? 0).toBe(0);
+      expect(gates?.acyclicBackwardEdges ?? 0).toBe(0);
+      expect(gates?.acyclicSameColumnEdges ?? 0).toBe(0);
+      expect(gates?.semanticEdgeViolations ?? 0).toBe(0);
+
+      // NOTE on crossings: NOT asserted as a gate. The throwaway probe saw crossings
+      // "flat" only against its FULL-toggle baseline; in an isolated NS-vs-compact A/B
+      // the depth-floor re-ranking trades a small crossings increase for the width win
+      // (measured ~230 vs ~198 here, even with crossingMin on). Asserting "crossings ≤
+      // compact" would be a false property of NS in isolation — the robust,
+      // NS-attributable wins are WIDTH + clean structural gates, gated above.
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 10,
+  );
+
+  it(
+    "rankSeparate (dominant height lever) wins over shorten/NS at the engine; NS suppressed observably, no height regression",
+    async () => {
+      // rankSeparate + lane-rise is the −60% height composition; NS would destroy the
+      // lanes' X-disjointness and balloon height (+149% measured). So with both on,
+      // rankSeparate WINS and NS is suppressed — "shorten" degrades to its additive
+      // half (columnCompact), i.e. it becomes byte-identical to picking "compact".
+      const compact = await build({
+        pipelineColumnPacking: "compact",
+        pipelineSwimlaneLaneRise: true,
+        pipelineRankSeparate: true,
+      });
+      const shorten = await build({
+        pipelineColumnPacking: "shorten",
+        pipelineSwimlaneLaneRise: true,
+        pipelineRankSeparate: true,
+      });
+      // rankSeparate stays ON; NS is suppressed and surfaced (not silently applied).
+      expect(shorten.meta.pipelineRankSeparate).toBe(true);
+      expect(shorten.meta.rcllNetworkSimplexApplied ?? false).toBe(false);
+      expect(shorten.meta.pipelineNetworkSimplexRankSuppressed).toBe(true);
+      expect(shorten.meta.rcllMilestone).toBe("M8r"); // rankSeparate layout, not M2-NS
+      // The critical regression guard: with NS suppressed, "shorten" === "compact"
+      // under rankSeparate — the height is the rankSeparate layout's, NOT blown up.
+      expect(canonicalize(shorten.elements)).toEqual(
+        canonicalize(compact.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "pipelineColumnPacking=shorten is deterministic (CON-8)",
+    async () => {
+      const a = await build({ pipelineColumnPacking: "shorten" });
+      const b = await build({ pipelineColumnPacking: "shorten" });
+      expect(canonicalize(a.elements)).toEqual(canonicalize(b.elements));
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
   // --- "Layout" profile (terraformPipelineLayoutProfiles) ---------------------
 
   it(

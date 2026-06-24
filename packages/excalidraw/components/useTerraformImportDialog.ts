@@ -104,7 +104,7 @@ export const useTerraformImportDialog = ({
   // RCLL "Column packing" tri-state (rcll-only): `spread` = M5b de-density (pull-right),
   // `compact` = M5c column compaction (pull-left), `none` = neither. Default `none`.
   const [pipelineColumnPacking, setPipelineColumnPacking] = useState<
-    "spread" | "none" | "compact"
+    "spread" | "none" | "compact" | "shorten"
   >("none");
   // RCLL M3b / DEC-1 (rcll-only): X-disjoint cycle groups rise to share Y. Default
   // ON (true) — turning it off (Stacked) makes cyclic groups taller.
@@ -188,7 +188,7 @@ export const useTerraformImportDialog = ({
     [markLayoutCustom],
   );
   const setPipelineColumnPackingCustom = useCallback(
-    (v: "spread" | "none" | "compact") => {
+    (v: "spread" | "none" | "compact" | "shorten") => {
       setPipelineColumnPacking(v);
       markLayoutCustom();
     },
