@@ -105,6 +105,7 @@ export type RcllLayoutProfileFlags = {
   reorder: boolean;
   crossingMin: boolean;
   straighten: boolean;
+  coordRepack: boolean;
   columnPacking: "spread" | "none" | "compact" | "shorten";
 };
 
@@ -150,6 +151,7 @@ export function resolveRcllLayoutProfile(
         reorder: true,
         crossingMin: false,
         straighten: true,
+        coordRepack: false,
         columnPacking: "none",
       };
     case "compact":
@@ -161,6 +163,7 @@ export function resolveRcllLayoutProfile(
         reorder: true,
         crossingMin: false,
         straighten: true,
+        coordRepack: false,
         columnPacking: "compact",
       };
     case "balanced":
@@ -173,6 +176,7 @@ export function resolveRcllLayoutProfile(
         reorder: false,
         crossingMin: false,
         straighten: false,
+        coordRepack: false,
         columnPacking: "none",
       };
   }

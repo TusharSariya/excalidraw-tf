@@ -155,6 +155,33 @@ describe("applyRcllToggleGuards", () => {
     expect(suppressions).toEqual([]);
   });
 
+  it("drops coordRepack when straighten is off (it only refines a straightened result)", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      coordRepack: true,
+      straighten: false,
+    });
+    expect(options.coordRepack).toBe(false);
+    expect(suppressions).toEqual(["coord-repack-needs-straighten"]);
+  });
+
+  it("keeps coordRepack when straighten is on", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      coordRepack: true,
+      straighten: true,
+    });
+    expect(options.coordRepack).toBe(true);
+    expect(suppressions).toEqual([]);
+  });
+
+  it("does not fire the coordRepack guard when coordRepack is off", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      coordRepack: false,
+      straighten: false,
+    });
+    expect(options.coordRepack).toBe(false);
+    expect(suppressions).toEqual([]);
+  });
+
   it("an INVALID rankSeparate (no lane-rise) does NOT suppress NS — NS gets to run", () => {
     // rankSeparate without the lane-rise is dropped by its own precondition FIRST, so it
     // is no longer a live column-axis owner — NS then survives and applies. (A dropped

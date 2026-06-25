@@ -63,6 +63,7 @@ export const TerraformImportModal = ({
     pipelineDeBandLevel,
     pipelineRankSeparate,
     pipelineStraighten,
+    pipelineCoordRepack,
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
@@ -598,6 +599,7 @@ terraform show -json tfplan > plan.json`}</code>
                 pipelineDeBandLevel={pipelineDeBandLevel}
                 pipelineRankSeparate={pipelineRankSeparate}
                 pipelineStraighten={pipelineStraighten}
+                pipelineCoordRepack={pipelineCoordRepack}
                 pipelineColumnPacking={pipelineColumnPacking}
                 pipelineLayoutProfile={pipelineLayoutProfile}
                 pipelineStaircaseBandOverlap={pipelineStaircaseBandOverlap}
@@ -615,6 +617,7 @@ terraform show -json tfplan > plan.json`}</code>
                 setPipelineDeBandLevel={dialog.setPipelineDeBandLevel}
                 setPipelineRankSeparate={dialog.setPipelineRankSeparate}
                 setPipelineStraighten={dialog.setPipelineStraighten}
+                setPipelineCoordRepack={dialog.setPipelineCoordRepack}
                 setPipelineColumnPacking={dialog.setPipelineColumnPacking}
                 setPipelineLayoutProfile={dialog.setPipelineLayoutProfile}
                 setPipelineStaircaseBandOverlap={

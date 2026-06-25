@@ -86,6 +86,8 @@ type RcllBuildOptions = {
   crossingMin?: boolean;
   /** M5 (default false): Brandes–Köpf leaf coordinate-assignment / straightening. */
   straighten?: boolean;
+  /** M5b (default false): coordinated per-column permutation re-pack (refines straighten). */
+  coordRepack?: boolean;
   /** M5b (default false, internal/measurement-only): de-density. `deDensifyMaxCols`
    * (the width dial) must be > 0 for the pass to run. */
   deDensify?: boolean;
@@ -455,6 +457,7 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
     reorder: options?.reorder === true,
     crossingMin: options?.crossingMin === true,
     straighten: options?.straighten === true,
+    coordRepack: options?.coordRepack === true,
     deDensify: options?.deDensify === true,
     deDensifyMaxCols: options?.deDensifyMaxCols ?? 0,
     columnCompact: options?.columnCompact === true,
@@ -631,6 +634,8 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
       rcllCrossingMin: rcllOptions.crossingMin === true,
       // M5: whether Brandes–Köpf leaf straightening is active.
       rcllStraighten: rcllOptions.straighten === true,
+      // M5b: whether the coordinated per-column permutation re-pack is active.
+      rcllCoordRepack: rcllOptions.coordRepack === true,
       // De-band: the dissolved level + all deeper levels collapsed into one shared column
       // stack (frames suppressed; resources parent to the surviving container). The legacy
       // `rcllSubnetDeBand` boolean is kept (true iff level === "subnet") for back-compat;

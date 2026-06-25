@@ -420,6 +420,78 @@ describe("layoutTerraformFromSources — RCLL toggle threading (regression)", ()
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );
 
+  // --- coordRepack (M5b coordinated per-column re-pack) ------------------------
+
+  it(
+    "forwards pipelineCoordRepack (M5b) to the engine — OFF byte-identical, ON echoed (with straighten), gates clean",
+    async () => {
+      const off = await build({});
+      const straightenOnly = await build({ pipelineStraighten: true });
+      const repack = await build({
+        pipelineStraighten: true,
+        pipelineCoordRepack: true,
+      });
+
+      // 1. OFF: the flag is absent ⇒ not advertised in meta, and byte-identical.
+      expect(off.meta.pipelineCoordRepack ?? false).toBe(false);
+      expect(off.meta.rcllCoordRepack ?? false).toBe(false);
+
+      // 2. ON (with straighten) reaches the engine: both echoes flip true.
+      expect(repack.meta.pipelineCoordRepack).toBe(true);
+      expect(repack.meta.rcllCoordRepack).toBe(true);
+      // straighten alone never advertises the re-pack.
+      expect(straightenOnly.meta.pipelineCoordRepack ?? false).toBe(false);
+      expect(straightenOnly.meta.rcllCoordRepack ?? false).toBe(false);
+
+      // 3. Structural gates stay clean — the re-pack is Y+order only, X never moves
+      //    (CON-12) and it is non-overlap + crossing-preserving by construction.
+      const gates = repack.meta.gates as
+        | {
+            collisions?: number;
+            acyclicBackwardEdges?: number;
+            acyclicSameColumnEdges?: number;
+            semanticEdgeViolations?: number;
+          }
+        | undefined;
+      expect(gates?.collisions ?? 0).toBe(0);
+      expect(gates?.acyclicBackwardEdges ?? 0).toBe(0);
+      expect(gates?.acyclicSameColumnEdges ?? 0).toBe(0);
+      expect(gates?.semanticEdgeViolations ?? 0).toBe(0);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 10,
+  );
+
+  it(
+    "suppresses pipelineCoordRepack without straighten (footgun stays observable, byte-identical to OFF)",
+    async () => {
+      const off = await build({});
+      const footgun = await build({ pipelineCoordRepack: true });
+      // The guard drops it (no straightened result to refine) and surfaces the reason;
+      // the layout is byte-identical to the plain default (a safe no-op).
+      expect(footgun.meta.pipelineCoordRepack ?? false).toBe(false);
+      expect(footgun.meta.rcllCoordRepack ?? false).toBe(false);
+      expect(footgun.meta.pipelineCoordRepackSuppressed).toBe(true);
+      expect(canonicalize(footgun.elements)).toEqual(canonicalize(off.elements));
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "pipelineCoordRepack is deterministic (CON-8)",
+    async () => {
+      const a = await build({
+        pipelineStraighten: true,
+        pipelineCoordRepack: true,
+      });
+      const b = await build({
+        pipelineStraighten: true,
+        pipelineCoordRepack: true,
+      });
+      expect(canonicalize(a.elements)).toEqual(canonicalize(b.elements));
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
   // --- "Layout" profile (terraformPipelineLayoutProfiles) ---------------------
 
   it(

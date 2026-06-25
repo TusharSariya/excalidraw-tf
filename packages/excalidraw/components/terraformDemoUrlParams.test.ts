@@ -29,6 +29,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   pipelineDeBandLevel: "none",
   pipelineRankSeparate: false,
   pipelineStraighten: false,
+  pipelineCoordRepack: false,
   pipelineColumnPacking: "none",
   pipelineLayoutProfile: "balanced",
   pipelineStaircaseBandOverlap: true,

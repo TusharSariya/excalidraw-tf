@@ -155,6 +155,8 @@ export type TerraformPlanParsingOptions = {
   pipelineRankSeparate?: boolean;
   /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
   pipelineStraighten?: boolean;
+  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten). */
+  pipelineCoordRepack?: boolean;
   /** RCLL M5b: de-density — spread crowded columns one column right. */
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` = M5b de-density (pull-right), `compact`

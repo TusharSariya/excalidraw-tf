@@ -101,6 +101,8 @@ export const useTerraformImportDialog = ({
   const [pipelineRankSeparate, setPipelineRankSeparate] = useState(false);
   // RCLL M5 (rcll-only): Brandes–Köpf leaf straightening.
   const [pipelineStraighten, setPipelineStraighten] = useState(false);
+  // RCLL M5b (rcll-only): coordinated per-column permutation re-pack (refines straighten).
+  const [pipelineCoordRepack, setPipelineCoordRepack] = useState(false);
   // RCLL "Column packing" tri-state (rcll-only): `spread` = M5b de-density (pull-right),
   // `compact` = M5c column compaction (pull-left), `none` = neither. Default `none`.
   const [pipelineColumnPacking, setPipelineColumnPacking] = useState<
@@ -133,6 +135,7 @@ export const useTerraformImportDialog = ({
       setPipelineReorder(flags.reorder);
       setPipelineCrossingMin(flags.crossingMin);
       setPipelineStraighten(flags.straighten);
+      setPipelineCoordRepack(flags.coordRepack);
       setPipelineColumnPacking(flags.columnPacking);
       setPipelineLayoutProfileState(profile);
     },
@@ -183,6 +186,13 @@ export const useTerraformImportDialog = ({
   const setPipelineStraightenCustom = useCallback(
     (v: boolean) => {
       setPipelineStraighten(v);
+      markLayoutCustom();
+    },
+    [markLayoutCustom],
+  );
+  const setPipelineCoordRepackCustom = useCallback(
+    (v: boolean) => {
+      setPipelineCoordRepack(v);
       markLayoutCustom();
     },
     [markLayoutCustom],
@@ -383,6 +393,7 @@ export const useTerraformImportDialog = ({
       pipelineDeBandLevel,
       pipelineRankSeparate,
       pipelineStraighten,
+      pipelineCoordRepack,
       pipelineColumnPacking,
       pipelineStaircaseBandOverlap,
       importedTfdTexts: opts.importedTfdTexts,
@@ -514,6 +525,7 @@ export const useTerraformImportDialog = ({
             pipelineDeBandLevel,
             pipelineRankSeparate,
             pipelineStraighten,
+            pipelineCoordRepack,
             pipelineColumnPacking,
             pipelineStaircaseBandOverlap,
             signal: layoutAbortRef.current?.signal,
@@ -611,6 +623,7 @@ export const useTerraformImportDialog = ({
           pipelineDeBandLevel,
           pipelineRankSeparate,
           pipelineStraighten,
+          pipelineCoordRepack,
           pipelineColumnPacking,
           pipelineStaircaseBandOverlap,
           signal: layoutAbortRef.current?.signal,
@@ -825,6 +838,7 @@ export const useTerraformImportDialog = ({
         pipelineDeBandLevel,
         pipelineRankSeparate,
         pipelineStraighten,
+        pipelineCoordRepack,
         pipelineColumnPacking,
         pipelineLayoutProfile,
         pipelineStaircaseBandOverlap,
@@ -847,6 +861,7 @@ export const useTerraformImportDialog = ({
     pipelineDeBandLevel,
     pipelineRankSeparate,
     pipelineStraighten,
+    pipelineCoordRepack,
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
@@ -870,6 +885,7 @@ export const useTerraformImportDialog = ({
     pipelineDeBandLevel,
     pipelineRankSeparate,
     pipelineStraighten,
+    pipelineCoordRepack,
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
@@ -914,6 +930,7 @@ export const useTerraformImportDialog = ({
     setPipelineDeBandLevel: setPipelineDeBandLevelCustom,
     setPipelineRankSeparate: setPipelineRankSeparateCustom,
     setPipelineStraighten: setPipelineStraightenCustom,
+    setPipelineCoordRepack: setPipelineCoordRepackCustom,
     setPipelineColumnPacking: setPipelineColumnPackingCustom,
     setPipelineStaircaseBandOverlap: setPipelineStaircaseBandOverlapCustom,
     setPipelineLayoutProfile: applyPipelineLayoutProfile,

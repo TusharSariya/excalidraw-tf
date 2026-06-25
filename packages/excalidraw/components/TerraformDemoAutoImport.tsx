@@ -166,6 +166,7 @@ export const TerraformDemoAutoImport = ({
           pipelineSubnetDeBand: params.subnetDeBand,
           pipelineRankSeparate: params.rankSeparate,
           pipelineStraighten: params.straighten,
+          pipelineCoordRepack: params.coordRepack,
           pipelineDeDensify: params.deDensify,
           pipelineColumnPacking: params.columnPacking,
           pipelineLayoutProfile: params.profile,

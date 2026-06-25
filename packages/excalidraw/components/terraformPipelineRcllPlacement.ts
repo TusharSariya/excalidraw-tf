@@ -70,6 +70,7 @@ import {
   straightenColumns,
   type StraightenLeaf,
 } from "./terraformPipelineStraighten";
+import { repackColumns, type RepackLeaf } from "./terraformPipelineRepack";
 
 import type { RankSeparateMeta } from "./terraformPipelineRcllRankSeparate";
 
@@ -114,6 +115,13 @@ type PlaceCtx = {
    * Y that straightens its adjacent-column dataflow edges (RFC §9 Axis-1). Y only —
    * X (columns) and within-column ORDER (M6) untouched. The A/B toggle. */
   straighten: boolean;
+  /** M5b (default false): coordinated per-column permutation re-pack, a never-worse
+   * refinement of the straightened placement (requires `straighten`). Per container,
+   * per column: re-permute the column's leaves (brute force ≤8 / deterministic
+   * coordinate-descent above) and re-stack them pulled toward their intra-container
+   * dataflow barycenter, clamped inside the fixed band (CON-3). Y + within-column order
+   * only; column X untouched (CON-12). Deterministic (CON-8). The A/B toggle. */
+  coordRepack: boolean;
   /** M5b (default false): de-density — promote SAFE independent leaves one column to
    * thin crowded swimlane columns (Axis-2 B, RFC §9.3; internal/measurement-only).
    * CON-12-safe by construction (forward single-column move). The A/B toggle. */
@@ -449,6 +457,15 @@ function placePackedColumns(
     ctx.fanout,
     ctx.fanin,
   );
+  // M5b: coordinated per-column re-pack refining the straightened result (within band).
+  applyCoordRepack(
+    ordered,
+    (c) => c.localColumn ?? 0,
+    ctx.coordRepack,
+    ctx.straighten,
+    ctx.fanout,
+    ctx.fanin,
+  );
 }
 
 /**
@@ -498,6 +515,68 @@ function applyStraightening(
   }
 }
 
+/**
+ * M5b coordinated re-pack: a never-worse refinement of the already-straightened leaf
+ * placement. Runs only when `coordRepack` (requires `straighten` — the guard enforces
+ * the pairing; this is the per-site backstop). Consumes the straightened leaf boxes:
+ *
+ *   - the fixed container band is [min top, max bottom] of the straightened leaves —
+ *     `repackColumns` never places a leaf outside it (CON-3, the band never grows);
+ *   - intra-container adjacency is `fanout`/`fanin` (cluster-id keyed);
+ *   - on a gate-passing improvement it rewrites each leaf's `box.y`; column X is never
+ *     touched (CON-12). A no-op (returns without writing) when the re-pack can't improve.
+ */
+function applyCoordRepack(
+  ordered: readonly CompoundNode[],
+  colOf: (child: CompoundNode) => number,
+  coordRepack: boolean,
+  straighten: boolean,
+  fanout: ReadonlyMap<string, readonly string[]>,
+  fanin: ReadonlyMap<string, readonly string[]>,
+): void {
+  if (!coordRepack || !straighten) {
+    return;
+  }
+  const leaves: RepackLeaf[] = [];
+  for (const child of ordered) {
+    if (child.children.length === 0 && child.cluster && child.box) {
+      leaves.push({
+        key: child.key,
+        clusterId: child.cluster.id,
+        col: colOf(child),
+        height: child.box.height ?? 0,
+        y: child.box.y,
+      });
+    }
+  }
+  if (leaves.length === 0) {
+    return;
+  }
+  let bandTop = Number.POSITIVE_INFINITY;
+  let bandBottom = Number.NEGATIVE_INFINITY;
+  for (const leaf of leaves) {
+    bandTop = Math.min(bandTop, leaf.y);
+    bandBottom = Math.max(bandBottom, leaf.y + leaf.height);
+  }
+  const repacked = repackColumns(
+    leaves,
+    fanout,
+    fanin,
+    bandTop,
+    bandBottom,
+    PIPELINE_CLUSTER_GAP_Y,
+  );
+  if (!repacked) {
+    return;
+  }
+  for (const child of ordered) {
+    const r = repacked.get(child.key);
+    if (r && child.box) {
+      child.box = { ...child.box, y: r.y };
+    }
+  }
+}
+
 /** A shared cluster column axis for a swimlane (cyclic) subtree. */
 type LaneContext = {
   /** left-edge X per shared column (column = dense rank of cluster floor). */
@@ -511,6 +590,9 @@ type LaneContext = {
   reorder: boolean;
   /** M5 (A1): Brandes–Köpf straighten leaf Y after the per-column stack. */
   straighten: boolean;
+  /** M5b: coordinated per-column permutation re-pack, refining the straightened Y
+   * within the fixed band (requires `straighten`). Y + within-column order only. */
+  coordRepack: boolean;
   /** M6 adjacency / M5 straighten: out(u) cluster-id fan-out targets by source id. */
   fanout: ReadonlyMap<string, readonly string[]>;
   /** M5 straighten: in(w) cluster-id fan-in sources by target id. */
@@ -566,6 +648,7 @@ function buildLaneContext(
   riseLanes: boolean,
   reorder: boolean,
   straighten: boolean,
+  coordRepack: boolean,
   fanout: ReadonlyMap<string, readonly string[]>,
   fanin: ReadonlyMap<string, readonly string[]>,
   deDensify: boolean,
@@ -600,6 +683,7 @@ function buildLaneContext(
     riseLanes,
     reorder,
     straighten,
+    coordRepack,
     fanout,
     fanin,
     orderOverride,
@@ -619,6 +703,7 @@ function laneContextFromColMap(
     riseLanes: boolean;
     reorder: boolean;
     straighten: boolean;
+    coordRepack: boolean;
     fanout: ReadonlyMap<string, readonly string[]>;
     fanin: ReadonlyMap<string, readonly string[]>;
     orderOverride: ReadonlyMap<string, number>;
@@ -640,6 +725,7 @@ function laneContextFromColMap(
     riseLanes: flags.riseLanes,
     reorder: flags.reorder,
     straighten: flags.straighten,
+    coordRepack: flags.coordRepack,
     fanout: flags.fanout,
     fanin: flags.fanin,
     orderOverride: flags.orderOverride,
@@ -883,6 +969,15 @@ function layoutLanesOnAxis(
       });
     }
     applyStraighteningWithOccupancy(leaves, ctx, originY, placed);
+    // M5b: coordinated per-column re-pack refining the straightened lane leaves.
+    applyCoordRepack(
+      leaves,
+      (leaf) => ctx.colByCluster.get(leaf.cluster!.id) ?? 0,
+      ctx.coordRepack,
+      ctx.straighten,
+      ctx.fanout,
+      ctx.fanin,
+    );
     const childBoxes = new Map<string, TerraformDependencyLayoutBox>();
     for (const n of nodes) {
       childBoxes.set(n.key, n.box!);
@@ -915,6 +1010,15 @@ function layoutLanesOnAxis(
     leaves,
     (leaf) => ctx.colByCluster.get(leaf.cluster!.id) ?? 0,
     cursorY,
+    ctx.straighten,
+    ctx.fanout,
+    ctx.fanin,
+  );
+  // M5b: coordinated per-column re-pack refining the straightened lane leaves.
+  applyCoordRepack(
+    leaves,
+    (leaf) => ctx.colByCluster.get(leaf.cluster!.id) ?? 0,
+    ctx.coordRepack,
     ctx.straighten,
     ctx.fanout,
     ctx.fanin,
@@ -1015,6 +1119,7 @@ function arrangeSwimlaneGroup(
     pctx.swimlaneLaneRise,
     pctx.reorder,
     pctx.straighten,
+    pctx.coordRepack,
     pctx.fanout,
     pctx.fanin,
     pctx.deDensify,
@@ -1036,6 +1141,7 @@ function arrangeSwimlaneGroup(
       riseLanes: pctx.swimlaneLaneRise,
       reorder: pctx.reorder,
       straighten: pctx.straighten,
+      coordRepack: pctx.coordRepack,
       fanout: pctx.fanout,
       fanin: pctx.fanin,
       orderOverride: pctx.orderOverride,
@@ -1458,6 +1564,7 @@ export function layoutPlacement(
     swimlaneLaneRise: opts?.swimlaneLaneRise === true,
     reorder: opts?.reorder === true,
     straighten: opts?.straighten === true,
+    coordRepack: opts?.coordRepack === true,
     deDensify: opts?.deDensify === true,
     deDensifyMaxCols: opts?.deDensifyMaxCols ?? 0,
     columnCompact: opts?.columnCompact === true,

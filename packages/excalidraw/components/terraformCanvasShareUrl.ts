@@ -66,6 +66,7 @@ const sessionToDemoSnapshot = (
     (session.pipelineSubnetDeBand ? "subnet" : "none"),
   pipelineRankSeparate: session.pipelineRankSeparate ?? false,
   pipelineStraighten: session.pipelineStraighten ?? false,
+  pipelineCoordRepack: session.pipelineCoordRepack ?? false,
   pipelineColumnPacking:
     session.pipelineColumnPacking ??
     (session.pipelineDeDensify ? "spread" : "none"),

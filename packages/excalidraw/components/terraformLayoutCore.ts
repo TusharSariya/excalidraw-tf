@@ -443,6 +443,8 @@ type LayoutSceneContext = {
   pipelineRankSeparate?: boolean;
   /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
   pipelineStraighten?: boolean;
+  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten, within band). */
+  pipelineCoordRepack?: boolean;
   /** RCLL M5b: de-density — spread crowded columns (dial defaulted by the guard). */
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` = M5b pull-right, `compact` = M5c pull-left,
@@ -488,6 +490,7 @@ async function buildPipelineLayoutSceneBody(
           deBandLevel: ctx.pipelineDeBandLevel ?? "none",
           rankSeparate: ctx.pipelineRankSeparate === true,
           straighten: ctx.pipelineStraighten === true,
+          coordRepack: ctx.pipelineCoordRepack === true,
           deDensify: columnPacking === "spread",
           // "shorten" is a BUNDLE: the X-axis network-simplex depth-floor ranker PLUS
           // column compaction (the proven additive config — NS shortens cross-column
@@ -500,6 +503,9 @@ async function buildPipelineLayoutSceneBody(
         });
       const rankSeparateSuppressed = rcllSuppressions.includes(
         "rankSeparate-needs-rise",
+      );
+      const coordRepackSuppressed = rcllSuppressions.includes(
+        "coord-repack-needs-straighten",
       );
       const columnPackingConflict = rcllSuppressions.includes(
         "column-packing-conflict-compact-wins",
@@ -592,6 +598,16 @@ async function buildPipelineLayoutSceneBody(
               ? { pipelineRankSeparateSuppressed: true }
               : {}),
             ...(ctx.pipelineStraighten ? { pipelineStraighten: true } : {}),
+            // Echo the POST-guard coordRepack arm (the guard drops it when straighten
+            // is off) so the meta never claims a re-pack the engine didn't run.
+            ...(pipelineOptions.coordRepack
+              ? { pipelineCoordRepack: true }
+              : {}),
+            // Observable footgun backstop: the user asked for coordRepack but it was
+            // dropped because straighten was off (URL/programmatic path).
+            ...(coordRepackSuppressed
+              ? { pipelineCoordRepackSuppressed: true }
+              : {}),
             // "Column packing": echo the applied arm, plus the legacy `pipelineDeDensify`
             // flag when spread (back-compat for existing M5b assertions / dev plugin).
             ...(appliedColumnPacking !== "none"
@@ -1032,6 +1048,8 @@ export async function layoutTerraformFromSources(
     pipelineRankSeparate:
       options?.pipelineRankSeparate ?? pf?.rankSeparate ?? false,
     pipelineStraighten: options?.pipelineStraighten ?? pf?.straighten ?? false,
+    pipelineCoordRepack:
+      options?.pipelineCoordRepack ?? pf?.coordRepack ?? false,
     pipelineDeDensify: options?.pipelineDeDensify === true,
     // "Column packing" tri-state (M5b spread / M5c compact) — same silent-drop hazard:
     // forward it or the dialog/URL toggle does nothing on the worker/headless path.

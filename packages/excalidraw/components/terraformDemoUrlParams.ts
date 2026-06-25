@@ -82,6 +82,8 @@ export type TerraformDemoUrlParams = {
   /** Accepts the clear alias `laneSplit` as well as the milestone name `rankSeparate`. */
   rankSeparate?: boolean;
   straighten?: boolean;
+  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten, within band). */
+  coordRepack?: boolean;
   deDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
   columnPacking?: "spread" | "none" | "compact" | "shorten";
@@ -279,6 +281,10 @@ export const parseTerraformDemoUrlParams = (
   if (straighten === null) {
     return null;
   }
+  const coordRepack = parseBooleanParam("coordRepack");
+  if (coordRepack === null) {
+    return null;
+  }
   const deDensify = parseBooleanParam("deDensify");
   if (deDensify === null) {
     return null;
@@ -421,6 +427,7 @@ export const parseTerraformDemoUrlParams = (
     ...(deBandLevel != null ? { deBandLevel } : {}),
     ...(rankSeparate != null ? { rankSeparate } : {}),
     ...(straighten != null ? { straighten } : {}),
+    ...(coordRepack != null ? { coordRepack } : {}),
     ...(deDensify != null ? { deDensify } : {}),
     ...(columnPacking != null ? { columnPacking } : {}),
     ...(profile != null ? { profile } : {}),
@@ -474,6 +481,7 @@ export const buildTerraformDemoUrl = (
   setBool("subnetDeBand", params.subnetDeBand);
   setBool("rankSeparate", params.rankSeparate);
   setBool("straighten", params.straighten);
+  setBool("coordRepack", params.coordRepack);
   setBool("deDensify", params.deDensify);
   setEnum("columnPacking", params.columnPacking);
   setEnum("profile", params.profile);
@@ -521,6 +529,7 @@ export type TerraformDemoSettingsSnapshot = {
   pipelineDeBandLevel: DeBandLevel;
   pipelineRankSeparate: boolean;
   pipelineStraighten: boolean;
+  pipelineCoordRepack: boolean;
   pipelineColumnPacking: "spread" | "none" | "compact" | "shorten";
   /** The primary RCLL Layout control — `"custom"` once any flag is touched directly. */
   pipelineLayoutProfile: RcllLayoutProfile | "custom";
@@ -583,6 +592,7 @@ export const collectTerraformDemoParams = (
       reorder: snapshot.pipelineReorder,
       crossingMin: snapshot.pipelineCrossingMin,
       straighten: snapshot.pipelineStraighten,
+      coordRepack: snapshot.pipelineCoordRepack,
       columnPacking: snapshot.pipelineColumnPacking,
     };
   }

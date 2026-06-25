@@ -139,6 +139,18 @@ export type RcllOptions = {
    */
   straighten?: boolean;
   /**
+   * M5b (default **false**): coordinated per-column permutation **re-pack**, a
+   * never-worse refinement applied AFTER `straighten` (requires it on). Per container,
+   * per column, it re-permutes the column's leaves (brute force ≤8, deterministic
+   * barycenter+coordinate-descent above) and re-stacks them top→down pulled toward
+   * their intra-container dataflow barycenter, **clamped inside the fixed [bandTop,
+   * bandBottom] band** (CON-3 — never grows the band). Adopted per-container only when
+   * total intra-container |ΔY| strictly decreases, containment holds, no overlap, and
+   * crossings do not increase; else the straightened result is kept untouched. **Y +
+   * within-column order only** — column X untouched (CON-12). Deterministic (CON-8).
+   */
+  coordRepack?: boolean;
+  /**
    * M5b (default **false**): de-density (Axis-2 B, RFC §9.3). On the swimlane path the
    * dense-rank axis piles independent same-floor clusters into one column; de-density
    * promotes a SAFE subset one column right to make Y-room for the straightener.

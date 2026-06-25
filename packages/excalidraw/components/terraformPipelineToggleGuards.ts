@@ -26,7 +26,8 @@ export type RcllToggleSuppression =
   | "column-packing-conflict-compact-wins"
   | "ordering-conflict-crossing-min-wins"
   | "rank-floor-conflict-rankseparate-wins-network-simplex"
-  | "rank-floor-conflict-network-simplex-wins-dedensify";
+  | "rank-floor-conflict-network-simplex-wins-dedensify"
+  | "coord-repack-needs-straighten";
 
 /**
  * Whether `rankSeparate` may be enabled. True only when the M4 swimlane lane-rise
@@ -45,6 +46,11 @@ export type GuardablePipelineOptions = {
   deDensifyMaxCols?: number;
   /** M5c column compaction (pull-left). Mutually exclusive with `deDensify` (pull-right). */
   columnCompact?: boolean;
+  /** M5 Brandes–Köpf straighten. `coordRepack` refines its result, so requires it on. */
+  straighten?: boolean;
+  /** M5b coordinated per-column permutation re-pack. Only meaningful refining a
+   * straightened placement ⇒ dropped when `straighten` is off. */
+  coordRepack?: boolean;
   /** M6 leaf-only within-column reorder. Subsumed by `crossingMin` when both set. */
   reorder?: boolean;
   /** M6c container-aware crossing minimization (hierarchical superset of `reorder`). */
@@ -122,6 +128,15 @@ export function applyRcllToggleGuards<T extends GuardablePipelineOptions>(
   if (next.crossingMin === true && next.reorder === true) {
     next = { ...next, reorder: false };
     suppressions.push("ordering-conflict-crossing-min-wins");
+  }
+
+  // `coordRepack` refines the Brandes–Köpf straightened placement (it re-permutes &
+  // re-stacks each column starting FROM the straightened Y). With straighten off there
+  // is no straightened result to refine, so it would be a meaningless no-op — drop it,
+  // surfaced observably (mirrors `rankSeparate-needs-rise`).
+  if (next.coordRepack === true && next.straighten !== true) {
+    next = { ...next, coordRepack: false };
+    suppressions.push("coord-repack-needs-straighten");
   }
 
   // deDensify is a no-op without a positive width dial — supply a default.
