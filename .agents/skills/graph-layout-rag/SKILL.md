@@ -63,8 +63,12 @@ Results now carry enrichment fields (OpenAlex / Semantic Scholar / arXiv) when a
 - **Triage:** `tldr` (one-line summary), `venue`, `genre`, `cited_by_count`, `in_corpus_cited_by_count`, `fwci`.
 - **Trust:** `is_retracted` (⚠ marker — never silently cite a retracted paper).
 - **Cite / read:** `oa_pdf_url` (guaranteed-readable OA link), `bibtex`. Get a BibTeX entry directly with `yarn graph-rag:cite bibtex <doc_id>` (or `uv run graph-layout-rag cite bibtex <doc_id>`).
+- **Navigate (citation graph):**
+  - `--sort {relevance|cited-by|in-corpus-cited-by}` on `query` — explicit re-order of the result set by citation count (a research-tool sort, *not* a ranking prior; relevance is the default).
+  - `★ seminal` marker / `seminal:true` JSON field — the single most in-corpus-cited result, a natural reading entry point.
+  - `uv run graph-layout-rag cite neighbors <doc_id> [--direction both|builds-on|cited-by] [--limit N] [--json]` — walk the in-corpus citation neighborhood: what a paper **builds on** (its references in corpus) and what **built on it** (its citers, sorted by citations). Trace intellectual lineage.
 
-Filter flags on `query` scope the candidate pool: `--venue`, `--arxiv-category`, `--genre`, `--exclude-retracted` (these need a live-index `--rebuild` to take effect — pending). There is also `--citation-prior-weight FLOAT`, a rank-time citation prior — **default 0.0 (OFF), eval-gated** (expected NULL on this BM25-dominant corpus), so leave it off unless you're running the gate.
+Filter flags on `query` scope the candidate pool: `--venue`, `--arxiv-category`, `--genre`, `--exclude-retracted` (live as of the 2026-06-28 rebuild — both production indexes carry the filter columns). The rank-time `--citation-prior-weight FLOAT` is **default 0.0 (OFF)** and stays off: the eval gate is a bootstrap-CI-confirmed NULL (Δ+0.002 nDCG@10, CI straddles 0) — the citation graph's value is the explicit navigation above, not score blending.
 
 Surfacing/enrichment data lives in `data/citations.sqlite` (`papers_meta`) + `data/manifest.json`; the desktop needs the synced `citations.sqlite` for query-time surfacing.
 
