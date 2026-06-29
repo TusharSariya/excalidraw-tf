@@ -105,9 +105,15 @@ jobs:
         run: yarn verify:terraform-presets-test-db
 
   test-fast:
-    name: Test (fast lane)
+    name: Test (fast shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Sharded too: coverage instrumentation (~1.6x) makes even the heavy-excluded
+    # fast suite the wall-clock pole if run in one process. 4 shards keep it ~4min.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
@@ -122,15 +128,15 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Vitest (fast lane, coverage blob)
+      - name: Vitest (fast lane shard ${{ matrix.shard }}/4, coverage blob)
         env:
           TERRAFORM_IMPORT_PRESETS_DB: packages/excalidraw/test-fixtures/terraform-import-presets.db
-        run: yarn test:fast:ci
+        run: yarn test:fast:ci --shard=${{ matrix.shard }}/4
 
-      - name: Upload coverage blob (fast)
+      - name: Upload coverage blob (fast shard ${{ matrix.shard }})
         uses: actions/upload-artifact@v4
         with:
-          name: vitest-blob-fast
+          name: vitest-blob-fast-${{ matrix.shard }}
           path: .vitest-reports/
           retention-days: 1
           include-hidden-files: true
