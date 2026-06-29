@@ -1,13 +1,30 @@
-# Mirrors local git hooks:
-#   pre-push    → lint job + prepush job on PRs (full vitest+coverage, ESM build; Pages build is pages-deploy.yml)
-#   test:commit → test job (yarn test:fast) — manual / workflow_dispatch only
-#   size-limit  → size-limit.yml (PR bundle size comments)
+# Parallel CI test lanes (see docs/terraform-import-performance-log.md).
+#
+# The terraform RCLL layout tests are heavy single-threaded geometry compute
+# (20-38s each). Instead of one serial ~20min `test` job + a separate ~35min
+# full-coverage `prepush` re-run, the suite is split into two parallel,
+# coverage-instrumented lanes whose blob reports merge in one aggregator:
+#
+#   lint ─┐
+#   test-fast (VITEST_FAST, cov, blob) ─────────────┐
+#   test-slow [shard 1..8] (VITEST_SLOW_ONLY, cov) ─┤─► coverage ("Test")
+#   build (build:esm) ──────────────────────────────┘   merge-reports + thresholds
+#   terraform-presets ─────────────────────────────     (required: "Test" + "Lint")
+#
+# Coverage thresholds are enforced ONLY on the merged report (the coverage job
+# sets VITEST_ENFORCE_THRESHOLDS=1; per-shard runs would each read ~0%). PR size
+# is checked by size-limit.yml. Shard count can change freely — branch protection
+# requires only the stable aggregator job "Test", not the per-shard checks.
 name: CI
 
 on:
   push:
+    # Feature branches are validated via the pull_request event; only long-lived
+    # branches run CI on push (avoids every PR running the whole pipeline twice —
+    # once for refs/heads/<branch>, once for refs/pull/<n>/merge).
     branches:
-      - "**"
+      - master
+      - terraform-feature
     paths-ignore:
       - "docs/**"
       - "tools/**"
@@ -68,27 +85,6 @@ jobs:
       - name: Depcheck
         run: yarn depcheck
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: yarn
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Vitest (fast suite)
-        env:
-          TERRAFORM_IMPORT_PRESETS_DB: packages/excalidraw/test-fixtures/terraform-import-presets.db
-        run: yarn test:fast
-
   terraform-presets:
     name: Terraform preset seed
     runs-on: ubuntu-latest
@@ -108,14 +104,10 @@ jobs:
       - name: Verify committed terraform import presets test database
         run: yarn verify:terraform-presets-test-db
 
-  prepush:
-    name: Pre-push checks
-    if: github.event_name == 'pull_request'
+  test-fast:
+    name: Test (fast lane)
     runs-on: ubuntu-latest
-    timeout-minutes: 55
-    needs:
-      - lint
-      - test
+    timeout-minutes: 20
     env:
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
@@ -130,27 +122,140 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Test coverage
-        id: test_coverage
+      - name: Vitest (fast lane, coverage blob)
         env:
           TERRAFORM_IMPORT_PRESETS_DB: packages/excalidraw/test-fixtures/terraform-import-presets.db
-        run: yarn test:coverage
+        run: yarn test:fast:ci
+
+      - name: Upload coverage blob (fast)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-blob-fast
+          path: .vitest-reports/
+          retention-days: 1
+          include-hidden-files: true
+
+  test-slow:
+    name: Test (slow shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Vitest (slow lane shard ${{ matrix.shard }}/8, coverage blob)
+        env:
+          TERRAFORM_IMPORT_PRESETS_DB: packages/excalidraw/test-fixtures/terraform-import-presets.db
+        run: yarn test:slow:ci --shard=${{ matrix.shard }}/8
+
+      - name: Upload coverage blob (slow shard ${{ matrix.shard }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-blob-slow-${{ matrix.shard }}
+          path: .vitest-reports/
+          retention-days: 1
+          include-hidden-files: true
+
+  coverage:
+    name: Test
+    # The stable required check. Gates on every lane and enforces the merged
+    # coverage thresholds once. `if: always()` so it runs even when a lane fails
+    # (then the gate step below fails it explicitly).
+    needs:
+      - test-fast
+      - test-slow
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - name: Gate on test lanes
+        if: needs.test-fast.result != 'success' || needs.test-slow.result != 'success'
+        run: |
+          echo "::error::A test lane failed (fast=${{ needs.test-fast.result }}, slow=${{ needs.test-slow.result }})"
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Download all coverage blobs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vitest-blob-*
+          merge-multiple: true
+          path: .vitest-reports
+
+      - name: Merge reports + enforce coverage thresholds
+        env:
+          TERRAFORM_IMPORT_PRESETS_DB: packages/excalidraw/test-fixtures/terraform-import-presets.db
+        run: yarn test:coverage:merge
 
       - name: Report coverage on PR
-        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        if: always() && github.event_name == 'pull_request' && hashFiles('coverage/coverage-summary.json') != ''
         uses: davelosert/vitest-coverage-report-action@2500dafcee7dd64f85ab689c0b83798a8359770e # v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Coverage summary missing
-        if: always() && hashFiles('coverage/coverage-summary.json') == ''
-        run: echo "::warning::coverage/coverage-summary.json was not generated (install or vitest may have failed before coverage was written)."
+  build:
+    name: Build ESM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
 
       - name: Build @excalidraw/excalidraw ESM
         run: yarn workspace @excalidraw/excalidraw run build:esm
 
-      - name: Size limit
-        run: yarn workspace @excalidraw/excalidraw run check:size
+  terraform-hotspot:
+    name: Terraform semantic hotspot ranker
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
 
       - name: Terraform semantic hotspot ranker
         env:
