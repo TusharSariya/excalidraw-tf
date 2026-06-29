@@ -101,12 +101,19 @@ export default defineConfig({
       // Since v2, it ignores empty lines by default and we need to disable it as it affects the coverage
       // Additionally the thresholds also needs to be updated slightly as a result of this change
       ignoreEmptyLines: false,
-      thresholds: {
-        lines: 60,
-        branches: 70,
-        functions: 63,
-        statements: 60,
-      },
+      // Thresholds are enforced ONLY on the merged report (the coverage
+      // aggregator job in ci.yml sets VITEST_ENFORCE_THRESHOLDS=1). Per-shard
+      // runs collect coverage into blob reports but must NOT check thresholds —
+      // each shard only sees its slice, so it would always read ~0% and fail.
+      thresholds:
+        process.env.VITEST_ENFORCE_THRESHOLDS === "1"
+          ? {
+              lines: 60,
+              branches: 70,
+              functions: 63,
+              statements: 60,
+            }
+          : undefined,
     },
   },
 });
