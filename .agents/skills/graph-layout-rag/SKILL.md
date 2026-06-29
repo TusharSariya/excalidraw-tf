@@ -64,7 +64,7 @@ Results now carry enrichment fields (OpenAlex / Semantic Scholar / arXiv) when a
 - **Trust:** `is_retracted` (⚠ marker — never silently cite a retracted paper).
 - **Cite / read:** `oa_pdf_url` (guaranteed-readable OA link), `bibtex`. Get a BibTeX entry directly with `yarn graph-rag:cite bibtex <doc_id>` (or `uv run graph-layout-rag cite bibtex <doc_id>`).
 - **Navigate (citation graph):**
-  - `--sort {relevance|cited-by|in-corpus-cited-by}` on `query` — explicit re-order of the result set by citation count (a research-tool sort, *not* a ranking prior; relevance is the default).
+  - `--sort {relevance|cited-by|in-corpus-cited-by}` on `query` — explicit re-order of the result set by citation count (a research-tool sort, _not_ a ranking prior; relevance is the default).
   - `★ seminal` marker / `seminal:true` JSON field — the single most in-corpus-cited result, a natural reading entry point.
   - `uv run graph-layout-rag cite neighbors <doc_id> [--direction both|builds-on|cited-by] [--limit N] [--json]` — walk the in-corpus citation neighborhood: what a paper **builds on** (its references in corpus) and what **built on it** (its citers, sorted by citations). Trace intellectual lineage.
 
