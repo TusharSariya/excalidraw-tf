@@ -471,7 +471,9 @@ describe("layoutTerraformFromSources — RCLL toggle threading (regression)", ()
       expect(footgun.meta.pipelineCoordRepack ?? false).toBe(false);
       expect(footgun.meta.rcllCoordRepack ?? false).toBe(false);
       expect(footgun.meta.pipelineCoordRepackSuppressed).toBe(true);
-      expect(canonicalize(footgun.elements)).toEqual(canonicalize(off.elements));
+      expect(canonicalize(footgun.elements)).toEqual(
+        canonicalize(off.elements),
+      );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
   );

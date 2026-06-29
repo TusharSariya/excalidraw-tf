@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Modal to upload plan JSON + graph DOT bundles (optional raw state, optional .tfd),
  * or raw Terraform state alone, and replace the canvas with the locally generated scene.

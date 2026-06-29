@@ -195,7 +195,6 @@ describe("terraformPipelineRepack", () => {
 
     for (const n of [REPACK_BRUTE_FORCE_MAX, REPACK_BRUTE_FORCE_MAX + 2]) {
       const { leaves, es } = buildCase(n);
-      const { fanout, fanin } = edges(es);
       const before = totalDeltaY(
         leaves,
         es,
