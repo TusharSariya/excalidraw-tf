@@ -18,6 +18,7 @@ const TODAY_DEFAULT_FLAGS: RcllLayoutProfileFlags = {
   reorder: false,
   crossingMin: false,
   straighten: false,
+  coordRepack: false,
   columnPacking: "none",
 };
 
@@ -42,6 +43,7 @@ describe("resolveRcllLayoutProfile", () => {
       reorder: true,
       crossingMin: false,
       straighten: true,
+      coordRepack: false,
       columnPacking: "none",
     });
   });
@@ -55,6 +57,7 @@ describe("resolveRcllLayoutProfile", () => {
       reorder: true,
       crossingMin: false,
       straighten: true,
+      coordRepack: false,
       columnPacking: "compact",
     });
   });

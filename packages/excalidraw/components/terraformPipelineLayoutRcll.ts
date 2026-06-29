@@ -86,6 +86,8 @@ type RcllBuildOptions = {
   crossingMin?: boolean;
   /** M5 (default false): Brandes–Köpf leaf coordinate-assignment / straightening. */
   straighten?: boolean;
+  /** M5b (default false): coordinated per-column permutation re-pack (refines straighten). */
+  coordRepack?: boolean;
   /** M5b (default false, internal/measurement-only): de-density. `deDensifyMaxCols`
    * (the width dial) must be > 0 for the pass to run. */
   deDensify?: boolean;
@@ -103,6 +105,10 @@ type RcllBuildOptions = {
   /** `rankSeparate` (default false): sibling-separation ranking — one-way sibling lanes
    * get disjoint column ranges on the swimlane axis. Internal/measurement-only. */
   rankSeparate?: boolean;
+  /** `networkSimplexRank` (default false, the `"shorten"` bundle): replace the
+   * longest-path depth floor with the Gansner minimum-weighted-span ranking. Threaded
+   * into `preparePipelineLayout` (the depth floor is computed there, before model build). */
+  networkSimplexRank?: boolean;
 };
 
 export type RcllPipelineStage = { name: string; stage: Stage };
@@ -451,6 +457,7 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
     reorder: options?.reorder === true,
     crossingMin: options?.crossingMin === true,
     straighten: options?.straighten === true,
+    coordRepack: options?.coordRepack === true,
     deDensify: options?.deDensify === true,
     deDensifyMaxCols: options?.deDensifyMaxCols ?? 0,
     columnCompact: options?.columnCompact === true,
@@ -468,7 +475,9 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
   // model is data-only and degenerate inputs are covered by no-throw tests
   // (a model-build bug should surface loudly, not silently blank the view).
   const prep = terraformImportProfilerMeasure("pipeline.prep", () =>
-    preparePipelineLayout(nodes, plan, compact, {}),
+    preparePipelineLayout(nodes, plan, compact, {
+      networkSimplexRank: options?.networkSimplexRank === true,
+    }),
   );
   const { tree, lattice } = terraformImportProfilerMeasure(
     "pipeline.rcll.model",
@@ -595,7 +604,9 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
       layoutEngine: "pipeline",
       pipelineVariant: "rcll",
       rcllMilestone: placed
-        ? rcllOptions.rankSeparate
+        ? prep.networkSimplexApplied
+          ? "M2-NS"
+          : rcllOptions.rankSeparate
           ? "M8r"
           : (rcllOptions.deBandLevel ?? "none") !== "none"
           ? "M7s"
@@ -623,6 +634,8 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
       rcllCrossingMin: rcllOptions.crossingMin === true,
       // M5: whether Brandes–Köpf leaf straightening is active.
       rcllStraighten: rcllOptions.straighten === true,
+      // M5b: whether the coordinated per-column permutation re-pack is active.
+      rcllCoordRepack: rcllOptions.coordRepack === true,
       // De-band: the dissolved level + all deeper levels collapsed into one shared column
       // stack (frames suppressed; resources parent to the surviving container). The legacy
       // `rcllSubnetDeBand` boolean is kept (true iff level === "subnet") for back-compat;
@@ -637,6 +650,12 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
         (rcllOptions.deDensifyMaxCols ?? 0) > 0,
       // M5c: whether column compaction (Axis-2 A) is active.
       rcllColumnCompact: rcllOptions.columnCompact === true,
+      // "shorten" (X-axis network simplex): whether the NS ranker actually rewrote
+      // the depth floor (false when off, infeasible, or cyclic — see `nsSkipReason`).
+      rcllNetworkSimplexApplied: prep.networkSimplexApplied,
+      ...(prep.nsSkipReason
+        ? { rcllNetworkSimplexSkipReason: prep.nsSkipReason }
+        : {}),
       pipelineCompact: compact,
       pipelineIncludeAncillary: includeAncillary,
       pipelineAncillaryApplied: ancillaryApplied,

@@ -55,10 +55,12 @@ export type TerraformImportSession = {
   pipelineRankSeparate?: boolean;
   /** RCLL M5 — Brandes–Köpf leaf straightening (Y-only spine alignment). */
   pipelineStraighten?: boolean;
+  /** RCLL M5b — coordinated per-column permutation re-pack (refines straighten). */
+  pipelineCoordRepack?: boolean;
   /** RCLL M5b — de-density: spread crowded columns. */
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile — `readable | balanced | compact` (expands into the RCLL flags). */
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   /** RCLL M3b / DEC-1 — X-disjoint cycle groups rise to share Y. Default on. */

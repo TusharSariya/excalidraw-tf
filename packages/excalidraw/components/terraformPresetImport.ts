@@ -62,8 +62,9 @@ export type RunTerraformImportFromSourcesArgs = {
   pipelineSubnetDeBand?: boolean;
   pipelineRankSeparate?: boolean;
   pipelineStraighten?: boolean;
+  pipelineCoordRepack?: boolean;
   pipelineDeDensify?: boolean;
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   pipelineStaircaseBandOverlap?: boolean;
   importedTfdTexts?: string[];
@@ -91,6 +92,7 @@ export const runTerraformImportWithView = async ({
   pipelineSubnetDeBand,
   pipelineRankSeparate,
   pipelineStraighten,
+  pipelineCoordRepack,
   pipelineDeDensify,
   pipelineColumnPacking,
   pipelineLayoutProfile,
@@ -123,6 +125,7 @@ export const runTerraformImportWithView = async ({
           pipelineSubnetDeBand,
           pipelineRankSeparate,
           pipelineStraighten,
+          pipelineCoordRepack,
           pipelineDeDensify,
           pipelineColumnPacking,
           pipelineLayoutProfile,
@@ -152,8 +155,9 @@ export type RunTerraformPresetImportOptions = {
   pipelineSubnetDeBand?: boolean;
   pipelineRankSeparate?: boolean;
   pipelineStraighten?: boolean;
+  pipelineCoordRepack?: boolean;
   pipelineDeDensify?: boolean;
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   pipelineStaircaseBandOverlap?: boolean;
   signal?: AbortSignal;
@@ -206,6 +210,7 @@ export const runTerraformPresetImport = async (
     pipelineSubnetDeBand: options.pipelineSubnetDeBand,
     pipelineRankSeparate: options.pipelineRankSeparate,
     pipelineStraighten: options.pipelineStraighten,
+    pipelineCoordRepack: options.pipelineCoordRepack,
     pipelineDeDensify: options.pipelineDeDensify,
     pipelineColumnPacking: options.pipelineColumnPacking,
     pipelineLayoutProfile: options.pipelineLayoutProfile,

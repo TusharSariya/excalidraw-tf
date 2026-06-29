@@ -152,6 +152,7 @@ describe("TerraformImportModal", () => {
       pipelineDeBandLevel: "none",
       pipelineRankSeparate: false,
       pipelineStraighten: false,
+      pipelineCoordRepack: false,
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
@@ -186,6 +187,7 @@ describe("TerraformImportModal", () => {
       pipelineDeBandLevel: "none",
       pipelineRankSeparate: false,
       pipelineStraighten: false,
+      pipelineCoordRepack: false,
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
@@ -493,6 +495,32 @@ describe("TerraformImportModal", () => {
       expect.objectContaining({
         layoutMode: "rcll",
         pipelineColumnPacking: "compact",
+      }),
+    );
+  });
+
+  it("RCLL view: Column packing · Shorten threads pipelineColumnPacking shorten (NS bundle)", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /rcll view/i }));
+
+    const packing = screen.getByRole("group", {
+      name: /pipeline column packing/i,
+    });
+    fireEvent.click(
+      within(packing).getByRole("button", { name: /^shorten$/i }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "rcll",
+        pipelineColumnPacking: "shorten",
       }),
     );
   });

@@ -173,10 +173,12 @@ export type RunTerraformImportFromSourcesOptions = {
   pipelineRankSeparate?: boolean;
   /** RCLL M5 — Brandes–Köpf leaf straightening. Default false. */
   pipelineStraighten?: boolean;
+  /** RCLL M5b — coordinated per-column permutation re-pack (refines straighten). Default false. */
+  pipelineCoordRepack?: boolean;
   /** RCLL M5b — de-density: spread crowded columns. Default false. */
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile — `readable | balanced | compact` (expands into the RCLL flags;
    * `balanced` = today's defaults). An explicit individual flag overrides it. */
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
@@ -211,6 +213,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "pipelineDeBandLevel"
   | "pipelineRankSeparate"
   | "pipelineStraighten"
+  | "pipelineCoordRepack"
   | "pipelineDeDensify"
   | "pipelineColumnPacking"
   | "pipelineLayoutProfile"
@@ -231,6 +234,7 @@ export const terraformPipelineReplayOptionsFromSession = (
     (session.pipelineSubnetDeBand ? "subnet" : "none"),
   pipelineRankSeparate: session.pipelineRankSeparate === true,
   pipelineStraighten: session.pipelineStraighten === true,
+  pipelineCoordRepack: session.pipelineCoordRepack === true,
   pipelineDeDensify: session.pipelineDeDensify === true,
   pipelineColumnPacking: session.pipelineColumnPacking,
   pipelineLayoutProfile: session.pipelineLayoutProfile,
@@ -293,6 +297,7 @@ async function layoutTerraformSceneFromSources(
               (options.pipelineSubnetDeBand ? "subnet" : "none"),
             pipelineRankSeparate: options.pipelineRankSeparate === true,
             pipelineStraighten: options.pipelineStraighten === true,
+            pipelineCoordRepack: options.pipelineCoordRepack === true,
             pipelineDeDensify: options.pipelineDeDensify === true,
             pipelineColumnPacking: options.pipelineColumnPacking,
             pipelineLayoutProfile: options.pipelineLayoutProfile,
@@ -378,6 +383,7 @@ export const runTerraformImportFromSources = async (
               (options.pipelineSubnetDeBand ? "subnet" : "none"),
             pipelineRankSeparate: options.pipelineRankSeparate === true,
             pipelineStraighten: options.pipelineStraighten === true,
+            pipelineCoordRepack: options.pipelineCoordRepack === true,
             pipelineDeDensify: options.pipelineDeDensify === true,
             pipelineColumnPacking: options.pipelineColumnPacking,
             pipelineLayoutProfile: options.pipelineLayoutProfile,

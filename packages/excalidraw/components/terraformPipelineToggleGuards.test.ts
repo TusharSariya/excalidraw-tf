@@ -115,4 +115,84 @@ describe("applyRcllToggleGuards", () => {
     expect(applyRcllToggleGuards({ reorder: true }).options.reorder).toBe(true);
     expect(applyRcllToggleGuards({ reorder: true }).suppressions).toEqual([]);
   });
+
+  it("rankSeparate (the dominant height lever) wins over networkSimplexRank; NS is dropped, observable", () => {
+    // Supply the lane-rise so rankSeparate is valid. They are mutually-exclusive column
+    // strategies and rankSeparate's lane-rise height win dwarfs NS's width win, so NS
+    // loses — picking "shorten" on a rankSeparate layout is a safe no-op, not a +149%
+    // height regression.
+    const { options, suppressions } = applyRcllToggleGuards({
+      networkSimplexRank: true,
+      rankSeparate: true,
+      swimlaneLaneRise: true,
+    });
+    expect(options.rankSeparate).toBe(true);
+    expect(options.networkSimplexRank).toBe(false);
+    expect(suppressions).toEqual([
+      "rank-floor-conflict-rankseparate-wins-network-simplex",
+    ]);
+  });
+
+  it("networkSimplexRank wins over deDensify (defensive backstop), observable", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      networkSimplexRank: true,
+      deDensify: true,
+    });
+    expect(options.networkSimplexRank).toBe(true);
+    expect(options.deDensify).toBe(false);
+    expect(suppressions).toEqual([
+      "rank-floor-conflict-network-simplex-wins-dedensify",
+    ]);
+  });
+
+  it("networkSimplexRank + columnCompact: BOTH retained (the bundle is additive, compact is NOT guarded)", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      networkSimplexRank: true,
+      columnCompact: true,
+    });
+    expect(options.networkSimplexRank).toBe(true);
+    expect(options.columnCompact).toBe(true);
+    expect(suppressions).toEqual([]);
+  });
+
+  it("drops coordRepack when straighten is off (it only refines a straightened result)", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      coordRepack: true,
+      straighten: false,
+    });
+    expect(options.coordRepack).toBe(false);
+    expect(suppressions).toEqual(["coord-repack-needs-straighten"]);
+  });
+
+  it("keeps coordRepack when straighten is on", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      coordRepack: true,
+      straighten: true,
+    });
+    expect(options.coordRepack).toBe(true);
+    expect(suppressions).toEqual([]);
+  });
+
+  it("does not fire the coordRepack guard when coordRepack is off", () => {
+    const { options, suppressions } = applyRcllToggleGuards({
+      coordRepack: false,
+      straighten: false,
+    });
+    expect(options.coordRepack).toBe(false);
+    expect(suppressions).toEqual([]);
+  });
+
+  it("an INVALID rankSeparate (no lane-rise) does NOT suppress NS — NS gets to run", () => {
+    // rankSeparate without the lane-rise is dropped by its own precondition FIRST, so it
+    // is no longer a live column-axis owner — NS then survives and applies. (A dropped
+    // rankSeparate must never veto NS.)
+    const { options, suppressions } = applyRcllToggleGuards({
+      networkSimplexRank: true,
+      rankSeparate: true,
+      swimlaneLaneRise: false,
+    });
+    expect(options.rankSeparate).toBe(false);
+    expect(options.networkSimplexRank).toBe(true);
+    expect(suppressions).toEqual(["rankSeparate-needs-rise"]);
+  });
 });

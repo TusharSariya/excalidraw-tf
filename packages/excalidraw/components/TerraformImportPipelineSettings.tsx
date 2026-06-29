@@ -223,6 +223,23 @@ const OPTION_HELP: Record<string, OptionHelpEntry> = {
       refs: ["Brandes & Köpf 2001 (coordinate assignment)"],
     },
   },
+  "coordrepack.off": {
+    title: "Coordinated re-pack · Off",
+    body: "Leaf Y is whatever the straightener produced.",
+    dev: {
+      implements:
+        "coordRepack=false: the Brandes–Köpf straightened placement is used as-is.",
+    },
+  },
+  "coordrepack.on": {
+    title: "Coordinated re-pack · On",
+    body: "Refines the straightened result: within each group it re-orders and re-stacks a column's resources together so connected resources line up, never moving anything outside the band it already occupies and never making the picture worse.",
+    dev: {
+      implements:
+        "coordRepack (M5b): per container, per column, a coordinated permutation re-pack on TOP of straighten (requires it). Brute-forces all permutations ≤8 leaves / deterministic barycenter + adjacent-swap coordinate-descent above; re-stacks each column pulled toward its intra-container dataflow barycenter, CLAMPED inside the fixed [bandTop, bandBottom] band (CON-3 — the band never grows). Adopted per-container only when total intra-container |ΔY| strictly decreases AND containment holds AND no overlap AND crossings do not increase (never-worse). Y + within-column order only; column X untouched (CON-12). Deterministic, no RNG (CON-8). Measured −27.2% intra-container edge |ΔY| on staging-extended-localstack-v2; ~0% on single-large-column presets.",
+      refs: ["Brandes & Köpf 2001 (coordinate assignment)"],
+    },
+  },
   "columnpacking.spread": {
     title: "Column packing · Spread",
     body: "Spreads a crowded column by moving independent cards (no dependency edges) one column to the right, making vertical room. Has no effect where every crowded card has a dependency edge — e.g. the staging v2 — because the rule conservatively leaves connected cards alone.",
@@ -248,6 +265,18 @@ const OPTION_HELP: Record<string, OptionHelpEntry> = {
       refs: [
         "Rüegg et al. 2016 (1D compaction for smaller graph drawings)",
         "Liao & Wong 1983 (constraint-graph longest path)",
+      ],
+    },
+  },
+  "columnpacking.shorten": {
+    title: "Column packing · Shorten",
+    body: "Re-ranks the left→right columns to make the connecting arrows as short as possible, then pulls cards left to close the gap (Compact's win on top). The diagram reads narrower and the dataflow stays straighter (−8.4% width on the staging v2 preset). Note: this is mutually exclusive with Lane split (rankSeparate) — they rewrite the same column axis in opposite ways, and Lane split's height win is larger, so when Lane split is on, Shorten yields to it (a safe no-op) rather than ballooning the height.",
+    dev: {
+      implements:
+        "Bundle: networkSimplexRank + columnCompact. networkSimplexRank replaces the longest-path depth floor with the Gansner TSE93 minimum-weighted-span ranking (computeNetworkSimplexDepths), applied via applyDepthFloorIfValid (verify-or-abort, dual-write cluster.depth + depthResult). LOSES to a live rankSeparate (mutually-exclusive column axis; rankSeparate+laneRise is the dominant height lever — NS destroys lane X-disjointness, +149% height); WINS over deDensify; compact is additive. networkSimplexApplied / nsSkipReason / pipelineNetworkSimplexRankSuppressed surfaced in scene meta. Probe (rankSeparate OFF): span 262→190 (−27.5%, the known optimum), width −8.4%, all CON gates 0.",
+      refs: [
+        "Gansner, Koutsofios, North & Vo 1993 (TSE — a technique for drawing directed graphs / the network-simplex ranker)",
+        "Rüegg et al. 2016 (1D compaction)",
       ],
     },
   },
@@ -342,6 +371,7 @@ export const TerraformImportPipelineSettings = ({
   pipelineDeBandLevel,
   pipelineRankSeparate,
   pipelineStraighten,
+  pipelineCoordRepack,
   pipelineColumnPacking,
   pipelineLayoutProfile,
   pipelineStaircaseBandOverlap,
@@ -357,6 +387,7 @@ export const TerraformImportPipelineSettings = ({
   setPipelineDeBandLevel,
   setPipelineRankSeparate,
   setPipelineStraighten,
+  setPipelineCoordRepack,
   setPipelineColumnPacking,
   setPipelineLayoutProfile,
   setPipelineStaircaseBandOverlap,
@@ -375,7 +406,8 @@ export const TerraformImportPipelineSettings = ({
   pipelineDeBandLevel: DeBandLevel;
   pipelineRankSeparate: boolean;
   pipelineStraighten: boolean;
-  pipelineColumnPacking: "spread" | "none" | "compact";
+  pipelineCoordRepack: boolean;
+  pipelineColumnPacking: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile: RcllLayoutProfileSelection;
   pipelineStaircaseBandOverlap: boolean;
   setPipelineCompact: (compact: boolean) => void;
@@ -390,8 +422,9 @@ export const TerraformImportPipelineSettings = ({
   setPipelineDeBandLevel: (deBandLevel: DeBandLevel) => void;
   setPipelineRankSeparate: (rankSeparate: boolean) => void;
   setPipelineStraighten: (straighten: boolean) => void;
+  setPipelineCoordRepack: (coordRepack: boolean) => void;
   setPipelineColumnPacking: (
-    columnPacking: "spread" | "none" | "compact",
+    columnPacking: "spread" | "none" | "compact" | "shorten",
   ) => void;
   setPipelineLayoutProfile: (profile: RcllLayoutProfile) => void;
   setPipelineStaircaseBandOverlap: (staircaseBandOverlap: boolean) => void;
@@ -622,6 +655,12 @@ export const TerraformImportPipelineSettings = ({
                       "columnpacking.compact",
                       () => setPipelineColumnPacking("compact"),
                     )}
+                    {option(
+                      "Shorten",
+                      pipelineColumnPacking === "shorten",
+                      "columnpacking.shorten",
+                      () => setPipelineColumnPacking("shorten"),
+                    )}
                   </div>
                 </div>
                 {phaseHeader("Ordering", "reduce crossing arrows")}
@@ -756,6 +795,36 @@ export const TerraformImportPipelineSettings = ({
                     )}
                     {option("On", pipelineStraighten, "straighten.on", () =>
                       setPipelineStraighten(true),
+                    )}
+                  </div>
+                </div>
+                <div
+                  role="group"
+                  aria-label="Pipeline coordinated re-pack"
+                  className="TerraformImportModal__nestedControl"
+                >
+                  <span className="TerraformImportModal__controlLabel">
+                    Coordinated re-pack{" "}
+                    <span>
+                      {pipelineStraighten
+                        ? "jointly re-order each column within its band"
+                        : "needs Straighten = On (above) — off until then"}
+                    </span>
+                  </span>
+                  <div className="TerraformImportModal__segmentedControl">
+                    {option(
+                      "Off",
+                      !pipelineCoordRepack,
+                      "coordrepack.off",
+                      () => setPipelineCoordRepack(false),
+                    )}
+                    {option(
+                      "On",
+                      pipelineCoordRepack,
+                      "coordrepack.on",
+                      () => setPipelineCoordRepack(true),
+                      // Refines the straightened result — meaningless without it.
+                      !pipelineStraighten,
                     )}
                   </div>
                 </div>

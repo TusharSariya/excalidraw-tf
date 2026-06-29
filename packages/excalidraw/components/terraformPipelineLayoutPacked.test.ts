@@ -29,9 +29,11 @@ import {
 } from "./terraformPipelineLayoutPacked";
 import {
   ancillaryStripFrameId,
+  applyDepthFloorIfValid,
   columnOffsetsFromWidths,
   computeDepths,
   computeGlobalColumnX,
+  computeNetworkSimplexDepths,
   computeWidthBudgetedDepths,
   longestPath,
   placeClustersClassicGrid,
@@ -114,6 +116,7 @@ function makePrep(
     maxDepth,
     columnX: computeGlobalColumnX(clusters, maxDepth),
     depthResult,
+    networkSimplexApplied: false,
     satelliteOwners: new Map(),
     placementByAddress: new Map(clusters.map((c) => [c.id, c.placement])),
   };
@@ -978,6 +981,270 @@ describe("computeWidthBudgetedDepths (experimental Phase A)", () => {
     const first = computeWidthBudgetedDepths(e, clusters, lp);
     const second = computeWidthBudgetedDepths(e, clusters, lp);
     expect([...second.entries()].sort()).toEqual([...first.entries()].sort());
+  });
+});
+
+describe("applyDepthFloorIfValid (shared verify-or-abort + dual-write)", () => {
+  const cluster = (id: string, depth: number): PipelineCluster =>
+    ({
+      id,
+      primaryAddress: id,
+      firstSequence: 0,
+      depth,
+      placement: placementOf("acct1", "us-east-1"),
+      build: {
+        skeleton: [],
+        width: 200,
+        height: 100,
+        clusterFrameId: `f-${id}`,
+      },
+    } as unknown as PipelineCluster);
+
+  const edges = (
+    pairs: Array<[string, string]>,
+  ): Array<{ source: string; target: string }> =>
+    pairs.map(([source, target]) => ({ source, target }));
+
+  it("dual-writes cluster.depth AND the returned map when the candidate keeps every edge forward", () => {
+    const clusters = [cluster("a", 0), cluster("b", 1), cluster("c", 2)];
+    const candidate = new Map([
+      ["a", 0],
+      ["b", 5],
+      ["c", 9],
+    ]);
+    const result = applyDepthFloorIfValid(
+      clusters,
+      candidate,
+      edges([
+        ["a", "b"],
+        ["b", "c"],
+      ]),
+    );
+    expect(result).not.toBeNull();
+    // DUAL-WRITE #2: returned depths match the candidate.
+    expect([...result!.depths.entries()].sort()).toEqual(
+      [...candidate.entries()].sort(),
+    );
+    expect(result!.hasCycle).toBe(false);
+    // DUAL-WRITE #1: the cluster.depth field was mutated in place to agree.
+    for (const c of clusters) {
+      expect(c.depth).toBe(candidate.get(c.id));
+    }
+  });
+
+  it("returns null and does NOT mutate cluster.depth when an edge would run backward", () => {
+    const clusters = [cluster("a", 0), cluster("b", 1)];
+    const before = clusters.map((c) => c.depth);
+    // b before a violates depth(source) < depth(target) for a->b.
+    const candidate = new Map([
+      ["a", 5],
+      ["b", 2],
+    ]);
+    const result = applyDepthFloorIfValid(
+      clusters,
+      candidate,
+      edges([["a", "b"]]),
+    );
+    expect(result).toBeNull();
+    expect(clusters.map((c) => c.depth)).toEqual(before);
+  });
+
+  it("returns a fresh map (mutating it does not alias the candidate)", () => {
+    const clusters = [cluster("a", 0), cluster("b", 1)];
+    const candidate = new Map([
+      ["a", 0],
+      ["b", 1],
+    ]);
+    const result = applyDepthFloorIfValid(
+      clusters,
+      candidate,
+      edges([["a", "b"]]),
+    );
+    result!.depths.set("a", 99);
+    expect(candidate.get("a")).toBe(0);
+  });
+});
+
+describe("computeNetworkSimplexDepths (X-axis network simplex, exact)", () => {
+  const nsCluster = (id: string, depth: number): PipelineCluster =>
+    ({
+      id,
+      primaryAddress: id,
+      firstSequence: 0,
+      depth,
+      placement: placementOf("acct1", "us-east-1"),
+      build: {
+        skeleton: [],
+        width: 200,
+        height: 100,
+        clusterFrameId: `f-${id}`,
+      },
+    } as unknown as PipelineCluster);
+
+  // Edge list → (collapsedEdges, ids, longest-path depths). Parallel edges are
+  // expressed by repeating a pair (the function weights by parallel count).
+  const setup = (pairs: Array<[string, string]>, ids: string[]) => {
+    const collapsedEdges = pairs.map(([source, target], i) => ({
+      source,
+      target,
+      sequence: i,
+    }));
+    const lp = computeDepths(collapsedEdges, ids).depths;
+    return { collapsedEdges, ids, lp };
+  };
+
+  const totalWeightedSpan = (
+    pairs: Array<[string, string]>,
+    depths: ReadonlyMap<string, number>,
+  ): number =>
+    pairs.reduce(
+      (sum, [s, t]) => sum + ((depths.get(t) ?? 0) - (depths.get(s) ?? 0)),
+      0,
+    );
+
+  // The canonical "slack node pulled right" DAG where ASAP (longest-path) is NOT
+  // span-optimal. A spine s→p1→p2→p3 pins t1,t2 at rank 4 (p3→t1, p3→t2). The slack
+  // node x has ONE in-edge (s→x) and TWO out-edges (x→t1, x→t2). ASAP puts x at
+  // rank 1 (span s→x=1, x→t1=x→t2=3 ⇒ x-cost 7); the optimum pushes x RIGHT to rank
+  // 3 (s→x=3, x→t1=x→t2=1 ⇒ x-cost 5), because out-weight (2) > in-weight (1). Total
+  // span 12 → 10 — provable by hand, fixture-independent.
+  const slackPairs: Array<[string, string]> = [
+    ["s", "p1"],
+    ["p1", "p2"],
+    ["p2", "p3"],
+    ["p3", "t1"],
+    ["p3", "t2"],
+    ["s", "x"],
+    ["x", "t1"],
+    ["x", "t2"],
+  ];
+  const slackIds = ["s", "p1", "p2", "p3", "t1", "t2", "x"];
+
+  it("hits the provable minimum-weighted-span optimum (catches the heuristic/sign-bug false-win class)", () => {
+    const { collapsedEdges, ids, lp } = setup(slackPairs, slackIds);
+    // Sanity: longest-path is the suboptimal baseline (total span 12, x at rank 1).
+    expect(totalWeightedSpan(slackPairs, lp)).toBe(12);
+    expect(lp.get("x")).toBe(1);
+
+    const ns = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+    // EXACT optimum: total span 10, x pushed to rank 3 (between its two sinks' feeder).
+    expect(totalWeightedSpan(slackPairs, ns)).toBe(10);
+    expect(ns.get("x")).toBe(3);
+    // Critical-path spine + sinks unchanged; every edge still strictly forward.
+    expect(ns.get("s")).toBe(0);
+    expect(ns.get("t1")).toBe(4);
+    expect(ns.get("t2")).toBe(4);
+    for (const [a, b] of slackPairs) {
+      expect(ns.get(a)!, `${a}->${b}`).toBeLessThan(ns.get(b)!);
+    }
+  });
+
+  it("never increases total weighted span vs longest-path, and keeps every edge forward (property)", () => {
+    const cases: Array<{ pairs: Array<[string, string]>; ids: string[] }> = [
+      { pairs: slackPairs, ids: slackIds },
+      // diamond + tail
+      {
+        pairs: [
+          ["a", "b"],
+          ["a", "c"],
+          ["b", "d"],
+          ["c", "d"],
+          ["d", "e"],
+        ],
+        ids: ["a", "b", "c", "d", "e"],
+      },
+      // two independent components in one call
+      {
+        pairs: [
+          ["a", "b"],
+          ["b", "c"],
+          ["a", "c"],
+          ["m", "n"],
+          ["m", "o"],
+          ["n", "o"],
+        ],
+        ids: ["a", "b", "c", "m", "n", "o"],
+      },
+      // wide fan-out then fan-in (slack everywhere)
+      {
+        pairs: [
+          ["r", "a"],
+          ["r", "b"],
+          ["r", "c"],
+          ["a", "z"],
+          ["b", "z"],
+          ["c", "z"],
+          ["r", "z"],
+        ],
+        ids: ["r", "a", "b", "c", "z"],
+      },
+    ];
+    for (const { pairs, ids } of cases) {
+      const { collapsedEdges, lp } = setup(pairs, ids);
+      const ns = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+      expect(totalWeightedSpan(pairs, ns)).toBeLessThanOrEqual(
+        totalWeightedSpan(pairs, lp),
+      );
+      for (const [a, b] of pairs) {
+        expect(ns.get(a)!, `${a}->${b}`).toBeLessThan(ns.get(b)!);
+      }
+      // layer count is preserved == critical-path length (maxDepth unchanged).
+      expect(Math.max(...ns.values())).toBe(Math.max(...lp.values()));
+    }
+  });
+
+  it("weights by parallel-edge count: a heavier in-side keeps the slack node LEFT", () => {
+    // Same slack DAG, but s→x is now THREE parallel edges (in-weight 3 > out-weight 2).
+    // The optimum flips: x stays at rank 1 (objective 3·r + 2·(4−r) = r+8, min at r=1),
+    // where with single-weight edges it was pushed to rank 3. Proves weight is read.
+    const weighted: Array<[string, string]> = [
+      ...slackPairs,
+      ["s", "x"],
+      ["s", "x"],
+    ];
+    const { collapsedEdges, ids, lp } = setup(weighted, slackIds);
+    const ns = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+    expect(ns.get("x")).toBe(1);
+  });
+
+  it("is deterministic across repeated runs (entering/leaving/balance tie-breaks)", () => {
+    const { collapsedEdges, ids, lp } = setup(slackPairs, slackIds);
+    const a = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+    const b = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+    const c = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+    expect([...b.entries()].sort()).toEqual([...a.entries()].sort());
+    expect([...c.entries()].sort()).toEqual([...a.entries()].sort());
+  });
+
+  it("composes with applyDepthFloorIfValid: dual-write agrees (cluster.depth == returned depths)", () => {
+    const { collapsedEdges, ids, lp } = setup(slackPairs, slackIds);
+    const ns = computeNetworkSimplexDepths(collapsedEdges, ids, lp);
+    const clusters = ids.map((id) => nsCluster(id, lp.get(id) ?? 0));
+    const swapped = applyDepthFloorIfValid(clusters, ns, collapsedEdges);
+    expect(swapped).not.toBeNull();
+    for (const c of clusters) {
+      expect(c.depth, c.id).toBe(swapped!.depths.get(c.id));
+      expect(c.depth, c.id).toBe(ns.get(c.id));
+    }
+  });
+
+  it("terminates without throwing on a non-forward (cyclic-clamped) input", () => {
+    // The production caller guards `!hasCycle` before calling NS, but the pure
+    // function must still terminate (safety ceiling) and never hang on a 2-cycle.
+    const collapsedEdges = [
+      { source: "a", target: "b", sequence: 0 },
+      { source: "b", target: "a", sequence: 1 },
+    ];
+    const lp = new Map([
+      ["a", 0],
+      ["b", 0],
+    ]);
+    expect(() =>
+      computeNetworkSimplexDepths(collapsedEdges, ["a", "b"], lp),
+    ).not.toThrow();
+    // The result cannot satisfy both a→b and b→a; the verify-or-abort caller rejects it.
+    const ns = computeNetworkSimplexDepths(collapsedEdges, ["a", "b"], lp);
+    expect(applyDepthFloorIfValid([], ns, collapsedEdges)).toBeNull();
   });
 });
 

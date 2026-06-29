@@ -111,13 +111,16 @@ Shared longest-path kernel: `longestPath` in `terraformPipelineLayoutShared.ts`.
 | **M6** leaf reorder | `terraformPipelineOrdering.ts` | `barycenterReorder` | `reorder` |
 | **M6c** cross-container crossing-min | `terraformPipelineRcllCrossingMin.ts` | `minimizeCrossings`, `countPlacedCrossings` | `crossingMin` |
 | **M5** straighten | `terraformPipelineStraighten.ts` | `straightenColumns` | `straighten` |
+| **M5r** coord re-pack | `terraformPipelineRepack.ts` | `repackColumns` (applied via `applyCoordRepack` in `terraformPipelineRcllPlacement.ts`) | `coordRepack` (needs `straighten`) |
 | **M5b** de-densify | `terraformPipelineDeDensify.ts` | `deDensifyColumns` | `deDensify` / profile `columnPacking:"spread"` |
 | **M5c** column compact | `terraformPipelineColumnCompact.ts` | `compactColumns` | `columnCompact` / profile `columnPacking:"compact"` |
 | **M8r** rank separate | `terraformPipelineRcllRankSeparate.ts` | `computeGlobalSeparatedFloor` | `rankSeparate` (needs M4) |
 | **M7s** de-band | `terraformPipelineRcllPlacement.ts` + `terraformPipelineSubnetAnnotation.ts` | `collapseTreeForDeBand`, `appendSubnetMembershipAnnotations` | `deBandLevel` |
 | **M5 gate-fix** hub metrics | `terraformPipelineCoordinateAssignment.ts` | `hubCenteringOverBoxes`, `median` | metrics only |
 
-**Toggle coupling (single source of truth):** `terraformPipelineToggleGuards.ts` — `applyRcllToggleGuards`, suppressions like `rankSeparate-needs-rise`, `ordering-conflict-crossing-min-wins`.
+**M5r coord re-pack** (`terraformPipelineRepack.ts`, `repackColumns`) is an **M5 post-straighten refinement**, default OFF, **intra-container only**: after the Brandes–Köpf straightener it searches a coordinated per-container, per-column **permutation re-pack** (Heap's brute-force ≤8 leaves, deterministic candidate set above 8; no RNG) to shorten intra-container dataflow edges in Y. Applied via `applyCoordRepack` in `terraformPipelineRcllPlacement.ts` at the three straighten sites (packed columns + both lane paths), only when `coordRepack && straighten`. It is a **never-worse refinement** — adopted only if total intra-container \|ΔY\| strictly drops AND CON-3 (band not grown) / CON-4/5 (non-overlap) / intra-container crossing-preserving (`countCrossings`) / CON-12 (Y + within-column order only) all hold; otherwise the straightened placement is kept. Guard `coord-repack-needs-straighten` drops it when `straighten` is off. See [§9 / DI-CRP-1..3](pipeline-rcll-layout-design.md#341-implementation-decision-log-di--per-milestone-as-built).
+
+**Toggle coupling (single source of truth):** `terraformPipelineToggleGuards.ts` — `applyRcllToggleGuards`, suppressions like `rankSeparate-needs-rise`, `ordering-conflict-crossing-min-wins`, `coord-repack-needs-straighten`.
 
 **Profile bundles:** `terraformPipelineLayoutProfiles.ts` — `resolveRcllLayoutProfile("readable" | "balanced" | "compact")` expands to the flag set.
 
@@ -224,6 +227,7 @@ curl 'http://localhost:5173/api/terraform-layout?preset=staging-extended-localst
 | §7.2c ordering | `terraformPipelineOrdering.ts`, `terraformPipelineRcllCrossingMin.ts` |
 | §8 per-level policy | `policyForContainer`, de-band in placement + `terraformPipelineSubnetAnnotation.ts`; ancillary reserved bands in `terraformPipelineLayoutRcll.ts` + `terraformPipelineRcllPlacement.ts` |
 | §9 straightening | `terraformPipelineStraighten.ts` |
+| §9 M5r coord re-pack (intra-container Y) | `terraformPipelineRepack.ts` (`repackColumns`), `applyCoordRepack` in `terraformPipelineRcllPlacement.ts` |
 | §12 routing/parenting | `terraformPipelineLayoutFinalize.ts`, `terraformPipelineLayoutCompoundHierarchy.ts` |
 | §13 gates | `backwardEdgeGate`, `diagnosePipelineScene` |
 | §22 stage registry | `RCLL_STAGES`, `runRcllPipeline` |

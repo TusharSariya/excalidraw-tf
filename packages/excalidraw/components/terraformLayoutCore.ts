@@ -443,11 +443,13 @@ type LayoutSceneContext = {
   pipelineRankSeparate?: boolean;
   /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
   pipelineStraighten?: boolean;
+  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten, within band). */
+  pipelineCoordRepack?: boolean;
   /** RCLL M5b: de-density — spread crowded columns (dial defaulted by the guard). */
   pipelineDeDensify?: boolean;
   /** RCLL "Column packing" tri-state: `spread` = M5b pull-right, `compact` = M5c pull-left,
    * `none` = neither. Front-door enum; supersedes `pipelineDeDensify` (legacy ⇒ `spread`). */
-  pipelineColumnPacking?: "spread" | "none" | "compact";
+  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   /** RCLL "Layout" profile, echoed into meta (when not `balanced`). The flag expansion is
    * done at the `sceneContext` literal; this field is only carried for the meta echo. */
   pipelineLayoutProfile?: RcllLayoutProfile;
@@ -472,7 +474,7 @@ async function buildPipelineLayoutSceneBody(
       // engine default true ⇒ OFF byte-identical).
       // "Column packing" tri-state is the single front-door; derive the two mutually
       // exclusive engine flags from it (legacy `pipelineDeDensify` ⇒ `spread`).
-      const columnPacking: "spread" | "none" | "compact" =
+      const columnPacking: "spread" | "none" | "compact" | "shorten" =
         ctx.pipelineColumnPacking ??
         (ctx.pipelineDeDensify ? "spread" : "none");
       const { options: pipelineOptions, suppressions: rcllSuppressions } =
@@ -488,12 +490,22 @@ async function buildPipelineLayoutSceneBody(
           deBandLevel: ctx.pipelineDeBandLevel ?? "none",
           rankSeparate: ctx.pipelineRankSeparate === true,
           straighten: ctx.pipelineStraighten === true,
+          coordRepack: ctx.pipelineCoordRepack === true,
           deDensify: columnPacking === "spread",
-          columnCompact: columnPacking === "compact",
+          // "shorten" is a BUNDLE: the X-axis network-simplex depth-floor ranker PLUS
+          // column compaction (the proven additive config — NS shortens cross-column
+          // edges, compact pulls leaves left). So compact is on for both "compact" and
+          // "shorten"; only "shorten" also turns on the NS ranker.
+          columnCompact:
+            columnPacking === "compact" || columnPacking === "shorten",
+          networkSimplexRank: columnPacking === "shorten",
           staircaseBandOverlap: ctx.pipelineStaircaseBandOverlap,
         });
       const rankSeparateSuppressed = rcllSuppressions.includes(
         "rankSeparate-needs-rise",
+      );
+      const coordRepackSuppressed = rcllSuppressions.includes(
+        "coord-repack-needs-straighten",
       );
       const columnPackingConflict = rcllSuppressions.includes(
         "column-packing-conflict-compact-wins",
@@ -501,9 +513,23 @@ async function buildPipelineLayoutSceneBody(
       const orderingConflict = rcllSuppressions.includes(
         "ordering-conflict-crossing-min-wins",
       );
+      // "shorten" (NS) was DROPPED because a live rankSeparate (the dominant height
+      // lever) wins the mutually-exclusive column axis. Observable so the user learns
+      // their "shorten" pick was a safe no-op, not a silent one.
+      const networkSimplexSuppressedByRankSeparate = rcllSuppressions.includes(
+        "rank-floor-conflict-rankseparate-wins-network-simplex",
+      );
+      // "shorten" (NS, when it survived) dropped a conflicting `deDensify`.
+      const networkSimplexRankConflict = rcllSuppressions.includes(
+        "rank-floor-conflict-network-simplex-wins-dedensify",
+      );
       // The applied packing arm after the guard (a conflict drops `deDensify`).
-      const appliedColumnPacking: "spread" | "none" | "compact" =
-        pipelineOptions.columnCompact
+      // "shorten" (NS bundle) wins the echo over plain "compact" — it sets BOTH
+      // networkSimplexRank and columnCompact, so test for the discriminating flag first.
+      const appliedColumnPacking: "spread" | "none" | "compact" | "shorten" =
+        pipelineOptions.networkSimplexRank
+          ? "shorten"
+          : pipelineOptions.columnCompact
           ? "compact"
           : pipelineOptions.deDensify
           ? "spread"
@@ -572,6 +598,16 @@ async function buildPipelineLayoutSceneBody(
               ? { pipelineRankSeparateSuppressed: true }
               : {}),
             ...(ctx.pipelineStraighten ? { pipelineStraighten: true } : {}),
+            // Echo the POST-guard coordRepack arm (the guard drops it when straighten
+            // is off) so the meta never claims a re-pack the engine didn't run.
+            ...(pipelineOptions.coordRepack
+              ? { pipelineCoordRepack: true }
+              : {}),
+            // Observable footgun backstop: the user asked for coordRepack but it was
+            // dropped because straighten was off (URL/programmatic path).
+            ...(coordRepackSuppressed
+              ? { pipelineCoordRepackSuppressed: true }
+              : {}),
             // "Column packing": echo the applied arm, plus the legacy `pipelineDeDensify`
             // flag when spread (back-compat for existing M5b assertions / dev plugin).
             ...(appliedColumnPacking !== "none"
@@ -584,6 +620,16 @@ async function buildPipelineLayoutSceneBody(
             // guard kept Compact and dropped Spread.
             ...(columnPackingConflict
               ? { pipelineColumnPackingConflict: true }
+              : {}),
+            // Observable backstop: "shorten" (NS) dropped a conflicting `deDensify`.
+            ...(networkSimplexRankConflict
+              ? { pipelineNetworkSimplexRankConflict: true }
+              : {}),
+            // Observable footgun backstop: the user asked for "shorten" (NS) but it was
+            // dropped because a live rankSeparate (the dominant height lever) owns the
+            // column axis — the layout is the rankSeparate one, NOT a regressed NS one.
+            ...(networkSimplexSuppressedByRankSeparate
+              ? { pipelineNetworkSimplexRankSuppressed: true }
               : {}),
             ...(ctx.pipelineStaircaseBandOverlap === false
               ? { pipelineStaircaseBandOverlap: false }
@@ -1002,6 +1048,8 @@ export async function layoutTerraformFromSources(
     pipelineRankSeparate:
       options?.pipelineRankSeparate ?? pf?.rankSeparate ?? false,
     pipelineStraighten: options?.pipelineStraighten ?? pf?.straighten ?? false,
+    pipelineCoordRepack:
+      options?.pipelineCoordRepack ?? pf?.coordRepack ?? false,
     pipelineDeDensify: options?.pipelineDeDensify === true,
     // "Column packing" tri-state (M5b spread / M5c compact) — same silent-drop hazard:
     // forward it or the dialog/URL toggle does nothing on the worker/headless path.

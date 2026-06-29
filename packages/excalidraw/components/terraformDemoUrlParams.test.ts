@@ -29,6 +29,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   pipelineDeBandLevel: "none",
   pipelineRankSeparate: false,
   pipelineStraighten: false,
+  pipelineCoordRepack: false,
   pipelineColumnPacking: "none",
   pipelineLayoutProfile: "balanced",
   pipelineStaircaseBandOverlap: true,
@@ -310,6 +311,18 @@ describe("terraformDemoUrlParams", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&columnPacking=sideways"),
       ).toBeNull();
+    });
+
+    it("parses columnPacking=shorten (X-axis network-simplex bundle)", () => {
+      // "shorten" is a valid VALID_COLUMN_PACKING member (case-insensitive).
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=rcll&columnPacking=shorten",
+        ),
+      ).toEqual({ presetId: "demo", view: "rcll", columnPacking: "shorten" });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&columnPacking=SHORTEN"),
+      ).toEqual({ presetId: "demo", columnPacking: "shorten" });
     });
 
     it("parses profile (RCLL Layout profile) and rejects invalid", () => {

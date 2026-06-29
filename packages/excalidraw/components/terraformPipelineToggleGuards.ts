@@ -24,7 +24,10 @@ export const DEDENSIFY_DEFAULT_MAX_COLS = 2;
 export type RcllToggleSuppression =
   | "rankSeparate-needs-rise"
   | "column-packing-conflict-compact-wins"
-  | "ordering-conflict-crossing-min-wins";
+  | "ordering-conflict-crossing-min-wins"
+  | "rank-floor-conflict-rankseparate-wins-network-simplex"
+  | "rank-floor-conflict-network-simplex-wins-dedensify"
+  | "coord-repack-needs-straighten";
 
 /**
  * Whether `rankSeparate` may be enabled. True only when the M4 swimlane lane-rise
@@ -43,10 +46,19 @@ export type GuardablePipelineOptions = {
   deDensifyMaxCols?: number;
   /** M5c column compaction (pull-left). Mutually exclusive with `deDensify` (pull-right). */
   columnCompact?: boolean;
+  /** M5 Brandes–Köpf straighten. `coordRepack` refines its result, so requires it on. */
+  straighten?: boolean;
+  /** M5b coordinated per-column permutation re-pack. Only meaningful refining a
+   * straightened placement ⇒ dropped when `straighten` is off. */
+  coordRepack?: boolean;
   /** M6 leaf-only within-column reorder. Subsumed by `crossingMin` when both set. */
   reorder?: boolean;
   /** M6c container-aware crossing minimization (hierarchical superset of `reorder`). */
   crossingMin?: boolean;
+  /** X-axis network-simplex depth-floor ranker (the `"shorten"` bundle). Rewrites the
+   * column axis. It LOSES to a live `rankSeparate` (the dominant height lever — see the
+   * guard) and WINS over `deDensify`; `columnCompact` is additive and NOT guarded. */
+  networkSimplexRank?: boolean;
 };
 
 /**
@@ -66,13 +78,39 @@ export function applyRcllToggleGuards<T extends GuardablePipelineOptions>(
   // rewrites below are not excess properties on a narrowly-inferred T.
   let next: T & GuardablePipelineOptions = opts;
 
-  // rankSeparate requires the lane-rise to be a win, not a regression.
+  // rankSeparate requires the lane-rise to be a win, not a regression. Runs FIRST so
+  // the NS-vs-rankSeparate rule below sees a rankSeparate that has already survived its
+  // own precondition (an invalid rankSeparate must NOT suppress NS).
   if (
     next.rankSeparate === true &&
     !rankSeparateAvailable(next.swimlaneLaneRise === true)
   ) {
     next = { ...next, rankSeparate: false };
     suppressions.push("rankSeparate-needs-rise");
+  }
+
+  // `rankSeparate` (+ its lane-rise) and the network-simplex ranker ("shorten") are
+  // mutually-exclusive COLUMN-AXIS strategies — both rewrite the depth floor. They
+  // CANNOT compose: rankSeparate gives sibling lanes disjoint column ranges so the M4
+  // lane-rise can interleave them in Y (the −60 % HEIGHT lever); NS re-ranks columns to
+  // minimum-span, which DESTROYS that X-disjointness so the lanes can no longer rise
+  // and the diagram balloons in height (measured +149 % on full-detail v2). So when a
+  // live rankSeparate and NS are both requested, **rankSeparate WINS** — it is by far
+  // the dominant lever (a big height win vs NS's modest width win) — and NS is dropped,
+  // surfaced observably. NS is only effective when rankSeparate is off (the config its
+  // probe measured); picking "shorten" on a rankSeparate layout is then a safe no-op,
+  // never a catastrophic regression.
+  if (next.rankSeparate === true && next.networkSimplexRank === true) {
+    next = { ...next, networkSimplexRank: false };
+    suppressions.push("rank-floor-conflict-rankseparate-wins-network-simplex");
+  }
+
+  // NS (if it survived) still wins over `deDensify` (column pull-right). The enum
+  // surface makes this collision unrepresentable (compact/spread/shorten are sibling
+  // arms); the guard is the defensive backstop for a direct engine caller.
+  if (next.networkSimplexRank === true && next.deDensify === true) {
+    next = { ...next, deDensify: false };
+    suppressions.push("rank-floor-conflict-network-simplex-wins-dedensify");
   }
 
   // "Column packing" is a tri-state, so the UI/URL can never set both arms. Defensively,
@@ -90,6 +128,15 @@ export function applyRcllToggleGuards<T extends GuardablePipelineOptions>(
   if (next.crossingMin === true && next.reorder === true) {
     next = { ...next, reorder: false };
     suppressions.push("ordering-conflict-crossing-min-wins");
+  }
+
+  // `coordRepack` refines the Brandes–Köpf straightened placement (it re-permutes &
+  // re-stacks each column starting FROM the straightened Y). With straighten off there
+  // is no straightened result to refine, so it would be a meaningless no-op — drop it,
+  // surfaced observably (mirrors `rankSeparate-needs-rise`).
+  if (next.coordRepack === true && next.straighten !== true) {
+    next = { ...next, coordRepack: false };
+    suppressions.push("coord-repack-needs-straighten");
   }
 
   // deDensify is a no-op without a positive width dial — supply a default.

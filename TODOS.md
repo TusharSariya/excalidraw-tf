@@ -1,5 +1,19 @@
 # TODOS
 
+## Deferred from X-axis network-simplex ranker (`pipelineColumnPacking:"shorten"`, 2026-06-24)
+
+### TODO-NS-1: Cross-preset NS validation before any named-profile default
+
+**What:** Before promoting `shorten` (or its `networkSimplexRank` half) to a named layout-profile default, run the rendered A/B (width, structural gates, crossings) on **≥3 presets beyond `staging-extended-localstack-v2`**.
+
+**Why:** Network simplex optimizes edge **span**, not column **count** — on a different slack profile it could rebalance column widths unfavorably, and the `shorten` toggle is **global** (one depth floor for the whole cluster DAG). The proven win (width −8.4 %) is v2-specific; the isolated A/B already showed NS trades a small **crossings increase** for the width win (≈230 vs ≈198 on v2 with crossingMin on), so a different preset could shift that trade.
+
+**How:** Parameterize the `shorten`-vs-`compact` A/B harness in `terraformLayoutCoreRcllThreading.test.ts` over a preset list; assert width-strictly-narrower + all structural gates 0 on each; record the crossings delta per preset (observation, not a gate).
+
+**Depends on:** PR3 shipped (exact `computeNetworkSimplexDepths`). Ships OFF; promote on its own measurement only.
+
+---
+
 ## Deferred from RCLL satellite scan optimization (2026-06-23)
 
 ### TODO-1: Semantic view satellite scan — same O(P×K×N) pattern at `terraformTopologyLayout.ts:288`

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Modal to upload plan JSON + graph DOT bundles (optional raw state, optional .tfd),
  * or raw Terraform state alone, and replace the canvas with the locally generated scene.
@@ -63,6 +64,7 @@ export const TerraformImportModal = ({
     pipelineDeBandLevel,
     pipelineRankSeparate,
     pipelineStraighten,
+    pipelineCoordRepack,
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
@@ -598,6 +600,7 @@ terraform show -json tfplan > plan.json`}</code>
                 pipelineDeBandLevel={pipelineDeBandLevel}
                 pipelineRankSeparate={pipelineRankSeparate}
                 pipelineStraighten={pipelineStraighten}
+                pipelineCoordRepack={pipelineCoordRepack}
                 pipelineColumnPacking={pipelineColumnPacking}
                 pipelineLayoutProfile={pipelineLayoutProfile}
                 pipelineStaircaseBandOverlap={pipelineStaircaseBandOverlap}
@@ -615,6 +618,7 @@ terraform show -json tfplan > plan.json`}</code>
                 setPipelineDeBandLevel={dialog.setPipelineDeBandLevel}
                 setPipelineRankSeparate={dialog.setPipelineRankSeparate}
                 setPipelineStraighten={dialog.setPipelineStraighten}
+                setPipelineCoordRepack={dialog.setPipelineCoordRepack}
                 setPipelineColumnPacking={dialog.setPipelineColumnPacking}
                 setPipelineLayoutProfile={dialog.setPipelineLayoutProfile}
                 setPipelineStaircaseBandOverlap={
