@@ -18,14 +18,14 @@
  */
 import { existsSync, readdirSync } from "fs";
 import { join } from "path";
-import { fileURLToPath } from "url";
 
 import { describe, expect, it } from "vitest";
 
 import { SLOW_TEST_PATTERNS } from "./slowTestPatterns";
 
-// Repo root: this file is packages/excalidraw/test-fixtures/, three dirs deep.
-const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+// Vitest runs from the config root (the monorepo root), so cwd is the repo root.
+// (import.meta.url is not a file: URL under vitest's transform, so don't use it.)
+const REPO_ROOT = process.cwd();
 
 const TEST_RE = /\.(test|spec)\.(ts|tsx|js|jsx|mts|cts)$/;
 const SKIP_DIRS = new Set([
