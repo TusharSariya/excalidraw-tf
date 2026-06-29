@@ -650,7 +650,7 @@ export function computeNetworkSimplexDepths(
   // Merge parallel edges (same u→v) into one weighted edge; drop self-loops. The
   // objective Σ w·span is unchanged, and parallel edges can't both be tree edges
   // (they'd form a 2-cycle). The sorted order feeds every tie-break below.
-  const SEP = " ";
+  const SEP = "\0";
   const weightByPair = new Map<string, number>();
   for (const e of collapsedEdges) {
     if (e.source === e.target) {
