@@ -20,5 +20,10 @@ packages/backend/terraform/staging-multi-state/**/plan.json
 tools/graph-layout-rag/data/
 tools/repo-rag/data/
 tools/rag-literature-rag/data/
+# graphify knowledge graph output (JSON cache, graph, wiki — generated files).
+graphify-out/
+# Local Claude Code / tool config dirs (gitignored; prettier should not touch them).
+.claude/
+.codex/
 
 **/.venv/
