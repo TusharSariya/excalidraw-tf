@@ -60,7 +60,7 @@ See [docs/code-quality.md](docs/code-quality.md) for SonarJS, type-checked ESLin
 
 ### Local-first RAG
 
-All three tools share [`tools/rag-common`](../tools/rag-common) embed profiles. **Repo-rag on this M4 Pro defaults to:** `mlx-qwen4b` (Qwen3-Embedding-4B, 4-bit MLX, 1024 dims, local-only, $0 API). The older `cuda-qwen0.6b-1024` desktop GPU workflow remains available for graph/PDF corpora and comparison runs.
+All three tools share [`tools/rag-common`](../tools/rag-common) embed profiles. **All embedding routes through the desktop GPU gateway** (`RAG_GPU_GATEWAY_URL=http://10.0.0.156:8765` set in each tool's `.env`) — no Mac GPU used. Active profile: `cuda-qwen0.6b-1024` (Qwen3-0.6B, 1024 dims, RTX 3060 Ti).
 
 ```bash
 # Optional desktop GPU example: rag-literature-rag
@@ -71,12 +71,13 @@ yarn rag-lit:query "Self-RAG" --top 8 --json
 
 ### Repo RAG (code + docs search)
 
-Local hybrid search over this monorepo (AST chunking, BM25 + vector). Per-profile indexes under `data/indexes/{profile}/`. The default local path uses Qwen3 4B on Apple Silicon and needs no `OPENAI_API_KEY`, `RAG_GPU_SSH`, or CUDA settings.
+Local hybrid search over this monorepo (AST chunking, BM25 + vector). Per-profile indexes under `data/indexes/{profile}/`. Embedding calls route to the desktop gateway — set `RAG_GPU_GATEWAY_URL=http://10.0.0.156:8765` (already in `.env`).
 
 ```bash
 cd tools/repo-rag && uv sync && cp .env.example .env
-RAG_EMBED_PROFILE=mlx-qwen4b uv run repo-rag index --force --rebuild
-RAG_EMBED_PROFILE=mlx-qwen4b uv run repo-rag query "terraform pipeline compound layout" --top 8 --json
+# .env already sets RAG_EMBED_PROFILE=cuda-qwen0.6b-1024 and RAG_GPU_GATEWAY_URL
+uv run repo-rag index --force --rebuild
+uv run repo-rag query "terraform pipeline compound layout" --top 8 --json
 uv run repo-rag status
 
 # Optional higher-fidelity local benchmark profile: Qwen3-Embedding-4B native 2560 dims
