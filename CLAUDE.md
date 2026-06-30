@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project Structure
 
 Excalidraw is a **Yarn workspaces monorepo** with two main layers: a publishable React library and a web application that consumes it.
@@ -12,8 +14,7 @@ excalidraw/
 │   ├── element/       # All element logic (binding, bounds, collision, shapes, rendering)
 │   ├── math/          # Pure 2D geometry (points, curves, polygons, angles)
 │   └── utils/         # Export helpers (canvas, SVG, blob, clipboard)
-├── excalidraw-app/    # excalidraw.com web app (collaboration, Firebase, PWA)
-└── examples/          # NextJS and browser-script integration examples
+└── excalidraw-app/    # excalidraw.com web app (collaboration, Firebase, PWA)
 ```
 
 ### Package Dependency Order
@@ -40,7 +41,7 @@ Packages use TypeScript path aliases so imports resolve directly to source durin
 ## Development Commands
 
 ```bash
-yarn test:typecheck   # TypeScript type checking
+yarn test:typecheck   # TypeScript type checking (tsc)
 yarn test:update      # Run all tests (with snapshot updates)
 yarn fix              # Auto-fix formatting and linting issues
 yarn build:packages   # Build all packages with esbuild
@@ -50,7 +51,30 @@ yarn lint:oxlint      # Fast oxlint pass on terraform UI (report-only)
 yarn health           # fix + typecheck + eslint + arch + knip + depcheck
 ```
 
+### Running tests
+
+`vitest` is the runner. The suite is split into **fast** and **slow** lanes via env vars (`VITEST_FAST=1` / `VITEST_SLOW_ONLY=1`, defined in `vitest.config.mts`); CI runs these as parallel coverage-sharded lanes (`test:fast:ci` ×4, `test:slow:ci` ×8, then a merge job).
+
+```bash
+yarn test                       # watch mode (vitest)
+yarn test:update                # full run, update snapshots — run before committing
+yarn test:fast                  # fast lane only (VITEST_FAST=1), no watch
+yarn test:slow                  # slow lane only (VITEST_SLOW_ONLY=1), no watch
+yarn test:commit                # typecheck + fast lane (quick pre-commit gate)
+yarn test:prepush:fast          # full lint/typecheck/arch/knip/depcheck + fast tests
+
+# Single file / single test name:
+yarn vitest run path/to/file.test.tsx           # one file, no watch
+yarn vitest run -t "name of the test"           # filter by test name
+yarn vitest run path/to/file.test.tsx -t "case" # both
+```
+
 See [docs/code-quality.md](docs/code-quality.md) for SonarJS, type-checked ESLint scopes, Oxlint rollout, and SonarQube Community Build setup.
+
+### Conventions & agent rules
+
+- **Code style** ([.github/copilot-instructions.md](.github/copilot-instructions.md)): TypeScript everywhere; prefer immutable data (`const`/`readonly`); favor performant, allocation-free implementations (trade RAM for CPU); functional React components with hooks; CSS modules for styling.
+- **graphify** ([AGENTS.md](AGENTS.md), `.cursor/rules/graphify.mdc`): a knowledge graph lives at `graphify-out/`. For codebase questions prefer `graphify query "<question>"` (and `path`/`explain`) over raw grep when `graphify-out/graph.json` exists; run `graphify update .` after modifying code. Triggered by `/graphify`.
 
 ### Terraform import and canvas performance
 

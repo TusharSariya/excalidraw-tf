@@ -25,7 +25,6 @@
     "**/__snapshots__/**",
     "functions/generated/**",
     ".agents/**",
-    "examples/**",
     "dev-docs/**",
     "packages/excalidraw/components/ButtonIconCycle.tsx",
     "packages/excalidraw/components/Paragraph.tsx",

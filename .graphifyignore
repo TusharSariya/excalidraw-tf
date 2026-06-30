@@ -1,0 +1,28 @@
+# graphify indexing blocklist (extends .gitignore)
+# See also .cursorignore and tools/repo-rag harvest excludes.
+
+# Graphify generated graph
+graphify-out/
+
+# Local SQLite / DB blobs (repo root + anywhere)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-*
+
+# RAG tool local data (corpora, indexes, caches)
+tools/*/data/
+tools/*/.venv/
+tools/**/embed_cache/
+tools/**/extract_cache/
+tools/**/bibliography-scan-cache/
+tools/**/raptor_cache/
+
+# Non-core / generated trees
+dev-dist/
+coverage/
+html/
+releases/
+firebase/
+.wrangler/

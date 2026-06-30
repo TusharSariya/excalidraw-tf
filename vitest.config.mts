@@ -92,7 +92,6 @@ export default defineConfig({
       exclude: [
         ...coverageConfigDefaults.exclude,
         "dev-docs/**",
-        "examples/**",
         "excalidraw-app/build/**",
         "packages/**/dist/**",
         "public/**",
