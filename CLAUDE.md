@@ -60,7 +60,9 @@ See [docs/code-quality.md](docs/code-quality.md) for SonarJS, type-checked ESLin
 
 ### Local-first RAG
 
-All three tools share [`tools/rag-common`](../tools/rag-common) embed profiles. **All embedding routes through the desktop GPU gateway** (`RAG_GPU_GATEWAY_URL=http://10.0.0.156:8765` set in each tool's `.env`) — no Mac GPU used. Active profile: `cuda-qwen0.6b-1024` (Qwen3-0.6B, 1024 dims, RTX 3060 Ti).
+**RAG lives entirely on the desktop.** `tools/` is a git submodule (`TusharSariyaOrg/excalidraw-tf-rag`) that is **not checked out on the Mac** — no RAG code, corpus, or indexes exist here. All RAG development, ingestion, and querying happens on the desktop (`~/excalidraw-tf`); this Mac checkout only carries the gitlink pointer. If you need `tools/` locally for some other reason, `git submodule update --init tools`, but for RAG work just SSH to the desktop.
+
+All three tools share `tools/rag-common` embed profiles. **All embedding routes through the desktop GPU gateway** (`RAG_GPU_GATEWAY_URL=http://10.0.0.156:8765` set in each tool's `.env`) — no Mac GPU used. Active profile: `cuda-qwen0.6b-1024` (Qwen3-0.6B, 1024 dims, RTX 3060 Ti).
 
 ```bash
 # Optional desktop GPU example: rag-literature-rag
