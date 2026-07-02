@@ -16,10 +16,8 @@ packages/backend/terraform/**/plan.json
 packages/backend/terraform/*plan.json
 packages/backend/terraform/cloudflare/*plan.json
 packages/backend/terraform/staging-multi-state/**/plan.json
-# Generated local RAG indexes and corpus metadata.
-tools/graph-layout-rag/data/
-tools/repo-rag/data/
-tools/rag-literature-rag/data/
+# tools/ is a git submodule (own repo, own CI/formatting) — exclude entirely.
+tools/
 # graphify knowledge graph output (JSON cache, graph, wiki — generated files).
 graphify-out/
 # Local Claude Code / tool config dirs (gitignored; prettier should not touch them).
