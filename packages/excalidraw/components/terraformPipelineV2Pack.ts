@@ -95,17 +95,64 @@ function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
   return aIsHull || bIsHull ? HULL_GAP_Y : LEAF_GAP_Y;
 }
 
+/**
+ * A cluster's frame footprint is normally `[0,0] → [build.width, build.height]`
+ * (the compact/classic card builders anchor their frame at the build origin), but
+ * the FULL (non-compact) topology cluster builder
+ * (`buildTopologyPrimaryClusterSkeletonForPipeline`) can position its frame at a
+ * nonzero local `(x, y)` within `cluster.build.skeleton` — extra satellite rows
+ * grow the frame in either direction from the `(0, 0)` anchor it builds from.
+ * Every caller that assumed the naive `[0,0] → [width,height]` footprint
+ * under-reserved space by exactly that offset, producing real, measured overlaps
+ * under v2 full + ancillary layouts (the frame rendered up to ~230px below where
+ * the skyline packer / frame-envelope math thought it ended). Falls back to the
+ * naive footprint when no frame is found (defensive; keeps compact/classic
+ * clusters, whose frame already sits at the origin, byte-identical).
+ */
+function clusterFrameLocalRect(cluster: PipelineCluster): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const frame = cluster.build.skeleton.find(
+    (el) => el.type === "frame" && el.id === cluster.build.clusterFrameId,
+  ) as { x?: number; y?: number; width?: number; height?: number } | undefined;
+  return {
+    x: typeof frame?.x === "number" ? frame.x : 0,
+    y: typeof frame?.y === "number" ? frame.y : 0,
+    width: typeof frame?.width === "number" ? frame.width : cluster.build.width,
+    height:
+      typeof frame?.height === "number" ? frame.height : cluster.build.height,
+  };
+}
+
 /** A single leaf cluster as a trivial one-column block. */
 function leafBlock(
   cluster: PipelineCluster,
   columnX: readonly number[],
 ): Block {
   const x = columnX[cluster.depth] ?? PIPELINE_MARGIN;
+  const localRect = clusterFrameLocalRect(cluster);
+  // Anchor normalization: `dropY` treats a block as occupying [0, height]
+  // below its placement cursor. A frame with NEGATIVE local y (satellite rows
+  // can grow the frame above the (0,0) build anchor, just as measured for x)
+  // would poke above that range into the previously placed block or the hull
+  // title band — so the skeleton is placed `anchorShift` lower, putting the
+  // frame's top edge exactly at the block's top. Zero (identity) whenever the
+  // frame starts at or below the anchor, so compact/classic clusters and the
+  // positive-offset case are unchanged.
+  const anchorShift = Math.max(0, -localRect.y);
   return {
-    placed: [{ cluster, x, y: 0 }],
+    placed: [{ cluster, x, y: anchorShift }],
     colMin: cluster.depth,
     colMax: cluster.depth,
-    height: cluster.build.height,
+    // The reserved height must cover the frame's TRUE local bottom edge
+    // relative to the block top (anchorShift + localRect.y + localRect.height),
+    // not just `build.height` — see `clusterFrameLocalRect`. Identical to
+    // `build.height` when the frame sits at the origin (compact/classic
+    // builders): `localRect.y` and `anchorShift` are both 0 there.
+    height: anchorShift + localRect.y + localRect.height,
     minFirstSequence: cluster.firstSequence,
     isHull: false,
   };
@@ -116,8 +163,9 @@ function blockXExtent(block: Block): { x0: number; x1: number } {
   let x0 = Number.POSITIVE_INFINITY;
   let x1 = Number.NEGATIVE_INFINITY;
   for (const item of block.placed) {
-    x0 = Math.min(x0, item.x);
-    x1 = Math.max(x1, item.x + item.cluster.build.width);
+    const localRect = clusterFrameLocalRect(item.cluster);
+    x0 = Math.min(x0, item.x + localRect.x);
+    x1 = Math.max(x1, item.x + localRect.x + localRect.width);
   }
   return {
     x0: Number.isFinite(x0) ? x0 : PIPELINE_MARGIN,
@@ -459,11 +507,16 @@ export function layoutPipelineV2Strict(
     const absX = x;
     const absY = y + originY;
     skeleton.push(...translateSkeleton(cluster.build.skeleton, absX, absY));
+    // Record the frame's TRUE rendered rect (its own local (x,y) offset applied
+    // on top of the translation), not the naive `[absX,absY]→[width,height]`
+    // anchor — see `clusterFrameLocalRect`. Downstream frame-envelope
+    // (`boundsOf`) and edge-routing consumers need the real footprint.
+    const localRect = clusterFrameLocalRect(cluster);
     const box: TerraformDependencyLayoutBox = {
-      x: absX,
-      y: absY,
-      width: cluster.build.width,
-      height: cluster.build.height,
+      x: absX + localRect.x,
+      y: absY + localRect.y,
+      width: localRect.width,
+      height: localRect.height,
     };
     layoutBoxes.set(cluster.id, box);
     layoutBoxes.set(cluster.build.clusterFrameId, { ...box });

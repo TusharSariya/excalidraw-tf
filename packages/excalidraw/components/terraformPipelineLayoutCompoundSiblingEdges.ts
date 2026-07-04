@@ -128,10 +128,42 @@ export function collectCompoundTopologyFrameEdges(
     }
   }
 
-  return [...deduped.values()].sort(
-    (a, b) =>
-      a.sequence - b.sequence || a.sourceFrameId.localeCompare(b.targetFrameId),
-  );
+  return [...deduped.values()].sort(compareCompoundTopologyFrameEdges);
+}
+
+/**
+ * Total order for deduped compound sibling-frame edges: primary key is the
+ * dataflow sequence (earliest first); ties break on frame ids so the order is
+ * deterministic regardless of `Map` iteration order.
+ *
+ * The previous tiebreak (`a.sourceFrameId.localeCompare(b.targetFrameId)`)
+ * compared *different* fields of `a` and `b` (source vs target) instead of the
+ * same field on both sides — not a valid comparator: it isn't antisymmetric
+ * (swapping `a`/`b` doesn't reliably negate the result) and can rank the same
+ * pair inconsistently depending on which element the array happens to visit
+ * first, so `Array.prototype.sort` output is order-dependent / unstable.
+ *
+ * Uses code-unit (`<`/`>`) comparisons, not `localeCompare` — repo constraint
+ * C4′ forbids bare `localeCompare` (its collation can drift across ICU
+ * versions, breaking the "content-derived total order" guarantee).
+ */
+export function compareCompoundTopologyFrameEdges(
+  a: CompoundTopologyFrameEdge,
+  b: CompoundTopologyFrameEdge,
+): number {
+  if (a.sequence !== b.sequence) {
+    return a.sequence - b.sequence;
+  }
+  if (a.sourceFrameId !== b.sourceFrameId) {
+    return a.sourceFrameId < b.sourceFrameId ? -1 : 1;
+  }
+  if (a.targetFrameId !== b.targetFrameId) {
+    return a.targetFrameId < b.targetFrameId ? -1 : 1;
+  }
+  if (a.parentFrameId !== b.parentFrameId) {
+    return a.parentFrameId < b.parentFrameId ? -1 : 1;
+  }
+  return 0;
 }
 
 type LayoutBox = TerraformDependencyLayoutBox;

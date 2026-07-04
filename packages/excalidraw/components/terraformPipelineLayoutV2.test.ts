@@ -298,6 +298,25 @@ describe("pipeline all-resources respects primary grouping", () => {
         scenes.v2.meta.pipelineAncillaryStripCount,
         "v2 emitted ancillary strips",
       ).toBeGreaterThan(0);
+
+      // D10-5 regression: v2 full (non-compact) + ancillary used to measure a
+      // real "frame-title-primary-cluster" collision — a subnetZone frame's
+      // title overlapping a *sibling* subnetZone's primary-cluster card, both
+      // non-ancillary. `ancillaryCollisions` above doesn't catch it (neither
+      // side is ancillary-flagged), so assert the full collision count for v2
+      // directly. Root cause: `buildTopologyPrimaryClusterSkeletonForPipeline`
+      // (the Full builder) can position its frame at a nonzero local (x, y)
+      // within its own skeleton (extra satellite rows grow the frame away from
+      // the (0,0) build anchor); the v2 skyline packer + frame-envelope math
+      // assumed every cluster's footprint was `[0,0]→[width,height]`, silently
+      // under-reserving space by exactly that offset. Fixed in
+      // `terraformPipelineV2Pack.ts` (`clusterFrameLocalRect`). classic/compound
+      // still show pre-existing collisions here — unrelated to this bug (they
+      // don't use the v2 packer at all) and out of scope for this fix.
+      expect(
+        scenes.v2.diagnostics.collisionCount,
+        "v2 full + ancillary: zero collisions (D10-5)",
+      ).toBe(0);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
   );

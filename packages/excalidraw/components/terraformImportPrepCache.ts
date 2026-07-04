@@ -1,5 +1,7 @@
 import graphlibDot from "@dagrejs/graphlib-dot";
 
+import { hashString } from "@excalidraw/element";
+
 import {
   mergeDotAdjacency,
   mergePlanJsons,
@@ -35,11 +37,25 @@ export type TerraformImportPrepCache = {
 
 let sessionCache: TerraformImportPrepCache | null = null;
 
+/**
+ * Session-cache fingerprint for `sources`. Two distinct inputs must never
+ * produce the same fingerprint (a collision silently serves stale/wrong prep
+ * data to a later, genuinely different import).
+ *
+ * The former scheme joined fields with bare `:`/`|` separators and only hashed
+ * a *truncated* 40-char prefix of each `.tfd` text (`tfd:${length}:${slice(0,
+ * 40)}`) — two texts sharing a length and a 40-char prefix but differing later
+ * fingerprinted identically, and unescaped separator characters inside a label
+ * or address could make distinct `(label, first, last)` triples join to the
+ * same string. Fixed with `JSON.stringify` (each field is quoted/escaped, so
+ * concatenation is unambiguous — no separator collision is possible) plus a
+ * full-content `hashString` (djb2, @excalidraw/element) instead of a prefix, so
+ * every byte of a `.tfd` text participates instead of just the first 40.
+ */
 export function terraformImportPrepFingerprint(
   sources: TerraformPlanParsingSources,
 ): string {
-  const parts: string[] = [];
-  for (const b of sources.planDotBundles) {
+  const bundleFingerprints = sources.planDotBundles.map((b) => {
     const label = b.label ?? "";
     const rc = (b.plan as { resource_changes?: unknown[] })?.resource_changes;
     const n = Array.isArray(rc) ? rc.length : 0;
@@ -51,12 +67,13 @@ export function terraformImportPrepFingerprint(
       Array.isArray(rc) && rc.length > 0 && rc[rc.length - 1]
         ? String((rc[rc.length - 1] as { address?: string }).address ?? "")
         : "";
-    parts.push(`${label}:${n}:${first}:${last}`);
-  }
-  for (const t of sources.tfdTexts) {
-    parts.push(`tfd:${t.length}:${t.slice(0, 40)}`);
-  }
-  return parts.join("|");
+    return [label, n, first, last] as const;
+  });
+  const tfdFingerprints = sources.tfdTexts.map((t) => [
+    t.length,
+    hashString(t),
+  ]);
+  return JSON.stringify([bundleFingerprints, tfdFingerprints]);
 }
 
 export function getTerraformImportPrepCache(): TerraformImportPrepCache | null {

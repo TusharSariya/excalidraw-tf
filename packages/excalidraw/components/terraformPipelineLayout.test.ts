@@ -6,6 +6,7 @@ import {
 } from "./terraformPipelineLayout";
 import { collectAncillaryAddresses } from "./terraformPipelineLayoutAncillary";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
+import { preparePipelineLayout } from "./terraformPipelineLayoutShared";
 import {
   buildEnrichedTopologyPlacements,
   topologyAddressPlacementMap,
@@ -141,6 +142,56 @@ describe("buildTerraformPipelineExcalidrawScene", () => {
       resourceX(scene.elements, "aws_dynamodb_table.c"),
     );
   });
+
+  it(
+    "D10-4: networkSimplexRank on a cyclic collapsed-edge graph is skipped " +
+      "observably (nsSkipReason: cyclic-skip), not silently applied or dropped",
+    () => {
+      // Round-6 note: verify the "shorten"→demotion is surfaced the same way as
+      // the other RCLL toggle suppressions. `applyRcllToggleGuards`'s own
+      // demotion (rankSeparate wins over networkSimplexRank) IS already wired
+      // end-to-end (pipelineNetworkSimplexRankSuppressed in scene meta,
+      // covered by terraformPipelineToggleGuards.test.ts +
+      // terraformLayoutCoreRcllThreading.test.ts). The OTHER demotion path —
+      // `preparePipelineLayout`'s own verify-or-abort when the collapsed-edge
+      // graph is cyclic (network simplex is undefined on a cycle) — had zero
+      // test coverage anywhere in the suite; this closes that gap directly at
+      // the `preparePipelineLayout` level (below the guard, in the "rcll
+      // options path" the bug report calls out).
+      const nodes = {
+        "aws_s3_bucket.a": node("aws_s3_bucket.a", "aws_s3_bucket"),
+        "aws_sqs_queue.b": node("aws_sqs_queue.b", "aws_sqs_queue"),
+        [DECLARED_DATAFLOW_ORDERED_KEY]: [
+          {
+            source: "aws_s3_bucket.a",
+            target: "aws_sqs_queue.b",
+            sequence: 0,
+            origin: "tfd",
+          },
+          {
+            source: "aws_sqs_queue.b",
+            target: "aws_s3_bucket.a",
+            sequence: 1,
+            origin: "tfd",
+          },
+        ],
+      } as unknown as TerraformPlanNodesMap;
+      const plan = {
+        resource_changes: [
+          rc("aws_s3_bucket.a", "aws_s3_bucket"),
+          rc("aws_sqs_queue.b", "aws_sqs_queue"),
+        ],
+      };
+
+      const prep = preparePipelineLayout(nodes, plan, true, {
+        networkSimplexRank: true,
+      });
+
+      expect(prep.depthResult.hasCycle).toBe(true);
+      expect(prep.networkSimplexApplied).toBe(false);
+      expect(prep.nsSkipReason).toBe("cyclic-skip");
+    },
+  );
 
   it("resolves IGW, NAT, and SSM account/region/VPC in placement map", () => {
     const igw = rc("aws_internet_gateway.this", "aws_internet_gateway", {

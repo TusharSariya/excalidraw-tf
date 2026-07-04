@@ -11,8 +11,10 @@ import {
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import {
   collectCompoundTopologyFrameEdges,
+  compareCompoundTopologyFrameEdges,
   resolveSiblingTopologyFramePair,
 } from "./terraformPipelineLayoutCompoundSiblingEdges";
+import type { CompoundTopologyFrameEdge } from "./terraformPipelineLayoutCompoundSiblingEdges";
 import { topologyFrameSkeletonId } from "./terraformPipelineTopologyFrames";
 import { reconcileTerraformVisibility } from "./terraformVisibility";
 
@@ -780,5 +782,87 @@ describe("terraformPipelineLayoutCompound sibling topology box edges", () => {
 
     expect(edges).toHaveLength(1);
     expect(edges[0]?.sequence).toBe(0);
+  });
+});
+
+describe("compareCompoundTopologyFrameEdges (comparator total-order fix)", () => {
+  const edge = (
+    over: Partial<CompoundTopologyFrameEdge>,
+  ): CompoundTopologyFrameEdge => ({
+    sourceFrameId: "src",
+    targetFrameId: "tgt",
+    parentFrameId: "parent",
+    role: "vpc",
+    sequence: 0,
+    weight: 1,
+    ...over,
+  });
+
+  it("is antisymmetric where the old field-mismatched tiebreak (source vs target) was not", () => {
+    // Same sequence. The old comparator compared `a.sourceFrameId` against
+    // `b.targetFrameId` — different fields of `a` and `b` — instead of the
+    // same field on both sides.
+    const a = edge({ sourceFrameId: "b", targetFrameId: "z" });
+    const b = edge({ sourceFrameId: "a", targetFrameId: "b" });
+
+    // The old (buggy) formula, reproduced inline to document exactly what
+    // regressed: comparing (a, b) says "equal" while comparing (b, a) says
+    // "b before a" — contradictory signs, not a valid comparator.
+    const oldCompare = (
+      x: CompoundTopologyFrameEdge,
+      y: CompoundTopologyFrameEdge,
+    ) =>
+      x.sequence - y.sequence || x.sourceFrameId.localeCompare(y.targetFrameId);
+    expect(oldCompare(a, b)).toBe(0);
+    expect(oldCompare(b, a)).toBeLessThan(0);
+
+    // The fixed comparator is antisymmetric: forward and backward always have
+    // opposite (or both-zero) sign.
+    const forward = compareCompoundTopologyFrameEdges(a, b);
+    const backward = compareCompoundTopologyFrameEdges(b, a);
+    expect(Math.sign(forward)).toBe(-Math.sign(backward));
+    // Content-derived: a.sourceFrameId ("b") > b.sourceFrameId ("a") ⇒ a sorts after b.
+    expect(forward).toBeGreaterThan(0);
+  });
+
+  it("sorts a small crafted array into a stable, content-derived order", () => {
+    const edges = [
+      edge({ sequence: 1, sourceFrameId: "m", targetFrameId: "a" }),
+      edge({ sequence: 0, sourceFrameId: "b", targetFrameId: "z" }),
+      edge({ sequence: 0, sourceFrameId: "a", targetFrameId: "b" }),
+      edge({ sequence: 0, sourceFrameId: "a", targetFrameId: "a" }),
+    ];
+    const sorted = [...edges].sort(compareCompoundTopologyFrameEdges);
+    expect(
+      sorted.map((e) => `${e.sequence}:${e.sourceFrameId}:${e.targetFrameId}`),
+    ).toEqual(["0:a:a", "0:a:b", "0:b:z", "1:m:a"]);
+
+    // Reversing the input must not change the result (order-independence —
+    // exactly what the old comparator could violate).
+    const sortedReversed = [...edges]
+      .reverse()
+      .sort(compareCompoundTopologyFrameEdges);
+    expect(sortedReversed).toEqual(sorted);
+  });
+
+  it("is transitive on a small crafted set (spot check)", () => {
+    const edges = [
+      edge({ sourceFrameId: "a", targetFrameId: "z" }),
+      edge({ sourceFrameId: "b", targetFrameId: "y" }),
+      edge({ sourceFrameId: "c", targetFrameId: "x" }),
+      edge({ sourceFrameId: "b", targetFrameId: "y", parentFrameId: "p2" }),
+    ];
+    for (const x of edges) {
+      for (const y of edges) {
+        for (const z of edges) {
+          const xy = compareCompoundTopologyFrameEdges(x, y);
+          const yz = compareCompoundTopologyFrameEdges(y, z);
+          const xz = compareCompoundTopologyFrameEdges(x, z);
+          if (xy <= 0 && yz <= 0) {
+            expect(xz).toBeLessThanOrEqual(0);
+          }
+        }
+      }
+    }
   });
 });
