@@ -1,5 +1,11 @@
 # RAG Literature Campaigns
 
+> **Superseded for the default profile.** A follow-up campaign on **2026-06-22** promoted
+> `cuda-qwen0.6b-contextual-v1` to production (held-out nDCG@10 = 0.942 vs 0.630/0.667 dense
+> baseline; backup `cuda-qwen0.6b-longrag-v1` at 0.924). The "no campaign profile should replace
+> the default" / "contextual smoke-tested only" notes below are the **2026-06-18 snapshot** and
+> predate that promotion — see `docs/quality-campaign-2026-06-22.md` for the current decision.
+
 ## 2026-06-18 Quality Campaign
 
 The active local-first campaign compares `cuda-qwen0.6b-1024` against Qwen4B, section-enriched, small-to-big, contextual, summary, LongRAG, and reduced-dimension profiles.

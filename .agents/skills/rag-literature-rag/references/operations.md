@@ -42,15 +42,15 @@ Common profiles:
 
 | Profile | Use when |
 | --- | --- |
-| `cuda-qwen0.6b-1024` | Production query profile |
-| `gemini-2-structure-v1` | Secondary cloud build |
+| `cuda-qwen0.6b-contextual-v1` | **Production query profile** (promoted 2026-06-22; held-out nDCG@10 = 0.942) |
+| `cuda-qwen0.6b-longrag-v1` | Backup production arm (held-out nDCG@10 = 0.924); larger-unit LongRAG-style chunks |
+| `cuda-qwen0.6b-1024` | Previous default (plain dense+BM25, no context line); kept for A/B |
+| `gemini-2-structure-v1` | Secondary cloud comparison build |
 | `openai-large` | Fast cloud one-time ingest |
 | `mlx-qwen4b` | Free Apple Silicon ingest |
 | `cuda-qwen0.6b-section-v1` | Section metadata A/B |
 | `cuda-qwen0.6b-small2big-v1` | Small-to-big A/B |
 | `cuda-qwen0.6b-small2big-dual-v1` | Parent evidence for small-to-big |
-| `cuda-qwen0.6b-contextual-v1` | Contextual chunk A/B |
-| `cuda-qwen0.6b-longrag-v1` | Larger-unit LongRAG-style chunks |
 | `cuda-qwen0.6b-512-v1` / `cuda-qwen0.6b-768-v1` | Reduced-dimension smoke profiles |
 | `cuda-qwen4b-1024` / `cuda-qwen4b-2560` | Qwen3-4B CUDA probes |
 
@@ -64,7 +64,7 @@ Default retrieval is hybrid: dense + BM25 + reciprocal-rank fusion. Do not add `
 uv run rag-literature-rag query "reciprocal rank fusion hybrid retrieval" --category hybrid-retrieval --json
 ```
 
-Categories include `foundations`, `dense-retrieval`, `graphrag`, `agentic`, `evaluation`, `engineering`, and `survey`.
+Valid category slugs: `foundations`, `dense-retrieval`, `sparse-retrieval`, `hybrid-retrieval`, `chunking`, `query-expansion`, `reranking`, `self-correcting`, `graphrag`, `agentic`, `memory`, `long-context`, `evaluation`, `training`, `engineering`, `survey`. Run `uv run rag-literature-rag catalog` for live per-category counts.
 
 ## Paths
 

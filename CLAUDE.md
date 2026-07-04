@@ -62,18 +62,20 @@ See [docs/code-quality.md](docs/code-quality.md) for SonarJS, type-checked ESLin
 
 **RAG lives entirely on the desktop.** `tools/` is a git submodule (`TusharSariyaOrg/excalidraw-tf-rag`) that is **not checked out on the Mac** — no RAG code, corpus, or indexes exist here. All RAG development, ingestion, and querying happens on the desktop (`~/excalidraw-tf`); this Mac checkout only carries the gitlink pointer. If you need `tools/` locally for some other reason, `git submodule update --init tools`, but for RAG work just SSH to the desktop.
 
-All three tools share `tools/rag-common` embed profiles. **All embedding routes through the desktop GPU gateway** (`RAG_GPU_GATEWAY_URL=http://10.0.0.156:8765` set in each tool's `.env`) — no Mac GPU used. Active profile: `cuda-qwen0.6b-1024` (Qwen3-0.6B, 1024 dims, RTX 3060 Ti).
+All three tools share `tools/rag-common` embed profiles. **All embedding routes through the desktop GPU gateway** (`RAG_GPU_GATEWAY_URL=https://gpu-gateway.10.0.0.156.sslip.io` plus the exported root CA path set in each tool's `.env`) — no Mac GPU used. Active profile: `cuda-qwen0.6b-1024` (Qwen3-0.6B, 1024 dims, RTX 3060 Ti). The gateway is a k3s-served Ray Serve deployment (`inference` namespace); restart it with `kubectl -n inference rollout restart deployment/gpu-gateway`, not the (legacy, failed) host `gpu-gateway.service`.
+
+**Query the two literature corpora from the Mac with `bin/rag`** — no SSH gymnastics: `rag graph "<q>"` and `rag lit "<q>"` (add `--top N`, `--tag`, `--category`, `--pdf-only`; `--json` for raw output; `rag cite graph|lit <doc_id>`; `rag read graph <doc_id> [--pages 1-5]` for optional full PDF text, graph corpus only; `rag health`). It SSHes to the desktop and runs `uv run <tool> query --json`, embedding via the gateway. Agents get the same through the **`rag` MCP server** (`search` / `cite_related` / `read_paper` / `health` tools, registered in `.mcp.json`, wrapping `bin/rag`). `repo-rag` is not yet wrapped — query it on the desktop directly.
 
 ```bash
 # Optional desktop GPU example: rag-literature-rag
 RAG_EMBED_PROFILE=gemini-2-structure-v1 uv run rag-literature-rag ingest --force --rebuild
 RAG_GPU_TOOL=tools/rag-literature-rag tools/rag-literature-rag/scripts/gpu_dense_reembed.sh
-yarn rag-lit:query "Self-RAG" --top 8 --json
+rag lit "Self-RAG" --top 8            # query from the Mac (bin/rag)
 ```
 
 ### Repo RAG (code + docs search)
 
-Local hybrid search over this monorepo (AST chunking, BM25 + vector). Per-profile indexes under `data/indexes/{profile}/`. Embedding calls route to the desktop gateway — set `RAG_GPU_GATEWAY_URL=http://10.0.0.156:8765` (already in `.env`).
+Local hybrid search over this monorepo (AST chunking, BM25 + vector). Per-profile indexes under `data/indexes/{profile}/`. Embedding calls route to the desktop gateway — set `RAG_GPU_GATEWAY_URL=https://gpu-gateway.10.0.0.156.sslip.io` and the exported root CA path (already in `.env`).
 
 ```bash
 cd tools/repo-rag && uv sync && cp .env.example .env
@@ -98,7 +100,8 @@ yarn graph-rag:harvest
 yarn graph-rag:ingest -- --force --rebuild --embed-profile gemini-2-structure-v1  # secondary (once)
 # RAG_GPU_TOOL=tools/graph-layout-rag tools/graph-layout-rag/scripts/gpu_dense_reembed.sh
 yarn graph-rag:ingest -- -v                  # resume after interrupt (incremental; no --force)
-yarn graph-rag:query "VPSC separation constraints" --tag constraints --json
+rag graph "VPSC separation constraints" --tag constraints    # query from the Mac (bin/rag)
+rag read graph <doc_id> [--pages 1-5]                        # optional full PDF text (graph only)
 ```
 
 See [tools/graph-layout-rag/README.md](tools/graph-layout-rag/README.md). Agent skill: [.agents/skills/graph-layout-rag/SKILL.md](.agents/skills/graph-layout-rag/SKILL.md). **Local LLM (HyDE):** Ollama on RTX 3060 Ti (`desktop` SSH); measured 2026-06-17 — **cuda hybrid still wins** (0.715/0.684 nDCG@10); use `gemma4:e4b` only if enabling `--expand auto`. `./scripts/gpu_execute_local_llm_benchmark.sh` — [docs/graph-layout-rag-local-llm-benchmark-2026.md](docs/graph-layout-rag-local-llm-benchmark-2026.md).
@@ -111,7 +114,7 @@ Local hybrid search over core retrieval-augmented generation research. Same loca
 cd tools/rag-literature-rag && uv sync && cp .env.example .env
 yarn rag-lit:harvest -- --deep-harvest --target-pdfs 1000 --resume -v
 yarn rag-lit:ingest -- --force --rebuild --embed-profile gemini-2-structure-v1
-yarn rag-lit:query "Self-RAG reflection tokens" --tag self-correcting --json
+rag lit "Self-RAG reflection tokens" --tag self-correcting    # query from the Mac (bin/rag)
 ```
 
 See [tools/rag-literature-rag/README.md](tools/rag-literature-rag/README.md). Agent skill: [.agents/skills/rag-literature-rag/SKILL.md](.agents/skills/rag-literature-rag/SKILL.md).

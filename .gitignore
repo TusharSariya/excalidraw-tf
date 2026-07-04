@@ -52,6 +52,11 @@ dev-dist
 html
 meta*.json
 .claude
+# Agent/editor local config and logs (not source-controlled, mirrors .claude)
+.codex/
+.cursor/
+# Generated graphify knowledge-graph output (regenerate with `graphify update .`)
+graphify-out/
 .agents/*
 !.agents/skills/
 !.agents/skills/**

@@ -14,10 +14,10 @@ Rules:
 
 ### Graphify backend (desktop GPU gateway)
 
-All LLM inference routes to the desktop GPU gateway (RTX 3060 Ti, 10.0.0.156:8765). The `graphify` shell function in `~/.zshrc` sets `OPENAI_BASE_URL` and `OPENAI_API_KEY` automatically. Always use `--backend openai`:
+All LLM inference routes to the desktop GPU gateway (RTX 3060 Ti, `https://gpu-gateway.10.0.0.156.sslip.io`). The `graphify` shell function in `~/.zshrc` sets `OPENAI_BASE_URL` and `OPENAI_API_KEY` automatically. Always use `--backend openai`:
 
 ```bash
 graphify extract . --backend openai --model qwen3.5:9b --max-concurrency 1 --token-budget 8000
 ```
 
-Do NOT use `--backend ollama` (hits Mac local GPU) or `--backend gemini` (costs API tokens).
+Do NOT use `--backend ollama` (hits Mac local GPU) or `--backend gemini` (costs API tokens). The OpenAI-compatible base URL should resolve to `https://gpu-gateway.10.0.0.156.sslip.io/v1`.

@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "rag": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-project",
+        "--with",
+        "mcp",
+        "python",
+        "scripts/rag-mcp/server.py"
+      ],
+      "cwd": "/Users/tusharsariya/Projects/excalidraw-tf",
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+#
+# rag — query the desktop RAG corpora from the Mac without SSH gymnastics.
+#
+# The RAG tools (graph-layout-rag, rag-literature-rag) live only on the desktop
+# at ~/excalidraw-tf-rag/<tool>; query-time embedding routes through the desktop
+# GPU gateway. This wraps `ssh desktop -> uv run <tool> query --json` so you can
+# just run `rag graph "sugiyama layer assignment"` and get readable results.
+#
+# Usage:
+#   rag graph  "<query>"  [--top N] [--tag X] [--category Y] [--pdf-only] [--json]
+#   rag lit    "<query>"  [--top N] [--category Y] [--json]
+#   rag cite   graph|lit  <doc_id>  [--top N] [--signal graph|embedding|fused] [--json]
+#   rag read   graph <doc_id>  [--pages 1,3-5] [--max-chars N] [--json]
+#   rag health
+#
+#   graph = graph-layout-rag,  lit = rag-literature-rag  (full names also accepted)
+#   --json prints raw JSON; omit it for a readable summary.
+#
+# Config (env overrides):
+#   RAG_SSH_HOST    ssh host/alias for the desktop        (default: desktop)
+#   RAG_REMOTE_ROOT dir holding the tool packages         (default: ~/excalidraw-tf-rag)
+#   RAG_REMOTE_UV   uv binary on the desktop              (default: ~/.local/bin/uv)
+#   RAG_GATEWAY_URL gateway base URL for `rag health`     (default: https://gpu-gateway.10.0.0.156.sslip.io)
+set -euo pipefail
+
+RAG_SSH_HOST="${RAG_SSH_HOST:-desktop}"
+RAG_REMOTE_ROOT="${RAG_REMOTE_ROOT:-\$HOME/excalidraw-tf-rag}"   # expanded remotely
+RAG_REMOTE_UV="${RAG_REMOTE_UV:-\$HOME/.local/bin/uv}"           # expanded remotely
+RAG_GATEWAY_URL="${RAG_GATEWAY_URL:-https://gpu-gateway.10.0.0.156.sslip.io}"
+RAG_BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+RAG_REPO_ROOT="$(cd "$RAG_BIN_DIR/.." && pwd)"
+READ_REMOTE="$RAG_REPO_ROOT/scripts/rag-mcp/read_remote.py"
+
+die() { printf 'rag: %s\n' "$*" >&2; exit 2; }
+
+map_tool() {
+  case "$1" in
+    graph|graph-layout|graph-layout-rag) echo "graph-layout-rag" ;;
+    lit|literature|rag-literature-rag)   echo "rag-literature-rag" ;;
+    *) die "unknown corpus '$1' (use: graph | lit)" ;;
+  esac
+}
+
+usage() { sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+[ $# -ge 1 ] || usage 1
+sub="$1"; shift
+
+# ---- health ---------------------------------------------------------------
+if [ "$sub" = health ] || [ "$sub" = -h ] || [ "$sub" = --help ]; then
+  [ "$sub" = health ] || usage 0
+  curl -sS --max-time 10 "$RAG_GATEWAY_URL/health" | python3 -m json.tool 2>/dev/null \
+    || die "gateway unreachable at $RAG_GATEWAY_URL"
+  exit 0
+fi
+
+# ---- read (optional full PDF text; graph corpus only in v1) ----------------
+if [ "$sub" = read ]; then
+  [ $# -ge 2 ] || die "usage: rag read graph <doc_id> [--pages 1,3-5] [--max-chars N] [--json]"
+  corpus="$1"; shift
+  [ "$corpus" = graph ] || die "rag read lit not implemented yet (graph corpus only)"
+  doc_id="$1"; shift
+  [ -n "$doc_id" ] || die "usage: rag read graph <doc_id> [--pages 1,3-5] [--max-chars N] [--json]"
+  [ -f "$READ_REMOTE" ] || die "missing $READ_REMOTE"
+
+  print_json=0
+  pages=""
+  max_chars="50000"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) print_json=1; shift ;;
+      --pages) pages="$2"; shift 2 ;;
+      --max-chars) max_chars="$2"; shift 2 ;;
+      *) die "unknown flag for read: $1" ;;
+    esac
+  done
+
+  out="$(ssh -o ConnectTimeout=10 "$RAG_SSH_HOST" \
+    "RAG_ROOT=\"$RAG_REMOTE_ROOT\" RAG_UV=\"$RAG_REMOTE_UV\" TOOL='graph-layout-rag' DOC_ID='$doc_id' PAGES='$pages' MAX_CHARS='$max_chars' bash -c 'cd \"\$RAG_ROOT/\$TOOL\" && exec \"\$RAG_UV\" run --no-sync python -'" \
+    < "$READ_REMOTE")" || die "remote read failed (is '$RAG_SSH_HOST' reachable?)"
+
+  if [ "$print_json" -eq 1 ]; then
+    printf '%s\n' "$out"
+    exit 0
+  fi
+
+  printf '%s' "$out" | python3 - "$doc_id" <<'PY'
+import json, sys, textwrap
+doc_id = sys.argv[1]
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.stdout.write(raw)
+    sys.exit(0)
+title = data.get("title") or doc_id
+status = data.get("status", "?")
+print(f"\n\033[1m{title}\033[0m  ·  {doc_id}  ·  {status}\n")
+if not data.get("has_pdf"):
+    if data.get("url"):
+        print(f"    \033[2m{data['url']}\033[0m")
+    if data.get("message"):
+        print(textwrap.fill(data["message"], width=96, initial_indent="    ", subsequent_indent="    "))
+    print()
+    sys.exit(0)
+for block in data.get("pages") or []:
+    p = block.get("page")
+    text = (block.get("text") or "").strip()
+    print(f"\033[1m--- page {p} ---\033[0m")
+    if text:
+        print(textwrap.fill(text[:4000], width=96))
+    print()
+if data.get("truncated"):
+    print("\033[2m(truncated)\033[0m")
+if data.get("has_more") and data.get("next_pages"):
+    print(f"\033[2mhas_more → read with pages={data['next_pages']!r}\033[0m")
+if data.get("last_page_partial"):
+    print("\033[2m(last page partial — raise max_chars or re-read next_pages)\033[0m")
+print()
+PY
+  exit 0
+fi
+
+# ---- pick subcommand + tool ----------------------------------------------
+if [ "$sub" = cite ]; then
+  remote_sub="cite"
+  [ $# -ge 2 ] || die "usage: rag cite graph|lit <doc_id> [flags]"
+  tool="$(map_tool "$1")"; shift
+  head="$1"; shift          # doc_id
+else
+  remote_sub="query"
+  tool="$(map_tool "$sub")"
+  [ $# -ge 1 ] || die "usage: rag $sub \"<query>\" [flags]"
+  head=""                   # query text, assembled below
+fi
+
+# ---- split leading text (query) from flags; intercept --json --------------
+print_json=0
+declare -a query_parts=() flags=()
+first_flag=0
+for arg in "$@"; do
+  if [ "$arg" = "--json" ]; then print_json=1; continue; fi
+  if [ $first_flag -eq 0 ] && [ "${arg:0:1}" = "-" ]; then first_flag=1; fi
+  if [ $first_flag -eq 1 ]; then flags+=("$arg"); else query_parts+=("$arg"); fi
+done
+if [ "$remote_sub" = query ]; then
+  head="${query_parts[*]:-}"
+  [ -n "$head" ] || die "empty query"
+else
+  # cite: any leftover leading tokens are stray; only flags allowed after doc_id
+  [ ${#query_parts[@]} -eq 0 ] || die "unexpected args after doc_id: ${query_parts[*]}"
+fi
+
+# ---- build newline-joined payload, base64 it (dodges all quoting) ---------
+payload="$head"
+for f in "${flags[@]:-}"; do [ -n "$f" ] && payload+=$'\n'"$f"; done
+b64="$(printf '%s' "$payload" | base64 | tr -d '\n')"
+
+# ---- run on the desktop ---------------------------------------------------
+out="$(ssh -o ConnectTimeout=10 "$RAG_SSH_HOST" \
+  "RAG_ROOT=\"$RAG_REMOTE_ROOT\" RAG_UV=\"$RAG_REMOTE_UV\" TOOL='$tool' SUB='$remote_sub' B64='$b64' bash -s" <<'REMOTE'
+set -euo pipefail
+mapfile -t A < <(printf '%s' "$B64" | base64 -d)
+head="${A[0]}"
+flags=("${A[@]:1}")
+cd "$RAG_ROOT/$TOOL"
+if [ "$SUB" = cite ]; then
+  exec "$RAG_UV" run --no-sync "$TOOL" cite related "$head" --json "${flags[@]}"
+else
+  exec "$RAG_UV" run --no-sync "$TOOL" query "$head" --json "${flags[@]}"
+fi
+REMOTE
+)" || die "remote query failed (is '$RAG_SSH_HOST' reachable and the gateway up? try: rag health)"
+
+# ---- output ---------------------------------------------------------------
+if [ "$print_json" -eq 1 ]; then
+  printf '%s\n' "$out"
+  exit 0
+fi
+
+printf '%s' "$out" | python3 <(cat <<'PY'
+import json, sys, textwrap
+tool, head = sys.argv[1], sys.argv[2]
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.stdout.write(raw)  # not JSON (help text / error) — pass through
+    sys.exit(0)
+results = data.get("results") or data.get("related") or (data if isinstance(data, list) else [])
+print(f"\n\033[1m{tool}\033[0m  ·  {head!r}  ·  {len(results)} result(s)\n")
+for i, r in enumerate(results, 1):
+    title = r.get("title") or r.get("doc_id") or "(untitled)"
+    score = r.get("score") or r.get("fusion_score")
+    cats = ", ".join(r.get("pipeline_categories") or r.get("tags") or [])
+    print(f"\033[1m{i:>2}. {title}\033[0m" + (f"   \033[2m[{score:.3f}]\033[0m" if isinstance(score, (int, float)) else ""))
+    meta = []
+    if r.get("doc_id") and r["doc_id"] != title: meta.append(r["doc_id"])
+    if cats: meta.append(cats)
+    if r.get("cited_by_count") is not None: meta.append(f"cited×{r['cited_by_count']}")
+    if meta: print("    \033[2m" + "  ·  ".join(meta) + "\033[0m")
+    ev = (r.get("evidence") or [{}])[0]
+    snip = (ev.get("excerpt") or r.get("excerpt") or "").strip().replace("\n", " ")
+    if snip:
+        print(textwrap.fill(snip[:280], width=96, initial_indent="    ", subsequent_indent="    "))
+    url = r.get("source_url")
+    if url: print(f"    \033[2m{url}\033[0m")
+    print()
+PY
+) "$tool" "$head"

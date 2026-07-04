@@ -13,6 +13,21 @@
       "env": {
         "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
       }
+    },
+    "rag": {
+      "command": "/Users/tusharsariya/.local/bin/uv",
+      "args": [
+        "run",
+        "--no-project",
+        "--with",
+        "mcp",
+        "python",
+        "scripts/rag-mcp/server.py"
+      ],
+      "cwd": "/Users/tusharsariya/Projects/excalidraw-tf",
+      "env": {
+        "PATH": "/Users/tusharsariya/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
     }
   }
 }
