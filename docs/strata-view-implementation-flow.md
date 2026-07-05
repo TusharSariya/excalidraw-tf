@@ -71,6 +71,7 @@ Engine = **passthrough to the v2 substrate** at this stage (`buildTerraformStrat
 | 11 | `useTerraformImportDialog.ts:218-225` | `handleSetView("strata")` resets pipeline-only dials (SDEC-22 variant-switch UX note) |
 | 12 | `terraformImportPresetDevPlugin.mjs:596,41-115` | proof API accepts `layoutMode=strata` (trap: hardcoded "rcll"); param catalog rows |
 | 13 | `import-presets.catalog.json` / preset DB | seed ≥1 strata-view preset for /demo |
+| 13b | `excalidraw-app/dev/terraformImportPresetDb.mjs` | **16th touch point (found by W1b, crashes the whole dev server if missed):** three `CHECK (view IN (…))` constraints excluded strata (and rcll); fixed by widening the fresh DDL + `migrateAddStrataViewConstraint` rebuild for existing DBs, with a `foreign_keys=OFF` guard (DROP TABLE with the pragma ON fires ON DELETE CASCADE and wipes stacks/tfd child rows — retrofitted onto the pipeline migration too) |
 | 14 | precompute cache script | optional, later (cache client is generic on view) |
 | 15 | tests | see WP-1b below |
 
@@ -149,7 +150,8 @@ Five measurement-contaminating fixes + regression tests (prep-cache fingerprint,
 - **WP-2b (opus):** P1 model + P4 A0 + P5 A2@K=0 + structural checks.
 - **WP-2c (opus):** P8 scene build + provider-Y assert; P11 failure contract (+v2 `prep` param).
 - **WP-2d (sonnet):** P10 slice split + new metrics + harness lines; run T9 on the **v2 substrate**, both presets → orchestrator freezes slice-A/B baselines + N_min/N_B,min/M4-coverage/bootstrap-seed/candidate-order **by spec amendment before any gated code lands** (C11; v3.1 §8).
-- Battery: T7, R2/R3 on both presets, Q2 + strata@K0 arm, T10 wall-clock (engine + prep), typecheck. **Checkpoint V1 (owner):** first real Strata geometry on both presets ("model-order bands" label — readability battery not meaningful until K=4). STOP → codex → commit.
+- **Option honesty in M1 (pattern per SDEC-26):** the engine consumes `compact` (full-mode cluster cards ARE supported — A0 sizes units from built skeletons either way; D10 #5 fixed the full-mode footprint); `includeAncillary` is NOT consumed until the M3 port — when requested on strata, echo `strataAncillaryDeferred: true` in scene meta (never silently ignore). deBand levers are rcll-only (OD-15).
+- Battery: T7, R2/R3 on both presets **in both card modes (compact AND full)**, Q2 + strata@K0 arm, T10 wall-clock (engine + prep), typecheck. **Checkpoint V1 (owner):** first real Strata geometry on both presets ("model-order bands" label — readability battery not meaningful until K=4). STOP → codex → commit.
 
 ### W3 — M1b → **V2**
 - **WP-3a (opus):** A2 K=4 + v3.1 §1 acceptance + fixtures (band-adjacency, ≥2-provider root).
@@ -175,7 +177,7 @@ Five measurement-contaminating fixes + regression tests (prep-cache fingerprint,
 
 ## 6. Verification protocol
 
-- **Batteries:** `yarn vitest run <files>` per work package; `yarn test:typecheck` every milestone; full battery at checkpoints. Proof API: `curl 'http://localhost:3001/api/terraform-layout?presetId=…&layoutMode=strata&…'` — resolved flags echoed in meta must match the request (C6′ discipline).
+- **Batteries:** `yarn vitest run <files>` per work package; `yarn test:typecheck` every milestone; full battery at checkpoints. Proof API: `curl 'http://localhost:3001/api/terraform-layout?preset=…&layoutMode=strata&…'` (the route param is `preset=`, not `presetId=`) — resolved flags echoed in meta must match the request (C6′ discipline).
 - **Visual validation:** `yarn start` → `http://localhost:3001/demo?preset=staging-extended-localstack-v2&view=strata` and `…preset=staging-localstack&view=strata`; V0 additionally checks the share-URL round-trip (hamburger → Copy canvas URL → paste → identical view).
 - **Determinism:** run-twice byte-equal (pinned env) at V2; static random/Date scan in T1.
 - **M1 exit:** T2 (frozen A4 thresholds, derive/validate disjoint) + §2 battery vs frozen v2-substrate baselines on ≥2 presets + the owner's recorded arm-E verdict.
