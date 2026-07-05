@@ -25,10 +25,17 @@ import {
 } from "./terraformPipelineLayoutShared";
 import { buildStrataModel } from "./terraformPipelineStrataModel";
 import {
+  liftStrataEdgesToUnits,
+  orderStrataUnits,
+  strataUnitId,
+} from "./terraformPipelineStrataOrdering";
+import {
   checkStrataStructure,
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
 import { topologyRoleAndKeyFromPath } from "./terraformPipelineTopologyFrames";
+
+import type { StrataOrderParams } from "./terraformPipelineStrataOrdering";
 
 import type {
   CollapsedPipelineEdge,
@@ -406,5 +413,213 @@ describe("placeStrataHulls — R2 on a rich multi-hull prep", () => {
       titleCollisions: 0,
       contiguityViolations: 0,
     });
+  });
+});
+
+// ── A2 wiring (WP-3a): real geometry reaches the K>0 ordering pass ────────────
+//
+// placeStrataHulls threads `unitXSpanOf` (unit x-extents) + `unitColSpanOf`
+// (rank spans ⇒ sweep layers) into orderStrataUnits. Without the wiring K>0
+// silently hits the ordering module's degenerate fallbacks: all-x=0 collinear
+// chords ⇒ trial crossings are 0 for EVERY sequence ⇒ packed acceptance can
+// never fire (K=4 ≡ K=0), and layer-0-for-all merges down/up sweeps. The
+// fixtures below fail under those fallbacks — hand-derived (WP-3a replica) and
+// cross-checked by DIRECT orderStrataUnits calls that reproduce the fallback.
+
+describe("placeStrataHulls — A2 sweep wiring (K>0)", () => {
+  const optsAt = (sweeps: number): StrataEngineOptions => ({ ...OPTS, sweeps });
+
+  it("packed hull: K=4 accepts a crossing-reducing sweep; sweeps:0 output stays pure model order", () => {
+    // 2 sources (a,b @ rank 0) → 2 sinks (s,t @ rank 1); a→t and b→s cross in
+    // model order [a,b,s,t]. Down-sweep 1 unweaves to [a,t,b,s] (trial chord
+    // crossings 1 → 0), the v2.0 packed acceptance keeps it; sweeps 2..4 change
+    // nothing further. Hand-derived with the real geometry (leaf 200×100,
+    // columnX 50/650 ⇒ doubled chord-x 300/1500).
+    const p = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const clusters = [
+      frameCluster("a", p, "aws.a", 200, 100),
+      frameCluster("b", p, "aws.b", 200, 100),
+      frameCluster("s", p, "aws.s", 200, 100),
+      frameCluster("t", p, "aws.t", 200, 100),
+    ];
+    const pairs: [string, string][] = [
+      ["a", "t"],
+      ["b", "s"],
+    ];
+    const model = buildStrataModel(
+      prep(
+        clusters,
+        pairs.map(([s2, t2]) => edge(s2, t2)),
+      ),
+      OPTS,
+    );
+    const ranks = { a: 0, b: 0, s: 1, t: 1 };
+    const subnetId = keyOf("aws", "1", "us-east-1", "vpc-1", "subA");
+
+    const k0 = placeStrataHulls(
+      model,
+      primeEdges(pairs),
+      rankStub(ranks),
+      optsAt(0),
+    );
+    const k4 = placeStrataHulls(
+      model,
+      primeEdges(pairs),
+      rankStub(ranks),
+      optsAt(4),
+    );
+    const orderAt = (pl: typeof k0): string[] =>
+      pl.boxedHulls.get(subnetId)!.placed.map((u) => strataUnitId(u.unit));
+
+    // sweeps:0 is UNCHANGED by the wiring: pure content order, edges/geometry
+    // ignored (M1a byte-identity — the K=0 short-circuit precedes both params).
+    expect(orderAt(k0)).toEqual(["L:a", "L:b", "L:s", "L:t"]);
+    // K=4: the accepted down-sweep interleaves sinks after their sources.
+    expect(orderAt(k4)).toEqual(["L:a", "L:t", "L:b", "L:s"]);
+
+    // Geometry consequence: the column-1 stack flips (t above s); column 0 keeps
+    // a above b. R2 stays clean under the re-packed order.
+    expect(k0.leafBoxes.get("s")!.y).toBeLessThan(k0.leafBoxes.get("t")!.y);
+    expect(k4.leafBoxes.get("t")!.y).toBeLessThan(k4.leafBoxes.get("s")!.y);
+    expect(k4.leafBoxes.get("a")!.y).toBeLessThan(k4.leafBoxes.get("b")!.y);
+    expect(checkStrataStructure(k4, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
+
+    // Computed fallback check: a DIRECT orderStrataUnits call with the SAME
+    // units/edges/heights but NO x-spans/colSpans (the pre-wiring degenerate)
+    // cannot leave model order — all chords collinear at x=0 ⇒ crossings 0
+    // everywhere ⇒ no sweep is ever accepted. The K=4 placement result above is
+    // therefore only reachable through the live wiring.
+    const placedById = new Map(
+      k0.boxedHulls
+        .get(subnetId)!
+        .placed.map((pu) => [strataUnitId(pu.unit), pu] as const),
+    );
+    const degenerate = orderStrataUnits({
+      units: k0.boxedHulls.get(subnetId)!.placed.map((pu) => pu.unit),
+      contentKeyOf: (u) =>
+        u.kind === "leaf" ? model.addressOf(u.clusterId) : u.hullId,
+      liftedEdges: liftStrataEdgesToUnits(
+        primeEdges(pairs),
+        (cid) => `L:${cid}`,
+      ),
+      unitHeightOf: (id) => placedById.get(id)!.box.height,
+      policy: "packed",
+      sweeps: 4,
+      // unitXSpanOf / unitColSpanOf deliberately absent — the documented fallback.
+    });
+    expect(degenerate.map(strataUnitId)).toEqual(["L:a", "L:b", "L:s", "L:t"]);
+  });
+
+  it("banded root: real colSpan layers change the K=4 winner vs the all-layer-0 degenerate", () => {
+    // 4 single-leaf providers (banded root units) with ranks {aws:0, gcp:0,
+    // k8s:1, oci:1} and edges aws→gcp (same-layer) + gcp→oci (cross-layer).
+    // Hand-derived (WP-3a replica): with REAL layers the directional up-sweep 2
+    // reaches the cost-0 order [aws,gcp,oci,k8s] — the earliest cost-0 candidate,
+    // beating the greedy seed. With the all-layer-0 degenerate the sweeps only
+    // oscillate at cost 756 (both edges count in every direction) and the greedy
+    // seed [k8s,oci,gcp,aws] wins instead. The two regimes disagree ⇒ the
+    // colSpan wiring is live and material.
+    const mk = (id: string, family: string, addr: string): PipelineCluster =>
+      frameCluster(
+        id,
+        placement(family, "1", "r1", "vpc-1", "s1"),
+        addr,
+        200,
+        100,
+      );
+    const clusters = [
+      mk("c1", "aws", "aws.1"),
+      mk("c2", "gcp", "gcp.1"),
+      mk("c3", "k8s", "k8s.1"),
+      mk("c4", "oci", "oci.1"),
+    ];
+    const pairs: [string, string][] = [
+      ["c1", "c2"],
+      ["c2", "c4"],
+    ];
+    const model = buildStrataModel(
+      prep(
+        clusters,
+        pairs.map(([s2, t2]) => edge(s2, t2)),
+      ),
+      OPTS,
+    );
+    const ranks = { c1: 0, c2: 0, c3: 1, c4: 1 };
+
+    const k0 = placeStrataHulls(
+      model,
+      primeEdges(pairs),
+      rankStub(ranks),
+      optsAt(0),
+    );
+    const k4 = placeStrataHulls(
+      model,
+      primeEdges(pairs),
+      rankStub(ranks),
+      optsAt(4),
+    );
+    const rootId = model.hullRoot.id;
+    const rootOrder = (pl: typeof k0): string[] =>
+      pl.boxedHulls.get(rootId)!.placed.map((u) => strataUnitId(u.unit));
+
+    expect(model.hullRoot.policy).toBe("banded");
+    // sweeps:0 unchanged: providers in pure content order.
+    expect(rootOrder(k0)).toEqual(["H:aws", "H:gcp", "H:k8s", "H:oci"]);
+    // K=4 with real layers: the up-sweep's cost-0 candidate wins (earliest).
+    expect(rootOrder(k4)).toEqual(["H:aws", "H:gcp", "H:oci", "H:k8s"]);
+
+    // Mirror + degenerate comparison via DIRECT calls on the SAME geometry
+    // (unit boxes/colSpans are order-independent, so the K=0 run supplies them).
+    const placedById = new Map(
+      k0.boxedHulls
+        .get(rootId)!
+        .placed.map((pu) => [strataUnitId(pu.unit), pu] as const),
+    );
+    const unitOfCluster: Record<string, string> = {
+      c1: "H:aws",
+      c2: "H:gcp",
+      c3: "H:k8s",
+      c4: "H:oci",
+    };
+    const leafOfUnit: Record<string, string> = {
+      "H:aws": "c1",
+      "H:gcp": "c2",
+      "H:k8s": "c3",
+      "H:oci": "c4",
+    };
+    const common: StrataOrderParams = {
+      units: k0.boxedHulls.get(rootId)!.placed.map((pu) => pu.unit),
+      contentKeyOf: (u) => model.addressOf(leafOfUnit[strataUnitId(u)]!),
+      liftedEdges: liftStrataEdgesToUnits(
+        primeEdges(pairs),
+        (cid) => unitOfCluster[cid],
+      ),
+      unitHeightOf: (id) => placedById.get(id)!.box.height,
+      policy: "banded",
+      sweeps: 4,
+      unitXSpanOf: (id) => {
+        const b = placedById.get(id)!.box;
+        return [b.x, b.x + b.width] as const;
+      },
+    };
+    // Faithful mirror (colSpan wired like the placement does) ⇒ same order.
+    const real = orderStrataUnits({
+      ...common,
+      unitColSpanOf: (id) => placedById.get(id)!.colSpan,
+    });
+    expect(real.map(strataUnitId)).toEqual(rootOrder(k4));
+    // Degenerate (no colSpan ⇒ every unit layer 0) ⇒ a DIFFERENT winner.
+    const degen = orderStrataUnits(common);
+    expect(degen.map(strataUnitId)).toEqual([
+      "H:k8s",
+      "H:oci",
+      "H:gcp",
+      "H:aws",
+    ]);
+    expect(degen.map(strataUnitId)).not.toEqual(rootOrder(k4));
   });
 });

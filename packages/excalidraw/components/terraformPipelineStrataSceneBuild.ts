@@ -13,9 +13,10 @@
  * (leaf pre-compensation) + the shared kernel `convertPipelineSkeletonToElements`
  * in terraformPipelineLayoutFinalize.ts.
  *
- * The build is a pure function of its inputs (no Date.now / Math.random of its
- * own — element ids/seeds are regenerated deterministically by the shared
- * kernel); two runs over the same placement produce byte-identical geometry.
+ * The build is a pure function of its inputs (no wall-clock reads / randomness
+ * of its own, C3′ — statically asserted by the finalize test suite); two runs
+ * over the same placement produce byte-identical geometry, and the A6 finalize
+ * below makes ids/seeds/nonces byte-identical too.
  *
  * NOTE on edge direction (C10′): TFD arrows are drawn from `prep.collapsedEdges`
  * in their TRUE declared direction (source→target as declared). A3's `edgesPrime`
@@ -41,6 +42,7 @@ import {
   translateSkeleton,
 } from "./terraformPipelineLayoutShared";
 import { spreadContextFrameColors } from "./terraformPrimaryVisibility";
+import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import { STRATA_ROOT_ID } from "./terraformPipelineStrataModel";
 import {
   topologyFrameSkeletonId,
@@ -67,6 +69,13 @@ export type StrataSceneBuildInput = {
   model: StrataModel;
   placement: StrataPlacementResult;
   nodes: TerraformPlanNodesMap;
+  /**
+   * Generation G for the A6 finalize (OD-7) — threaded from
+   * `TerraformStrataSceneOptions.strataGeneration`. Defaults to 1 (the app-side
+   * per-scene regeneration counter is the S7/M3 follow-up; the finalize and
+   * tombstone machinery are fully G-parameterized regardless).
+   */
+  generation?: number;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
@@ -270,12 +279,23 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 /**
  * P8 entry: `(prep, model, placement)` → Excalidraw elements. Deterministic;
  * see the file header for the SEAM #6 / edge-direction / self-loop contracts.
+ *
+ * A6 (WP-3c): the shared-kernel output is finalized through
+ * `finalizeStrataScene` — content-stable ids/groupIds, FNV-1a seeds,
+ * generation versions/nonces, all id references rewritten. The finalize is a
+ * pure post-processing pass and NEVER touches geometry, so the skeleton
+ * contracts above (and the committed Q2 strata baselines' geometry) are
+ * unaffected. D2′: this is the ONLY call site — no other engine's scenes pass
+ * through the finalize.
  */
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
 }> {
   const { skeleton, frameEdgeCount } = assembleStrataSceneSkeleton(input);
-  const elements = await convertPipelineSkeletonToElements(skeleton);
+  const converted = await convertPipelineSkeletonToElements(skeleton);
+  const elements = finalizeStrataScene(converted, {
+    generation: input.generation ?? 1,
+  });
   return { elements, frameEdgeCount };
 }

@@ -14,6 +14,7 @@ import {
 } from "./terraformModuleLayoutOptions";
 import { fetchPresetLayoutCache } from "./terraformLayoutCacheClient";
 import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
+import { computeStrataTombstones } from "./terraformPipelineStrataFinalize";
 
 import {
   type TerraformImportWarning,
@@ -47,7 +48,11 @@ type SetAppState = React.Component<any, AppState>["setState"];
 export type TerraformExcalidrawScenePayload = {
   elements?: unknown;
   files?: Record<string, BinaryFileData>;
-  meta?: { importWarnings?: TerraformImportWarning[] };
+  meta?: {
+    importWarnings?: TerraformImportWarning[];
+    /** Strata A6 generation echo (OD-7) — consumed by the tombstone pass. */
+    strataGeneration?: number;
+  };
 };
 
 export type ApplyTerraformExcalidrawSceneOptions = {
@@ -120,6 +125,22 @@ export const applyTerraformExcalidrawScene = (
     );
   } else if (focus.shouldRepairBindings) {
     nextElements = repairTerraformEdgeBindings(nextElements);
+  }
+  // Strata A6 tombstones (STRATA-SCOPED ONLY, spec §6-A6): when the incoming
+  // scene is a finalized strata scene (canonical ids present),
+  // removed = prevSceneAddresses − newAddresses is materialized as tombstones
+  // (canonical id, isDeleted: true, version = G) appended to the
+  // replaceAllElements payload; they persist one generation window. For every
+  // non-strata scene `computeStrataTombstones` returns [] and the payload is
+  // byte-unchanged (D2′). The pre-regenerate scene is in hand — no store
+  // needed. (Optional call: some embedding tests mock a minimal scene.)
+  const tombstones = computeStrataTombstones(
+    app.scene.getElementsIncludingDeleted?.() ?? [],
+    nextElements,
+    scene.meta?.strataGeneration,
+  );
+  if (tombstones.length > 0) {
+    nextElements = [...nextElements, ...tombstones];
   }
   app.scene.replaceAllElements(nextElements);
   setAppState({

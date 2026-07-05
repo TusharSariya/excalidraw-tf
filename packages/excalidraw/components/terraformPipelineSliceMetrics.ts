@@ -56,6 +56,27 @@ const NEAR_STRAIGHT_MAX_PX = 24;
 
 export type SliceLabel = "A" | "B";
 
+/**
+ * v3.1 §2.5 per-edge export (WP-3e scope extension, ADDITIVE — 2026-07-05):
+ * one row per RESOLVED non-aggregated TFD edge, in edge-iteration order (the
+ * same deterministic element-array order the aggregates consume). `extentPx`
+ * is the RAW (unrounded) vertical extent — rounding happens only at the
+ * aggregate-summary level, so the existing `extent` aggregates are exactly
+ * recomputable from these rows (pinned by
+ * terraformPipelineSliceMetricsPerEdge.test.ts). `relKind` is
+ * `relationship.type` with "" when absent — the SAME field the A4 churn
+ * metrics use (terraformPipelineStrataChurnMetrics.ts's tfdEdgesOf), so
+ * `canonicalEdgeKey(source, target, relKind)` (terraformPipelineBootstrapCi.ts)
+ * pairs rows across arms per the frozen §2.5 pairing key.
+ */
+export type SliceEdgeRow = {
+  source: string;
+  target: string;
+  relKind: string;
+  slice: SliceLabel;
+  extentPx: number;
+};
+
 export type SliceExtentStats = {
   /** Edge count this slice's stats are computed over (0 ⇒ vacuous 0s below). */
   n: number;
@@ -123,6 +144,11 @@ export type PipelineSliceMetrics = {
   stackedBandHeight: StackedBandHeightSummary;
   normalizedDeviation: NormalizedDeviationSummary;
   areaUtilization: AreaUtilizationSummary;
+  /** ADDITIVE per-edge export (v3.1 §2.5 extent gate) — see SliceEdgeRow.
+   * Rows are collected alongside the existing aggregates from the SAME
+   * classification + geometry; no existing field/logic above is derived from
+   * or altered by this list. */
+  perEdge: SliceEdgeRow[];
 };
 
 // ── scene element helpers (mirror terraformPipelineCollisionDiagnostics.ts's
@@ -397,9 +423,16 @@ function bandsOfHull(
       memberAddresses: members.map((m) => m.address),
     });
   }
-  // Stable sort by Y (ties preserve Map-insertion / element-array order —
-  // deterministic given deterministic input, CON-8 style).
-  out.sort((a, b) => a.y - b.y);
+  // Sort by Y; equal-Y bands break the tie on their content key (C4′ total
+  // order — codex-review WP-3f fix-4a) instead of falling through to
+  // input-array/Map-insertion stability. Code-unit compare, never bare
+  // localeCompare (matches this file's hullPath-tiebreak convention below).
+  out.sort((a, b) => {
+    if (a.y !== b.y) {
+      return a.y - b.y;
+    }
+    return a.key === b.key ? 0 : a.key < b.key ? -1 : 1;
+  });
   return out;
 }
 
@@ -502,6 +535,7 @@ export function computeSliceMetrics(
   };
 
   const edgeClasses: EdgeClass[] = [];
+  const perEdge: SliceEdgeRow[] = [];
   let unresolvedEdgeCount = 0;
   for (const arrow of tfdArrowsOf(elements)) {
     const r = relOf(arrow)!;
@@ -517,6 +551,15 @@ export function computeSliceMetrics(
     const slice: SliceLabel =
       policy === "banded" || lcaPath.length === 0 ? "B" : "A";
     edgeClasses.push({ slice, lcaPath, src, tgt, geom });
+    // ADDITIVE §2.5 per-edge row — same classification/geometry as above,
+    // collected alongside (never feeding) the aggregates.
+    perEdge.push({
+      source: r.source as string,
+      target: r.target as string,
+      relKind: typeof r.type === "string" ? r.type : "",
+      slice,
+      extentPx: geom.verticalExtent,
+    });
   }
 
   const sliceAEdges = edgeClasses.filter((e) => e.slice === "A");
@@ -696,5 +739,6 @@ export function computeSliceMetrics(
       utilization: round2(utilization),
       leafElementCount,
     },
+    perEdge,
   };
 }

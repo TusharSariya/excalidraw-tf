@@ -10,6 +10,7 @@ import {
   checkStrataStructure,
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
+import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
 import type { StrataDegradedMeta } from "./terraformPipelineStrataTypes";
@@ -25,9 +26,19 @@ export type TerraformStrataSceneOptions = {
   /** OD-2 (M1b): directional sweep count for the A2 ordering pass. Threaded at
    * S0a; consumed by `placeStrataHulls`. Default 0 (M1a "model-order bands"). */
   strataSweeps?: number;
-  /** A7 (M1b): slice-A coordinate refinement flag. Accepted + threaded at S0a;
-   * NOT consumed at M1a (A7 is M1b) — echoed in meta only. Default off. */
+  /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
+   * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
+   * and scene build. Default off (the T2+R4 gate decides the default). */
   strataCoordinateRefine?: boolean;
+  /** A6 (OD-7): generation G for the deterministic finalize — element
+   * `version` = G, versionNonce = FNV-1a(stableId + ":" + G). Default 1: no
+   * caller-side source exists yet (the `sceneContext` literal in
+   * terraformLayoutCore does not thread a per-import counter, and plan JSON
+   * carries no state serial) — the app-side per-scene regeneration counter is
+   * the S7/M3 follow-up. The finalize/tombstone machinery is fully
+   * G-parameterized and tested with G>1 regardless. Echoed in scene meta as
+   * `strataGeneration` (the apply layer's tombstone pass reads the echo). */
+  strataGeneration?: number;
   /** Dev-only failure-contract seam: force the named engine stage to throw so
    * the P11 fallback path is exercisable end-to-end from a test. Never set on
    * any production path. */
@@ -57,8 +68,8 @@ export type TerraformStrataSceneOptions = {
  * Ancillary is deferred at M1 (the engine path is extraction-free): when
  * `includeAncillary` is requested the engine builds WITHOUT ancillary and echoes
  * `strataAncillaryDeferred: true` (honest-meta, SDEC-26/29). `strataCoordinate-
- * Refine` (A7) is accepted-but-unused at M1a — its meta echo is kept, and it is
- * NOT run.
+ * Refine` (A7) runs the per-hull Y refinement between placement and scene build
+ * when set; its meta echo is kept regardless. Default off.
  */
 export async function buildTerraformStrataExcalidrawScene(
   nodes: TerraformPlanNodesMap,
@@ -74,14 +85,19 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataNetworkSimplexRank = options?.strataNetworkSimplexRank === true;
   const strataSweeps = options?.strataSweeps ?? 0;
   const strataCoordinateRefine = options?.strataCoordinateRefine === true;
+  const strataGeneration = options?.strataGeneration ?? 1;
   const forceStage = options?.__testForceStageError;
 
-  // The three future-engine flag echoes + the honest ancillary-deferred marker,
-  // merged into BOTH the success and the degraded meta.
+  // The engine flag/input echoes + the honest ancillary-deferred marker,
+  // merged into BOTH the success and the degraded meta. `strataGeneration` is
+  // an input echo like the flags; on the DEGRADED path the fallback v2 scene
+  // carries no canonical strata ids, so the apply layer's tombstone pass
+  // (which gates on canonical ids, not on this echo) stays inert.
   const flagMeta: Record<string, unknown> = {
     strataNetworkSimplexRank,
     strataSweeps,
     strataCoordinateRefine,
+    strataGeneration,
     ...(includeAncillary ? { strataAncillaryDeferred: true } : {}),
   };
 
@@ -151,9 +167,26 @@ export async function buildTerraformStrataExcalidrawScene(
       throw err;
     }
 
+    // A7 coordinate refinement (M1b, flag-gated). Transforms the placement in
+    // place of nothing when OFF (byte-identical to A0). Every throw it raises
+    // self-identifies with the "Strata A7" message prefix — re-tagged in the
+    // outer catch (mirror of the "Strata A2"/"Strata A6" contracts), and the
+    // R2 dev-assert inside the pass makes a re-anchor violation degrade honestly.
+    stage = "a7";
+    gate("a7");
+    if (engineOptions.coordinateRefine) {
+      placement = refineStrataCoordinates(placement, model, repair.edgesPrime);
+    }
+
     stage = "scene-build";
     gate("scene-build");
-    const scene = await buildStrataScene({ prep, model, placement, nodes });
+    const scene = await buildStrataScene({
+      prep,
+      model,
+      placement,
+      nodes,
+      generation: strataGeneration,
+    });
 
     // Standing R2 invariant (S0b acceptance): any nonzero count is a failure.
     stage = "structural-check";
@@ -202,6 +235,18 @@ export async function buildTerraformStrataExcalidrawScene(
           : [],
     };
   } catch (err) {
+    // A7 attribution contract (mirror of "Strata A2"): the coordinate refinement
+    // + its R2 dev-assert run under stage "a7" and self-identify with the
+    // "Strata A7" message prefix, so a re-anchor violation is tagged honestly.
+    if (err instanceof Error && err.message.startsWith("Strata A7")) {
+      stage = "a7";
+    }
+    // A6 attribution contract (mirror of the "Strata A2" prefix above): the
+    // finalize runs inside buildStrataScene (stage "scene-build"), and every
+    // throw it raises self-identifies with the "Strata A6" message prefix.
+    if (err instanceof Error && err.message.startsWith("Strata A6")) {
+      stage = "finalize";
+    }
     const reason = err instanceof Error ? err.message : String(err);
     // Dev surfacing — the meta IS the contract, but a warn helps local debug.
     // eslint-disable-next-line no-console

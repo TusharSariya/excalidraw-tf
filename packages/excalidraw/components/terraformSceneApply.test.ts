@@ -16,6 +16,10 @@ import {
 import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
 import { fetchPresetLayoutCache } from "./terraformLayoutCacheClient";
 import { DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS } from "./terraformModuleLayoutOptions";
+import {
+  strataVersionNonce,
+  STRATA_TOMBSTONE_CUSTOM_DATA_KEY,
+} from "./terraformPipelineStrataFinalize";
 
 import type { TerraformImportPreset } from "./terraformImportPresetsTypes";
 
@@ -36,7 +40,7 @@ const hoisted = vi.hoisted(() => ({
   replaceAllElements: vi.fn(),
   scrollToContent: vi.fn(),
   setAppState: vi.fn(),
-  getElementsIncludingDeleted: vi.fn(() => []),
+  getElementsIncludingDeleted: vi.fn((): unknown[] => []),
 }));
 
 const mockApp = () =>
@@ -79,6 +83,99 @@ describe("terraformSceneApply", () => {
         }),
       }),
     );
+  });
+
+  describe("Strata A6 tombstones at replaceAllElements time (STRATA-SCOPED)", () => {
+    /** A minimal finalized-strata-scene element: canonical id is all the
+     * tombstone pass reads. */
+    const canonicalEl = (address: string, version = 1) => ({
+      ...newTextElement({ text: address, x: 0, y: 0 }),
+      id: `tf:node:${address}`,
+      version,
+    });
+    const lastReplaced = () =>
+      hoisted.replaceAllElements.mock.calls.at(-1)![0] as {
+        id: string;
+        isDeleted: boolean;
+        version: number;
+        versionNonce: number;
+        customData?: Record<string, unknown>;
+      }[];
+
+    it("(e) scene A (X∪Y) then regenerated scene B (X): the payload carries per-Y-address a canonical-id tombstone with isDeleted true and version = G_B", () => {
+      // apply scene A — addresses {x.a, y.gone}; prev scene empty ⇒ no tombstones
+      hoisted.replaceAllElements.mockImplementation((els) => {
+        hoisted.getElementsIncludingDeleted.mockReturnValue(els);
+      });
+      applyTerraformExcalidrawScene(mockApp(), hoisted.setAppState, {
+        elements: [canonicalEl("x.a"), canonicalEl("y.gone")],
+        meta: { strataGeneration: 1 },
+      });
+      expect(
+        lastReplaced()
+          .map((el) => el.id)
+          .sort(),
+      ).toEqual(["tf:node:x.a", "tf:node:y.gone"]);
+
+      // apply regenerated scene B — addresses {x.a} at G_B = 7
+      applyTerraformExcalidrawScene(mockApp(), hoisted.setAppState, {
+        elements: [canonicalEl("x.a", 7)],
+        meta: { strataGeneration: 7 },
+      });
+      const payload = lastReplaced();
+      const tomb = payload.find((el) => el.id === "tf:node:y.gone");
+      expect(tomb).toBeTruthy();
+      expect(tomb!.isDeleted).toBe(true);
+      expect(tomb!.version).toBe(7);
+      expect(tomb!.versionNonce).toBe(strataVersionNonce("tf:node:y.gone", 7));
+      expect(tomb!.customData?.[STRATA_TOMBSTONE_CUSTOM_DATA_KEY]).toBe(true);
+
+      // apply scene C (still {x.a}) at G = 8 — the tombstone persisted exactly
+      // ONE generation window and is GC'd from the payload.
+      applyTerraformExcalidrawScene(mockApp(), hoisted.setAppState, {
+        elements: [canonicalEl("x.a", 8)],
+        meta: { strataGeneration: 8 },
+      });
+      expect(lastReplaced().some((el) => el.id === "tf:node:y.gone")).toBe(
+        false,
+      );
+    });
+
+    it("(e) non-strata scenes are byte-unchanged through the same apply path (D2′)", () => {
+      const plainScene = {
+        elements: [newTextElement({ text: "plain", x: 0, y: 0 })],
+      };
+      // The shared restore/focus/reconcile pipeline randomizes versionNonce on
+      // every apply (pre-existing behavior for ALL scenes, strata or not) —
+      // normalize it so the comparison isolates the tombstone step.
+      const normalized = () =>
+        lastReplaced().map((el) => ({ ...el, versionNonce: 0 }));
+
+      // baseline: empty previous scene
+      applyTerraformExcalidrawScene(mockApp(), hoisted.setAppState, plainScene);
+      const baseline = normalized();
+
+      // same non-strata scene over a NON-EMPTY previous scene (strata AND
+      // non-strata prev elements) — the payload must be unchanged (and in
+      // particular carry NO tombstones).
+      hoisted.getElementsIncludingDeleted.mockReturnValue([
+        canonicalEl("x.a"),
+        newTextElement({ text: "user-drawing", x: 5, y: 5 }),
+      ]);
+      applyTerraformExcalidrawScene(mockApp(), hoisted.setAppState, plainScene);
+      expect(normalized()).toEqual(baseline);
+    });
+
+    it("(e) a strata scene over a non-strata previous scene appends no tombstones", () => {
+      hoisted.getElementsIncludingDeleted.mockReturnValue([
+        newTextElement({ text: "user-drawing", x: 5, y: 5 }),
+      ]);
+      applyTerraformExcalidrawScene(mockApp(), hoisted.setAppState, {
+        elements: [canonicalEl("x.a")],
+        meta: { strataGeneration: 1 },
+      });
+      expect(lastReplaced().map((el) => el.id)).toEqual(["tf:node:x.a"]);
+    });
   });
 
   it("runTerraformImportFromSources parses, applies, and stores session", async () => {

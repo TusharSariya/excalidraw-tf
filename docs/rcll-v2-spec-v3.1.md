@@ -133,3 +133,19 @@ Derivation run: WP-2d, v2 substrate, arms A (`v2 compact`) + F (`v2 full+ancilla
 8. **Measurement conventions (WP-2d pins, adjudicated).** (a) vertical extent = polyline `max_y − min_y` over rendered points (the existing diagnostics convention, per §2's own "match the existing convention"); (b) `Δx_endpoints` = `|x_last − x_first|` of the arrow's rendered points; (c) content bbox = the `dataflow.aspect` element set (topology frames ∪ primary-cluster frames); (d) band Y-position: a real topology frame's rect wins over the dissolved-band member-median (§2.1's fallback fires only when no frame exists); (e) degenerate same-band slice-B edges report bands-skipped = 0, never negative/undefined; (f) percentiles = nearest-rank `sorted[floor(n·f)]`, capped at n−1 (reproduces the existing p50 exactly). Cluster ancestor paths resolve via the 3-tier rule (own `terraformTopologyPath` → `terraformCompoundParentKey` → deepest geometric containment) — required because compact-mode compound scenes stamp only the parent key (empirical, WP-2d).
 
 Freeze authority: orchestrator per the approved plan ("orchestrator freezes … by spec amendment"); items 3, 5, and the 20% void threshold are new numeric pins made under that authority — flagged for owner review at checkpoint V1.
+
+## 13. A4 threshold freeze register (2026-07-05, W3 — frozen by this amendment per v2.0 §6-A4's C11 clause)
+
+Derivation evidence: the WP-3e fixture-triple reports (`A4_TRIPLE_REPORT_P1/P2`, arms A_v2_baseline / G_strata_k0 / H_strata_k4 / I_strata_k4_a7, mutations add-one-resource / add-one-edge / moved{}-rename; all health checks green, all cells |U| ≥ 68 ≥ N_min, no degradation).
+
+1. **Frozen A4 gate thresholds (the v2.0 §6-A4 PASS clause — M1_rel and M2_flip ONLY; M3 report-only, M4/M5 report with their §3 statuses):**
+   - **M1_rel ≤ 0.08**
+   - **M2_flip ≤ 0.10**
+
+2. **Derivation trail (honest, incl. a failed transfer):** the P1-only rule (max observed candidate-arm value × 3 headroom → M1_rel 0.06, M2_flip 0.02) FAILED P2 validation on M2_flip (P2 add-one-edge: strata 0.0544 > 0.02) — add-one-edge order churn is preset-structure-dependent (the v2 substrate shows the same jump: 0.0069 on P1 → 0.1514 on P2, ×22). Revised per C11: thresholds frozen from the JOINT two-preset triple with ~2–3× headroom over the worst observed candidate cell (M1_rel worst 0.0246, M2_flip worst 0.0544), bounded above by the requirement that v2-class churn FAILS (v2 observed: M1_rel 0.1638/0.2072 on add-one-resource-P1/add-one-edge-P2; M2_flip 0.1514 on add-one-edge-P2). Both presets' candidate arms pass all cells under the frozen values.
+
+3. **Anchor requirement (separate from the thresholds, per §6-A4's empirical-anchor line):** the engine must beat the v2 substrate on M2_flip for the same preset's add-one-edge fixture. Observed: P1 0.0050 < 0.0069; P2 0.0544 < 0.1514 — satisfied at K=4 and K=4+A7 (K=0 is identically zero-churn).
+
+4. **Scope:** gates the strata engine's shipping configuration on the fixture triple (T2, M1-exit and every M2+ regression run). K=0 arms trivially pass. A7 does not regress the gate (I ≡ H on every cell except P1 add-one-resource M1_rel 0.0183→0.0194, far under threshold).
+
+Freeze authority: orchestrator per the approved plan; flagged for owner review at checkpoint V2.

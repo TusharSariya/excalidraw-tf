@@ -241,6 +241,15 @@ export function placeStrataHulls(
     const liftedEdges = liftStrataEdgesToUnits(edgesPrime, (cid) =>
       unitOfCluster.get(cid),
     );
+    // WP-3a wiring: the real x-extents + rank spans MUST reach the A2 pass —
+    // without them K>0 silently degrades to the ordering module's documented
+    // fallbacks (all-x=0 collinear chords ⇒ packed acceptance can never fire;
+    // layer-0-for-all merges down/up sweeps and voids the crossings tiebreak).
+    // Defensiveness convention: same `??`-degenerate as `unitHeightOf` — an
+    // unknown id is unreachable by construction (every queried id comes from
+    // `infos` / the lift over this hull), and inside the engine's failure
+    // contract a deterministic degenerate answer for an unreachable case beats
+    // adding a new throw path (so no new "Strata A2"-prefixed throw is needed).
     const ordered = orderStrataUnits({
       units: infos.map((info) => info.unit),
       contentKeyOf: (unit) => infoByUnitId.get(strataUnitId(unit))!.contentKey,
@@ -248,6 +257,11 @@ export function placeStrataHulls(
       unitHeightOf: (id) => infoByUnitId.get(id)?.height ?? 0,
       policy: hull.policy,
       sweeps: options.sweeps,
+      unitXSpanOf: (id): readonly [number, number] => {
+        const info = infoByUnitId.get(id);
+        return info ? [info.x0, info.x1] : [0, 0];
+      },
+      unitColSpanOf: (id) => infoByUnitId.get(id)?.colSpan ?? [0, 0],
     });
 
     // Step 4: place by policy. Content starts below FRAME_PAD + TITLE_RESERVE

@@ -298,6 +298,45 @@ const ARMS: Array<[string, Record<string, unknown>]> = [
       pipelineCompact: false,
     },
   ],
+  [
+    // Strata M1b @ K=4 (WP-3a: A2 sweeps + height-aware greedy seed, banded
+    // weighted-bands-skipped acceptance per v3.1 §1). A7 OFF — isolates A2.
+    "H_strata_k4",
+    {
+      layoutMode: "strata",
+      pipelineCompact: true,
+      strataSweeps: 4,
+    },
+  ],
+  [
+    "H2_strata_k4_full",
+    {
+      layoutMode: "strata",
+      pipelineCompact: false,
+      strataSweeps: 4,
+    },
+  ],
+  [
+    // Strata M1b @ K=4 + A7 (WP-3b coordinate refinement). The A7 gate
+    // (§6-A7: T2 + R4 strictly improved vs the pre-A7 layout of the SAME
+    // engine) reads I vs H / I2 vs H2 off this report.
+    "I_strata_k4_a7",
+    {
+      layoutMode: "strata",
+      pipelineCompact: true,
+      strataSweeps: 4,
+      strataCoordinateRefine: true,
+    },
+  ],
+  [
+    "I2_strata_k4_a7_full",
+    {
+      layoutMode: "strata",
+      pipelineCompact: false,
+      strataSweeps: 4,
+      strataCoordinateRefine: true,
+    },
+  ],
 ];
 
 async function runArms(preset: string) {
@@ -400,6 +439,10 @@ describe("Q2 audit — rcll readability passes vs v2 baseline (throwaway)", () =
         // Strata @ K=0 on the injected 2-cycle: A3 GreedyFAS must repair it
         // end-to-end with NO rcllV2Degraded (W2 battery, cyclic robustness).
         ["G_strata_k0", ARMS[7]![1]],
+        // Strata @ K=4 + A7 on the same 2-cycle: the FULL M1b pipeline
+        // (sweeps over the repaired E′ + coordinate refinement) must also
+        // survive cyclic input with no degradation (W3 battery).
+        ["I_strata_k4_a7", ARMS[11]![1]],
       ];
       const out: Record<string, unknown> = { mutation: cyc.note };
       for (const [label, opts] of cyclicArms) {
