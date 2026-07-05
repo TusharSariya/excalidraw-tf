@@ -100,3 +100,36 @@ Frozen at S0b **with** the slice baselines, by amendment, before any gated code 
 Round-7 method: 3 lineage auditors (opus ×2, sonnet ×1 — v1.0+round-5 disposition audit; rounds 1–4 compression audit; round-6 matrix spot-check + aux docs + anchor re-verification, all anchors exact incl. the 208px arithmetic) · 3 attack lanes on v3.0's new machinery (opus ×2 with `bin/rag` corpus deep-reads — Forster 04, Meidiana 19/20, Sondag 18, jgaa-2603, gdMetriX — plus web; sonnet code-implementability lane) · 1 fable refute panel adjudicating the combined set (rejected pure-count and leaf-p90 acceptance variants with constructed counterexamples; caught the tiebreak-geometry defect all three lanes missed; coherence sweep clean). **Verdict: M1a GO (unchanged); M1b GO under v3.0 + these amendments.** First code remains the D10 bug-fix PR, then S0a.
 
 NO UNRESOLVED DECISIONS
+
+---
+
+## 12. S0b freeze register (2026-07-04, W2 — the §8 TO-FREEZE items, frozen by this amendment BEFORE any gated code; C11)
+
+Derivation run: WP-2d, v2 substrate, arms A (`v2 compact`) + F (`v2 full+ancillary`), presets P1 (`staging-extended-localstack-v2`) + P2 (`staging-localstack`). Populations reconcile exactly (`nA + nB + unresolved == tfdArrowCount`) in all 4 cells. Full frozen reports (all 7 arms × P1/P2/P3-multistate/cyclic, incl. per-edge bands-skipped distributions): `docs/strata-baselines/Q2_AUDIT_REPORT_{P1,P2,P3_MULTISTATE,CYCLIC}.json` — SHA-256: P1 `8dd4546c…`, P2 `8429bcc3…`, P3 `b6d9f54d…`, CYCLIC `2305c325…`. The v2 substrate stays byte-identical under D2′, so these are re-derivable; the JSONs are the canonical frozen copies.
+
+1. **Slice-A/B baselines (headline cells).**
+
+   | Preset | Arm | clusters | tfd | nA | nB | extent B p50/p90/mean | bandsSkipped mean (n) | stacked-band totalPx (hulls) | areaUtil |
+   |---|---|---|---|---|---|---|---|---|---|
+   | P1 | A (compact) | 123 | 145 | 108 | 37 | 3166 / 7098 / 3798.9 | 0.32 (37) | 32,897 (6) | 0.06 |
+   | P1 | F (full+anc) | 123 | 145 | 31 | 114 | 2226 / 16309 / 4940.73 | 4.54 (114) | 140,651 (17) | 0.08 |
+   | P2 | A (compact) | 70 | 69 | 65 | 4 | 1149 / 1955 / 906.29 | 0.5 (4) | 20,460 (3) | 0.07 |
+   | P2 | F (full+anc) | 70 | 69 | 37 | 32 | 3219 / 9525 / 4763.59 | 6.59 (32) | 93,521 (8) | 0.08 |
+
+   `unresolvedEdgeCount = 0` in all cells; `sameRank` normalized-deviation bucket vacuous (n=0) in all cells, reported as such.
+
+2. **N_B,min = 30** (slice-B p90 gating floor, §2.5). Rationale (distribution-free order statistics — no per-edge extent dump exists to bootstrap directly, so the pin uses the exact argument the ≈30 target came from): nearest-rank p90 at n=30 is the 27th order statistic with 3 points above it — the minimum for a percentile-bootstrap CI on p90 to draw from more than the top 2 sample values; below that the CI is degenerate on the maximum. Gate-eligible cells for p90: P1-A (37), P1-F (114), P2-F (32). **W3 obligation:** the CI harness must report the realized CI width per gated cell (stability self-check) — a degenerate CI (upper == max) voids the p90 gate for that cell even at n ≥ 30.
+
+3. **Slice-B p50 gating floor (new pin): nB < 10 ⇒ the cell is EXCLUDED from all slice-B gating** (report-only; milestone exit over such a cell requires explicit owner acknowledgment, INCONCLUSIVE-style per §3.1's pattern). §2.5 defined only the p90 floor; certifying a p50 over a handful of edges is the same noise-gate class round 7 killed. **Consequence: P2-A (nB = 4) is not a slice-B gating cell.** P2's slice-B gates run on its F arm; P2-A remains a slice-A + structural + churn cell.
+
+4. **N_min = 20** (A4 gating floor over |U|, §3). Both presets clear it by a wide margin at full population (P1 |clusters| = 123, P2 = 70); real |U| after a probe edit is expected ≥ 60 on both. Below 20 → vacuous pass, report-only (§3.2's convention).
+
+5. **M4 coverage floor = 0.5** (§3.1). Coverage (fraction of U with a same-column ≥ 3 estimate) < 0.5 ⇒ M4 = INCONCLUSIVE, requiring explicit owner acknowledgment at milestone exit.
+
+6. **Bootstrap seed + resampling procedure (§2.5).** Seed = `20260704`; PRNG = `mulberry32(seed)` (32-bit, dependency-free, pinned implementation to live beside the CI code); B = 1000; CI = percentile method [2.5%, 97.5%]; resample unit = the address-keyed paired per-edge delta vector, n-out-of-n with replacement. **Unmatched-address void threshold (pins §2.5's "high unmatched count"):** unmatched > 20% of min(n_baseline, n_candidate) voids the comparison for that cell.
+
+7. **A2 candidate order** — restated unchanged from §1.3: {initial (model order), sweep results 1..K in sweep order, height-aware greedy seed}; earliest-wins on exact-integer cost ties (after the crossings-trial tiebreak).
+
+8. **Measurement conventions (WP-2d pins, adjudicated).** (a) vertical extent = polyline `max_y − min_y` over rendered points (the existing diagnostics convention, per §2's own "match the existing convention"); (b) `Δx_endpoints` = `|x_last − x_first|` of the arrow's rendered points; (c) content bbox = the `dataflow.aspect` element set (topology frames ∪ primary-cluster frames); (d) band Y-position: a real topology frame's rect wins over the dissolved-band member-median (§2.1's fallback fires only when no frame exists); (e) degenerate same-band slice-B edges report bands-skipped = 0, never negative/undefined; (f) percentiles = nearest-rank `sorted[floor(n·f)]`, capped at n−1 (reproduces the existing p50 exactly). Cluster ancestor paths resolve via the 3-tier rule (own `terraformTopologyPath` → `terraformCompoundParentKey` → deepest geometric containment) — required because compact-mode compound scenes stamp only the parent key (empirical, WP-2d).
+
+Freeze authority: orchestrator per the approved plan ("orchestrator freezes … by spec amendment"); items 3, 5, and the 20% void threshold are new numeric pins made under that authority — flagged for owner review at checkpoint V1.

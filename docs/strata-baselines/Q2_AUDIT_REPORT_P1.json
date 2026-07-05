@@ -1,0 +1,1749 @@
+{
+  "A_v2_baseline": {
+    "wallMs": 2750,
+    "diagMs": 5,
+    "requestedOptions": {
+      "layoutMode": "pipeline",
+      "pipelineLayoutVariant": "v2",
+      "pipelineCompact": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "v2",
+      "pipelineCompoundHierarchical": true,
+      "pipelineCompact": true,
+      "pipelineClusterCount": 123,
+      "pipelineEdgeCount": 145,
+      "pipelineTopologyFrameEdgeCount": 21,
+      "pipelineColumnCount": 16,
+      "pipelineV2SideBySideRows": 50
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 9998,
+      "height": 10056,
+      "aspect": 0.99
+    },
+    "metrics": {
+      "crossings": 177,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 401.84,
+      "meanVerticalDeviationPx": 1588.81,
+      "fractionNearStraight": 0.17,
+      "fanoutColumnRate": 0.49,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0.05,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 0.99,
+      "slices": {
+        "populations": {
+          "nA": 108,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 108,
+            "p50": 228,
+            "p90": 3176,
+            "mean": 831.65,
+            "fractionNearStraight": 0.23,
+            "nearStraightCount": 25
+          },
+          "B": {
+            "n": 37,
+            "p50": 3166,
+            "p90": 7098,
+            "mean": 3798.9,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.32,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 10056
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 9768
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 713
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 8940
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 2938
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 482
+            }
+          ],
+          "totalPx": 32897
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 0.68,
+            "p90": 6.08,
+            "mean": 2.52
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 100539888,
+          "utilization": 0.06,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "B_rcll_everything_off": {
+    "wallMs": 196,
+    "diagMs": 5,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M3a",
+      "rcllSwimlaneLaneRise": false,
+      "rcllRankSeparate": false,
+      "rcllReorder": false,
+      "rcllCrossingMin": false,
+      "rcllStraighten": false,
+      "rcllCoordRepack": false,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": false,
+      "rcllNetworkSimplexApplied": false,
+      "pipelineCompact": true,
+      "pipelineIncludeAncillary": false,
+      "pipelineAncillaryApplied": false,
+      "pipelineAncillaryCount": 0,
+      "pipelineAncillaryStripCount": 0,
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 11762,
+      "height": 14285,
+      "aspect": 0.82
+    },
+    "metrics": {
+      "crossings": 250,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 655.28,
+      "meanVerticalDeviationPx": 2473.42,
+      "fractionNearStraight": 0.14,
+      "fanoutColumnRate": 0.68,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0.02,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 0.82,
+      "slices": {
+        "populations": {
+          "nA": 108,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 108,
+            "p50": 398,
+            "p90": 3323,
+            "mean": 939.14,
+            "fractionNearStraight": 0.19,
+            "nearStraightCount": 21
+          },
+          "B": {
+            "n": 37,
+            "p50": 7038,
+            "p90": 12648,
+            "mean": 6951.86,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.59,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 14285
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 16068
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 713
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 10067
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 3395
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 1175
+            }
+          ],
+          "totalPx": 45703
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 1.4,
+            "p90": 8.35,
+            "mean": 3.22
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 168020170,
+          "utilization": 0.04,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "C_rcll_readable_profile": {
+    "wallMs": 194,
+    "diagMs": 3,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": true,
+      "pipelineLayoutProfile": "readable"
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M5",
+      "rcllSwimlaneLaneRise": false,
+      "rcllRankSeparate": false,
+      "rcllReorder": true,
+      "rcllCrossingMin": false,
+      "rcllStraighten": true,
+      "rcllCoordRepack": false,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": false,
+      "rcllNetworkSimplexApplied": false,
+      "pipelineCompact": true,
+      "pipelineIncludeAncillary": false,
+      "pipelineAncillaryApplied": false,
+      "pipelineAncillaryCount": 0,
+      "pipelineAncillaryStripCount": 0,
+      "pipelineReorder": true,
+      "pipelineStraighten": true,
+      "pipelineStaircaseBandOverlap": false,
+      "pipelineLayoutProfile": "readable",
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 11762,
+      "height": 16621,
+      "aspect": 0.71
+    },
+    "metrics": {
+      "crossings": 185,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 936,
+      "meanVerticalDeviationPx": 2313.45,
+      "fractionNearStraight": 0.16,
+      "fanoutColumnRate": 0.68,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0.07,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 0.71,
+      "slices": {
+        "populations": {
+          "nA": 108,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 108,
+            "p50": 286,
+            "p90": 3323,
+            "mean": 915.45,
+            "fractionNearStraight": 0.21,
+            "nearStraightCount": 23
+          },
+          "B": {
+            "n": 37,
+            "p50": 4648,
+            "p90": 14753,
+            "mean": 6394.1,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.41,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 16621
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 16250
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 895
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 10109
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 3395
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 1175
+            }
+          ],
+          "totalPx": 48445
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 1.09,
+            "p90": 8.35,
+            "mean": 3.06
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 195496202,
+          "utilization": 0.03,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "D_rcll_max_readability_compact_packing": {
+    "wallMs": 1258,
+    "diagMs": 3,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": true,
+      "pipelineCrossingMin": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "compact"
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M5c",
+      "rcllSwimlaneLaneRise": false,
+      "rcllRankSeparate": false,
+      "rcllReorder": false,
+      "rcllCrossingMin": true,
+      "rcllStraighten": true,
+      "rcllCoordRepack": true,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": true,
+      "rcllNetworkSimplexApplied": false,
+      "pipelineCompact": true,
+      "pipelineIncludeAncillary": false,
+      "pipelineAncillaryApplied": false,
+      "pipelineAncillaryCount": 0,
+      "pipelineAncillaryStripCount": 0,
+      "pipelineCrossingMin": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "compact",
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 11762,
+      "height": 14285,
+      "aspect": 0.82
+    },
+    "metrics": {
+      "crossings": 219,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 496,
+      "meanVerticalDeviationPx": 2134.8,
+      "fractionNearStraight": 0.15,
+      "fanoutColumnRate": 0.68,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0.07,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 0.82,
+      "slices": {
+        "populations": {
+          "nA": 108,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 108,
+            "p50": 189,
+            "p90": 1784,
+            "mean": 620.38,
+            "fractionNearStraight": 0.19,
+            "nearStraightCount": 20
+          },
+          "B": {
+            "n": 37,
+            "p50": 5037,
+            "p90": 12417,
+            "mean": 6555.27,
+            "fractionNearStraight": 0.05,
+            "nearStraightCount": 2
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.59,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 14285
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 16183
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 828
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 10109
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 3395
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 1175
+            }
+          ],
+          "totalPx": 45975
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 1.17,
+            "p90": 5.27,
+            "mean": 2.53
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 168020170,
+          "utilization": 0.04,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "D2_rcll_max_readability_shorten_packing": {
+    "wallMs": 1667,
+    "diagMs": 3,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": true,
+      "pipelineCrossingMin": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "shorten"
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M2-NS",
+      "rcllSwimlaneLaneRise": false,
+      "rcllRankSeparate": false,
+      "rcllReorder": false,
+      "rcllCrossingMin": true,
+      "rcllStraighten": true,
+      "rcllCoordRepack": true,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": true,
+      "rcllNetworkSimplexApplied": true,
+      "pipelineCompact": true,
+      "pipelineIncludeAncillary": false,
+      "pipelineAncillaryApplied": false,
+      "pipelineAncillaryCount": 0,
+      "pipelineAncillaryStripCount": 0,
+      "pipelineCrossingMin": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "shorten",
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 10770,
+      "height": 14516,
+      "aspect": 0.74
+    },
+    "metrics": {
+      "crossings": 249,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 532.3,
+      "meanVerticalDeviationPx": 2140.81,
+      "fractionNearStraight": 0.17,
+      "fanoutColumnRate": 0.7,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0.09,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 0.74,
+      "slices": {
+        "populations": {
+          "nA": 108,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 108,
+            "p50": 343,
+            "p90": 1784,
+            "mean": 635.96,
+            "fractionNearStraight": 0.21,
+            "nearStraightCount": 23
+          },
+          "B": {
+            "n": 37,
+            "p50": 5037,
+            "p90": 12394,
+            "mean": 6533.35,
+            "fractionNearStraight": 0.05,
+            "nearStraightCount": 2
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.59,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 14516
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 16414
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 828
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 10109
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 3626
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 1175
+            }
+          ],
+          "totalPx": 46668
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 1.24,
+            "p90": 6.2,
+            "mean": 2.75
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 156337320,
+          "utilization": 0.04,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "E_owner_preferred_view": {
+    "wallMs": 18219,
+    "diagMs": 11,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": false,
+      "pipelineIncludeAncillary": true,
+      "pipelineSwimlaneLaneRise": true,
+      "pipelineReorder": true,
+      "pipelineCrossingMin": true,
+      "pipelineDeBandLevel": "none",
+      "pipelineRankSeparate": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "shorten",
+      "pipelineStaircaseBandOverlap": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M8r",
+      "rcllSwimlaneLaneRise": true,
+      "rcllRankSeparate": true,
+      "rcllReorder": false,
+      "rcllCrossingMin": true,
+      "rcllStraighten": true,
+      "rcllCoordRepack": true,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": true,
+      "rcllNetworkSimplexApplied": false,
+      "pipelineCompact": false,
+      "pipelineIncludeAncillary": true,
+      "pipelineAncillaryApplied": true,
+      "pipelineAncillaryCount": 270,
+      "pipelineAncillaryStripCount": 16,
+      "pipelineSwimlaneLaneRise": true,
+      "pipelineCrossingMin": true,
+      "pipelineOrderingConflict": true,
+      "pipelineRankSeparate": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "compact",
+      "pipelineNetworkSimplexRankSuppressed": true,
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 7783,
+    "bounds": {
+      "width": 17724,
+      "height": 15270,
+      "aspect": 1.16
+    },
+    "metrics": {
+      "crossings": 371,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.04,
+      "medianVerticalDeviationPx": 701,
+      "meanVerticalDeviationPx": 2687.73,
+      "fractionNearStraight": 0.1,
+      "fanoutColumnRate": 0.22,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0.11,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 1.16,
+      "slices": {
+        "populations": {
+          "nA": 31,
+          "nB": 114,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 31,
+            "p50": 2017,
+            "p90": 5100,
+            "mean": 2239.87,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          },
+          "B": {
+            "n": 114,
+            "p50": 427.39,
+            "p90": 10190,
+            "mean": 2809.52,
+            "fractionNearStraight": 0.13,
+            "nearStraightCount": 15
+          }
+        },
+        "bandsSkipped": {
+          "n": 114,
+          "mean": 1.84,
+          "distribution": [
+            5,
+            5,
+            0,
+            7,
+            7,
+            0,
+            0,
+            0,
+            0,
+            0,
+            6,
+            5,
+            0,
+            1,
+            3,
+            2,
+            1,
+            0,
+            2,
+            4,
+            5,
+            4,
+            0,
+            3,
+            2,
+            1,
+            1,
+            0,
+            4,
+            2,
+            1,
+            2,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            3,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            7,
+            2,
+            1,
+            1,
+            5,
+            2,
+            0,
+            10,
+            2,
+            3,
+            0,
+            7,
+            0,
+            2,
+            2,
+            0,
+            0,
+            2,
+            3,
+            5,
+            0,
+            0,
+            18,
+            0,
+            4,
+            13,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            4,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            1,
+            2,
+            1,
+            0,
+            4,
+            1,
+            1,
+            1,
+            1,
+            0,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 5,
+              "totalHeightPx": 16364
+            },
+            {
+              "hullPath": [
+                "000000000001"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 576
+            },
+            {
+              "hullPath": [
+                "000000000002"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 19945
+            },
+            {
+              "hullPath": [
+                "000000000003"
+              ],
+              "role": "provider",
+              "childCount": 3,
+              "totalHeightPx": 6293
+            },
+            {
+              "hullPath": [
+                "000000000004"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 1275
+            },
+            {
+              "hullPath": [
+                "unknown-account"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 139
+            },
+            {
+              "hullPath": [
+                "000000000001",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 11,
+              "totalHeightPx": 1529
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 51,
+              "totalHeightPx": 17453
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-east-2"
+              ],
+              "role": "account",
+              "childCount": 12,
+              "totalHeightPx": 4836
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-west-1"
+              ],
+              "role": "account",
+              "childCount": 15,
+              "totalHeightPx": 5437
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-west-2"
+              ],
+              "role": "account",
+              "childCount": 14,
+              "totalHeightPx": 5491
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 40,
+              "totalHeightPx": 9657
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-east-2"
+              ],
+              "role": "account",
+              "childCount": 2,
+              "totalHeightPx": 1057
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-west-2"
+              ],
+              "role": "account",
+              "childCount": 9,
+              "totalHeightPx": 3049
+            },
+            {
+              "hullPath": [
+                "000000000004",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 12,
+              "totalHeightPx": 2154
+            },
+            {
+              "hullPath": [
+                "unknown-account",
+                "unknown-region"
+              ],
+              "role": "account",
+              "childCount": 27,
+              "totalHeightPx": 3753
+            }
+          ],
+          "totalPx": 99008
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 0.75,
+            "p90": 9.38,
+            "mean": 2.63
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 28445292,
+          "contentBBoxAreaPx2": 270645480,
+          "utilization": 0.11,
+          "leafElementCount": 1796
+        }
+      }
+    }
+  },
+  "F_v2_full_ancillary": {
+    "wallMs": 14880,
+    "diagMs": 9,
+    "requestedOptions": {
+      "layoutMode": "pipeline",
+      "pipelineLayoutVariant": "v2",
+      "pipelineCompact": false,
+      "pipelineIncludeAncillary": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "v2",
+      "pipelineCompoundHierarchical": true,
+      "pipelineCompact": false,
+      "pipelineClusterCount": 123,
+      "pipelineEdgeCount": 145,
+      "pipelineTopologyFrameEdgeCount": 21,
+      "pipelineColumnCount": 16,
+      "pipelineV2SideBySideRows": 49,
+      "pipelineIncludeAncillary": true,
+      "pipelineAncillaryApplied": true,
+      "pipelineAncillaryCount": 304,
+      "pipelineAncillaryStripCount": 20
+    },
+    "elementCount": 7994,
+    "bounds": {
+      "width": 11817,
+      "height": 29979,
+      "aspect": 0.39
+    },
+    "metrics": {
+      "crossings": 222,
+      "eligiblePairs": 10073,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 2254,
+      "meanVerticalDeviationPx": 4706.18,
+      "fractionNearStraight": 0.12,
+      "fanoutColumnRate": 0.27,
+      "fanoutSetCount": 37,
+      "hubCenteringRate": 0,
+      "hubCount": 57,
+      "tfdArrowCount": 145,
+      "collisionCount": 0,
+      "dataflowAspect": 0.39,
+      "slices": {
+        "populations": {
+          "nA": 31,
+          "nB": 114,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 31,
+            "p50": 3106,
+            "p90": 7281,
+            "mean": 3843.63,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          },
+          "B": {
+            "n": 114,
+            "p50": 2226,
+            "p90": 16309,
+            "mean": 4940.73,
+            "fractionNearStraight": 0.16,
+            "nearStraightCount": 18
+          }
+        },
+        "bandsSkipped": {
+          "n": 114,
+          "mean": 4.54,
+          "distribution": [
+            3,
+            3,
+            0,
+            5,
+            5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            7,
+            12,
+            16,
+            17,
+            24,
+            34,
+            38,
+            1,
+            8,
+            5,
+            4,
+            3,
+            2,
+            1,
+            0,
+            3,
+            2,
+            1,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            5,
+            0,
+            0,
+            0,
+            0,
+            1,
+            3,
+            1,
+            3,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            10,
+            0,
+            3,
+            8,
+            24,
+            28,
+            19,
+            2,
+            0,
+            1,
+            3,
+            3,
+            25,
+            19,
+            20,
+            23,
+            1,
+            16,
+            9,
+            23,
+            0,
+            13,
+            0,
+            9,
+            1,
+            1,
+            0,
+            0,
+            4,
+            1,
+            5,
+            1,
+            5,
+            0,
+            1,
+            0,
+            1,
+            1,
+            4,
+            0,
+            3,
+            1,
+            1,
+            2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            5
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 5,
+              "totalHeightPx": 28847
+            },
+            {
+              "hullPath": [
+                "000000000001"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 489
+            },
+            {
+              "hullPath": [
+                "000000000002"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 29735
+            },
+            {
+              "hullPath": [
+                "000000000003"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 11494
+            },
+            {
+              "hullPath": [
+                "000000000004"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 382
+            },
+            {
+              "hullPath": [
+                "unknown-account"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 2982
+            },
+            {
+              "hullPath": [
+                "000000000001",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 11,
+              "totalHeightPx": 1529
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 51,
+              "totalHeightPx": 18771
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-east-2"
+              ],
+              "role": "account",
+              "childCount": 12,
+              "totalHeightPx": 6609
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-west-1"
+              ],
+              "role": "account",
+              "childCount": 15,
+              "totalHeightPx": 6421
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-west-2"
+              ],
+              "role": "account",
+              "childCount": 14,
+              "totalHeightPx": 7726
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 40,
+              "totalHeightPx": 10565
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-east-2"
+              ],
+              "role": "account",
+              "childCount": 2,
+              "totalHeightPx": 1964
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-west-1"
+              ],
+              "role": "account",
+              "childCount": 2,
+              "totalHeightPx": 1328
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-west-2"
+              ],
+              "role": "account",
+              "childCount": 9,
+              "totalHeightPx": 3956
+            },
+            {
+              "hullPath": [
+                "000000000004",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 12,
+              "totalHeightPx": 2154
+            },
+            {
+              "hullPath": [
+                "unknown-account",
+                "unknown-region"
+              ],
+              "role": "account",
+              "childCount": 41,
+              "totalHeightPx": 5699
+            }
+          ],
+          "totalPx": 140651
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 3.14,
+            "p90": 13.33,
+            "mean": 5.9
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 29954319,
+          "contentBBoxAreaPx2": 354261843,
+          "utilization": 0.08,
+          "leafElementCount": 1864
+        }
+      }
+    }
+  }
+}

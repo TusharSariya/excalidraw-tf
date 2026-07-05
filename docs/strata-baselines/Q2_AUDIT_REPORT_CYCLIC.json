@@ -1,0 +1,768 @@
+{
+  "mutation": "appended \"api14_gateway -> api12_compute\" to tfd[0] reversing mid-file edge \"api12_compute -> api14_gateway\" → 2-cycle",
+  "A_v2_baseline": {
+    "wallMs": 2678,
+    "diagMs": 3,
+    "requestedOptions": {
+      "layoutMode": "pipeline",
+      "pipelineLayoutVariant": "v2",
+      "pipelineCompact": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "v2",
+      "pipelineCompoundHierarchical": true,
+      "pipelineCompact": true,
+      "pipelineClusterCount": 123,
+      "pipelineEdgeCount": 146,
+      "pipelineTopologyFrameEdgeCount": 21,
+      "pipelineColumnCount": 60,
+      "pipelineV2SideBySideRows": 50
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 17666,
+      "height": 10056,
+      "aspect": 1.76
+    },
+    "metrics": {
+      "crossings": 175,
+      "eligiblePairs": 10213,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 401.84,
+      "meanVerticalDeviationPx": 1579.85,
+      "fractionNearStraight": 0.17,
+      "fanoutColumnRate": 0.47,
+      "fanoutSetCount": 38,
+      "hubCenteringRate": 0.05,
+      "hubCount": 59,
+      "tfdArrowCount": 146,
+      "collisionCount": 0,
+      "dataflowAspect": 1.76,
+      "slices": {
+        "populations": {
+          "nA": 109,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 109,
+            "p50": 228,
+            "p90": 3176,
+            "mean": 826.59,
+            "fractionNearStraight": 0.23,
+            "nearStraightCount": 25
+          },
+          "B": {
+            "n": 37,
+            "p50": 3166,
+            "p90": 7098,
+            "mean": 3798.9,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.32,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 10056
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 9768
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 713
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 8940
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 2938
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 482
+            }
+          ],
+          "totalPx": 32897
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 1,
+            "p50": 1.52,
+            "p90": 1.52,
+            "mean": 1.52
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 0.68,
+            "p90": 6.08,
+            "mean": 2.52
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 177649296,
+          "utilization": 0.03,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "B_rcll_everything_off": {
+    "wallMs": 2603,
+    "diagMs": 3,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M3a",
+      "rcllSwimlaneLaneRise": false,
+      "rcllRankSeparate": false,
+      "rcllReorder": false,
+      "rcllCrossingMin": false,
+      "rcllStraighten": false,
+      "rcllCoordRepack": false,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": false,
+      "rcllNetworkSimplexApplied": false,
+      "pipelineCompact": true,
+      "pipelineIncludeAncillary": false,
+      "pipelineAncillaryApplied": false,
+      "pipelineAncillaryCount": 0,
+      "pipelineAncillaryStripCount": 0,
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 1333,
+    "bounds": {
+      "width": 14626,
+      "height": 13823,
+      "aspect": 1.06
+    },
+    "metrics": {
+      "crossings": 231,
+      "eligiblePairs": 10213,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 655.28,
+      "meanVerticalDeviationPx": 2381,
+      "fractionNearStraight": 0.14,
+      "fanoutColumnRate": 0.61,
+      "fanoutSetCount": 38,
+      "hubCenteringRate": 0.02,
+      "hubCount": 59,
+      "tfdArrowCount": 146,
+      "collisionCount": 0,
+      "dataflowAspect": 1.06,
+      "slices": {
+        "populations": {
+          "nA": 109,
+          "nB": 37,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 109,
+            "p50": 343,
+            "p90": 3323,
+            "mean": 931.05,
+            "fractionNearStraight": 0.19,
+            "nearStraightCount": 21
+          },
+          "B": {
+            "n": 37,
+            "p50": 7038,
+            "p90": 12186,
+            "mean": 6652.46,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          }
+        },
+        "bandsSkipped": {
+          "n": 37,
+          "mean": 0.59,
+          "distribution": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 1,
+              "totalHeightPx": 13823
+            },
+            {
+              "hullPath": [
+                "aws"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 15606
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000001"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 713
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000002"
+              ],
+              "role": "account",
+              "childCount": 4,
+              "totalHeightPx": 9605
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000003"
+              ],
+              "role": "account",
+              "childCount": 3,
+              "totalHeightPx": 3395
+            },
+            {
+              "hullPath": [
+                "aws",
+                "000000000004"
+              ],
+              "role": "account",
+              "childCount": 1,
+              "totalHeightPx": 1175
+            }
+          ],
+          "totalPx": 44317
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 1,
+            "p50": 1.25,
+            "p90": 1.25,
+            "mean": 1.25
+          },
+          "crossRank": {
+            "n": 145,
+            "p50": 1.4,
+            "p90": 8.35,
+            "mean": 3.02
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 5896226,
+          "contentBBoxAreaPx2": 202175198,
+          "utilization": 0.03,
+          "leafElementCount": 246
+        }
+      }
+    }
+  },
+  "E_owner_preferred_view": {
+    "wallMs": 18284,
+    "diagMs": 8,
+    "requestedOptions": {
+      "layoutMode": "rcll",
+      "pipelineCompact": false,
+      "pipelineIncludeAncillary": true,
+      "pipelineSwimlaneLaneRise": true,
+      "pipelineReorder": true,
+      "pipelineCrossingMin": true,
+      "pipelineDeBandLevel": "none",
+      "pipelineRankSeparate": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "shorten",
+      "pipelineStaircaseBandOverlap": true
+    },
+    "resolvedMeta": {
+      "pipelineVariant": "rcll",
+      "rcllMilestone": "M8r",
+      "rcllSwimlaneLaneRise": true,
+      "rcllRankSeparate": true,
+      "rcllReorder": false,
+      "rcllCrossingMin": true,
+      "rcllStraighten": true,
+      "rcllCoordRepack": true,
+      "rcllSubnetDeBand": false,
+      "rcllDeDensify": false,
+      "rcllColumnCompact": true,
+      "rcllNetworkSimplexApplied": false,
+      "pipelineCompact": false,
+      "pipelineIncludeAncillary": true,
+      "pipelineAncillaryApplied": true,
+      "pipelineAncillaryCount": 270,
+      "pipelineAncillaryStripCount": 16,
+      "pipelineSwimlaneLaneRise": true,
+      "pipelineCrossingMin": true,
+      "pipelineOrderingConflict": true,
+      "pipelineRankSeparate": true,
+      "pipelineStraighten": true,
+      "pipelineCoordRepack": true,
+      "pipelineColumnPacking": "compact",
+      "pipelineNetworkSimplexRankSuppressed": true,
+      "rcllDegraded": [],
+      "rcllModules": {
+        "stages": [
+          "layering",
+          "placement"
+        ],
+        "fallback": "compound"
+      }
+    },
+    "elementCount": 7783,
+    "bounds": {
+      "width": 16336,
+      "height": 36827,
+      "aspect": 0.44
+    },
+    "metrics": {
+      "crossings": 245,
+      "eligiblePairs": 10213,
+      "crossingsPerEligiblePair": 0.02,
+      "medianVerticalDeviationPx": 1570,
+      "meanVerticalDeviationPx": 6531.81,
+      "fractionNearStraight": 0.08,
+      "fanoutColumnRate": 0.24,
+      "fanoutSetCount": 38,
+      "hubCenteringRate": 0.08,
+      "hubCount": 59,
+      "tfdArrowCount": 146,
+      "collisionCount": 1,
+      "dataflowAspect": 0.44,
+      "slices": {
+        "populations": {
+          "nA": 32,
+          "nB": 114,
+          "unresolvedEdgeCount": 0
+        },
+        "sliceBEmpty": false,
+        "extent": {
+          "A": {
+            "n": 32,
+            "p50": 2645,
+            "p90": 6542,
+            "mean": 3108.03,
+            "fractionNearStraight": 0,
+            "nearStraightCount": 0
+          },
+          "B": {
+            "n": 114,
+            "p50": 1551,
+            "p90": 31505,
+            "mean": 7492.87,
+            "fractionNearStraight": 0.11,
+            "nearStraightCount": 12
+          }
+        },
+        "bandsSkipped": {
+          "n": 114,
+          "mean": 2.74,
+          "distribution": [
+            4,
+            4,
+            0,
+            6,
+            6,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            8,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            1,
+            9,
+            0,
+            4,
+            5,
+            1,
+            2,
+            3,
+            3,
+            0,
+            2,
+            1,
+            0,
+            1,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            4,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            1,
+            0,
+            2,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            1,
+            0,
+            2,
+            6,
+            11,
+            5,
+            3,
+            0,
+            1,
+            3,
+            3,
+            10,
+            7,
+            8,
+            11,
+            1,
+            13,
+            6,
+            0,
+            0,
+            20,
+            0,
+            9,
+            1,
+            0,
+            0,
+            0,
+            4,
+            0,
+            5,
+            0,
+            2,
+            1,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            3,
+            2,
+            1,
+            3,
+            1,
+            1,
+            1,
+            1,
+            0,
+            1,
+            1,
+            1
+          ]
+        },
+        "stackedBandHeight": {
+          "perHull": [
+            {
+              "hullPath": [],
+              "role": "root",
+              "childCount": 5,
+              "totalHeightPx": 37861
+            },
+            {
+              "hullPath": [
+                "000000000001"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 664
+            },
+            {
+              "hullPath": [
+                "000000000002"
+              ],
+              "role": "provider",
+              "childCount": 4,
+              "totalHeightPx": 25296
+            },
+            {
+              "hullPath": [
+                "000000000003"
+              ],
+              "role": "provider",
+              "childCount": 3,
+              "totalHeightPx": 13376
+            },
+            {
+              "hullPath": [
+                "000000000004"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 1275
+            },
+            {
+              "hullPath": [
+                "unknown-account"
+              ],
+              "role": "provider",
+              "childCount": 1,
+              "totalHeightPx": 139
+            },
+            {
+              "hullPath": [
+                "000000000001",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 11,
+              "totalHeightPx": 1529
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 51,
+              "totalHeightPx": 18491
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-east-2"
+              ],
+              "role": "account",
+              "childCount": 12,
+              "totalHeightPx": 5527
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-west-1"
+              ],
+              "role": "account",
+              "childCount": 15,
+              "totalHeightPx": 5262
+            },
+            {
+              "hullPath": [
+                "000000000002",
+                "us-west-2"
+              ],
+              "role": "account",
+              "childCount": 14,
+              "totalHeightPx": 6300
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 40,
+              "totalHeightPx": 9657
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-east-2"
+              ],
+              "role": "account",
+              "childCount": 2,
+              "totalHeightPx": 4032
+            },
+            {
+              "hullPath": [
+                "000000000003",
+                "us-west-2"
+              ],
+              "role": "account",
+              "childCount": 9,
+              "totalHeightPx": 6024
+            },
+            {
+              "hullPath": [
+                "000000000004",
+                "us-east-1"
+              ],
+              "role": "account",
+              "childCount": 12,
+              "totalHeightPx": 2154
+            },
+            {
+              "hullPath": [
+                "unknown-account",
+                "unknown-region"
+              ],
+              "role": "account",
+              "childCount": 27,
+              "totalHeightPx": 3753
+            }
+          ],
+          "totalPx": 141340
+        },
+        "normalizedDeviation": {
+          "sameRank": {
+            "n": 0,
+            "p50": 0,
+            "p90": 0,
+            "mean": 0
+          },
+          "crossRank": {
+            "n": 146,
+            "p50": 2.51,
+            "p90": 15.46,
+            "mean": 6.2
+          }
+        },
+        "areaUtilization": {
+          "leafAreaPx2": 28445292,
+          "contentBBoxAreaPx2": 601605872,
+          "utilization": 0.05,
+          "leafElementCount": 1796
+        }
+      }
+    }
+  }
+}
