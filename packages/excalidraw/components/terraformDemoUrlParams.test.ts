@@ -433,7 +433,9 @@ describe("terraformDemoUrlParams", () => {
 
     it("rejects a non-integer or negative strataSweeps", () => {
       expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=strata&strataSweeps=abc"),
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataSweeps=abc",
+        ),
       ).toBeNull();
       expect(
         parseTerraformDemoUrlParams("?preset=demo&view=strata&strataSweeps=-1"),

@@ -132,11 +132,8 @@ export const TerraformStrataSettings = ({
                 "strata.rankseparate.off",
                 () => setStrataRankSeparate(false),
               )}
-              {option(
-                "On",
-                strataRankSeparate,
-                "strata.rankseparate.on",
-                () => setStrataRankSeparate(true),
+              {option("On", strataRankSeparate, "strata.rankseparate.on", () =>
+                setStrataRankSeparate(true),
               )}
             </div>
           </div>

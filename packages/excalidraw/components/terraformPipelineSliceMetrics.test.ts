@@ -273,8 +273,18 @@ describe("cluster path resolution (compound builders)", () => {
     const els = [
       regionA,
       regionB,
-      compactCluster("a", regionA.customData!.terraformTopologyKey as string, 10, 10),
-      compactCluster("b", regionB.customData!.terraformTopologyKey as string, 10, 110),
+      compactCluster(
+        "a",
+        regionA.customData!.terraformTopologyKey as string,
+        10,
+        10,
+      ),
+      compactCluster(
+        "b",
+        regionB.customData!.terraformTopologyKey as string,
+        10,
+        110,
+      ),
       arrow("a", "b", [
         [40, 30],
         [40, 130],
@@ -326,8 +336,10 @@ describe("cluster path resolution (compound builders)", () => {
       {
         ...compactCluster("a", "no-such-frame", 0, 0),
         customData: {
-          ...(compactCluster("a", "no-such-frame", 0, 0)
-            .customData as Record<string, unknown>),
+          ...(compactCluster("a", "no-such-frame", 0, 0).customData as Record<
+            string,
+            unknown
+          >),
           terraformTopologyPath: ["aws", "acct1", "us-east-1", "vpc-1", "s1"],
         },
       } as ExcalidrawElement,

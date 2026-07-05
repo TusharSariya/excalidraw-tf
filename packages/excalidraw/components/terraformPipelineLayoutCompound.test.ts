@@ -14,9 +14,11 @@ import {
   compareCompoundTopologyFrameEdges,
   resolveSiblingTopologyFramePair,
 } from "./terraformPipelineLayoutCompoundSiblingEdges";
-import type { CompoundTopologyFrameEdge } from "./terraformPipelineLayoutCompoundSiblingEdges";
+
 import { topologyFrameSkeletonId } from "./terraformPipelineTopologyFrames";
 import { reconcileTerraformVisibility } from "./terraformVisibility";
+
+import type { CompoundTopologyFrameEdge } from "./terraformPipelineLayoutCompoundSiblingEdges";
 
 import type { TerraformPlanNodesMap } from "./terraformPlanParsing";
 

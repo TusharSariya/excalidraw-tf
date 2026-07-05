@@ -215,7 +215,11 @@ describe("computeStrataSeparatedFloor", () => {
     // Independent siblings (no edge between subA and subB): no separation.
     const { model } = twoSubnetFixture();
     const base = rankOf(model, []).rank; // floor with no edges
-    const sep = computeStrataSeparatedFloor(model.hullRoot, base, effEdgesOf([]));
+    const sep = computeStrataSeparatedFloor(
+      model.hullRoot,
+      base,
+      effEdgesOf([]),
+    );
     expect(sep.pairCount).toBe(0);
     expect(sep.applied).toBe(false);
     expect(sep.fallbackReason).toBe("no-pairs");
@@ -265,8 +269,16 @@ describe("computeStrataSeparatedFloor", () => {
   it("is deterministic (run-twice byte-identical floor)", () => {
     const { model, pairs } = twoSubnetFixture();
     const base = rankOf(model, pairs).rank;
-    const a = computeStrataSeparatedFloor(model.hullRoot, base, effEdgesOf(pairs));
-    const b = computeStrataSeparatedFloor(model.hullRoot, base, effEdgesOf(pairs));
+    const a = computeStrataSeparatedFloor(
+      model.hullRoot,
+      base,
+      effEdgesOf(pairs),
+    );
+    const b = computeStrataSeparatedFloor(
+      model.hullRoot,
+      base,
+      effEdgesOf(pairs),
+    );
     expect(sortedEntries(a.floor)).toEqual(sortedEntries(b.floor));
     expect(a.pairCount).toBe(b.pairCount);
     expect(a.changedRankCount).toBe(b.changedRankCount);
@@ -279,15 +291,19 @@ describe("rankStrataClusters — OD-14 flag-OFF byte-identity", () => {
   it("rankSeparate:false ⇒ rank + placement byte-identical to baseline (no option)", () => {
     const { model, pairs } = twoSubnetFixture();
     const baseline = rankOf(model, pairs); // no rankSeparate key at all
-    const off = rankStrataClusters([...model.clusters.keys()], primeRepair(pairs), {
-      networkSimplexRank: false,
-      rankSeparate: false,
-      hullRoot: model.hullRoot,
-      unitWidthOf: (id) => {
-        const c = model.clusters.get(id);
-        return c ? clusterFrameLocalRect(c).width : 0;
+    const off = rankStrataClusters(
+      [...model.clusters.keys()],
+      primeRepair(pairs),
+      {
+        networkSimplexRank: false,
+        rankSeparate: false,
+        hullRoot: model.hullRoot,
+        unitWidthOf: (id) => {
+          const c = model.clusters.get(id);
+          return c ? clusterFrameLocalRect(c).width : 0;
+        },
       },
-    });
+    );
 
     // No OD-14 observability leaks onto the OFF result.
     expect(off.rankSeparateApplied).toBeUndefined();
@@ -460,9 +476,9 @@ describe("buildTerraformStrataExcalidrawScene — OD-14 on real P1", () => {
           100
         ).toFixed(1)}%) | rankSeparateApplied=${String(
           on.meta.strataRankSeparateApplied,
-        )} pairCount=${String(on.meta.strataRankSeparatePairCount)} changed=${String(
-          on.meta.strataRankSeparateChangedRankCount,
-        )}`,
+        )} pairCount=${String(
+          on.meta.strataRankSeparatePairCount,
+        )} changed=${String(on.meta.strataRankSeparateChangedRankCount)}`,
       );
       // Report-only on the real preset (structure-dependent); the synthetic
       // fixture owns the hard "reduces" assertion. Assert only that the flag is

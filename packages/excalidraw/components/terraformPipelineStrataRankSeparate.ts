@@ -141,7 +141,11 @@ export function computeStrataSeparatedFloor(
   // 2. Whole-model leaf→leaf edges (the DAG that produced the base floor).
   const leafEdges: { from: string; to: string }[] = [];
   for (const e of effEdges) {
-    if (leafSet.has(e.source) && leafSet.has(e.target) && e.source !== e.target) {
+    if (
+      leafSet.has(e.source) &&
+      leafSet.has(e.target) &&
+      e.source !== e.target
+    ) {
       leafEdges.push({ from: e.source, to: e.target });
     }
   }

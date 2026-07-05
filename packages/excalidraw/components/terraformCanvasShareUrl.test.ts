@@ -49,9 +49,9 @@ describe("terraformCanvasShareUrl", () => {
       expect(
         deriveViewFromSession(makeSession({ layoutMode: "pipeline" })),
       ).toBe("pipeline");
-      expect(
-        deriveViewFromSession(makeSession({ layoutMode: "strata" })),
-      ).toBe("strata");
+      expect(deriveViewFromSession(makeSession({ layoutMode: "strata" }))).toBe(
+        "strata",
+      );
     });
 
     it("falls back to semantic vs module via semanticLayout", () => {

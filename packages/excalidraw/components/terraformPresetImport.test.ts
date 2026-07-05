@@ -38,12 +38,8 @@ describe("deriveLayoutModeFromView", () => {
       "pipeline",
     );
     expect(deriveLayoutModeFromView("rcll", sourcesWithPlan)).toBe("rcll");
-    expect(deriveLayoutModeFromView("strata", sourcesWithPlan)).toBe(
-      "strata",
-    );
-    expect(deriveLayoutModeFromView("module", sourcesWithPlan)).toBe(
-      "module",
-    );
+    expect(deriveLayoutModeFromView("strata", sourcesWithPlan)).toBe("strata");
+    expect(deriveLayoutModeFromView("module", sourcesWithPlan)).toBe("module");
   });
 
   it("degrades every non-module view to 'module' without plan/dot/state sources", () => {
@@ -53,20 +49,20 @@ describe("deriveLayoutModeFromView", () => {
     expect(deriveLayoutModeFromView("pipeline", sourcesWithoutPlan)).toBe(
       "module",
     );
-    expect(deriveLayoutModeFromView("rcll", sourcesWithoutPlan)).toBe(
-      "module",
-    );
+    expect(deriveLayoutModeFromView("rcll", sourcesWithoutPlan)).toBe("module");
     expect(deriveLayoutModeFromView("strata", sourcesWithoutPlan)).toBe(
       "module",
     );
   });
 
   it("recognizes state-only sources as usable (canUseSemanticView via states)", () => {
-    const stateOnly: Pick<TerraformPlanParsingSources, "planDotBundles" | "states"> =
-      {
-        planDotBundles: [],
-        states: [{}],
-      };
+    const stateOnly: Pick<
+      TerraformPlanParsingSources,
+      "planDotBundles" | "states"
+    > = {
+      planDotBundles: [],
+      states: [{}],
+    };
     expect(deriveLayoutModeFromView("strata", stateOnly)).toBe("strata");
     expect(deriveLayoutModeFromView("rcll", stateOnly)).toBe("rcll");
   });

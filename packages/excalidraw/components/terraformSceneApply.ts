@@ -289,6 +289,83 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataRankSeparate: session.strataRankSeparate === true,
 });
 
+/**
+ * Pipeline/RCLL/Strata option-forwarding literal shared by the engine-layout
+ * request (`layoutTerraformSceneFromSources`) and the session-snapshot
+ * request (`runTerraformImportFromSources`, on `updateSession`). Both call
+ * sites must forward byte-identical option sets — this is the single source
+ * of truth. Returns `{}` outside the pipeline family; every field here is
+ * optional on `RunTerraformImportFromSourcesOptions`, so `{}` is a valid
+ * value of the return type.
+ */
+function buildPipelineFamilyLayoutOptions(
+  layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode,
+  options: RunTerraformImportFromSourcesOptions,
+): Pick<
+  RunTerraformImportFromSourcesOptions,
+  | "pipelineCompact"
+  | "pipelineLayoutVariant"
+  | "pipelinePacked"
+  | "pipelinePackedPullLeft"
+  | "pipelineIncludeAncillary"
+  | "pipelineSemanticPlacement"
+  | "pipelineSwimlaneLaneRise"
+  | "pipelineReorder"
+  | "pipelineCrossingMin"
+  | "pipelineDeBandLevel"
+  | "pipelineRankSeparate"
+  | "pipelineStraighten"
+  | "pipelineCoordRepack"
+  | "pipelineDeDensify"
+  | "pipelineColumnPacking"
+  | "pipelineLayoutProfile"
+  | "pipelineStaircaseBandOverlap"
+  | "strataNetworkSimplexRank"
+  | "strataSweeps"
+  | "strataCoordinateRefine"
+  | "strataRankSeparate"
+> {
+  if (
+    layoutMode !== "pipeline" &&
+    layoutMode !== "rcll" &&
+    layoutMode !== "strata"
+  ) {
+    return {};
+  }
+  return {
+    pipelineCompact: options.pipelineCompact !== false,
+    pipelineLayoutVariant:
+      layoutMode === "rcll"
+        ? "rcll"
+        : layoutMode === "strata"
+        ? "strata"
+        : options.pipelineLayoutVariant ?? "classic",
+    pipelinePacked: options.pipelinePacked === true,
+    pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
+    pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
+    pipelineSemanticPlacement: options.pipelineSemanticPlacement === true,
+    pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
+    pipelineReorder: options.pipelineReorder === true,
+    pipelineCrossingMin: options.pipelineCrossingMin === true,
+    pipelineDeBandLevel:
+      options.pipelineDeBandLevel ??
+      (options.pipelineSubnetDeBand ? "subnet" : "none"),
+    pipelineRankSeparate: options.pipelineRankSeparate === true,
+    pipelineStraighten: options.pipelineStraighten === true,
+    pipelineCoordRepack: options.pipelineCoordRepack === true,
+    pipelineDeDensify: options.pipelineDeDensify === true,
+    pipelineColumnPacking: options.pipelineColumnPacking,
+    pipelineLayoutProfile: options.pipelineLayoutProfile,
+    // Default-on: undefined ⇒ engine default (true). Only an explicit
+    // false (Stacked) flows through.
+    pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+    strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
+    strataSweeps: options.strataSweeps ?? 0,
+    strataCoordinateRefine: options.strataCoordinateRefine === true,
+    strataRankSeparate: options.strataRankSeparate === true,
+  };
+}
+
 async function layoutTerraformSceneFromSources(
   sources: TerraformPlanParsingSources,
   options: RunTerraformImportFromSourcesOptions,
@@ -328,43 +405,7 @@ async function layoutTerraformSceneFromSources(
       ...(options.layoutMode ? { layoutMode } : {}),
       moduleLayoutOptions:
         layoutMode === "module" ? moduleLayoutOptions : undefined,
-      ...(layoutMode === "pipeline" ||
-      layoutMode === "rcll" ||
-      layoutMode === "strata"
-        ? {
-            pipelineCompact: options.pipelineCompact !== false,
-            pipelineLayoutVariant:
-              layoutMode === "rcll"
-                ? "rcll"
-                : layoutMode === "strata"
-                ? "strata"
-                : options.pipelineLayoutVariant ?? "classic",
-            pipelinePacked: options.pipelinePacked === true,
-            pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
-            pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
-            pipelineSemanticPlacement:
-              options.pipelineSemanticPlacement === true,
-            pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
-            pipelineReorder: options.pipelineReorder === true,
-            pipelineCrossingMin: options.pipelineCrossingMin === true,
-            pipelineDeBandLevel:
-              options.pipelineDeBandLevel ??
-              (options.pipelineSubnetDeBand ? "subnet" : "none"),
-            pipelineRankSeparate: options.pipelineRankSeparate === true,
-            pipelineStraighten: options.pipelineStraighten === true,
-            pipelineCoordRepack: options.pipelineCoordRepack === true,
-            pipelineDeDensify: options.pipelineDeDensify === true,
-            pipelineColumnPacking: options.pipelineColumnPacking,
-            pipelineLayoutProfile: options.pipelineLayoutProfile,
-            // Default-on: undefined ⇒ engine default (true). Only an explicit
-            // false (Stacked) flows through.
-            pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
-            strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
-            strataSweeps: options.strataSweeps ?? 0,
-            strataCoordinateRefine: options.strataCoordinateRefine === true,
-            strataRankSeparate: options.strataRankSeparate === true,
-          }
-        : {}),
+      ...buildPipelineFamilyLayoutOptions(layoutMode, options),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
     },
     {
@@ -423,43 +464,7 @@ export const runTerraformImportFromSources = async (
       terraformLodEnabled: options.terraformLodEnabled !== false,
       terraformLodPreset:
         options.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
-      ...(layoutMode === "pipeline" ||
-      layoutMode === "rcll" ||
-      layoutMode === "strata"
-        ? {
-            pipelineCompact: options.pipelineCompact !== false,
-            pipelineLayoutVariant:
-              layoutMode === "rcll"
-                ? "rcll"
-                : layoutMode === "strata"
-                ? "strata"
-                : options.pipelineLayoutVariant ?? "classic",
-            pipelinePacked: options.pipelinePacked === true,
-            pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
-            pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
-            pipelineSemanticPlacement:
-              options.pipelineSemanticPlacement === true,
-            pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
-            pipelineReorder: options.pipelineReorder === true,
-            pipelineCrossingMin: options.pipelineCrossingMin === true,
-            pipelineDeBandLevel:
-              options.pipelineDeBandLevel ??
-              (options.pipelineSubnetDeBand ? "subnet" : "none"),
-            pipelineRankSeparate: options.pipelineRankSeparate === true,
-            pipelineStraighten: options.pipelineStraighten === true,
-            pipelineCoordRepack: options.pipelineCoordRepack === true,
-            pipelineDeDensify: options.pipelineDeDensify === true,
-            pipelineColumnPacking: options.pipelineColumnPacking,
-            pipelineLayoutProfile: options.pipelineLayoutProfile,
-            // Default-on: undefined ⇒ engine default (true). Only an explicit
-            // false (Stacked) flows through.
-            pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
-            strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
-            strataSweeps: options.strataSweeps ?? 0,
-            strataCoordinateRefine: options.strataCoordinateRefine === true,
-            strataRankSeparate: options.strataRankSeparate === true,
-          }
-        : {}),
+      ...buildPipelineFamilyLayoutOptions(layoutMode, options),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
       preset: options.preset ?? null,
       importedTfdTexts,

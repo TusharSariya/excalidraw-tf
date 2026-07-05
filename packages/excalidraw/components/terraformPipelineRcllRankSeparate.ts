@@ -41,7 +41,6 @@
  */
 import {
   buildSeparationConstraintGraph,
-  constraintGraphHasCycle,
   longestPath,
 } from "./terraformPipelineLayoutShared";
 

@@ -513,9 +513,7 @@ export function buildSeparationConstraintGraph(
 ): SeparationConstraintGraph {
   const keySet = new Set(childKeys);
   // Only edges whose BOTH endpoints are children of this container participate.
-  const internal = edges.filter(
-    (e) => keySet.has(e.from) && keySet.has(e.to),
-  );
+  const internal = edges.filter((e) => keySet.has(e.from) && keySet.has(e.to));
   const quotientOf = stronglyConnectedComponents(
     childKeys,
     internal.map((e) => ({ from: e.from, to: e.to })),

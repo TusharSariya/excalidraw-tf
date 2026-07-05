@@ -60,9 +60,17 @@ export default defineConfig({
   //@ts-ignore
   test: {
     ...(isSlowOnlyRun ? { include: [...SLOW_TEST_PATTERNS] } : {}),
-    ...(isFastRun
-      ? { exclude: [...configDefaults.exclude, ...SLOW_TEST_PATTERNS] }
-      : {}),
+    // `.claude/worktrees/**` holds sibling git worktrees checked out by other
+    // concurrent coding-agent sessions on this same machine (see the
+    // using-git-worktrees convention) — never test-runner scope. Without this
+    // exclude, vitest's default discovery sweeps those trees up too, running
+    // (and reporting failures for) whatever unrelated/in-progress code
+    // another session currently has checked out there.
+    exclude: [
+      ...configDefaults.exclude,
+      "**/.claude/**",
+      ...(isFastRun ? SLOW_TEST_PATTERNS : []),
+    ],
     // Since hooks are running in stack in v2, which means all hooks run serially whereas
     // we need to run them in parallel
     sequence: {
