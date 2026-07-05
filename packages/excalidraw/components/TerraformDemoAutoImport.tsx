@@ -187,6 +187,7 @@ export const TerraformDemoAutoImport = ({
             strataNetworkSimplexRank: params.strataNsRank,
             strataSweeps: params.strataSweeps,
             strataCoordinateRefine: params.strataCoordRefine,
+            strataRankSeparate: params.strataRankSeparate,
             signal,
             onLayoutProgress: (progress) => {
               const label =

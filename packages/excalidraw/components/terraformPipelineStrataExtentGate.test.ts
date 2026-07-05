@@ -124,6 +124,27 @@ const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
     strataSweeps: 4,
     strataCoordinateRefine: true,
   },
+  // OD-14 (WP-4) rankSeparate height-lever arms. Jc = the lever ALONE (K=0, no
+  // A7) to isolate its contribution; J/J2 = the full optimized stack + lever.
+  Jc_strata_rs: {
+    layoutMode: "strata",
+    pipelineCompact: true,
+    strataRankSeparate: true,
+  },
+  J_strata_k4_a7_rs: {
+    layoutMode: "strata",
+    pipelineCompact: true,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+    strataRankSeparate: true,
+  },
+  J2_strata_k4_a7_rs_full: {
+    layoutMode: "strata",
+    pipelineCompact: false,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+    strataRankSeparate: true,
+  },
 };
 
 const STRATA_ARMS: ReadonlySet<string> = new Set([
@@ -131,6 +152,9 @@ const STRATA_ARMS: ReadonlySet<string> = new Set([
   "I_strata_k4_a7",
   "H2_strata_k4_full",
   "I2_strata_k4_a7_full",
+  "Jc_strata_rs",
+  "J_strata_k4_a7_rs",
+  "J2_strata_k4_a7_rs_full",
 ]);
 
 /** §12 gate cells. `reportOnly` = the frozen P2-compact exclusion pin (nB=4);
@@ -181,6 +205,43 @@ const CELL_SPECS: CellSpec[] = [
     candidateArm: c,
     reportOnly: true,
   })),
+  // ── OD-14 (WP-4) rankSeparate arms — does the height lever close the gate? ──
+  // P1 compact: the cell that FAILED at V2 (A vs I: p90 +6369). Jc = lever alone
+  // (attribution), J = full stack + lever (the headline verdict).
+  ...["Jc_strata_rs", "J_strata_k4_a7_rs"].map((c) => ({
+    preset: PRESET_1,
+    presetLabel: "P1" as const,
+    mode: "compact" as const,
+    baselineArm: "A_v2_baseline",
+    candidateArm: c,
+    reportOnly: false,
+  })),
+  // P1 + P2 full: full-mode stack + lever.
+  {
+    preset: PRESET_1,
+    presetLabel: "P1" as const,
+    mode: "full" as const,
+    baselineArm: "F_v2_full_ancillary",
+    candidateArm: "J2_strata_k4_a7_rs_full",
+    reportOnly: false,
+  },
+  {
+    preset: PRESET_2,
+    presetLabel: "P2" as const,
+    mode: "full" as const,
+    baselineArm: "F_v2_full_ancillary",
+    candidateArm: "J2_strata_k4_a7_rs_full",
+    reportOnly: false,
+  },
+  // P2 compact + lever (report-only, frozen nB=4 exclusion).
+  {
+    preset: PRESET_2,
+    presetLabel: "P2" as const,
+    mode: "compact" as const,
+    baselineArm: "A_v2_baseline",
+    candidateArm: "J_strata_k4_a7_rs",
+    reportOnly: true,
+  },
 ];
 
 // ── per-arm scene build + slice-B extraction ─────────────────────────────────

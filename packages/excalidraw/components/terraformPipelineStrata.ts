@@ -23,6 +23,16 @@ export type TerraformStrataSceneOptions = {
   /** OD-1 (M1b): X-axis network-simplex rank refinement (A1). Threaded at S0a;
    * consumed by `rankStrataClusters`. Default off. */
   strataNetworkSimplexRank?: boolean;
+  /**
+   * OD-14 (post-M1 height lever, DEC-12 class): whole-model sibling-separation
+   * ranking — the Strata port of v1 `rankSeparate`. Threaded at S0a; consumed by
+   * `rankStrataClusters`, where the separated floor REPLACES the A1 rank. It
+   * CANNOT compose with the network-simplex ranker (both rewrite the column
+   * axis); when both are requested `strataRankSeparate` WINS and NS is dropped,
+   * surfaced in meta as `strataToggleSuppressions` (the same conflict signal the
+   * v1 `terraformPipelineToggleGuards` emits). Default off.
+   */
+  strataRankSeparate?: boolean;
   /** OD-2 (M1b): directional sweep count for the A2 ordering pass. Threaded at
    * S0a; consumed by `placeStrataHulls`. Default 0 (M1a "model-order bands"). */
   strataSweeps?: number;
@@ -82,11 +92,30 @@ export async function buildTerraformStrataExcalidrawScene(
 }> {
   const compact = options?.compact !== false;
   const includeAncillary = options?.includeAncillary === true;
-  const strataNetworkSimplexRank = options?.strataNetworkSimplexRank === true;
-  const strataSweeps = options?.strataSweeps ?? 0;
-  const strataCoordinateRefine = options?.strataCoordinateRefine === true;
+  const strataRankSeparate = options?.strataRankSeparate === true;
   const strataGeneration = options?.strataGeneration ?? 1;
   const forceStage = options?.__testForceStageError;
+
+  // OD-14 mutual-exclusion (mirror of terraformPipelineToggleGuards.ts:103-106):
+  // `strataRankSeparate` and the network-simplex ranker both rewrite the column
+  // axis and CANNOT compose — rankSeparate is the dominant height lever, so when
+  // both are requested it WINS and NS is dropped, surfaced observably. The
+  // ECHOED (effective) NS value below is the post-suppression one (honest meta).
+  const strataNetworkSimplexRankRequested =
+    options?.strataNetworkSimplexRank === true;
+  const strataToggleSuppressions: string[] = [];
+  const strataNetworkSimplexRank =
+    strataRankSeparate && strataNetworkSimplexRankRequested
+      ? false
+      : strataNetworkSimplexRankRequested;
+  if (strataRankSeparate && strataNetworkSimplexRankRequested) {
+    strataToggleSuppressions.push(
+      "rank-floor-conflict-rankseparate-wins-network-simplex",
+    );
+  }
+
+  const strataSweeps = options?.strataSweeps ?? 0;
+  const strataCoordinateRefine = options?.strataCoordinateRefine === true;
 
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
@@ -95,9 +124,13 @@ export async function buildTerraformStrataExcalidrawScene(
   // (which gates on canonical ids, not on this echo) stays inert.
   const flagMeta: Record<string, unknown> = {
     strataNetworkSimplexRank,
+    strataRankSeparate,
     strataSweeps,
     strataCoordinateRefine,
     strataGeneration,
+    ...(strataToggleSuppressions.length > 0
+      ? { strataToggleSuppressions }
+      : {}),
     ...(includeAncillary ? { strataAncillaryDeferred: true } : {}),
   };
 
@@ -111,6 +144,7 @@ export async function buildTerraformStrataExcalidrawScene(
     // echoed as deferred, not silently ignored.
     includeAncillary: false,
     networkSimplexRank: strataNetworkSimplexRank,
+    rankSeparate: strataRankSeparate,
     sweeps: strataSweeps,
     coordinateRefine: strataCoordinateRefine,
   };
@@ -135,6 +169,10 @@ export async function buildTerraformStrataExcalidrawScene(
     gate("a1");
     const rank = rankStrataClusters([...model.clusters.keys()], repair, {
       networkSimplexRank: engineOptions.networkSimplexRank,
+      // OD-14: when live, the separated floor (derived from the hull tree's
+      // sibling units) REPLACES the A1 rank instead of the NS refinement.
+      rankSeparate: engineOptions.rankSeparate,
+      hullRoot: model.hullRoot,
       // OD-6 / D10 #5: unit width is the frame's TRUE local rect width (what
       // placement uses), NOT build.width.
       unitWidthOf: (id) => {
@@ -215,6 +253,18 @@ export async function buildTerraformStrataExcalidrawScene(
         strataNetworkSimplexApplied: rank.networkSimplexApplied,
         ...(rank.nsSkipReason
           ? { strataNetworkSimplexSkipReason: rank.nsSkipReason }
+          : {}),
+        // OD-14 height-lever observability — present only when the flag was live.
+        ...(rank.rankSeparateApplied !== undefined
+          ? {
+              strataRankSeparateApplied: rank.rankSeparateApplied,
+              strataRankSeparatePairCount: rank.rankSeparatePairCount,
+              strataRankSeparateChangedRankCount:
+                rank.rankSeparateChangedRankCount,
+              ...(rank.rankSeparateFallback
+                ? { strataRankSeparateFallback: rank.rankSeparateFallback }
+                : {}),
+            }
           : {}),
         // R2 evidence (all-zero on the success path).
         strataStructural: structure,

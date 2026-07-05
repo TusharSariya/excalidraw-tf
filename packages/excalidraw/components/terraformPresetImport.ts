@@ -79,6 +79,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** Strata OD-14: whole-model sibling-separation ranking (the height lever).
+   * Default off. */
+  strataRankSeparate?: boolean;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -112,6 +115,7 @@ export const runTerraformImportWithView = async ({
   strataNetworkSimplexRank,
   strataSweeps,
   strataCoordinateRefine,
+  strataRankSeparate,
   importedTfdTexts,
   preset = null,
   signal,
@@ -151,6 +155,7 @@ export const runTerraformImportWithView = async ({
           strataNetworkSimplexRank,
           strataSweeps,
           strataCoordinateRefine,
+          strataRankSeparate,
         }
       : {}),
     importedTfdTexts,
@@ -186,6 +191,7 @@ export type RunTerraformPresetImportOptions = {
   strataNetworkSimplexRank?: boolean;
   strataSweeps?: number;
   strataCoordinateRefine?: boolean;
+  strataRankSeparate?: boolean;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -244,6 +250,7 @@ export const runTerraformPresetImport = async (
     strataNetworkSimplexRank: options.strataNetworkSimplexRank,
     strataSweeps: options.strataSweeps,
     strataCoordinateRefine: options.strataCoordinateRefine,
+    strataRankSeparate: options.strataRankSeparate,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

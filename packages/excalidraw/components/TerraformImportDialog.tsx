@@ -9,6 +9,7 @@ import { Dialog } from "./Dialog";
 import { FilledButton } from "./FilledButton";
 import { TerraformModulePackingSettings } from "./TerraformModulePackingSettings";
 import { TerraformImportPipelineSettings } from "./TerraformImportPipelineSettings";
+import { TerraformStrataSettings } from "./TerraformStrataSettings";
 import { useTerraformImportDialog } from "./useTerraformImportDialog";
 import {
   joinPresetPath,
@@ -68,6 +69,9 @@ export const TerraformImportModal = ({
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
+    strataSweeps,
+    strataCoordinateRefine,
+    strataRankSeparate,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -630,6 +634,16 @@ terraform show -json tfplan > plan.json`}</code>
                 showVariant={view !== "rcll"}
               />
             )}
+          {view === "strata" && (
+            <TerraformStrataSettings
+              strataSweeps={strataSweeps}
+              strataCoordinateRefine={strataCoordinateRefine}
+              strataRankSeparate={strataRankSeparate}
+              setStrataSweeps={dialog.setStrataSweeps}
+              setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
+              setStrataRankSeparate={dialog.setStrataRankSeparate}
+            />
+          )}
           {view === "module" && (
             <TerraformModulePackingSettings
               options={moduleLayoutOptions}

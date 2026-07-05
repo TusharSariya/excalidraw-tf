@@ -214,6 +214,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata A7 — slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** Strata OD-14 — whole-model sibling-separation ranking (the height lever).
+   * Default off. */
+  strataRankSeparate?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -255,6 +258,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataNetworkSimplexRank"
   | "strataSweeps"
   | "strataCoordinateRefine"
+  | "strataRankSeparate"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -282,6 +286,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataNetworkSimplexRank: session.strataNetworkSimplexRank === true,
   strataSweeps: session.strataSweeps ?? 0,
   strataCoordinateRefine: session.strataCoordinateRefine === true,
+  strataRankSeparate: session.strataRankSeparate === true,
 });
 
 async function layoutTerraformSceneFromSources(
@@ -357,6 +362,7 @@ async function layoutTerraformSceneFromSources(
             strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
             strataSweeps: options.strataSweeps ?? 0,
             strataCoordinateRefine: options.strataCoordinateRefine === true,
+            strataRankSeparate: options.strataRankSeparate === true,
           }
         : {}),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
@@ -451,6 +457,7 @@ export const runTerraformImportFromSources = async (
             strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
             strataSweeps: options.strataSweeps ?? 0,
             strataCoordinateRefine: options.strataCoordinateRefine === true,
+            strataRankSeparate: options.strataRankSeparate === true,
           }
         : {}),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,

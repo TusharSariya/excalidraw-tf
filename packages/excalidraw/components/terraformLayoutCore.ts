@@ -459,6 +459,9 @@ type LayoutSceneContext = {
   /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;
+  /** Strata OD-14: whole-model sibling-separation ranking (the height lever); the
+   * separated floor REPLACES the A1 rank, mutually exclusive with NS. Default off. */
+  strataRankSeparate?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
@@ -562,6 +565,7 @@ async function buildPipelineLayoutSceneBody(
       const builderOptions = {
         ...pipelineOptions,
         strataNetworkSimplexRank: ctx.strataNetworkSimplexRank,
+        strataRankSeparate: ctx.strataRankSeparate,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
       };
@@ -1103,6 +1107,7 @@ export async function layoutTerraformFromSources(
     // options not listed here are silently dropped, per trap #4). S0a: accepted +
     // threaded through to the builder's meta echo; unused until the engine lands.
     strataNetworkSimplexRank: options?.strataNetworkSimplexRank === true,
+    strataRankSeparate: options?.strataRankSeparate === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     colorMode: options?.colorMode,

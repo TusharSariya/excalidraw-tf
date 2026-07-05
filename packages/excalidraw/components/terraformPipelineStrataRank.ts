@@ -37,9 +37,11 @@ import {
   PIPELINE_COLUMN_GAP,
   computeNetworkSimplexDepths,
 } from "./terraformPipelineLayoutShared";
+import { computeStrataSeparatedFloor } from "./terraformPipelineStrataRankSeparate";
 
 import type {
   StrataCycleRepairResult,
+  StrataHullNode,
   StrataRankResult,
 } from "./terraformPipelineStrataTypes";
 
@@ -49,6 +51,15 @@ export function rankStrataClusters(
   opts: {
     networkSimplexRank: boolean;
     unitWidthOf: (clusterId: string) => number;
+    /**
+     * OD-14 height lever (default off). When true, the whole-model separated
+     * floor REPLACES the A1 rank (and NS is not attempted — rankSeparate wins,
+     * mirroring `terraformPipelineToggleGuards.ts`). Requires `hullRoot` (the
+     * separation constraints are derived from the hull tree's sibling units);
+     * absent hull tree ⇒ inert (plain floor).
+     */
+    rankSeparate?: boolean;
+    hullRoot?: StrataHullNode;
   },
 ): StrataRankResult {
   // Effective (E′) edges: true-direction edges kept as-is; F-edges consumed
@@ -82,11 +93,36 @@ export function rankStrataClusters(
     "Strata A1: E′ must be acyclic after A3 cycle repair (engine invariant, not a reachable input shape)",
   );
 
-  let rank = floorRank;
+  let rank: ReadonlyMap<string, number> = floorRank;
   let networkSimplexApplied = false;
   let nsSkipReason: StrataRankResult["nsSkipReason"];
+  let rankSeparateApplied: StrataRankResult["rankSeparateApplied"];
+  let rankSeparateFallback: StrataRankResult["rankSeparateFallback"];
+  let rankSeparatePairCount: StrataRankResult["rankSeparatePairCount"];
+  let rankSeparateChangedRankCount: StrataRankResult["rankSeparateChangedRankCount"];
 
-  if (!opts.networkSimplexRank) {
+  if (opts.rankSeparate === true && opts.hullRoot) {
+    // OD-14: the separated floor REPLACES the A1 rank. Runs FIRST so it WINS
+    // over NS unconditionally (rankSeparate is the dominant lever — mirror of
+    // the toggle-guard order); NS is never even attempted here. The separated
+    // floor is a valid forward layering by construction (a longest path over a
+    // SUPERSET of E′), so the C7 `isDepthFloorValid` gate is a belt-and-braces
+    // that matches the NS path's "infeasible ⇒ keep the floor" contract.
+    const sep = computeStrataSeparatedFloor(opts.hullRoot, floorRank, effEdges);
+    rankSeparatePairCount = sep.pairCount;
+    rankSeparateChangedRankCount = sep.changedRankCount;
+    if (sep.applied && isDepthFloorValid(sep.floor, effEdges)) {
+      rank = sep.floor;
+      rankSeparateApplied = true;
+    } else {
+      rankSeparateApplied = false;
+      rankSeparateFallback = sep.applied
+        ? "infeasible-fallback" // unreachable by construction; kept honest
+        : sep.fallbackReason === "augmented-cycle"
+        ? "augmented-cycle"
+        : "no-pairs";
+    }
+  } else if (!opts.networkSimplexRank) {
     nsSkipReason = "flag-off";
   } else {
     const candidate = computeNetworkSimplexDepths(
@@ -123,7 +159,22 @@ export function rankStrataClusters(
   );
   const columnX = columnOffsetsFromWidths(columnWidths, 0, PIPELINE_COLUMN_GAP);
 
-  return { rank, columnX, networkSimplexApplied, nsSkipReason };
+  return {
+    rank,
+    columnX,
+    networkSimplexApplied,
+    nsSkipReason,
+    // OD-14 observability — present only when the flag was live (flag-OFF
+    // identity: `rankSeparateApplied` stays undefined, mirroring `nsSkipReason`).
+    ...(rankSeparateApplied !== undefined
+      ? {
+          rankSeparateApplied,
+          rankSeparateFallback,
+          rankSeparatePairCount,
+          rankSeparateChangedRankCount,
+        }
+      : {}),
+  };
 }
 
 /**

@@ -120,6 +120,9 @@ export const useTerraformImportDialog = ({
     useState(false);
   const [strataSweeps, setStrataSweeps] = useState(0);
   const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(false);
+  // Strata OD-14 (strata-only): whole-model sibling-separation ranking (the
+  // height lever). Same S0a passthrough status as the other Strata flags.
+  const [strataRankSeparate, setStrataRankSeparate] = useState(false);
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -417,6 +420,7 @@ export const useTerraformImportDialog = ({
         strataNetworkSimplexRank,
         strataSweeps,
         strataCoordinateRefine,
+        strataRankSeparate,
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -556,6 +560,7 @@ export const useTerraformImportDialog = ({
           strataNetworkSimplexRank,
           strataSweeps,
           strataCoordinateRefine,
+          strataRankSeparate,
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -661,6 +666,7 @@ export const useTerraformImportDialog = ({
         strataNetworkSimplexRank,
         strataSweeps,
         strataCoordinateRefine,
+        strataRankSeparate,
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -880,6 +886,7 @@ export const useTerraformImportDialog = ({
         strataNetworkSimplexRank,
         strataSweeps,
         strataCoordinateRefine,
+        strataRankSeparate,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -906,6 +913,7 @@ export const useTerraformImportDialog = ({
     strataNetworkSimplexRank,
     strataSweeps,
     strataCoordinateRefine,
+    strataRankSeparate,
     moduleLayoutOptions.mode,
   ]);
 
@@ -933,6 +941,7 @@ export const useTerraformImportDialog = ({
     strataNetworkSimplexRank,
     strataSweeps,
     strataCoordinateRefine,
+    strataRankSeparate,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -982,6 +991,7 @@ export const useTerraformImportDialog = ({
     setStrataNetworkSimplexRank,
     setStrataSweeps,
     setStrataCoordinateRefine,
+    setStrataRankSeparate,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

@@ -101,6 +101,8 @@ export type TerraformDemoUrlParams = {
   strataSweeps?: number;
   /** A7: slice-A coordinate refinement. */
   strataCoordRefine?: boolean;
+  /** OD-14: whole-model sibling-separation ranking (the height lever). */
+  strataRankSeparate?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -354,6 +356,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataCoordRefine === null) {
     return null;
   }
+  const strataRankSeparate = parseBooleanParam("strataRankSep");
+  if (strataRankSeparate === null) {
+    return null;
+  }
 
   // ─── Runtime canvas view settings ───
   const lodEnabled = parseBooleanParam("lodEnabled");
@@ -465,6 +471,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataNsRank != null ? { strataNsRank } : {}),
     ...(strataSweeps != null ? { strataSweeps } : {}),
     ...(strataCoordRefine != null ? { strataCoordRefine } : {}),
+    ...(strataRankSeparate != null ? { strataRankSeparate } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -527,6 +534,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataNsRank", params.strataNsRank);
   setNum("strataSweeps", params.strataSweeps);
   setBool("strataCoordRefine", params.strataCoordRefine);
+  setBool("strataRankSep", params.strataRankSeparate);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -581,6 +589,7 @@ export type TerraformDemoSettingsSnapshot = {
   strataNetworkSimplexRank: boolean;
   strataSweeps: number;
   strataCoordinateRefine: boolean;
+  strataRankSeparate: boolean;
 };
 
 /**
@@ -653,6 +662,7 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataNetworkSimplexRank ? { strataNsRank: true } : {}),
       ...(snapshot.strataSweeps ? { strataSweeps: snapshot.strataSweeps } : {}),
       ...(snapshot.strataCoordinateRefine ? { strataCoordRefine: true } : {}),
+      ...(snapshot.strataRankSeparate ? { strataRankSeparate: true } : {}),
     };
   }
 

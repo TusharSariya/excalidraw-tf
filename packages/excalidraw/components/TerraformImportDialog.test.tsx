@@ -159,6 +159,7 @@ describe("TerraformImportModal", () => {
       strataNetworkSimplexRank: false,
       strataSweeps: 0,
       strataCoordinateRefine: false,
+      strataRankSeparate: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -197,6 +198,7 @@ describe("TerraformImportModal", () => {
       strataNetworkSimplexRank: false,
       strataSweeps: 0,
       strataCoordinateRefine: false,
+      strataRankSeparate: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -941,5 +943,202 @@ describe("TerraformImportModal", () => {
     expect(
       screen.getByRole("group", { name: /pipeline height packing/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows strata settings only when Strata view is selected", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+
+    expect(screen.queryByText("Strata settings")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+    expect(screen.getByText("Strata settings")).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: /strata layer ordering/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: /strata straighten/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: /strata compact height/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("Strata view: Layer ordering defaults Off and On flips aria-pressed + threads strataSweeps 4", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const ordering = screen.getByRole("group", {
+      name: /strata layer ordering/i,
+    });
+    const offBtn = within(ordering).getByRole("button", { name: /^off$/i });
+    const onBtn = within(ordering).getByRole("button", { name: /^on$/i });
+
+    // Opt-in default-OFF: Off starts pressed.
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(onBtn);
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataSweeps: 4 }),
+    );
+  });
+
+  it("Strata view: Layer ordering On then back to Off threads strataSweeps 0", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const ordering = screen.getByRole("group", {
+      name: /strata layer ordering/i,
+    });
+    const offBtn = within(ordering).getByRole("button", { name: /^off$/i });
+    const onBtn = within(ordering).getByRole("button", { name: /^on$/i });
+
+    fireEvent.click(onBtn);
+    fireEvent.click(offBtn);
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataSweeps: 0 }),
+    );
+  });
+
+  it("Strata view: Straighten (A7) defaults Off and On flips aria-pressed + threads strataCoordinateRefine true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const straighten = screen.getByRole("group", {
+      name: /strata straighten/i,
+    });
+    const offBtn = within(straighten).getByRole("button", { name: /^off$/i });
+    const onBtn = within(straighten).getByRole("button", { name: /^on$/i });
+
+    // Opt-in default-OFF: Off starts pressed.
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(onBtn);
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataCoordinateRefine: true }),
+    );
+  });
+
+  it("Strata view: Straighten (A7) On then back to Off threads strataCoordinateRefine false", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const straighten = screen.getByRole("group", {
+      name: /strata straighten/i,
+    });
+    const offBtn = within(straighten).getByRole("button", { name: /^off$/i });
+    const onBtn = within(straighten).getByRole("button", { name: /^on$/i });
+
+    fireEvent.click(onBtn);
+    fireEvent.click(offBtn);
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataCoordinateRefine: false }),
+    );
+  });
+
+  it("Strata view: Compact height defaults Off and On flips aria-pressed + threads strataRankSeparate true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    const offBtn = within(compactHeight).getByRole("button", {
+      name: /^off$/i,
+    });
+    const onBtn = within(compactHeight).getByRole("button", {
+      name: /^on$/i,
+    });
+
+    // Opt-in default-OFF: Off starts pressed.
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(onBtn);
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataRankSeparate: true }),
+    );
+  });
+
+  it("Strata view: Compact height On then back to Off threads strataRankSeparate false", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    const offBtn = within(compactHeight).getByRole("button", {
+      name: /^off$/i,
+    });
+    const onBtn = within(compactHeight).getByRole("button", {
+      name: /^on$/i,
+    });
+
+    fireEvent.click(onBtn);
+    fireEvent.click(offBtn);
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataRankSeparate: false }),
+    );
   });
 });

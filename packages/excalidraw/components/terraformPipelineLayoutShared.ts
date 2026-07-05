@@ -482,6 +482,99 @@ export function stronglyConnectedComponents(
   return rep;
 }
 
+/**
+ * The SCC-quotient + separation-only constraint graph for one container's (or
+ * hull's) children (RFC §9.6 / DEC-13; Strata OD-14). `quotientOf` maps each
+ * child key to its quotient representative (a 2-way cycle collapses to one
+ * rep = stays co-axial). `condEdges` are the separation precedence edges
+ * between DISTINCT quotient nodes (one per ordered pair, deduped).
+ * `infeasible` is true iff the quotient still contains a cycle — i.e. the
+ * supplied edges/reps do not actually condense to a DAG (reject, never
+ * silently expand ranks). For a real SCC quotient this is always false; the
+ * flag exists so a malformed input is caught at the boundary and the caller
+ * can fall back.
+ *
+ * Structure-agnostic: pure `string[]` child keys + `{from,to}`-shaped edges,
+ * with no dependency on either engine's edge type — both the RCLL and Strata
+ * rankSeparate modules reuse it verbatim (SCC-quotient + one-way-pair
+ * condensation + infeasibility gate) rather than each defining their own.
+ */
+export type SeparationConstraintGraph = {
+  quotientOf: Map<string, string>;
+  condEdges: { from: string; to: string }[];
+  /** quotient rep → child keys in that quotient (model-order preserved). */
+  membersByQuotient: Map<string, string[]>;
+  infeasible: boolean;
+};
+
+export function buildSeparationConstraintGraph(
+  childKeys: readonly string[],
+  edges: readonly { from: string; to: string }[],
+): SeparationConstraintGraph {
+  const keySet = new Set(childKeys);
+  // Only edges whose BOTH endpoints are children of this container participate.
+  const internal = edges.filter(
+    (e) => keySet.has(e.from) && keySet.has(e.to),
+  );
+  const quotientOf = stronglyConnectedComponents(
+    childKeys,
+    internal.map((e) => ({ from: e.from, to: e.to })),
+  );
+
+  const membersByQuotient = new Map<string, string[]>();
+  for (const key of childKeys) {
+    const r = quotientOf.get(key) ?? key;
+    const list = membersByQuotient.get(r);
+    if (list) {
+      list.push(key);
+    } else {
+      membersByQuotient.set(r, [key]);
+    }
+  }
+
+  // Separation precedence between distinct quotient nodes (deduped, deterministic).
+  const seen = new Set<string>();
+  const condEdges: { from: string; to: string }[] = [];
+  for (const e of internal) {
+    const rf = quotientOf.get(e.from) ?? e.from;
+    const rt = quotientOf.get(e.to) ?? e.to;
+    if (rf === rt) {
+      continue; // intra-quotient (mutual cycle) — co-axial, no separation
+    }
+    const k = `${rf}\u0001${rt}`;
+    if (!seen.has(k)) {
+      seen.add(k);
+      condEdges.push({ from: rf, to: rt });
+    }
+  }
+
+  // Infeasibility: the quotient must be a DAG. `constraintGraphHasCycle` over the
+  // quotient reps catches a malformed condensation (reps that don't truly collapse
+  // every cycle). For a genuine Tarjan quotient this never fires — but it is the hard
+  // boundary that guarantees the caller never receives a silently-cyclic constraint
+  // set (reject + fall back, never expand ranks past a contradiction).
+  const reps = [...membersByQuotient.keys()];
+
+  return {
+    quotientOf,
+    condEdges,
+    membersByQuotient,
+    infeasible: constraintGraphHasCycle(reps, condEdges),
+  };
+}
+
+/**
+ * True iff the separation precedence graph contains a directed cycle (infeasible —
+ * no rank assignment can satisfy a cyclic chain of strict `<` constraints). Reuses
+ * `longestPath`'s Kahn pass, which reports `hasCycle` when not every node is drained.
+ */
+export function constraintGraphHasCycle(
+  reps: readonly string[],
+  condEdges: readonly { from: string; to: string }[],
+): boolean {
+  return longestPath(reps, condEdges, () => 0).hasCycle;
+}
+
 export function computeDepths(
   clusterEdges: Array<{ source: string; target: string; sequence: number }>,
   clusterIds: readonly string[],

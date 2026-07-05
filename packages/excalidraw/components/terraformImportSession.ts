@@ -74,6 +74,9 @@ export type TerraformImportSession = {
   /** Strata A7 — slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** Strata OD-14 — whole-model sibling-separation ranking (the height lever).
+   * Default off. */
+  strataRankSeparate?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

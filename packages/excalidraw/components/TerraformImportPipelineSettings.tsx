@@ -21,7 +21,11 @@ type OptionHelpEntry = {
   dev: { implements: string; refs?: string[] };
 };
 
-const OPTION_HELP: Record<string, OptionHelpEntry> = {
+/** Exported so the strata-only settings block (`TerraformStrataSettings.tsx`,
+ * a dedicated component — strata's option set is small and unrelated to the
+ * rcll/pipeline levers this component owns) can reuse the same explanation
+ * shape/content instead of duplicating it. */
+export const OPTION_HELP: Record<string, OptionHelpEntry> = {
   "detail.compact": {
     title: "Detail · Compact",
     body: "Each resource group is drawn as one representative card (the primary resource, e.g. an ECS service standing in for its task definition, target group, etc.). Click a card to expand the resources inside it. Smaller, faster, and easier to scan — you drill in only where you care.",
@@ -342,6 +346,60 @@ const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "Sugiyama 1981 (barycenter)",
         "Gansner, Koutsofios, North & Vo 1993 (TSE93 balance())",
       ],
+    },
+  },
+  // Strata (rcll-v2) opt-in engine passes — OD-2 (A2 K=4 ordering) / OD-5 (A7
+  // refinement) dialog toggles, rendered by the dedicated
+  // TerraformStrataSettings.tsx (imports this map).
+  "strata.ordering.off": {
+    title: "Layer ordering · Off",
+    body: "Bands keep the initial model order — arrows between adjacent layers may cross more than necessary.",
+    dev: {
+      implements:
+        "strataSweeps=0 (K=0): orderStrataUnits returns the initial content-key model order, byte-identical to the M1a checkpoint.",
+    },
+  },
+  "strata.ordering.on": {
+    title: "Layer ordering · On (K=4)",
+    body: "Runs 4 barycenter sweeps per hull to reorder bands and cut crossing arrows between adjacent layers, keeping only the best-scoring order found.",
+    dev: {
+      implements:
+        "strataSweeps=4 (A2, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain).",
+      refs: ["Sugiyama, Tagawa & Toda 1981 (barycenter ordering)"],
+    },
+  },
+  "strata.straighten.off": {
+    title: "Straighten (A7) · Off",
+    body: "Containers keep the Y position the placement pass (A0) assigned.",
+    dev: {
+      implements:
+        "strataCoordinateRefine=false: refineStrataCoordinates never runs; placement is A0 output, byte-identical.",
+    },
+  },
+  "strata.straighten.on": {
+    title: "Straighten (A7) · On",
+    body: "Nudges each container's Y toward the median of the containers it connects to, straightening edges — kept only where it doesn't worsen order, bands, or overlap.",
+    dev: {
+      implements:
+        "strataCoordinateRefine=true (A7): refineStrataCoordinates runs a fixed 2-down/2-up sweep median/PAV nudge per hull, accepting a column only if total Σ|Δy| over its chords strictly decreases and stays order-preserving/non-overlapping.",
+      refs: ["Brandes & Köpf 2001 (coordinate assignment)"],
+    },
+  },
+  "strata.rankseparate.off": {
+    title: "Compact height · Off",
+    body: "Sibling stacks keep the rank the base longest-path pass assigned — one-way-dependent sibling containers stay stacked down the page instead of sharing a row.",
+    dev: {
+      implements:
+        "strataRankSeparate=false: computeStrataSeparatedFloor never runs; rankStrataClusters uses the A1 base floor, byte-identical.",
+    },
+  },
+  "strata.rankseparate.on": {
+    title: "Compact height · On",
+    body: "Re-ranks one-way-dependent sibling stacks into disjoint column ranges so the packed skyline can place them side-by-side instead of stacking them — shorter canvas at the cost of more width. Wins over network-simplex rank when both are requested (network-simplex is dropped, surfaced in scene meta).",
+    dev: {
+      implements:
+        "strataRankSeparate=true (OD-14): computeStrataSeparatedFloor — whole-model-global Sander base-node layering (SCC-quotient + one-way-pair condensation, all-to-all leaf precedence per quotient pair; mutual cycles stay co-axial) REPLACES the A1 rank in rankStrataClusters. Mutually exclusive with strataNetworkSimplexRank — both rewrite the same column axis, so when both are requested rankSeparate wins and NS is suppressed (strataToggleSuppressions: rank-floor-conflict-rankseparate-wins-network-simplex).",
+      refs: ["Sander 1996 — Layout of Compound Directed Graphs"],
     },
   },
 };

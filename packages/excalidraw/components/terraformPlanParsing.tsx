@@ -172,6 +172,10 @@ export type TerraformPlanParsingOptions = {
   /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;
+  /** Strata OD-14: whole-model sibling-separation ranking (the height lever). When
+   * on the separated floor REPLACES the A1 rank; mutually exclusive with
+   * `strataNetworkSimplexRank` (rankSeparate wins). Default off. */
+  strataRankSeparate?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;

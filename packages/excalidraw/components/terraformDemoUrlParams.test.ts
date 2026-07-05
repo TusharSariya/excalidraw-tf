@@ -36,6 +36,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataNetworkSimplexRank: false,
   strataSweeps: 0,
   strataCoordinateRefine: false,
+  strataRankSeparate: false,
   moduleLayoutMode: "default",
 };
 
@@ -415,10 +416,10 @@ describe("terraformDemoUrlParams", () => {
       });
     });
 
-    it("parses strata engine flags (strataNsRank/strataSweeps/strataCoordRefine)", () => {
+    it("parses strata engine flags (strataNsRank/strataSweeps/strataCoordRefine/strataRankSep)", () => {
       expect(
         parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1",
+          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1",
         ),
       ).toEqual({
         presetId: "demo",
@@ -426,6 +427,7 @@ describe("terraformDemoUrlParams", () => {
         strataNsRank: true,
         strataSweeps: 4,
         strataCoordRefine: true,
+        strataRankSeparate: true,
       });
     });
 
@@ -506,6 +508,7 @@ describe("terraformDemoUrlParams", () => {
         strataNsRank: true,
         strataSweeps: 4,
         strataCoordRefine: true,
+        strataRankSeparate: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
@@ -619,6 +622,7 @@ describe("terraformDemoUrlParams", () => {
         strataNetworkSimplexRank: true,
         strataSweeps: 4,
         strataCoordinateRefine: true,
+        strataRankSeparate: true,
       });
       expect(params).toMatchObject({
         view: "strata",
@@ -626,6 +630,7 @@ describe("terraformDemoUrlParams", () => {
         strataNsRank: true,
         strataSweeps: 4,
         strataCoordRefine: true,
+        strataRankSeparate: true,
       });
     });
   });
@@ -662,6 +667,7 @@ describe("terraformDemoUrlParams", () => {
         strataNetworkSimplexRank: true,
         strataSweeps: 4,
         strataCoordinateRefine: true,
+        strataRankSeparate: true,
       };
       const parsed = parseTerraformDemoUrlParams(
         queryOf(buildTerraformDemoUrlFromSettings(snapshot)),

@@ -24,6 +24,15 @@ export type StrataEngineOptions = {
   includeAncillary: boolean;
   /** OD-1: network-simplex rank refinement behind the pure gate (A/B arm). */
   networkSimplexRank: boolean;
+  /**
+   * OD-14 (post-M1 height lever, DEC-12 class): whole-model sibling-separation
+   * ranking (the Strata port of v1 `rankSeparate`). REPLACES the A1 rank when
+   * live — mutually exclusive with `networkSimplexRank` (rankSeparate wins;
+   * enforced at the S0a option surface, mirrored as a backstop in
+   * `rankStrataClusters`). Default off; optional so existing option literals
+   * (flag-OFF byte-identity) are unaffected.
+   */
+  rankSeparate?: boolean;
   /** OD-2: A2 sweep count K. M1a ships 0 (pure model order); M1b default 4. */
   sweeps: number;
   /** SA7: A7 coordinate refinement (M1b, flag-gated). */
@@ -128,6 +137,17 @@ export type StrataRankResult = {
   columnX: readonly number[];
   networkSimplexApplied: boolean;
   nsSkipReason?: "infeasible-fallback" | "cyclic-skip" | "flag-off";
+  /**
+   * OD-14 observability (the height lever, DEC-12 class). `rankSeparateApplied`
+   * is true iff the separated floor REPLACED the A1 rank. On a no-op / fallback
+   * the plain floor is kept and `rankSeparateFallback` says why (mirrors
+   * `nsSkipReason`). Absent entirely when the flag is off (flag-OFF identity).
+   */
+  rankSeparateApplied?: boolean;
+  rankSeparateFallback?: "no-pairs" | "augmented-cycle" | "infeasible-fallback";
+  /** One-way sibling-unit pairs found; leaf clusters whose rank moved. */
+  rankSeparatePairCount?: number;
+  rankSeparateChangedRankCount?: number;
 };
 
 /** Axis-aligned box; hull-local during layoutHull, ABSOLUTE after root pass. */
