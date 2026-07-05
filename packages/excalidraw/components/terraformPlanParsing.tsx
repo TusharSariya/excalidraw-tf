@@ -169,6 +169,15 @@ export type TerraformPlanParsingOptions = {
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   /** RCLL M3b / DEC-1: X-disjoint cycle groups rise to share Y. Default on; only `=false` is meaningful. */
   pipelineStaircaseBandOverlap?: boolean;
+  /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
+   * threaded, unused until the engine lands (M1). Default off. */
+  strataNetworkSimplexRank?: boolean;
+  /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
+   * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
+  strataSweeps?: number;
+  /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
+   * until the engine lands (M1). Default off. */
+  strataCoordinateRefine?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

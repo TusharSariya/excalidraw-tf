@@ -302,6 +302,52 @@ describe("terraformSceneApply", () => {
     );
   });
 
+  it("refreshTerraformLayout preserves Strata options from session (variant clobber wins over a stale pipelineLayoutVariant)", async () => {
+    setTerraformImportSession({
+      sources: {
+        planDotBundles: [{ plan: {}, dotText: "digraph {}", label: "s" }],
+        states: [],
+        tfdTexts: [],
+      },
+      semanticLayout: false,
+      layoutMode: "strata",
+      moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
+      pipelineCompact: false,
+      pipelineIncludeAncillary: true,
+      // A stale non-strata variant (e.g. left over from a prior "pipeline" view
+      // session) must NOT mis-route the Strata import — the clobber forces
+      // "strata" unconditionally.
+      pipelineLayoutVariant: "classic",
+      strataNetworkSimplexRank: true,
+      strataSweeps: 4,
+      strataCoordinateRefine: true,
+      preset: null,
+      importedTfdTexts: [],
+      snapshot: {
+        elements: [],
+        terraformEdgeLayerPins: null,
+        enableDeclaredDataFlow: false,
+      },
+    });
+
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
+
+    await refreshTerraformLayout(mockApp(), hoisted.setAppState);
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layoutMode: "strata",
+        pipelineCompact: false,
+        pipelineLayoutVariant: "strata",
+        pipelineIncludeAncillary: true,
+        strataNetworkSimplexRank: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      }),
+      expect.anything(),
+    );
+  });
+
   it("relayouts when switching layout mode for identical sources", async () => {
     const semanticEl = newTextElement({
       text: "semantic",
@@ -403,5 +449,56 @@ describe("terraformSceneApply", () => {
     );
     expect(fetchPresetLayoutCache).not.toHaveBeenCalled();
     expect(layoutTerraformViaWorkers).toHaveBeenCalled();
+  });
+
+  it("strata skips the KV layout cache; options forward for layoutMode strata", async () => {
+    // Strata (S0a passthrough) has no cache key for its dials yet either — same
+    // guard as rcll: cache is SKIPPED, and the strata-specific option set (plus
+    // the forced "strata" variant) still reaches the worker call.
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [
+        newTextElement({
+          text: "x",
+          x: 0,
+          y: 0,
+          customData: { terraformVisibilityRole: "resource" },
+        }),
+      ],
+    });
+    vi.mocked(fetchPresetLayoutCache).mockResolvedValue(null);
+    hoisted.replaceAllElements.mockImplementation((els) => {
+      hoisted.getElementsIncludingDeleted.mockReturnValue(els);
+    });
+
+    const preset = { id: "demo-preset" } as unknown as TerraformImportPreset;
+    const sources = { planDotBundles: [], states: [], tfdTexts: [] };
+
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "strata",
+        pipelineIncludeAncillary: true,
+        strataNetworkSimplexRank: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        preset,
+      },
+    );
+    expect(fetchPresetLayoutCache).not.toHaveBeenCalled();
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layoutMode: "strata",
+        pipelineLayoutVariant: "strata",
+        pipelineIncludeAncillary: true,
+        strataNetworkSimplexRank: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      }),
+      expect.anything(),
+    );
   });
 });

@@ -93,6 +93,15 @@ export type TerraformDemoUrlParams = {
    * Accepts the clear alias `cycleRise` as well as the milestone name. */
   staircaseBandOverlap?: boolean;
 
+  // ─── Strata (rcll-v2) engine flags — S0a: accepted + threaded, unused until the
+  // engine lands (M1). All opt-in, default off/0. ───
+  /** OD-1: X-axis network-simplex rank refinement. */
+  strataNsRank?: boolean;
+  /** OD-2: directional sweep count for A2 ordering (M1a ships 0; M1b turns on 4). */
+  strataSweeps?: number;
+  /** A7: slice-A coordinate refinement. */
+  strataCoordRefine?: boolean;
+
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
   lodEnabled?: boolean;
@@ -117,6 +126,7 @@ const VALID_VIEWS = new Set<TerraformView>([
   "semantic",
   "pipeline",
   "rcll",
+  "strata",
 ]);
 const VALID_PIPELINE_VARIANTS = new Set<PipelineLayoutVariant>([
   "classic",
@@ -325,6 +335,26 @@ export const parseTerraformDemoUrlParams = (
     profile = normalized;
   }
 
+  // Strata (rcll-v2) engine flags — S0a: accepted + threaded, unused until the
+  // engine lands (M1). Hard-fail on an invalid value (same contract as the rest).
+  const strataNsRank = parseBooleanParam("strataNsRank");
+  if (strataNsRank === null) {
+    return null;
+  }
+  const strataSweepsRaw = params.get("strataSweeps");
+  let strataSweeps: number | undefined;
+  if (strataSweepsRaw != null && strataSweepsRaw.trim() !== "") {
+    const parsed = Number(strataSweepsRaw.trim());
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      return null;
+    }
+    strataSweeps = parsed;
+  }
+  const strataCoordRefine = parseBooleanParam("strataCoordRefine");
+  if (strataCoordRefine === null) {
+    return null;
+  }
+
   // ─── Runtime canvas view settings ───
   const lodEnabled = parseBooleanParam("lodEnabled");
   if (lodEnabled === null) {
@@ -432,6 +462,9 @@ export const parseTerraformDemoUrlParams = (
     ...(columnPacking != null ? { columnPacking } : {}),
     ...(profile != null ? { profile } : {}),
     ...(staircaseBandOverlap != null ? { staircaseBandOverlap } : {}),
+    ...(strataNsRank != null ? { strataNsRank } : {}),
+    ...(strataSweeps != null ? { strataSweeps } : {}),
+    ...(strataCoordRefine != null ? { strataCoordRefine } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -465,6 +498,11 @@ export const buildTerraformDemoUrl = (
       sp.set(name, value);
     }
   };
+  const setNum = (name: string, value?: number): void => {
+    if (value != null) {
+      sp.set(name, String(value));
+    }
+  };
 
   setEnum("view", params.view);
   setEnum("pack", params.pack);
@@ -486,6 +524,9 @@ export const buildTerraformDemoUrl = (
   setEnum("columnPacking", params.columnPacking);
   setEnum("profile", params.profile);
   setBool("staircaseBandOverlap", params.staircaseBandOverlap);
+  setBool("strataNsRank", params.strataNsRank);
+  setNum("strataSweeps", params.strataSweeps);
+  setBool("strataCoordRefine", params.strataCoordRefine);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -535,6 +576,11 @@ export type TerraformDemoSettingsSnapshot = {
   pipelineLayoutProfile: RcllLayoutProfile | "custom";
   pipelineStaircaseBandOverlap: boolean;
   moduleLayoutMode: ModulePackingMode;
+  // ─── Strata (rcll-v2) engine flags — S0a: accepted + threaded, unused until the
+  // engine lands (M1). All opt-in, default off/0. ───
+  strataNetworkSimplexRank: boolean;
+  strataSweeps: number;
+  strataCoordinateRefine: boolean;
 };
 
 /**
@@ -594,6 +640,19 @@ export const collectTerraformDemoParams = (
       straighten: snapshot.pipelineStraighten,
       coordRepack: snapshot.pipelineCoordRepack,
       columnPacking: snapshot.pipelineColumnPacking,
+    };
+  }
+
+  if (snapshot.view === "strata") {
+    // S0a is a v2 passthrough — only the two flags the builder actually consumes
+    // are pipeline-family shared params; the rest are the Strata-only future flags.
+    return {
+      ...base,
+      compact: snapshot.pipelineCompact,
+      ancillary: snapshot.pipelineIncludeAncillary,
+      ...(snapshot.strataNetworkSimplexRank ? { strataNsRank: true } : {}),
+      ...(snapshot.strataSweeps ? { strataSweeps: snapshot.strataSweeps } : {}),
+      ...(snapshot.strataCoordinateRefine ? { strataCoordRefine: true } : {}),
     };
   }
 

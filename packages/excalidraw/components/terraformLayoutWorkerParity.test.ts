@@ -76,6 +76,30 @@ describe("terraform layout worker parity", () => {
       coreOptions: { semanticLayout: false as const },
       workerOptions: { semanticLayout: false as const },
     },
+    {
+      name: "strata",
+      sources: () => stagingMultiStatePipelineLayoutSources(),
+      coreOptions: {
+        semanticLayout: false as const,
+        layoutMode: "strata" as const,
+      },
+      workerOptions: {
+        semanticLayout: false as const,
+        layoutMode: "strata" as const,
+      },
+    },
+    {
+      name: "rcll",
+      sources: () => stagingMultiStatePipelineLayoutSources(),
+      coreOptions: {
+        semanticLayout: false as const,
+        layoutMode: "rcll" as const,
+      },
+      workerOptions: {
+        semanticLayout: false as const,
+        layoutMode: "rcll" as const,
+      },
+    },
   ] as const;
 
   for (const view of views) {

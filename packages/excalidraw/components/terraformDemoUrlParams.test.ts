@@ -33,6 +33,9 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   pipelineColumnPacking: "none",
   pipelineLayoutProfile: "balanced",
   pipelineStaircaseBandOverlap: true,
+  strataNetworkSimplexRank: false,
+  strataSweeps: 0,
+  strataCoordinateRefine: false,
   moduleLayoutMode: "default",
 };
 
@@ -401,6 +404,40 @@ describe("terraformDemoUrlParams", () => {
       });
     });
 
+    it("parses view=strata (deep-link)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=staging-extended-localstack-v2&view=strata",
+        ),
+      ).toEqual({
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+      });
+    });
+
+    it("parses strata engine flags (strataNsRank/strataSweeps/strataCoordRefine)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1",
+        ),
+      ).toEqual({
+        presetId: "demo",
+        view: "strata",
+        strataNsRank: true,
+        strataSweeps: 4,
+        strataCoordRefine: true,
+      });
+    });
+
+    it("rejects a non-integer or negative strataSweeps", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=strata&strataSweeps=abc"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=strata&strataSweeps=-1"),
+      ).toBeNull();
+    });
+
     it("rejects the retired view=experimental (graceful, no auto-import)", () => {
       // Experimental was removed at M0; a stale deep-link must degrade to null,
       // not crash or silently import the wrong view.
@@ -454,6 +491,21 @@ describe("terraformDemoUrlParams", () => {
         straighten: true,
         columnPacking: "compact",
         staircaseBandOverlap: false,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
+      ).toEqual(full);
+    });
+
+    it("round-trips strata view + engine flags through the parser", () => {
+      const full: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        compact: false,
+        ancillary: true,
+        strataNsRank: true,
+        strataSweeps: 4,
+        strataCoordRefine: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
@@ -545,6 +597,37 @@ describe("terraformDemoUrlParams", () => {
         columnPacking: "spread",
       });
     });
+
+    it("strata view captures only compact/ancillary — off by default, no engine-flag keys", () => {
+      const params = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect(params).toEqual({
+        presetId: baseSnapshot.presetId,
+        view: "strata",
+        compact: true,
+        ancillary: false,
+      });
+    });
+
+    it("strata view emits the engine flags only when set", () => {
+      const params = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        pipelineIncludeAncillary: true,
+        strataNetworkSimplexRank: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(params).toMatchObject({
+        view: "strata",
+        ancillary: true,
+        strataNsRank: true,
+        strataSweeps: 4,
+        strataCoordRefine: true,
+      });
+    });
   });
 
   describe("buildTerraformDemoUrlFromSettings", () => {
@@ -563,6 +646,22 @@ describe("terraformDemoUrlParams", () => {
         pipelineCrossingMin: true,
         pipelineStraighten: true,
         pipelineColumnPacking: "compact",
+      };
+      const parsed = parseTerraformDemoUrlParams(
+        queryOf(buildTerraformDemoUrlFromSettings(snapshot)),
+      );
+      expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
+    });
+
+    it("round-trips a strata snapshot (engine flags on) through the parser", () => {
+      const snapshot: TerraformDemoSettingsSnapshot = {
+        ...baseSnapshot,
+        view: "strata",
+        pipelineCompact: false,
+        pipelineIncludeAncillary: true,
+        strataNetworkSimplexRank: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
       };
       const parsed = parseTerraformDemoUrlParams(
         queryOf(buildTerraformDemoUrlFromSettings(snapshot)),

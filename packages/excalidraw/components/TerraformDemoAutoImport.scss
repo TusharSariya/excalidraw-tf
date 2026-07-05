@@ -24,5 +24,12 @@
       background: var(--color-danger-background, #fff5f5);
       color: var(--color-danger, #c92a2a);
     }
+
+    &--degraded {
+      top: auto;
+      bottom: 1.5rem;
+      border-color: var(--color-warning-dark, #f08c00);
+      background: var(--color-warning-background, #fff9db);
+    }
   }
 }

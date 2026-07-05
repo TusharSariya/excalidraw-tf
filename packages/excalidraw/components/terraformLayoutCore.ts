@@ -39,6 +39,7 @@ import {
 } from "./terraformPipelineLayout";
 import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
 import { buildTerraformPipelineRcllExcalidrawScene } from "./terraformPipelineLayoutRcll";
+import { buildTerraformStrataExcalidrawScene } from "./terraformPipelineStrata";
 import { applyRcllToggleGuards } from "./terraformPipelineToggleGuards";
 import {
   resolveRcllLayoutProfile,
@@ -455,6 +456,15 @@ type LayoutSceneContext = {
   pipelineLayoutProfile?: RcllLayoutProfile;
   /** RCLL M3b / DEC-1: X-disjoint cycle groups rise to share Y. Default true (undefined ⇒ on). */
   pipelineStaircaseBandOverlap?: boolean;
+  /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
+   * threaded, unused until the engine lands (M1). Default off. */
+  strataNetworkSimplexRank?: boolean;
+  /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
+   * unused until the engine lands (M1). Default 0. */
+  strataSweeps?: number;
+  /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
+   * until the engine lands (M1). Default off. */
+  strataCoordinateRefine?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -537,15 +547,28 @@ async function buildPipelineLayoutSceneBody(
       const buildPipeline =
         ctx.pipelineLayoutVariant === "rcll"
           ? buildTerraformPipelineRcllExcalidrawScene
+          : ctx.pipelineLayoutVariant === "strata"
+          ? buildTerraformStrataExcalidrawScene
           : ctx.pipelineLayoutVariant === "v2"
           ? buildTerraformPipelineV2ExcalidrawScene
           : ctx.pipelineLayoutVariant === "compound"
           ? buildTerraformCompoundPipelineExcalidrawScene
           : buildTerraformPipelineExcalidrawScene;
+      // Merged into a variable (not passed as a literal) for the same reason the
+      // v2 comment above gives: assigning to a `const` first (rather than
+      // literal-in-call) skips TS's excess-property check, so every builder in
+      // the ternary — including Strata's three extra future-engine flags —
+      // tolerates the keys it doesn't read.
+      const builderOptions = {
+        ...pipelineOptions,
+        strataNetworkSimplexRank: ctx.strataNetworkSimplexRank,
+        strataSweeps: ctx.strataSweeps,
+        strataCoordinateRefine: ctx.strataCoordinateRefine,
+      };
       const pipelineScene = await buildPipeline(
         ctx.nodes5,
         ctx.plan,
-        pipelineOptions,
+        builderOptions,
       );
       emitLocalParseDebug({
         phase: "pipelineLayout",
@@ -615,6 +638,15 @@ async function buildPipelineLayoutSceneBody(
               : {}),
             ...(appliedColumnPacking === "spread"
               ? { pipelineDeDensify: true }
+              : {}),
+            // Honest packing meta (owner decision SDEC-26): "Column packing" is only
+            // CONSUMED by the rcll builder (columnCompact / networkSimplexRank /
+            // deDensify are rcll-only options) — every other variant, INCLUDING the
+            // Strata S0a passthrough, silently ignores it. Surface that so the meta
+            // never implies a packing pass ran when the active variant can't run one.
+            ...(appliedColumnPacking !== "none" &&
+            ctx.pipelineLayoutVariant !== "rcll"
+              ? { pipelineColumnPackingInert: true }
               : {}),
             // Observable backstop: both packing arms requested at the engine level; the
             // guard kept Compact and dropped Spread.
@@ -895,9 +927,13 @@ export async function layoutTerraformFromSources(
     options?.layoutMode ??
     (options?.semanticLayout === true ? "semantic" : "module");
   const semanticLayout = layoutMode === "semantic";
-  // RCLL view rides the pipeline family (needs TFD edges, same validation +
-  // routing); M0 delegates to the compound builder via the §27 fallback rung.
-  const pipelineLayout = layoutMode === "pipeline" || layoutMode === "rcll";
+  // RCLL and Strata view ride the pipeline family (need TFD edges, same
+  // validation + routing); RCLL M0 delegates to the compound builder via the
+  // §27 fallback rung, Strata S0a delegates to the v2 builder (passthrough).
+  const pipelineLayout =
+    layoutMode === "pipeline" ||
+    layoutMode === "rcll" ||
+    layoutMode === "strata";
   if (sources.planDotBundles.length > 0) {
     terraformImportProfilerMeasure("prep.cache", () => {
       buildTerraformImportPrepCache(sources, options);
@@ -1021,10 +1057,16 @@ export async function layoutTerraformFromSources(
     addressToStack,
     deferDecorations: options?.deferDecorations === true,
     pipelineCompact: options?.pipelineCompact,
-    // Force the variant for RCLL so a stale-session/default variant can't
-    // mis-route to the plain pipeline builder (dispatch keys on the variant).
+    // Force the variant for RCLL / Strata so a stale-session/default variant
+    // can't mis-route to the plain pipeline builder (dispatch keys on the
+    // variant). Strata rides its own layoutMode (not the `pipelineVariant`
+    // URL/dialog enum), so this clobber must win over any stale value there too.
     pipelineLayoutVariant:
-      layoutMode === "rcll" ? "rcll" : options?.pipelineLayoutVariant,
+      layoutMode === "rcll"
+        ? "rcll"
+        : layoutMode === "strata"
+        ? "strata"
+        : options?.pipelineLayoutVariant,
     pipelinePacked: options?.pipelinePacked === true,
     pipelinePackedPullLeft: options?.pipelinePackedPullLeft === true,
     pipelineIncludeAncillary: options?.pipelineIncludeAncillary === true,
@@ -1057,6 +1099,12 @@ export async function layoutTerraformFromSources(
     pipelineLayoutProfile: options?.pipelineLayoutProfile,
     pipelineStaircaseBandOverlap:
       options?.pipelineStaircaseBandOverlap ?? pf?.staircaseBandOverlap,
+    // Strata (rcll-v2) OD-1/OD-2/A7 flags (C6′ seam 1 — the literal is the one place
+    // options not listed here are silently dropped, per trap #4). S0a: accepted +
+    // threaded through to the builder's meta echo; unused until the engine lands.
+    strataNetworkSimplexRank: options?.strataNetworkSimplexRank === true,
+    strataSweeps: options?.strataSweeps ?? 0,
+    strataCoordinateRefine: options?.strataCoordinateRefine === true,
     colorMode: options?.colorMode,
   };
 

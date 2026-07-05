@@ -112,6 +112,14 @@ export const useTerraformImportDialog = ({
   // ON (true) — turning it off (Stacked) makes cyclic groups taller.
   const [pipelineStaircaseBandOverlap, setPipelineStaircaseBandOverlap] =
     useState(true);
+  // Strata (rcll-v2) OD-1/OD-2/A7 flags (strata-only). S0a: accepted + threaded
+  // end-to-end (URL → here → sceneContext → builder → scene meta), unused until
+  // the engine lands (M1) — no Advanced UI control yet, so these thread only via
+  // the demo URL / preset options for now.
+  const [strataNetworkSimplexRank, setStrataNetworkSimplexRank] =
+    useState(false);
+  const [strataSweeps, setStrataSweeps] = useState(0);
+  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(false);
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -214,10 +222,11 @@ export const useTerraformImportDialog = ({
 
   // RCLL view delegates to the compound builder at M0 (its own algorithm lands
   // across later milestones) and does not expose the height/placement dials.
-  // Reset them so a stale panel state can't ride along into the import.
+  // Strata (S0a) is the same v2-passthrough situation. Reset the shared dials so
+  // stale panel state can't ride along into either import.
   const handleSetView = useCallback((next: TerraformView) => {
     setView(next);
-    if (next === "rcll") {
+    if (next === "rcll" || next === "strata") {
       setPipelinePacked(false);
       setPipelinePackedPullLeft(false);
       setPipelineSemanticPlacement(false);
@@ -227,6 +236,12 @@ export const useTerraformImportDialog = ({
   const [layoutProgress, setLayoutProgress] = useState<string | null>(null);
   const layoutAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Strata (rcll-v2) failure-contract fallback marker (v3.0 §8.4 / v3.1 §5). Not
+  // yet emitted by any engine at S0a; wired ahead of the engine landing (W2).
+  const [rcllV2Degraded, setRcllV2Degraded] = useState<{
+    stage: string;
+    reason: string;
+  } | null>(null);
   const [importWarnings, setImportWarnings] = useState<
     TerraformImportWarning[] | null
   >(null);
@@ -356,13 +371,15 @@ export const useTerraformImportDialog = ({
   const completeImport = (
     warnings: TerraformImportWarning[] | undefined,
     extraWarnings: TerraformImportPresetWarning[] = [],
+    degraded: { stage: string; reason: string } | null = null,
   ) => {
     onImportSuccess?.();
     setImportDone(true);
     setPresetWarnings(extraWarnings);
+    setRcllV2Degraded(degraded);
     if (warnings?.length) {
       setImportWarnings(warnings);
-    } else if (extraWarnings.length === 0) {
+    } else if (extraWarnings.length === 0 && !degraded) {
       onCloseRequest();
     }
   };
@@ -375,37 +392,41 @@ export const useTerraformImportDialog = ({
       preset?: TerraformImportPreset | null;
     } = {},
   ) => {
-    const { importWarnings: warnings } = await runTerraformImportWithView({
-      app,
-      setAppState,
-      sources,
-      view,
-      moduleLayoutOptions,
-      pipelineCompact,
-      pipelineLayoutVariant,
-      pipelinePacked,
-      pipelinePackedPullLeft,
-      pipelineIncludeAncillary,
-      pipelineSemanticPlacement,
-      pipelineSwimlaneLaneRise,
-      pipelineReorder,
-      pipelineCrossingMin,
-      pipelineDeBandLevel,
-      pipelineRankSeparate,
-      pipelineStraighten,
-      pipelineCoordRepack,
-      pipelineColumnPacking,
-      pipelineStaircaseBandOverlap,
-      importedTfdTexts: opts.importedTfdTexts,
-      preset: opts.preset ?? null,
-      signal: layoutAbortRef.current?.signal,
-      onLayoutProgress: (p) => {
-        const label =
-          p.total > 0 ? `${p.phase} (${p.done}/${p.total})` : p.phase;
-        setLayoutProgress(label);
-      },
-    });
-    completeImport(warnings, opts.extraWarnings ?? []);
+    const { importWarnings: warnings, rcllV2Degraded: degraded } =
+      await runTerraformImportWithView({
+        app,
+        setAppState,
+        sources,
+        view,
+        moduleLayoutOptions,
+        pipelineCompact,
+        pipelineLayoutVariant,
+        pipelinePacked,
+        pipelinePackedPullLeft,
+        pipelineIncludeAncillary,
+        pipelineSemanticPlacement,
+        pipelineSwimlaneLaneRise,
+        pipelineReorder,
+        pipelineCrossingMin,
+        pipelineDeBandLevel,
+        pipelineRankSeparate,
+        pipelineStraighten,
+        pipelineCoordRepack,
+        pipelineColumnPacking,
+        pipelineStaircaseBandOverlap,
+        strataNetworkSimplexRank,
+        strataSweeps,
+        strataCoordinateRefine,
+        importedTfdTexts: opts.importedTfdTexts,
+        preset: opts.preset ?? null,
+        signal: layoutAbortRef.current?.signal,
+        onLayoutProgress: (p) => {
+          const label =
+            p.total > 0 ? `${p.phase} (${p.done}/${p.total})` : p.phase;
+          setLayoutProgress(label);
+        },
+      });
+    completeImport(warnings, opts.extraWarnings ?? [], degraded ?? null);
   };
 
   const buildPresetPayload = async (
@@ -507,35 +528,42 @@ export const useTerraformImportDialog = ({
     setImportWarnings(null);
     setPresetWarnings([]);
     setImportDone(false);
+    setRcllV2Degraded(null);
     try {
       if (activePreset) {
-        const { importWarnings: warnings, presetSources } =
-          await runTerraformPresetImport(app, setAppState, activePreset, {
-            view,
-            moduleLayoutOptions,
-            pipelineCompact,
-            pipelineLayoutVariant,
-            pipelinePacked,
-            pipelinePackedPullLeft,
-            pipelineIncludeAncillary,
-            pipelineSemanticPlacement,
-            pipelineSwimlaneLaneRise,
-            pipelineReorder,
-            pipelineCrossingMin,
-            pipelineDeBandLevel,
-            pipelineRankSeparate,
-            pipelineStraighten,
-            pipelineCoordRepack,
-            pipelineColumnPacking,
-            pipelineStaircaseBandOverlap,
-            signal: layoutAbortRef.current?.signal,
-            onLayoutProgress: (p) => {
-              const label =
-                p.total > 0 ? `${p.phase} (${p.done}/${p.total})` : p.phase;
-              setLayoutProgress(label);
-            },
-          });
-        completeImport(warnings, presetSources.warnings);
+        const {
+          importWarnings: warnings,
+          presetSources,
+          rcllV2Degraded: degraded,
+        } = await runTerraformPresetImport(app, setAppState, activePreset, {
+          view,
+          moduleLayoutOptions,
+          pipelineCompact,
+          pipelineLayoutVariant,
+          pipelinePacked,
+          pipelinePackedPullLeft,
+          pipelineIncludeAncillary,
+          pipelineSemanticPlacement,
+          pipelineSwimlaneLaneRise,
+          pipelineReorder,
+          pipelineCrossingMin,
+          pipelineDeBandLevel,
+          pipelineRankSeparate,
+          pipelineStraighten,
+          pipelineCoordRepack,
+          pipelineColumnPacking,
+          pipelineStaircaseBandOverlap,
+          strataNetworkSimplexRank,
+          strataSweeps,
+          strataCoordinateRefine,
+          signal: layoutAbortRef.current?.signal,
+          onLayoutProgress: (p) => {
+            const label =
+              p.total > 0 ? `${p.phase} (${p.done}/${p.total})` : p.phase;
+            setLayoutProgress(label);
+          },
+        });
+        completeImport(warnings, presetSources.warnings, degraded ?? null);
         return;
       }
 
@@ -606,34 +634,41 @@ export const useTerraformImportDialog = ({
     setImportWarnings(null);
     setPresetWarnings([]);
     setImportDone(false);
+    setRcllV2Degraded(null);
     try {
-      const { importWarnings: warnings, presetSources } =
-        await runTerraformPresetImport(app, setAppState, preset, {
-          view,
-          moduleLayoutOptions,
-          pipelineCompact,
-          pipelineLayoutVariant,
-          pipelinePacked,
-          pipelinePackedPullLeft,
-          pipelineIncludeAncillary,
-          pipelineSemanticPlacement,
-          pipelineSwimlaneLaneRise,
-          pipelineReorder,
-          pipelineCrossingMin,
-          pipelineDeBandLevel,
-          pipelineRankSeparate,
-          pipelineStraighten,
-          pipelineCoordRepack,
-          pipelineColumnPacking,
-          pipelineStaircaseBandOverlap,
-          signal: layoutAbortRef.current?.signal,
-          onLayoutProgress: (p) => {
-            const label =
-              p.total > 0 ? `${p.phase} (${p.done}/${p.total})` : p.phase;
-            setLayoutProgress(label);
-          },
-        });
-      completeImport(warnings, presetSources.warnings);
+      const {
+        importWarnings: warnings,
+        presetSources,
+        rcllV2Degraded: degraded,
+      } = await runTerraformPresetImport(app, setAppState, preset, {
+        view,
+        moduleLayoutOptions,
+        pipelineCompact,
+        pipelineLayoutVariant,
+        pipelinePacked,
+        pipelinePackedPullLeft,
+        pipelineIncludeAncillary,
+        pipelineSemanticPlacement,
+        pipelineSwimlaneLaneRise,
+        pipelineReorder,
+        pipelineCrossingMin,
+        pipelineDeBandLevel,
+        pipelineRankSeparate,
+        pipelineStraighten,
+        pipelineCoordRepack,
+        pipelineColumnPacking,
+        pipelineStaircaseBandOverlap,
+        strataNetworkSimplexRank,
+        strataSweeps,
+        strataCoordinateRefine,
+        signal: layoutAbortRef.current?.signal,
+        onLayoutProgress: (p) => {
+          const label =
+            p.total > 0 ? `${p.phase} (${p.done}/${p.total})` : p.phase;
+          setLayoutProgress(label);
+        },
+      });
+      completeImport(warnings, presetSources.warnings, degraded ?? null);
     } catch (err) {
       console.error("Preset import error:", err);
       onImportFail?.();
@@ -842,6 +877,9 @@ export const useTerraformImportDialog = ({
         pipelineColumnPacking,
         pipelineLayoutProfile,
         pipelineStaircaseBandOverlap,
+        strataNetworkSimplexRank,
+        strataSweeps,
+        strataCoordinateRefine,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -865,6 +903,9 @@ export const useTerraformImportDialog = ({
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
+    strataNetworkSimplexRank,
+    strataSweeps,
+    strataCoordinateRefine,
     moduleLayoutOptions.mode,
   ]);
 
@@ -889,12 +930,16 @@ export const useTerraformImportDialog = ({
     pipelineColumnPacking,
     pipelineLayoutProfile,
     pipelineStaircaseBandOverlap,
+    strataNetworkSimplexRank,
+    strataSweeps,
+    strataCoordinateRefine,
     moduleLayoutOptions,
     loading,
     layoutProgress,
     error,
     importWarnings,
     importDone,
+    rcllV2Degraded,
     selectedPresetId,
     presetWarnings,
     availablePresets,
@@ -934,6 +979,9 @@ export const useTerraformImportDialog = ({
     setPipelineColumnPacking: setPipelineColumnPackingCustom,
     setPipelineStaircaseBandOverlap: setPipelineStaircaseBandOverlapCustom,
     setPipelineLayoutProfile: applyPipelineLayoutProfile,
+    setStrataNetworkSimplexRank,
+    setStrataSweeps,
+    setStrataCoordinateRefine,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

@@ -54,6 +54,15 @@ const LAYOUT_BOOLEAN_PARAMS = [
   ["cycleRise", "pipelineStaircaseBandOverlap"],
   ["staircaseBandOverlap", "pipelineStaircaseBandOverlap"],
   ["ancillary", "pipelineIncludeAncillary"],
+  // Strata (S0a scaffold, docs/strata-view-implementation-flow.md §2): passthrough
+  // to the rcll v2 substrate until the strata engine lands (see LAYOUT_MODE_ALLOWED
+  // below). Both the clear alias and the OD-1/A7 canonical flag name map to the same
+  // option key (mirrors the laneRise/swimlaneRise dual-alias pattern above). All
+  // default OFF (owner standing rule).
+  ["strataNsRank", "strataNetworkSimplexRank"],
+  ["strataNetworkSimplexRank", "strataNetworkSimplexRank"],
+  ["strataCoordRefine", "strataCoordinateRefine"],
+  ["strataCoordinateRefine", "strataCoordinateRefine"],
 ];
 
 // Enum (non-boolean) layout params: [paramName, optionKey, allowedValues].
@@ -70,12 +79,30 @@ const LAYOUT_ENUM_PARAMS = [
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
 ];
 
+// Integer (non-boolean, non-enum) layout params: [paramName, optionKey].
+// Strata (S0a scaffold) — sweep count (K) for the coordinate-refinement pass;
+// 0 = off (M1a default, 4 planned for M1b). Passthrough-only until the strata
+// engine lands; default OFF like the strata booleans above.
+const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
+
+// Which engine variant `/api/terraform-layout` runs. Parsed separately from
+// LAYOUT_ENUM_PARAMS (below) because it selects `options.layoutMode` itself rather
+// than a nested option, and — unlike the enum params — has an explicit default
+// ("rcll") so omitting it preserves the pre-strata proof-API behavior byte-for-byte.
+const LAYOUT_MODE_ALLOWED = ["rcll", "strata", "pipeline"];
+
 // Self-describing catalog returned by `?describe=1` so a caller can discover the
 // vocabulary without reading source. Kept beside the param tables it documents.
 const LAYOUT_PARAM_CATALOG = {
   route: TERRAFORM_LAYOUT_API_ROUTE,
   method: "GET",
   required: { preset: "preset id (slug)" },
+  layoutMode: {
+    param: "layoutMode",
+    values: LAYOUT_MODE_ALLOWED,
+    default: "rcll",
+    note: 'Which layout engine runs. `strata` is the S0a scaffold — passthrough to the rcll v2 substrate (identical geometry); scene meta echoes pipelineLayoutVariant:"strata" + strataPassthrough:true once the engine-side wiring lands. Omitting the param preserves pre-strata behavior byte-for-byte.',
+  },
   profiles: {
     param: "profile",
     values: ["readable", "balanced", "compact"],
@@ -102,6 +129,18 @@ const LAYOUT_PARAM_CATALOG = {
     crossingMin:
       "container-aware crossing minimization (M6c) — reorders whole groups + leaves; supersedes reorder",
     deDensify: "legacy alias ⇒ columnPacking=spread",
+    strataNsRank:
+      "alias of strataNetworkSimplexRank (OD-1) — Strata NS rank refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataNetworkSimplexRank:
+      "OD-1 flag — Strata network-simplex rank refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataCoordRefine:
+      "alias of strataCoordinateRefine (A7) — Strata coordinate refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataCoordinateRefine:
+      "A7 flag — Strata coordinate refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
+  },
+  ints: {
+    strataSweeps:
+      "Strata sweep count K for coordinate refinement (0 = off / M1a default, 4 planned for M1b); scaffold-only (passthrough to rcll v2) until the strata engine lands",
   },
   responseShape: [
     "requested",
@@ -254,6 +293,21 @@ const parseLayoutEnumParam = (raw, allowed) => {
   return allowed.includes(normalized) ? normalized : null;
 };
 
+/** undefined when absent, null when invalid (not a non-negative whole number), else the parsed integer. */
+const parseLayoutIntParam = (raw) => {
+  if (raw == null || raw.trim() === "") {
+    return undefined;
+  }
+  const normalized = raw.trim();
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+  const value = Number.parseInt(normalized, 10);
+  // A hundreds-of-digits input passes the regex but parses to Infinity (or an
+  // unrepresentable integer) — outside the documented contract, so reject.
+  return Number.isSafeInteger(value) ? value : null;
+};
+
 /** Overall bounds (min/max) over the non-deleted elements, or null when empty. */
 const computeSceneBounds = (elements) => {
   let minX = Infinity;
@@ -373,7 +427,7 @@ const summarizeAncillaryAllocator = (allocator) => {
  *     (rankSeparate-needs-rise, column-packing-conflict) AND measured no-ops (a compaction
  *     that moved zero columns on this preset). The honest "why it didn't change" list.
  */
-const buildLayoutProofPayload = (presetId, requested, scene) => {
+const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
   const elements = (scene.elements ?? []).filter((el) => !el.isDeleted);
   const meta = scene.meta ?? {};
   const placement = meta.rcllStageMeta?.placement ?? {};
@@ -442,7 +496,9 @@ const buildLayoutProofPayload = (presetId, requested, scene) => {
 
   return {
     preset: presetId,
-    view: "rcll",
+    // Reflects the *requested* layoutMode (defaulted to "rcll" when absent) — was
+    // hardcoded "rcll" pre-strata (docs/strata-view-implementation-flow.md trap #5).
+    view: layoutMode ?? "rcll",
     requested,
     resolved: {
       profile: meta.pipelineLayoutProfile ?? requested.profile ?? "balanced",
@@ -464,6 +520,12 @@ const buildLayoutProofPayload = (presetId, requested, scene) => {
       pipelineOrderingConflict: meta.pipelineOrderingConflict ?? false,
       pipelineLayoutProfile: meta.pipelineLayoutProfile ?? null,
       rcllMilestone: meta.rcllMilestone ?? null,
+      // Strata (S0a): once the engine-side wiring lands, `layoutMode=strata` should
+      // echo pipelineLayoutVariant:"strata" + strataPassthrough:true here — the
+      // proof-API side of the "resolved flags echoed in meta must match the
+      // request" (C6′) discipline. `null`/`false` until that wiring lands.
+      pipelineLayoutVariant: meta.pipelineLayoutVariant ?? null,
+      strataPassthrough: meta.strataPassthrough ?? false,
     },
     suppressions,
     bounds: computeSceneBounds(elements),
@@ -593,8 +655,27 @@ export const terraformImportPresetDevPlugin = () => ({
           return;
         }
 
-        const options = { layoutMode: "rcll" };
+        // layoutMode: which engine variant runs. Default "rcll" preserves the
+        // pre-strata proof-API behavior byte-for-byte when the param is absent.
+        const layoutModeValue = parseLayoutEnumParam(
+          params.get("layoutMode"),
+          LAYOUT_MODE_ALLOWED,
+        );
+        if (layoutModeValue === null) {
+          sendJson(res, 400, {
+            error: `Invalid value for ?layoutMode (use ${LAYOUT_MODE_ALLOWED.join(
+              "/",
+            )}).`,
+          });
+          return;
+        }
+        const layoutMode = layoutModeValue ?? "rcll";
+
+        const options = { layoutMode };
         const requested = {};
+        if (layoutModeValue !== undefined) {
+          requested.layoutMode = layoutModeValue;
+        }
         for (const [param, optionKey] of LAYOUT_BOOLEAN_PARAMS) {
           const value = parseLayoutBooleanParam(params.get(param));
           if (value === null) {
@@ -613,6 +694,19 @@ export const terraformImportPresetDevPlugin = () => ({
           if (value === null) {
             sendJson(res, 400, {
               error: `Invalid value for ?${param} (use ${allowed.join("/")}).`,
+            });
+            return;
+          }
+          if (value !== undefined) {
+            options[optionKey] = value;
+            requested[param] = value;
+          }
+        }
+        for (const [param, optionKey] of LAYOUT_INT_PARAMS) {
+          const value = parseLayoutIntParam(params.get(param));
+          if (value === null) {
+            sendJson(res, 400, {
+              error: `Invalid integer for ?${param} (use a non-negative whole number).`,
             });
             return;
           }
@@ -641,7 +735,12 @@ export const terraformImportPresetDevPlugin = () => ({
           sendJson(
             res,
             200,
-            buildLayoutProofPayload(presetId, requested, result.scene),
+            buildLayoutProofPayload(
+              presetId,
+              requested,
+              result.scene,
+              layoutMode,
+            ),
           );
         } catch (error) {
           // eslint-disable-next-line no-console

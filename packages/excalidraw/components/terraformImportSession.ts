@@ -65,6 +65,15 @@ export type TerraformImportSession = {
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   /** RCLL M3b / DEC-1 — X-disjoint cycle groups rise to share Y. Default on. */
   pipelineStaircaseBandOverlap?: boolean;
+  /** Strata (rcll-v2) OD-1 — X-axis network-simplex rank refinement. S0a: accepted +
+   * threaded, unused until the engine lands (M1). Default off. */
+  strataNetworkSimplexRank?: boolean;
+  /** Strata OD-2 — directional sweep count for A2 ordering. S0a: accepted + threaded,
+   * unused until the engine lands (M1). Default 0. */
+  strataSweeps?: number;
+  /** Strata A7 — slice-A coordinate refinement. S0a: accepted + threaded, unused
+   * until the engine lands (M1). Default off. */
+  strataCoordinateRefine?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

@@ -74,6 +74,7 @@ export const TerraformImportModal = ({
     error,
     importWarnings,
     importDone,
+    rcllV2Degraded,
     selectedPresetId,
     presetWarnings,
     availablePresets,
@@ -548,7 +549,8 @@ terraform show -json tfplan > plan.json`}</code>
               const disabled =
                 (option.value === "semantic" ||
                   option.value === "pipeline" ||
-                  option.value === "rcll") &&
+                  option.value === "rcll" ||
+                  option.value === "strata") &&
                 semanticViewDisabled;
               const descriptionId = `terraform-view-${option.value}-description`;
               return (
@@ -765,6 +767,12 @@ terraform show -json tfplan > plan.json`}</code>
               ))}
             </ul>
           </details>
+        )}
+        {rcllV2Degraded && (
+          <div className="TerraformImportModal__warnings" role="status">
+            <strong>Strata fell back to v2 ({rcllV2Degraded.stage})</strong>
+            <div>{rcllV2Degraded.reason}</div>
+          </div>
         )}
       </div>
 

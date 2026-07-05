@@ -44,7 +44,13 @@ function migrateAddPipelineViewConstraint(db) {
   if (!ddl || ddl.includes("'pipeline'")) {
     return;
   }
-  db.exec(`
+  // foreign_keys must be OFF during the rebuild: with the pragma ON, DROP
+  // TABLE performs an implicit DELETE of every row first, which FIRES the
+  // ON DELETE CASCADE on terraform_import_preset_stacks/_tfd and silently
+  // wipes all child rows before the rename lands.
+  db.pragma("foreign_keys = OFF");
+  try {
+    db.exec(`
     CREATE TABLE terraform_import_presets__new (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -71,6 +77,88 @@ function migrateAddPipelineViewConstraint(db) {
     DROP TABLE terraform_import_presets;
     ALTER TABLE terraform_import_presets__new RENAME TO terraform_import_presets;
   `);
+  } finally {
+    db.pragma("foreign_keys = ON");
+  }
+}
+
+/**
+ * Widen the `view` / `default_view` CHECK constraints to the full
+ * TerraformImportPresetView union ('rcll' was always in the TS union but never
+ * in the DB CHECK — a latent gap that never fired because no catalog entry
+ * used it; 'strata' is the new Strata view). Existing DB files keep their
+ * original CHECK in the table DDL, so without this rebuild the catalog seed
+ * (`seedAllBuiltinsFromCatalog`, run on every DB open) crashes the whole dev
+ * server the moment a 'strata' preset lands in the catalog. Same rebuild
+ * pattern as `migrateAddPipelineViewConstraint`, including the foreign_keys
+ * guard (see the comment there), plus the `composition_id` column that later
+ * migrations may already have added.
+ */
+function migrateAddStrataViewConstraint(db) {
+  const tableDdl = (name) => {
+    const row = db
+      .prepare(
+        `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`,
+      )
+      .get(name);
+    return typeof row?.sql === "string" ? row.sql : "";
+  };
+  const presetsDdl = tableDdl("terraform_import_presets");
+  const compositionsDdl = tableDdl("terraform_import_compositions");
+  const needPresets = presetsDdl && !presetsDdl.includes("'strata'");
+  const needCompositions =
+    compositionsDdl && !compositionsDdl.includes("'strata'");
+  if (!needPresets && !needCompositions) {
+    return;
+  }
+  db.pragma("foreign_keys = OFF");
+  try {
+    if (needPresets) {
+      const hasCompositionId = presetsDdl.includes("composition_id");
+      db.exec(`
+        CREATE TABLE terraform_import_presets__new (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          builtin INTEGER NOT NULL DEFAULT 0,
+          view TEXT NOT NULL CHECK (view IN ('semantic', 'module', 'pipeline', 'rcll', 'strata')),
+          root_path TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL${hasCompositionId ? ",\n          composition_id TEXT" : ""}
+        );
+        INSERT INTO terraform_import_presets__new (
+          id, name, description, builtin, view, root_path, created_at, updated_at${hasCompositionId ? ", composition_id" : ""}
+        )
+          SELECT
+            id, name, description, builtin, view, root_path, created_at, updated_at${hasCompositionId ? ", composition_id" : ""}
+          FROM terraform_import_presets;
+        DROP TABLE terraform_import_presets;
+        ALTER TABLE terraform_import_presets__new RENAME TO terraform_import_presets;
+      `);
+    }
+    if (needCompositions) {
+      db.exec(`
+        CREATE TABLE terraform_import_compositions__new (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          default_view TEXT NOT NULL CHECK (default_view IN ('semantic', 'module', 'pipeline', 'rcll', 'strata')),
+          tfd_content TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO terraform_import_compositions__new (
+          id, name, description, default_view, tfd_content, created_at, updated_at
+        )
+          SELECT id, name, description, default_view, tfd_content, created_at, updated_at
+          FROM terraform_import_compositions;
+        DROP TABLE terraform_import_compositions;
+        ALTER TABLE terraform_import_compositions__new RENAME TO terraform_import_compositions;
+      `);
+    }
+  } finally {
+    db.pragma("foreign_keys = ON");
+  }
 }
 
 function ensureSchema(db) {
@@ -80,7 +168,7 @@ function ensureSchema(db) {
       name TEXT NOT NULL,
       description TEXT,
       builtin INTEGER NOT NULL DEFAULT 0,
-      view TEXT NOT NULL CHECK (view IN ('semantic', 'module', 'pipeline')),
+      view TEXT NOT NULL CHECK (view IN ('semantic', 'module', 'pipeline', 'rcll', 'strata')),
       root_path TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -127,7 +215,7 @@ function ensureSchema(db) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
-      default_view TEXT NOT NULL CHECK (default_view IN ('semantic', 'module', 'pipeline')),
+      default_view TEXT NOT NULL CHECK (default_view IN ('semantic', 'module', 'pipeline', 'rcll', 'strata')),
       tfd_content TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -179,6 +267,7 @@ function ensureSchema(db) {
   }
 
   migrateAddPipelineViewConstraint(db);
+  migrateAddStrataViewConstraint(db);
 }
 
 function repoNameFromRootPath(rootPath) {

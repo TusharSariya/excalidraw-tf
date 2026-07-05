@@ -6,7 +6,8 @@ export type TerraformImportPresetView =
   | "semantic"
   | "module"
   | "pipeline"
-  | "rcll";
+  | "rcll"
+  | "strata";
 
 export type TerraformImportPresetWarning = {
   code: "missing_state_file" | "missing_optional_tfd" | "composition_error";
@@ -154,6 +155,8 @@ export function normalizeTerraformImportPreset(
       ? "pipeline"
       : value.view === "rcll"
       ? "rcll"
+      : value.view === "strata"
+      ? "strata"
       : "semantic";
   const rootPath =
     typeof value.rootPath === "string" ? value.rootPath.trim() : "";

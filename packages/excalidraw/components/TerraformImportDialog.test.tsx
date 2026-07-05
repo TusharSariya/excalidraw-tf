@@ -156,6 +156,9 @@ describe("TerraformImportModal", () => {
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
+      strataNetworkSimplexRank: false,
+      strataSweeps: 0,
+      strataCoordinateRefine: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -191,6 +194,9 @@ describe("TerraformImportModal", () => {
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
+      strataNetworkSimplexRank: false,
+      strataSweeps: 0,
+      strataCoordinateRefine: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });

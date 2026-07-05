@@ -184,6 +184,15 @@ export type RunTerraformImportFromSourcesOptions = {
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   /** RCLL M3b / DEC-1 — X-disjoint cycle groups rise to share Y. Default on (undefined). */
   pipelineStaircaseBandOverlap?: boolean;
+  /** Strata (rcll-v2) OD-1 — X-axis network-simplex rank refinement. S0a: accepted +
+   * threaded, unused until the engine lands (M1). Default off. */
+  strataNetworkSimplexRank?: boolean;
+  /** Strata OD-2 — directional sweep count for A2 ordering. S0a: accepted + threaded,
+   * unused until the engine lands (M1). Default 0. */
+  strataSweeps?: number;
+  /** Strata A7 — slice-A coordinate refinement. S0a: accepted + threaded, unused
+   * until the engine lands (M1). Default off. */
+  strataCoordinateRefine?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -196,6 +205,10 @@ export type RunTerraformImportFromSourcesOptions = {
 
 export type RunTerraformImportFromSourcesResult = {
   importWarnings?: TerraformImportWarning[];
+  /** Strata (rcll-v2) failure-contract fallback marker (v3.0 §8.4 / v3.1 §5). Not
+   * yet emitted by any engine at S0a (the failure-contract wrapper lands with the
+   * engine in W2) — the field + demo-UI badge are wired ahead of that landing. */
+  rcllV2Degraded?: { stage: string; reason: string } | null;
 };
 
 export const terraformPipelineReplayOptionsFromSession = (
@@ -218,10 +231,16 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "pipelineColumnPacking"
   | "pipelineLayoutProfile"
   | "pipelineStaircaseBandOverlap"
+  | "strataNetworkSimplexRank"
+  | "strataSweeps"
+  | "strataCoordinateRefine"
 > => ({
   pipelineLayoutVariant:
-    session.pipelineLayoutVariant ??
-    (session.layoutMode === "rcll" ? "rcll" : "classic"),
+    session.layoutMode === "rcll"
+      ? "rcll"
+      : session.layoutMode === "strata"
+      ? "strata"
+      : session.pipelineLayoutVariant ?? "classic",
   pipelinePacked: session.pipelinePacked === true,
   pipelinePackedPullLeft: session.pipelinePackedPullLeft === true,
   pipelineIncludeAncillary: session.pipelineIncludeAncillary === true,
@@ -239,6 +258,9 @@ export const terraformPipelineReplayOptionsFromSession = (
   pipelineColumnPacking: session.pipelineColumnPacking,
   pipelineLayoutProfile: session.pipelineLayoutProfile,
   pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap,
+  strataNetworkSimplexRank: session.strataNetworkSimplexRank === true,
+  strataSweeps: session.strataSweeps ?? 0,
+  strataCoordinateRefine: session.strataCoordinateRefine === true,
 });
 
 async function layoutTerraformSceneFromSources(
@@ -250,9 +272,11 @@ async function layoutTerraformSceneFromSources(
   const presetId = options.preset?.id?.trim();
   // Packed and ancillary pipeline scenes are not part of the KV layout cache
   // key yet; skip the cache so such imports never return the default layout.
-  // RCLL view is never cached (M0 delegates; no cache key for its dials yet).
+  // RCLL and Strata are never cached (RCLL M0 delegates + Strata S0a
+  // passthrough; neither has a cache key for its dials yet).
   const skipLayoutCache =
     layoutMode === "rcll" ||
+    layoutMode === "strata" ||
     (layoutMode === "pipeline" &&
       (options.pipelineLayoutVariant === "v2" ||
         options.pipelinePacked === true ||
@@ -278,12 +302,17 @@ async function layoutTerraformSceneFromSources(
       ...(options.layoutMode ? { layoutMode } : {}),
       moduleLayoutOptions:
         layoutMode === "module" ? moduleLayoutOptions : undefined,
-      ...(layoutMode === "pipeline" || layoutMode === "rcll"
+      ...(layoutMode === "pipeline" ||
+      layoutMode === "rcll" ||
+      layoutMode === "strata"
         ? {
             pipelineCompact: options.pipelineCompact !== false,
             pipelineLayoutVariant:
-              options.pipelineLayoutVariant ??
-              (layoutMode === "rcll" ? "rcll" : "classic"),
+              layoutMode === "rcll"
+                ? "rcll"
+                : layoutMode === "strata"
+                ? "strata"
+                : options.pipelineLayoutVariant ?? "classic",
             pipelinePacked: options.pipelinePacked === true,
             pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
             pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
@@ -304,6 +333,9 @@ async function layoutTerraformSceneFromSources(
             // Default-on: undefined ⇒ engine default (true). Only an explicit
             // false (Stacked) flows through.
             pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+            strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
+            strataSweeps: options.strataSweeps ?? 0,
+            strataCoordinateRefine: options.strataCoordinateRefine === true,
           }
         : {}),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
@@ -364,12 +396,17 @@ export const runTerraformImportFromSources = async (
       terraformLodEnabled: options.terraformLodEnabled !== false,
       terraformLodPreset:
         options.terraformLodPreset ?? TERRAFORM_LOD_DEFAULT_PRESET,
-      ...(layoutMode === "pipeline" || layoutMode === "rcll"
+      ...(layoutMode === "pipeline" ||
+      layoutMode === "rcll" ||
+      layoutMode === "strata"
         ? {
             pipelineCompact: options.pipelineCompact !== false,
             pipelineLayoutVariant:
-              options.pipelineLayoutVariant ??
-              (layoutMode === "rcll" ? "rcll" : "classic"),
+              layoutMode === "rcll"
+                ? "rcll"
+                : layoutMode === "strata"
+                ? "strata"
+                : options.pipelineLayoutVariant ?? "classic",
             pipelinePacked: options.pipelinePacked === true,
             pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
             pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
@@ -390,6 +427,9 @@ export const runTerraformImportFromSources = async (
             // Default-on: undefined ⇒ engine default (true). Only an explicit
             // false (Stacked) flows through.
             pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+            strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
+            strataSweeps: options.strataSweeps ?? 0,
+            strataCoordinateRefine: options.strataCoordinateRefine === true,
           }
         : {}),
       colorMode: options.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
@@ -399,11 +439,19 @@ export const runTerraformImportFromSources = async (
     });
   }
 
-  const warnings = (
-    scene as { meta?: { importWarnings?: TerraformImportWarning[] } }
-  ).meta?.importWarnings;
+  const sceneMeta = (
+    scene as {
+      meta?: {
+        importWarnings?: TerraformImportWarning[];
+        rcllV2Degraded?: { stage: string; reason: string };
+      };
+    }
+  ).meta;
 
-  return { importWarnings: warnings };
+  return {
+    importWarnings: sceneMeta?.importWarnings,
+    rcllV2Degraded: sceneMeta?.rcllV2Degraded ?? null,
+  };
 };
 
 export const resetTerraformLayout = (

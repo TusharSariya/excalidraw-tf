@@ -39,7 +39,11 @@ export type TerraformCanvasViewSettings = {
 export const deriveViewFromSession = (
   session: TerraformImportSession,
 ): TerraformView => {
-  if (session.layoutMode === "pipeline" || session.layoutMode === "rcll") {
+  if (
+    session.layoutMode === "pipeline" ||
+    session.layoutMode === "rcll" ||
+    session.layoutMode === "strata"
+  ) {
     return session.layoutMode;
   }
   return session.semanticLayout ? "semantic" : "module";
@@ -73,6 +77,9 @@ const sessionToDemoSnapshot = (
   // No retained profile ⇒ the explicit flags above are authoritative (treated as "custom").
   pipelineLayoutProfile: session.pipelineLayoutProfile ?? "custom",
   pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap ?? true,
+  strataNetworkSimplexRank: session.strataNetworkSimplexRank ?? false,
+  strataSweeps: session.strataSweeps ?? 0,
+  strataCoordinateRefine: session.strataCoordinateRefine ?? false,
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

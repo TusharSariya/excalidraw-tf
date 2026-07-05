@@ -103,6 +103,14 @@ export const TerraformDemoAutoImport = ({
   const startedForSearchRef = useRef<string | null>(null);
   const [status, setStatus] = useState<DemoImportStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  // Strata (rcll-v2) failure-contract fallback marker (v3.0 §8.4 / v3.1 §5). Not
+  // yet emitted by any engine at S0a; wired ahead of the engine landing (W2).
+  // Rendered independently of `status`/`message` so it survives past the
+  // "loading…" message clearing on a successful import.
+  const [rcllV2Degraded, setRcllV2Degraded] = useState<{
+    stage: string;
+    reason: string;
+  } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -138,6 +146,7 @@ export const TerraformDemoAutoImport = ({
     const run = async () => {
       setStatus("loading");
       setMessage(`Loading preset "${params.presetId}"…`);
+      setRcllV2Degraded(null);
 
       try {
         const preset = await getTerraformImportPreset(params.presetId);
@@ -150,36 +159,45 @@ export const TerraformDemoAutoImport = ({
           params.pack,
         );
 
-        await runTerraformPresetImport(app, setAppState, preset, {
-          view,
-          moduleLayoutOptions,
-          pipelineCompact: params.compact,
-          pipelineLayoutVariant: params.pipelineVariant,
-          pipelinePacked: params.packed,
-          pipelinePackedPullLeft: params.packedPullLeft,
-          pipelineIncludeAncillary: params.ancillary,
-          pipelineSemanticPlacement: params.semanticPlace,
-          pipelineSwimlaneLaneRise: params.swimlaneRise,
-          pipelineReorder: params.reorder,
-          pipelineCrossingMin: params.crossingMin,
-          pipelineDeBandLevel: params.deBandLevel,
-          pipelineSubnetDeBand: params.subnetDeBand,
-          pipelineRankSeparate: params.rankSeparate,
-          pipelineStraighten: params.straighten,
-          pipelineCoordRepack: params.coordRepack,
-          pipelineDeDensify: params.deDensify,
-          pipelineColumnPacking: params.columnPacking,
-          pipelineLayoutProfile: params.profile,
-          pipelineStaircaseBandOverlap: params.staircaseBandOverlap,
-          signal,
-          onLayoutProgress: (progress) => {
-            const label =
-              progress.total > 0
-                ? `${progress.phase} (${progress.done}/${progress.total})`
-                : progress.phase;
-            setMessage(label);
+        const { rcllV2Degraded: degraded } = await runTerraformPresetImport(
+          app,
+          setAppState,
+          preset,
+          {
+            view,
+            moduleLayoutOptions,
+            pipelineCompact: params.compact,
+            pipelineLayoutVariant: params.pipelineVariant,
+            pipelinePacked: params.packed,
+            pipelinePackedPullLeft: params.packedPullLeft,
+            pipelineIncludeAncillary: params.ancillary,
+            pipelineSemanticPlacement: params.semanticPlace,
+            pipelineSwimlaneLaneRise: params.swimlaneRise,
+            pipelineReorder: params.reorder,
+            pipelineCrossingMin: params.crossingMin,
+            pipelineDeBandLevel: params.deBandLevel,
+            pipelineSubnetDeBand: params.subnetDeBand,
+            pipelineRankSeparate: params.rankSeparate,
+            pipelineStraighten: params.straighten,
+            pipelineCoordRepack: params.coordRepack,
+            pipelineDeDensify: params.deDensify,
+            pipelineColumnPacking: params.columnPacking,
+            pipelineLayoutProfile: params.profile,
+            pipelineStaircaseBandOverlap: params.staircaseBandOverlap,
+            strataNetworkSimplexRank: params.strataNsRank,
+            strataSweeps: params.strataSweeps,
+            strataCoordinateRefine: params.strataCoordRefine,
+            signal,
+            onLayoutProgress: (progress) => {
+              const label =
+                progress.total > 0
+                  ? `${progress.phase} (${progress.done}/${progress.total})`
+                  : progress.phase;
+              setMessage(label);
+            },
           },
-        });
+        );
+        setRcllV2Degraded(degraded ?? null);
 
         // Reapply the runtime view settings the share URL carried (LOD, minimap, edge
         // layers, dev canvas-performance) on top of the freshly-imported scene.
@@ -208,20 +226,30 @@ export const TerraformDemoAutoImport = ({
     void run();
   }, [app, onImportFail, onImportSuccess, setAppState]);
 
-  if (status === "idle" || !message) {
-    return null;
-  }
-
   return (
-    <div
-      className={clsx(
-        "TerraformDemoAutoImport",
-        status === "error" && "TerraformDemoAutoImport--error",
+    <>
+      {status !== "idle" && message && (
+        <div
+          className={clsx(
+            "TerraformDemoAutoImport",
+            status === "error" && "TerraformDemoAutoImport--error",
+          )}
+          role={status === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {message}
+        </div>
       )}
-      role={status === "error" ? "alert" : "status"}
-      aria-live="polite"
-    >
-      {message}
-    </div>
+      {rcllV2Degraded && (
+        <div
+          className="TerraformDemoAutoImport TerraformDemoAutoImport--degraded"
+          role="status"
+          aria-live="polite"
+        >
+          Strata fell back to v2 ({rcllV2Degraded.stage}):{" "}
+          {rcllV2Degraded.reason}
+        </div>
+      )}
+    </>
   );
 };

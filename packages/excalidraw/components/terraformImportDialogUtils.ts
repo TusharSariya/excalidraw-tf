@@ -1,4 +1,9 @@
-export type TerraformView = "module" | "semantic" | "pipeline" | "rcll";
+export type TerraformView =
+  | "module"
+  | "semantic"
+  | "pipeline"
+  | "rcll"
+  | "strata";
 
 /**
  * Internal layout mode. Same closed set as {@link TerraformView}; kept as a
@@ -8,7 +13,12 @@ export type TerraformView = "module" | "semantic" | "pipeline" | "rcll";
  */
 export type TerraformLayoutMode = TerraformView;
 
-export type PipelineLayoutVariant = "classic" | "compound" | "v2" | "rcll";
+export type PipelineLayoutVariant =
+  | "classic"
+  | "compound"
+  | "v2"
+  | "rcll"
+  | "strata";
 
 /** RCLL "Layout" profile (outcome-first preset), re-exported here so the dialog prop
  * surface has one import home. The expansion lives in terraformPipelineLayoutProfiles. */
@@ -58,6 +68,12 @@ export const VIEW_OPTIONS: ReadonlyArray<{
     label: "RCLL view",
     description:
       "Recursive compound layered dataflow — left-to-right, hubs centered over fan-outs, column-aligned fan-outs (experimental).",
+  },
+  {
+    value: "strata",
+    label: "Strata",
+    description:
+      "Next-gen layered compound layout (rcll-v2 spec) — deterministic, diff-stable, readability-gated.",
   },
   {
     value: "module",

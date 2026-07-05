@@ -33,6 +33,9 @@ export const deriveLayoutModeFromView = (
   if (view === "rcll" && canUseSemanticView) {
     return "rcll";
   }
+  if (view === "strata" && canUseSemanticView) {
+    return "strata";
+  }
   if (view === "pipeline" && canUseSemanticView) {
     return "pipeline";
   }
@@ -67,6 +70,15 @@ export type RunTerraformImportFromSourcesArgs = {
   pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   pipelineStaircaseBandOverlap?: boolean;
+  /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
+   * threaded, unused until the engine lands (M1). Default off. */
+  strataNetworkSimplexRank?: boolean;
+  /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
+   * unused until the engine lands (M1). Default 0. */
+  strataSweeps?: number;
+  /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
+   * until the engine lands (M1). Default off. */
+  strataCoordinateRefine?: boolean;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -97,6 +109,9 @@ export const runTerraformImportWithView = async ({
   pipelineColumnPacking,
   pipelineLayoutProfile,
   pipelineStaircaseBandOverlap,
+  strataNetworkSimplexRank,
+  strataSweeps,
+  strataCoordinateRefine,
   importedTfdTexts,
   preset = null,
   signal,
@@ -104,7 +119,10 @@ export const runTerraformImportWithView = async ({
 }: RunTerraformImportFromSourcesArgs): Promise<RunTerraformImportFromSourcesResult> => {
   const layoutMode = deriveLayoutModeFromView(view, sources);
   const semanticLayout = layoutMode === "semantic";
-  const isPipelineFamily = layoutMode === "pipeline" || layoutMode === "rcll";
+  const isPipelineFamily =
+    layoutMode === "pipeline" ||
+    layoutMode === "rcll" ||
+    layoutMode === "strata";
   return runTerraformImportFromSources(app, setAppState, sources, {
     semanticLayout,
     layoutMode: isPipelineFamily ? layoutMode : undefined,
@@ -130,6 +148,9 @@ export const runTerraformImportWithView = async ({
           pipelineColumnPacking,
           pipelineLayoutProfile,
           pipelineStaircaseBandOverlap,
+          strataNetworkSimplexRank,
+          strataSweeps,
+          strataCoordinateRefine,
         }
       : {}),
     importedTfdTexts,
@@ -160,6 +181,11 @@ export type RunTerraformPresetImportOptions = {
   pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
   pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
   pipelineStaircaseBandOverlap?: boolean;
+  /** Strata (rcll-v2) OD-1/OD-2/A7 flags. S0a: accepted + threaded, unused until
+   * the engine lands (M1). All default off/0. */
+  strataNetworkSimplexRank?: boolean;
+  strataSweeps?: number;
+  strataCoordinateRefine?: boolean;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -215,6 +241,9 @@ export const runTerraformPresetImport = async (
     pipelineColumnPacking: options.pipelineColumnPacking,
     pipelineLayoutProfile: options.pipelineLayoutProfile,
     pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+    strataNetworkSimplexRank: options.strataNetworkSimplexRank,
+    strataSweeps: options.strataSweeps,
+    strataCoordinateRefine: options.strataCoordinateRefine,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

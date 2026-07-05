@@ -557,6 +557,29 @@ describe("rcll preset round-trips through normalize", () => {
     expect(preset?.view).toBe("rcll");
   });
 
+  it("a view:'strata' preset normalizes to 'strata' (trap regression)", () => {
+    // trap #2 (docs/strata-view-implementation-flow.md §1): the normalize
+    // ternary silently downgrades an unrecognized view to "semantic" — this
+    // pins "strata" as a recognized member, not a stranded/unknown value.
+    const preset = normalizeTerraformImportPreset({
+      id: "strata-fixture",
+      name: "Strata Fixture",
+      view: "strata",
+      rootPath: "/repo",
+      stacks: [
+        {
+          id: "stack-a",
+          label: "Stack A",
+          planPath: "a/plan.json",
+          dotPath: "a/graph.dot",
+        },
+      ],
+      tfdPaths: ["a/links.tfd"],
+    });
+    expect(preset).not.toBeNull();
+    expect(preset?.view).toBe("strata");
+  });
+
   it("a stranded view:'experimental' preset coerces to 'semantic' (migration)", () => {
     // The Experimental view was retired at M0; a preset persisted before the
     // removal must degrade gracefully, not strand the loader.

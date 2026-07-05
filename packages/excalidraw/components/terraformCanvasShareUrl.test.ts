@@ -49,6 +49,9 @@ describe("terraformCanvasShareUrl", () => {
       expect(
         deriveViewFromSession(makeSession({ layoutMode: "pipeline" })),
       ).toBe("pipeline");
+      expect(
+        deriveViewFromSession(makeSession({ layoutMode: "strata" })),
+      ).toBe("strata");
     });
 
     it("falls back to semantic vs module via semanticLayout", () => {
@@ -117,6 +120,31 @@ describe("terraformCanvasShareUrl", () => {
         hideAwsIconGlyphsBelowZoom: true,
         lowZoomThreshold: 0.4,
       },
+    });
+  });
+
+  it("encodes a strata session into a /demo URL (view=strata round-trips)", () => {
+    const session = makeSession({
+      layoutMode: "strata",
+      pipelineCompact: false,
+      pipelineIncludeAncillary: true,
+      strataNetworkSimplexRank: true,
+      strataSweeps: 4,
+      strataCoordinateRefine: true,
+    });
+    const url = buildTerraformCanvasShareUrl(session, defaultView, {
+      origin: "https://tfdraw.dev",
+    });
+    expect(url).toContain("view=strata");
+    const parsed = parseTerraformDemoUrlParams(queryOf(url!));
+    expect(parsed).toMatchObject({
+      presetId: "staging-extended-localstack-v2",
+      view: "strata",
+      compact: false,
+      ancillary: true,
+      strataNsRank: true,
+      strataSweeps: 4,
+      strataCoordRefine: true,
     });
   });
 
