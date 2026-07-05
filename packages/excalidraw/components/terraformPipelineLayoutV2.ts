@@ -93,6 +93,15 @@ export async function buildTerraformPipelineV2ExcalidrawScene(
   options?: {
     compact?: boolean;
     includeAncillary?: boolean;
+    /**
+     * Pre-built prep, reused when a caller (the Strata engine's failure path)
+     * already ran `preparePipelineLayout` for its own model — avoids a second
+     * ~20s skeleton build (the measured dominant import cost, v3.1 §5). Mirrors
+     * the compound builder's existing `prep` param. Back-compat / D2′: omitted ⇒
+     * build our own, byte-identical to before. Safe to share because this
+     * builder never mutates `prep` in place.
+     */
+    prep?: PipelineLayoutPrep;
   },
 ): Promise<{
   elements: ExcalidrawElement[];
@@ -102,7 +111,7 @@ export async function buildTerraformPipelineV2ExcalidrawScene(
   const compact = options?.compact !== false;
   const includeAncillary = options?.includeAncillary === true;
 
-  const prep = preparePipelineLayout(nodes, plan, compact);
+  const prep = options?.prep ?? preparePipelineLayout(nodes, plan, compact);
 
   const ancillaryStrips = includeAncillary
     ? buildAncillaryStrips(nodes, plan, prep, { compact })

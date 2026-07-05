@@ -24,6 +24,12 @@ import {
 // M5: the centering median is shared with the model-level acceptance gate so the
 // rendered `hubCenteringRate` and the deterministic model gate never drift.
 import { median } from "./terraformPipelineCoordinateAssignment";
+// T9 (WP-2d, v3.1 §2): slice-A/B split + companion metrics, additive-only —
+// see terraformPipelineSliceMetrics.ts for the full contract.
+import {
+  computeSliceMetrics,
+  type PipelineSliceMetrics,
+} from "./terraformPipelineSliceMetrics";
 
 export type CollisionCategory =
   | "region-region"
@@ -63,6 +69,9 @@ export type PipelineSceneDiagnostics = {
     hubCount: number;
     aspect: number;
   };
+  /** T9 (WP-2d): slice-A/B split + companion metrics. Additive — see
+   * terraformPipelineSliceMetrics.ts. */
+  slices: PipelineSliceMetrics;
 };
 
 // Metric tolerances, derived from the layout spacing in
@@ -490,5 +499,6 @@ export function diagnosePipelineScene(
       hubCount,
       aspect: Math.round(aspect * 100) / 100,
     },
+    slices: computeSliceMetrics(elements),
   };
 }

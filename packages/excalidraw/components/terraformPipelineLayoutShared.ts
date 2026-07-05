@@ -575,6 +575,25 @@ export function computeWidthBudgetedDepths(
 }
 
 /**
+ * Feasibility check (S4, extracted from the former inline guard in
+ * `applyDepthFloorIfValid` — D2′: same semantics, no behavior change). A
+ * candidate depth assignment is feasible only if it keeps EVERY collapsed edge
+ * forward (`depth(src) < depth(tgt)`) — the order-safety invariant the whole
+ * RCLL layering relies on. Pure — no mutation, no dual-write. Reused by the
+ * Strata engine's A1 rank (`terraformPipelineStrataRank.ts`, C7's "committed
+ * only through the S4 pure gate") ahead of any cluster-object dual-write.
+ */
+export function isDepthFloorValid(
+  candidate: ReadonlyMap<string, number>,
+  collapsedEdges: readonly { source: string; target: string }[],
+): boolean {
+  return collapsedEdges.every(
+    (edge) =>
+      (candidate.get(edge.source) ?? 0) < (candidate.get(edge.target) ?? 0),
+  );
+}
+
+/**
  * Verify-or-abort guard for swapping the cluster depth floor. A candidate depth
  * assignment is applied only if it keeps EVERY collapsed edge forward
  * (`depth(src) < depth(tgt)`) — the order-safety invariant the whole RCLL
@@ -595,11 +614,7 @@ export function applyDepthFloorIfValid(
   candidate: ReadonlyMap<string, number>,
   collapsedEdges: readonly { source: string; target: string }[],
 ): { depths: Map<string, number>; hasCycle: false } | null {
-  const valid = collapsedEdges.every(
-    (edge) =>
-      (candidate.get(edge.source) ?? 0) < (candidate.get(edge.target) ?? 0),
-  );
-  if (!valid) {
+  if (!isDepthFloorValid(candidate, collapsedEdges)) {
     return null;
   }
   for (const cluster of clusters) {

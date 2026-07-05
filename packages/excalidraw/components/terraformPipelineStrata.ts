@@ -1,39 +1,64 @@
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
+import { preparePipelineLayout } from "./terraformPipelineLayoutShared";
+import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
+import { buildStrataModel } from "./terraformPipelineStrataModel";
+import { repairStrataCycles } from "./terraformPipelineStrataCycleRepair";
+import { rankStrataClusters } from "./terraformPipelineStrataRank";
+import {
+  checkStrataStructure,
+  placeStrataHulls,
+} from "./terraformPipelineStrataPlacement";
+import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
+import type { StrataDegradedMeta } from "./terraformPipelineStrataTypes";
 import type { TerraformPlanNodesMap } from "./terraformPlanParsing";
 import type { TerraformImportWarning } from "./terraformImportMerge";
 
 export type TerraformStrataSceneOptions = {
   compact?: boolean;
   includeAncillary?: boolean;
-  /** OD-1 (M1b): X-axis network-simplex rank refinement. Accepted + threaded at
-   * S0a (URL → dialog → sceneContext → here → scene meta); unused until the
-   * Strata engine lands (M1). Default off. */
+  /** OD-1 (M1b): X-axis network-simplex rank refinement (A1). Threaded at S0a;
+   * consumed by `rankStrataClusters`. Default off. */
   strataNetworkSimplexRank?: boolean;
-  /** OD-2 (M1b): directional sweep count for the A2 ordering pass. Accepted +
-   * threaded at S0a; unused until the Strata engine lands (M1). Default 0
-   * (M1a ships K=0 "model-order bands"; M1b turns on K=4). */
+  /** OD-2 (M1b): directional sweep count for the A2 ordering pass. Threaded at
+   * S0a; consumed by `placeStrataHulls`. Default 0 (M1a "model-order bands"). */
   strataSweeps?: number;
   /** A7 (M1b): slice-A coordinate refinement flag. Accepted + threaded at S0a;
-   * unused until the Strata engine lands (M1). Default off. */
+   * NOT consumed at M1a (A7 is M1b) — echoed in meta only. Default off. */
   strataCoordinateRefine?: boolean;
+  /** Dev-only failure-contract seam: force the named engine stage to throw so
+   * the P11 fallback path is exercisable end-to-end from a test. Never set on
+   * any production path. */
+  __testForceStageError?: StrataDegradedMeta["stage"];
 };
 
 /**
- * Strata view — S0a passthrough entry point.
+ * Strata view — the rcll-v2 engine entry point (M1a) behind the §5 failure
+ * contract.
  *
- * The rcll-v2 engine (docs/strata-view-implementation-flow.md §3) lands across
- * milestones W2/W3 (P0-P11). At S0a the engine does not exist yet: this
- * delegates verbatim to the v2 builder (same inputs — same `compact` /
- * `includeAncillary` options the v2 builder itself consumes) so `view=strata`
- * renders identically to v2 today, then merges the Strata identity plus the
- * three future engine flags (accepted-and-threaded-but-unused) into the
- * returned scene meta. This proves the end-to-end wiring (URL/dialog → the
- * `sceneContext` seam → this builder → the meta echo) before any
- * Strata-specific geometry exists — see the threading test
- * `terraformLayoutCoreStrataThreading.test.ts`.
+ * The engine runs its phases sequentially — model → A3 (cycle repair) → A1
+ * (rank) → A0+A2 (placement) → scene build → structural check. On ANY stage
+ * failure the entry point does NOT throw: it falls back to the v2 substrate
+ * builder, reusing the prep it already computed (v3.1 §5 — otherwise every
+ * failure silently re-pays the ~20s skeleton build), and surfaces the failure
+ * as `rcllV2Degraded: { stage, reason }` in scene meta (the honest-meta
+ * surfacing; T9 asserts this key is ABSENT on success).
+ *
+ * `preparePipelineLayout` is invoked with the SAME shape the v2 builder uses
+ * internally (`(nodes, plan, compact)`, no NS option — A1's network-simplex is
+ * a separate, engine-owned rank refinement), so the prep handed to the fallback
+ * is a byte-valid substitute for what the v2 builder would have built itself. A
+ * prep throw (e.g. the CON-10 .tfd gate) is intentionally NOT caught — it is the
+ * same HTTP-400 every pipeline variant raises, and the v2 fallback would only
+ * re-throw it; degenerate-input coverage is a loud-failure contract.
+ *
+ * Ancillary is deferred at M1 (the engine path is extraction-free): when
+ * `includeAncillary` is requested the engine builds WITHOUT ancillary and echoes
+ * `strataAncillaryDeferred: true` (honest-meta, SDEC-26/29). `strataCoordinate-
+ * Refine` (A7) is accepted-but-unused at M1a — its meta echo is kept, and it is
+ * NOT run.
  */
 export async function buildTerraformStrataExcalidrawScene(
   nodes: TerraformPlanNodesMap,
@@ -44,20 +69,159 @@ export async function buildTerraformStrataExcalidrawScene(
   meta: Record<string, unknown>;
   warnings: TerraformImportWarning[];
 }> {
-  const v2Scene = await buildTerraformPipelineV2ExcalidrawScene(nodes, plan, {
-    compact: options?.compact,
-    includeAncillary: options?.includeAncillary,
-  });
+  const compact = options?.compact !== false;
+  const includeAncillary = options?.includeAncillary === true;
+  const strataNetworkSimplexRank = options?.strataNetworkSimplexRank === true;
+  const strataSweeps = options?.strataSweeps ?? 0;
+  const strataCoordinateRefine = options?.strataCoordinateRefine === true;
+  const forceStage = options?.__testForceStageError;
 
-  return {
-    ...v2Scene,
-    meta: {
-      ...v2Scene.meta,
-      pipelineLayoutVariant: "strata",
-      strataPassthrough: true,
-      strataNetworkSimplexRank: options?.strataNetworkSimplexRank === true,
-      strataSweeps: options?.strataSweeps ?? 0,
-      strataCoordinateRefine: options?.strataCoordinateRefine === true,
-    },
+  // The three future-engine flag echoes + the honest ancillary-deferred marker,
+  // merged into BOTH the success and the degraded meta.
+  const flagMeta: Record<string, unknown> = {
+    strataNetworkSimplexRank,
+    strataSweeps,
+    strataCoordinateRefine,
+    ...(includeAncillary ? { strataAncillaryDeferred: true } : {}),
   };
+
+  // Build prep ONCE — same invocation shape as the v2 builder's internal call so
+  // the fallback prep is a valid substitute. A prep throw propagates (see header).
+  const prep = preparePipelineLayout(nodes, plan, compact);
+
+  const engineOptions = {
+    compact,
+    // M1 is extraction-free: never thread ancillary into the engine — it is
+    // echoed as deferred, not silently ignored.
+    includeAncillary: false,
+    networkSimplexRank: strataNetworkSimplexRank,
+    sweeps: strataSweeps,
+    coordinateRefine: strataCoordinateRefine,
+  };
+
+  // Small dev seam so a test can force any stage to throw.
+  const gate = (stage: StrataDegradedMeta["stage"]): void => {
+    if (forceStage === stage) {
+      throw new Error(`__testForceStageError: forced failure at "${stage}"`);
+    }
+  };
+
+  let stage: StrataDegradedMeta["stage"] = "model";
+  try {
+    gate("model");
+    const model = buildStrataModel(prep, engineOptions);
+
+    stage = "a3";
+    gate("a3");
+    const repair = repairStrataCycles(model.edges, model.addressOf);
+
+    stage = "a1";
+    gate("a1");
+    const rank = rankStrataClusters([...model.clusters.keys()], repair, {
+      networkSimplexRank: engineOptions.networkSimplexRank,
+      // OD-6 / D10 #5: unit width is the frame's TRUE local rect width (what
+      // placement uses), NOT build.width.
+      unitWidthOf: (id) => {
+        const cluster = model.clusters.get(id);
+        return cluster ? clusterFrameLocalRect(cluster).width : 0;
+      },
+    });
+
+    // A0 compound placement + A2 ordering (both inside placeStrataHulls).
+    // Attribution contract (codex W2 P2): the forced-error hook gets an honest
+    // per-stage tag, and a real throw from the ordering pass self-identifies
+    // by its "Strata A2" message prefix — every throw WP-3a adds to the
+    // ordering module MUST use that prefix or it will be misattributed to a0.
+    stage = "a2";
+    gate("a2");
+    stage = "a0";
+    gate("a0");
+    let placement: ReturnType<typeof placeStrataHulls>;
+    try {
+      placement = placeStrataHulls(
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("Strata A2")) {
+        stage = "a2";
+      }
+      throw err;
+    }
+
+    stage = "scene-build";
+    gate("scene-build");
+    const scene = await buildStrataScene({ prep, model, placement, nodes });
+
+    // Standing R2 invariant (S0b acceptance): any nonzero count is a failure.
+    stage = "structural-check";
+    gate("structural-check");
+    const structure = checkStrataStructure(placement, model);
+    if (
+      structure.nonAncestorOverlaps > 0 ||
+      structure.titleCollisions > 0 ||
+      structure.contiguityViolations > 0
+    ) {
+      throw new Error(`structural check failed: ${JSON.stringify(structure)}`);
+    }
+
+    return {
+      elements: scene.elements,
+      meta: {
+        layoutEngine: "pipeline",
+        pipelineVariant: "strata",
+        pipelineLayoutVariant: "strata",
+        pipelineCompact: compact,
+        pipelineClusterCount: prep.clusters.length,
+        pipelineEdgeCount: model.edges.length,
+        pipelineSelfLoopCount: model.selfLoops.length,
+        pipelineColumnCount: rank.columnX.length,
+        pipelineTopologyFrameEdgeCount: scene.frameEdgeCount,
+        strataNetworkSimplexApplied: rank.networkSimplexApplied,
+        ...(rank.nsSkipReason
+          ? { strataNetworkSimplexSkipReason: rank.nsSkipReason }
+          : {}),
+        // R2 evidence (all-zero on the success path).
+        strataStructural: structure,
+        ...flagMeta,
+      },
+      // NOT the legacy pipelineCycleWarnings (codex W2 P2): its message claims
+      // ordering "fell back to first .tfd occurrence", which is false here —
+      // A3 repairs cycles structurally (GreedyFAS) and no file-order fallback
+      // exists in this engine. Warn accurately, and only when a cycle existed.
+      warnings:
+        repair.feedbackKeys.size > 0
+          ? [
+              {
+                code: "pipeline_cycle" as const,
+                message: `Strata view repaired ${repair.feedbackKeys.size} dependency cycle edge(s) structurally (GreedyFAS); the affected arrow(s) are drawn against the flow direction.`,
+              },
+            ]
+          : [],
+    };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    // Dev surfacing — the meta IS the contract, but a warn helps local debug.
+    // eslint-disable-next-line no-console
+    console.warn(`[strata] engine degraded at stage "${stage}": ${reason}`);
+
+    // §5 fallback: reuse the prep already built (never re-pay the skeleton build).
+    const fallback = await buildTerraformPipelineV2ExcalidrawScene(
+      nodes,
+      plan,
+      { compact, includeAncillary, prep },
+    );
+    return {
+      elements: fallback.elements,
+      meta: {
+        ...fallback.meta,
+        pipelineLayoutVariant: "strata",
+        ...flagMeta,
+        rcllV2Degraded: { stage, reason },
+      },
+      warnings: fallback.warnings,
+    };
+  }
 }

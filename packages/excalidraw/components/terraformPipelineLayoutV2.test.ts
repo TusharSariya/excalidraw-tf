@@ -21,6 +21,8 @@ import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraf
 
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
+import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
+import { preparePipelineLayout } from "./terraformPipelineLayoutShared";
 import {
   getTerraformResourceTypeFromNodePath,
   isPrimaryVisibleResourceType,
@@ -319,5 +321,58 @@ describe("pipeline all-resources respects primary grouping", () => {
       ).toBe(0);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+});
+
+/**
+ * D2′ (v3.1 §5): the optional `prep` param must not change default behavior.
+ * The Strata engine's failure path passes the prep it already computed to the v2
+ * substrate builder so a fallback never re-pays the ~20s skeleton build; passing
+ * that prep must yield a scene byte-identical to one where v2 builds its own.
+ */
+describe("buildTerraformPipelineV2ExcalidrawScene — optional prep param (D2′)", () => {
+  const geom = (elements: readonly ExcalidrawElement[]): string[] =>
+    elements
+      .filter((el) => !el.isDeleted)
+      .map((el) => `${el.type}|${el.x},${el.y},${el.width},${el.height}`)
+      .sort();
+
+  it(
+    "scene built with a passed-in prep === scene built without (geometry + meta)",
+    async () => {
+      const raw = getTerraformImportPresetSourcesFromDb(
+        "staging-extended-localstack-v2",
+      );
+      const sources = resolveSourcesWithTfdComposition(
+        raw! as TerraformImportPresetSources,
+      );
+      const bundle = sources.planDotBundles[0]!;
+      const graph = graphlibDot.read("digraph G {}\n");
+      const nodes = buildTerraformLocalImportNodesMap(
+        bundle.plan,
+        graph,
+        [],
+        {},
+      );
+      applyTfdOverlayToNodes(nodes, sources.tfdTexts, sources.tfdLabels);
+
+      // adjacent builds — same process state; the only difference is prep origin
+      const withoutPrep = await buildTerraformPipelineV2ExcalidrawScene(
+        nodes,
+        bundle.plan,
+        { compact: true },
+      );
+      const prep = preparePipelineLayout(nodes, bundle.plan, true);
+      const withPrep = await buildTerraformPipelineV2ExcalidrawScene(
+        nodes,
+        bundle.plan,
+        { compact: true, prep },
+      );
+
+      expect(withPrep.elements.length).toBe(withoutPrep.elements.length);
+      expect(geom(withPrep.elements)).toEqual(geom(withoutPrep.elements));
+      expect(withPrep.meta).toEqual(withoutPrep.meta);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );
 });

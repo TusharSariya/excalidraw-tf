@@ -109,7 +109,7 @@ function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
  * naive footprint when no frame is found (defensive; keeps compact/classic
  * clusters, whose frame already sits at the origin, byte-identical).
  */
-function clusterFrameLocalRect(cluster: PipelineCluster): {
+export function clusterFrameLocalRect(cluster: PipelineCluster): {
   x: number;
   y: number;
   width: number;

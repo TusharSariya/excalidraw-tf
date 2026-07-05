@@ -1,21 +1,22 @@
 /**
- * Strata (S0a) threading test — pattern: `terraformLayoutCoreRcllThreading.test.ts`.
+ * Strata threading test — pattern: `terraformLayoutCoreRcllThreading.test.ts`.
  *
- * Strata is a PURE v2 passthrough at S0a (docs/strata-view-implementation-flow.md
- * §2): `buildTerraformStrataExcalidrawScene` delegates verbatim to the v2 builder.
+ * The M1a Strata engine now runs behind the §5 failure contract (WP-2c);
+ * `buildTerraformStrataExcalidrawScene` no longer delegates verbatim to v2.
  * This proves the end-to-end wiring through `layoutTerraformFromSources` (the
- * worker/headless path the app actually uses) BEFORE any Strata-specific geometry
- * exists:
+ * worker/headless path the app actually uses):
  *   - a URL/dialog-set "strata" variant reaches the engine (not a stale mis-route
  *     to "classic" — the `sceneContext` literal is the one seam where an option
  *     not listed there is silently dropped, trap #4)
  *   - scene meta echoes the Strata identity (`pipelineLayoutVariant: "strata"`,
- *     `strataPassthrough: true`) plus the three future-engine flags
- *     (accepted-and-threaded-but-unused until the M1 engine lands), default off/0
+ *     `pipelineVariant: "strata"`), the `strataPassthrough` marker is GONE (the
+ *     passthrough was removed with the engine), and on this preset the engine
+ *     runs to completion (no `rcllV2Degraded`)
+ *   - the three future-engine flags echo end-to-end (accepted-and-threaded),
+ *     default off/0 — surfaced on BOTH the success and the degraded meta
  *   - "honest packing meta" (owner decision SDEC-26): `pipelineColumnPackingInert`
  *     fires for Strata exactly like every non-rcll variant, and is absent on rcll
- *   - the passthrough geometry is byte-comparable to a plain v2 build for the same
- *     input (element count + sorted (x,y,width,height) tuples)
+ *   - ancillary is deferred at M1 (extraction-free) and echoed honestly
  */
 import { describe, expect, it } from "vitest";
 
@@ -88,10 +89,11 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
     async () => {
       const strata = await buildStrata();
       expect(strata.meta.pipelineLayoutVariant).toBe("strata");
-      expect(strata.meta.strataPassthrough).toBe(true);
-      // The v2 builder's own meta key survives underneath — S0a really did
-      // delegate verbatim, not reimplement anything.
-      expect(strata.meta.pipelineVariant).toBe("v2");
+      // The passthrough is gone: the Strata engine now emits its OWN identity.
+      expect(strata.meta.strataPassthrough).toBeUndefined();
+      expect(strata.meta.pipelineVariant).toBe("strata");
+      // On this preset the engine runs to completion — no degraded fallback.
+      expect(strata.meta.rcllV2Degraded).toBeUndefined();
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
   );
@@ -142,12 +144,19 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "passthrough geometry is byte-comparable to a plain v2 build for the same input",
+    "the Strata engine produces its OWN scene (not a v2 passthrough) and defers ancillary honestly",
     async () => {
       const strata = await buildStrata({ pipelineIncludeAncillary: true });
+      // engine ran end-to-end and emitted geometry
+      expect(strata.meta.rcllV2Degraded).toBeUndefined();
+      expect(strata.meta.pipelineVariant).toBe("strata");
+      expect(strata.elements.length).toBeGreaterThan(0);
+      // ancillary is deferred at M1 (extraction-free) — echoed, never silently ignored
+      expect(strata.meta.strataAncillaryDeferred).toBe(true);
+      // it is NOT a byte-for-byte v2 passthrough anymore: the Strata engine owns
+      // placement, so its geometry differs from the v2 packer's.
       const v2 = await buildV2({ pipelineIncludeAncillary: true });
-      expect(strata.elements.length).toBe(v2.elements.length);
-      expect(geometryTuples(strata.elements)).toEqual(
+      expect(geometryTuples(strata.elements)).not.toEqual(
         geometryTuples(v2.elements),
       );
     },

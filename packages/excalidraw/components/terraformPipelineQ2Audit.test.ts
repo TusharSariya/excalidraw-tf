@@ -149,10 +149,11 @@ async function layout(
   const eligiblePairs = eligiblePairCount(elements);
   const meta = (body.meta ?? {}) as Record<string, unknown>;
 
-  // echo only the pipeline*/rcll* meta keys (resolved flags + suppressions + degraded)
+  // echo only the pipeline*/rcll*/strata* meta keys (resolved flags +
+  // suppressions + degraded)
   const metaEcho: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(meta)) {
-    if (/^(pipeline|rcll)/i.test(k) && typeof v !== "object") {
+    if (/^(pipeline|rcll|strata)/i.test(k) && typeof v !== "object") {
       metaEcho[k] = v;
     }
   }
@@ -161,6 +162,15 @@ async function layout(
   }
   if (meta.rcllModules !== undefined) {
     metaEcho.rcllModules = meta.rcllModules;
+  }
+  // Object-shaped strata meta: explicit exception lines per v3.1 §2.6 (the
+  // harness never picks these up mechanically). `rcllV2Degraded` MUST be
+  // absent on healthy strata arms — T9 reads its presence off this echo.
+  if (meta.rcllV2Degraded !== undefined) {
+    metaEcho.rcllV2Degraded = meta.rcllV2Degraded;
+  }
+  if (meta.strataStructural !== undefined) {
+    metaEcho.strataStructural = meta.strataStructural;
   }
 
   return {
@@ -190,6 +200,11 @@ async function layout(
       tfdArrowCount: d.dataflow.tfdArrowCount,
       collisionCount: d.collisionCount,
       dataflowAspect: d.dataflow.aspect,
+      // T9 (WP-2d, spec v3.1 §2): slice-A/B split + companion metrics, echoed
+      // verbatim from diagnosePipelineScene's additive `slices` field so the
+      // baseline-derivation run (v3.1 §8 / C11 precondition) can read
+      // per-preset/per-arm slice populations + stats straight off this report.
+      slices: d.slices,
     },
   };
 }
@@ -264,6 +279,23 @@ const ARMS: Array<[string, Record<string, unknown>]> = [
       pipelineLayoutVariant: "v2",
       pipelineCompact: false,
       pipelineIncludeAncillary: true,
+    },
+  ],
+  [
+    // Strata M1a @ K=0 ("model-order bands") — engine defaults, compact cards.
+    // Extraction-free by design (ancillary ports at M3, honest meta SDEC-29).
+    "G_strata_k0",
+    {
+      layoutMode: "strata",
+      pipelineCompact: true,
+    },
+  ],
+  [
+    // Strata M1a @ K=0, full card mode (SDEC-29: battery in BOTH card modes).
+    "G2_strata_k0_full",
+    {
+      layoutMode: "strata",
+      pipelineCompact: false,
     },
   ],
 ];
@@ -365,6 +397,9 @@ describe("Q2 audit — rcll readability passes vs v2 baseline (throwaway)", () =
         ["A_v2_baseline", ARMS[0]![1]],
         ["B_rcll_everything_off", ARMS[1]![1]],
         ["E_owner_preferred_view", ARMS[5]![1]],
+        // Strata @ K=0 on the injected 2-cycle: A3 GreedyFAS must repair it
+        // end-to-end with NO rcllV2Degraded (W2 battery, cyclic robustness).
+        ["G_strata_k0", ARMS[7]![1]],
       ];
       const out: Record<string, unknown> = { mutation: cyc.note };
       for (const [label, opts] of cyclicArms) {
