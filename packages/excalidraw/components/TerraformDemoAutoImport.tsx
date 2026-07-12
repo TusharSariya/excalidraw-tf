@@ -13,6 +13,7 @@ import {
   runTerraformPresetImport,
 } from "./terraformPresetImport";
 import { patchTerraformRuntimePerformanceSettings } from "./terraformRuntimePerformance";
+import { resolveStrataDemoOptions } from "./terraformStrataDefaults";
 import {
   reconcileTerraformVisibility,
   repairTerraformEdgeBindings,
@@ -184,10 +185,9 @@ export const TerraformDemoAutoImport = ({
             pipelineColumnPacking: params.columnPacking,
             pipelineLayoutProfile: params.profile,
             pipelineStaircaseBandOverlap: params.staircaseBandOverlap,
-            strataNetworkSimplexRank: params.strataNsRank,
-            strataSweeps: params.strataSweeps,
-            strataCoordinateRefine: params.strataCoordRefine,
-            strataRankSeparate: params.strataRankSeparate,
+            // Absent strata params fall back to the SDEC-54 validated default
+            // (K=4 + A7) — a bare `view=strata` URL must not regress to K=0.
+            ...resolveStrataDemoOptions(params),
             signal,
             onLayoutProgress: (progress) => {
               const label =

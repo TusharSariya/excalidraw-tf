@@ -49,6 +49,7 @@ import {
   type RcllLayoutProfile,
 } from "./terraformPipelineLayoutProfiles";
 import { buildTerraformDemoUrlFromSettings } from "./terraformDemoUrlParams";
+import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 
 import type {
   TerraformImportArtifact,
@@ -118,15 +119,22 @@ export const useTerraformImportDialog = ({
   // battery showed K=0 is the worst arm on every metric while K=4+A7 is the
   // validated arm (first task-metric win over v2) — owner-directed default flip,
   // superseding SDEC-48's opt-in ruling (see the decision log).
-  const [strataNetworkSimplexRank, setStrataNetworkSimplexRank] =
-    useState(false);
-  const [strataSweeps, setStrataSweeps] = useState(4);
-  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(true);
+  const [strataNetworkSimplexRank, setStrataNetworkSimplexRank] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataNetworkSimplexRank as boolean,
+  );
+  const [strataSweeps, setStrataSweeps] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSweeps as number,
+  );
+  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordinateRefine as boolean,
+  );
   // Strata OD-14 (strata-only): whole-model sibling-separation ranking (the
   // height lever). Deliberately default-OFF: W5 measured it as a trade — shorter
   // canvas + better crossing angles bought with MORE crossings on dependency
   // paths (it flips the K=4+A7 task-metric win to a loss).
-  const [strataRankSeparate, setStrataRankSeparate] = useState(false);
+  const [strataRankSeparate, setStrataRankSeparate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate as boolean,
+  );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
