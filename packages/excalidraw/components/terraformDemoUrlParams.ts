@@ -653,16 +653,19 @@ export const collectTerraformDemoParams = (
   }
 
   if (snapshot.view === "strata") {
-    // S0a is a v2 passthrough — only the two flags the builder actually consumes
-    // are pipeline-family shared params; the rest are the Strata-only future flags.
+    // Strata engine flags are ALWAYS emitted explicitly (both states). Since the
+    // W5 default flip the dialog seeds K=4+A7 ON, so a truthy-only emit would
+    // make a "turned OFF" share URL silently re-import with the defaults ON —
+    // explicit values keep parse(build(x)) faithful in both directions.
+    // strataNsRank stays truthy-only (no UI control; S0a passthrough).
     return {
       ...base,
       compact: snapshot.pipelineCompact,
       ancillary: snapshot.pipelineIncludeAncillary,
       ...(snapshot.strataNetworkSimplexRank ? { strataNsRank: true } : {}),
-      ...(snapshot.strataSweeps ? { strataSweeps: snapshot.strataSweeps } : {}),
-      ...(snapshot.strataCoordinateRefine ? { strataCoordRefine: true } : {}),
-      ...(snapshot.strataRankSeparate ? { strataRankSeparate: true } : {}),
+      strataSweeps: snapshot.strataSweeps,
+      strataCoordRefine: snapshot.strataCoordinateRefine,
+      strataRankSeparate: snapshot.strataRankSeparate,
     };
   }
 

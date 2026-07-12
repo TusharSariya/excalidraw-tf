@@ -112,16 +112,20 @@ export const useTerraformImportDialog = ({
   // ON (true) — turning it off (Stacked) makes cyclic groups taller.
   const [pipelineStaircaseBandOverlap, setPipelineStaircaseBandOverlap] =
     useState(true);
-  // Strata (rcll-v2) OD-1/OD-2/A7 flags (strata-only). S0a: accepted + threaded
-  // end-to-end (URL → here → sceneContext → builder → scene meta), unused until
-  // the engine lands (M1) — no Advanced UI control yet, so these thread only via
-  // the demo URL / preset options for now.
+  // Strata (rcll-v2) OD-1/OD-2/A7 flags (strata-only), threaded end-to-end
+  // (URL → here → sceneContext → builder → scene meta); UI toggles in
+  // TerraformStrataSettings.tsx (SDEC-49). K=4 + A7 seed ON: the W5 repaired-stats
+  // battery showed K=0 is the worst arm on every metric while K=4+A7 is the
+  // validated arm (first task-metric win over v2) — owner-directed default flip,
+  // superseding SDEC-48's opt-in ruling (see the decision log).
   const [strataNetworkSimplexRank, setStrataNetworkSimplexRank] =
     useState(false);
-  const [strataSweeps, setStrataSweeps] = useState(0);
-  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(false);
+  const [strataSweeps, setStrataSweeps] = useState(4);
+  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(true);
   // Strata OD-14 (strata-only): whole-model sibling-separation ranking (the
-  // height lever). Same S0a passthrough status as the other Strata flags.
+  // height lever). Deliberately default-OFF: W5 measured it as a trade — shorter
+  // canvas + better crossing angles bought with MORE crossings on dependency
+  // paths (it flips the K=4+A7 task-metric win to a loss).
   const [strataRankSeparate, setStrataRankSeparate] = useState(false);
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,

@@ -360,12 +360,15 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.ordering.on": {
-    title: "Layer ordering · On (K=4)",
-    body: "Runs 4 barycenter sweeps per hull to reorder bands and cut crossing arrows between adjacent layers, keeping only the best-scoring order found.",
+    title: "Layer ordering · On (K=4) — default",
+    body: "Runs 4 barycenter sweeps per hull to reorder bands and cut crossing arrows between adjacent layers, keeping only the best-scoring order found. Validated default: the W5 battery measured K=4 (+A7) as the first Strata arm to beat the v2 view on predicted dependency-tracing cost.",
     dev: {
       implements:
-        "strataSweeps=4 (A2, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain).",
-      refs: ["Sugiyama, Tagawa & Toda 1981 (barycenter ordering)"],
+        "strataSweeps=4 (A2, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain). Default ON since the W5 default flip.",
+      refs: [
+        "Sugiyama, Tagawa & Toda 1981 (barycenter ordering)",
+        "docs/strata-view-w5-repaired-stats-report.md",
+      ],
     },
   },
   "strata.straighten.off": {
@@ -377,8 +380,8 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.straighten.on": {
-    title: "Straighten (A7) · On",
-    body: "Nudges each container's Y toward the median of the containers it connects to, straightening edges — kept only where it doesn't worsen order, bands, or overlap.",
+    title: "Straighten (A7) · On — default",
+    body: "Nudges each container's Y toward the median of the containers it connects to, straightening edges — kept only where it doesn't worsen order, bands, or overlap. Validated default: part of the K=4+A7 arm the W5 battery measured as the first task-metric win over v2.",
     dev: {
       implements:
         "strataCoordinateRefine=true (A7): refineStrataCoordinates runs a fixed 2-down/2-up sweep median/PAV nudge per hull, accepting a column only if total Σ|Δy| over its chords strictly decreases and stays order-preserving/non-overlapping.",
@@ -394,8 +397,8 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.rankseparate.on": {
-    title: "Compact height · On",
-    body: "Re-ranks one-way-dependent sibling stacks into disjoint column ranges so the packed skyline can place them side-by-side instead of stacking them — shorter canvas at the cost of more width. Wins over network-simplex rank when both are requested (network-simplex is dropped, surfaced in scene meta).",
+    title: "Compact height · On — trade-off",
+    body: "Re-ranks one-way-dependent sibling stacks into disjoint column ranges so the packed skyline can place them side-by-side — a measured TRADE (W5): shorter canvas and better crossing angles, at the cost of more crossings on dependency paths (it undoes the K=4+A7 tracing win). Wins over network-simplex rank when both are requested (network-simplex is dropped, surfaced in scene meta).",
     dev: {
       implements:
         "strataRankSeparate=true (OD-14): computeStrataSeparatedFloor — whole-model-global Sander base-node layering (SCC-quotient + one-way-pair condensation, all-to-all leaf precedence per quotient pair; mutual cycles stay co-axial) REPLACES the A1 rank in rankStrataClusters. Mutually exclusive with strataNetworkSimplexRank — both rewrite the same column axis, so when both are requested rankSeparate wins and NS is suppressed (strataToggleSuppressions: rank-floor-conflict-rankseparate-wins-network-simplex).",

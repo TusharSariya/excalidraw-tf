@@ -20,10 +20,12 @@ import {
  * toggle primitive + hover/sticky help-panel pattern, scoped to just the two
  * engine passes exposed so far.
  *
- * All three toggles are opt-in, default OFF (`useTerraformImportDialog.ts`
- * seeds `strataSweeps = 0` / `strataCoordinateRefine = false` /
- * `strataRankSeparate = false`) — this component only renders the control; it
- * does not change any default.
+ * Defaults (owner-directed flip, W5 repaired-stats battery): K=4 ordering and
+ * A7 straighten seed ON (`useTerraformImportDialog.ts` seeds
+ * `strataSweeps = 4` / `strataCoordinateRefine = true`) — the validated arm,
+ * first task-metric win over v2; rankSeparate stays OFF (a height/angle vs
+ * path-tracing trade). This component only renders the control; it does not
+ * change any default.
  *
  * Future OD-15 ("de-band") strata toggle lands as an additional `role="group"`
  * block in the same `__layoutSettingsGrid`, below the three here.
@@ -80,7 +82,10 @@ export const TerraformStrataSettings = ({
     <div className="TerraformImportModal__layoutSettings">
       <div className="TerraformImportModal__layoutSettingsHeader">
         <strong>Strata settings</strong>
-        <span>Opt-in passes for the next-gen compound layout (rcll-v2).</span>
+        <span>
+          Layout passes for the next-gen compound layout (rcll-v2) — ordering +
+          straighten on by default.
+        </span>
       </div>
       <div className="TerraformImportModal__layoutSettingsBody">
         <div className="TerraformImportModal__layoutSettingsGrid">

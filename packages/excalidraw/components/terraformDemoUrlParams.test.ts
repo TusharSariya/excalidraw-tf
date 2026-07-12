@@ -603,7 +603,9 @@ describe("terraformDemoUrlParams", () => {
       });
     });
 
-    it("strata view captures only compact/ancillary — off by default, no engine-flag keys", () => {
+    it("strata view always emits the engine flags explicitly (both states)", () => {
+      // Post-W5 default flip: a truthy-only emit would make a turned-OFF share
+      // URL silently re-import with the (now ON) dialog defaults.
       const params = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
@@ -613,10 +615,13 @@ describe("terraformDemoUrlParams", () => {
         view: "strata",
         compact: true,
         ancillary: false,
+        strataSweeps: 0,
+        strataCoordRefine: false,
+        strataRankSeparate: false,
       });
     });
 
-    it("strata view emits the engine flags only when set", () => {
+    it("strata view emits set engine flags (strataNsRank stays truthy-only)", () => {
       const params = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
@@ -633,6 +638,25 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 4,
         strataCoordRefine: true,
         strataRankSeparate: true,
+      });
+    });
+
+    it("strata K=0 snapshot round-trips as an explicit K=0 URL", () => {
+      const params = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataSweeps: 0,
+        strataCoordinateRefine: false,
+        strataRankSeparate: false,
+      });
+      const reparsed = parseTerraformDemoUrlParams(
+        queryOf(buildTerraformDemoUrl(params)),
+      );
+      expect(reparsed).toMatchObject({
+        view: "strata",
+        strataSweeps: 0,
+        strataCoordRefine: false,
+        strataRankSeparate: false,
       });
     });
   });
