@@ -76,6 +76,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`rcll-v2-shit-test-round9.md`](./rcll-v2-shit-test-round9.md) | Review | Evidence-only | Packed-hull crossing objective structurally blind — experiment-confirmed (owner case: 123→120 vs counter 0→0) |
 | [`strata-view-decision-log.md`](./strata-view-decision-log.md) | Companion | Living | As-built SDEC register |
 | [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md) | Companion | Living | How to build each piece |
+| [`strata-view-changelog.md`](./strata-view-changelog.md) | Companion | Living | Chronological shipped-change register (commit → change → toggle → evidence) |
 | [`strata-view-w3-battery-report.md`](./strata-view-w3-battery-report.md) | Battery | Historical | M1b / V2 battery |
 | [`strata-view-w4-extent-report.md`](./strata-view-w4-extent-report.md) | Battery | Historical | OD-14 / V3 extent closure |
 | [`strata-view-w5-repaired-stats-report.md`](./strata-view-w5-repaired-stats-report.md) | Battery | Current | Repaired p50/p90 stats + first M-RT (Ware path-cost) battery |
@@ -122,6 +123,7 @@ flowchart TB
   subgraph strata [Strata live]
     Flow[implementation-flow]
     Log[decision-log]
+    Changelog[changelog]
     W3[w3-battery-report]
     W4[w4-extent-report]
     W5[w5-repaired-stats-report]
@@ -167,6 +169,7 @@ flowchart TB
   V32 --> Flow
   V32 --> Log
   Flow --- Log
+  Log --- Changelog
   Log --> W3
   Log --> W4
   Log --> W5

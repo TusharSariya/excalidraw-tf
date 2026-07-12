@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | **Living document.** The running decision register for the Strata view (the rcll-v2 engine build). Appended at every work package and every milestone checkpoint — including owner visual verdicts and the binding arm-E verdict. Modeled on the v1 RFC's DEC-register + §34 as-built log. |
 | Normative base | [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md) → [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md) → [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) → [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) (later wins). This log records **decisions and their rationale**; the specs record the resulting normative text. On conflict the specs win. |
-| Companion | [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md) (how each piece is built) |
+| Companion | [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md) (how each piece is built); [`strata-view-changelog.md`](./strata-view-changelog.md) (chronological shipped-change register — every behavior/default/spec/measurement commit appends a row there) |
 
 
 ## Document graph
