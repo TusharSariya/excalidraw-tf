@@ -176,6 +176,9 @@ export type TerraformPlanParsingOptions = {
    * on the separated floor REPLACES the A1 rank; mutually exclusive with
    * `strataNetworkSimplexRank` (rankSeparate wins). Default off. */
   strataRankSeparate?: boolean;
+  /** EXPERIMENTAL W5b probe (round-8 R8-F9): joint constrained-NS refinement of
+   * the separated floor. Harness-only, default off; inert without rankSeparate. */
+  strataJointNsRank?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;

@@ -33,6 +33,13 @@ export type TerraformStrataSceneOptions = {
    * v1 `terraformPipelineToggleGuards` emits). Default off.
    */
   strataRankSeparate?: boolean;
+  /**
+   * EXPERIMENTAL W5b probe (round-8 R8-F9, default off; harness-only, no UI):
+   * joint constrained-NS refinement of the separated floor — one simplex solve
+   * over (real E′ ∪ zero-weight separation edges). Requires a live
+   * `strataRankSeparate`; inert otherwise (observable via meta).
+   */
+  strataJointNsRank?: boolean;
   /** OD-2 (M1b): directional sweep count for the A2 ordering pass. Threaded at
    * S0a; consumed by `placeStrataHulls`. Default 0 (M1a "model-order bands"). */
   strataSweeps?: number;
@@ -116,6 +123,9 @@ export async function buildTerraformStrataExcalidrawScene(
 
   const strataSweeps = options?.strataSweeps ?? 0;
   const strataCoordinateRefine = options?.strataCoordinateRefine === true;
+  // W5b probe: only meaningful WITH rankSeparate (it refines the separated
+  // floor); requesting it without RS is inert and echoed as such.
+  const strataJointNsRank = options?.strataJointNsRank === true;
 
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
@@ -125,6 +135,7 @@ export async function buildTerraformStrataExcalidrawScene(
   const flagMeta: Record<string, unknown> = {
     strataNetworkSimplexRank,
     strataRankSeparate,
+    ...(strataJointNsRank ? { strataJointNsRank } : {}),
     strataSweeps,
     strataCoordinateRefine,
     strataGeneration,
@@ -172,6 +183,8 @@ export async function buildTerraformStrataExcalidrawScene(
       // OD-14: when live, the separated floor (derived from the hull tree's
       // sibling units) REPLACES the A1 rank instead of the NS refinement.
       rankSeparate: engineOptions.rankSeparate,
+      // W5b probe (R8-F9): joint constrained-NS refinement of that floor.
+      jointNsProbe: strataJointNsRank,
       hullRoot: model.hullRoot,
       // OD-6 / D10 #5: unit width is the frame's TRUE local rect width (what
       // placement uses), NOT build.width.
@@ -263,6 +276,21 @@ export async function buildTerraformStrataExcalidrawScene(
                 rank.rankSeparateChangedRankCount,
               ...(rank.rankSeparateFallback
                 ? { strataRankSeparateFallback: rank.rankSeparateFallback }
+                : {}),
+            }
+          : {}),
+        // W5b joint-NS probe observability — present only when the probe ran.
+        ...(rank.jointNsApplied !== undefined
+          ? {
+              strataJointNsApplied: rank.jointNsApplied,
+              ...(rank.jointNsFallback
+                ? { strataJointNsFallback: rank.jointNsFallback }
+                : {}),
+              ...(rank.jointNsRealSpanBefore !== undefined
+                ? {
+                    strataJointNsRealSpanBefore: rank.jointNsRealSpanBefore,
+                    strataJointNsRealSpanAfter: rank.jointNsRealSpanAfter,
+                  }
                 : {}),
             }
           : {}),

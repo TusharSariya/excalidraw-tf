@@ -740,11 +740,21 @@ type NsEdge = { u: string; v: string; w: number };
  * shipped. Solves each weakly-connected component independently (a disconnected
  * DAG is min-span per component); nodes touched by no edge keep their longest-path
  * rank.
+ *
+ * `zeroWeightEdges` (optional, EXPERIMENTAL — the round-8 R8-F9 joint-solve
+ * probe): extra constraint edges with objective weight 0 and the same δ=1
+ * minimum length. They participate in feasibility (tight-tree growth, pivots,
+ * the balance window) but contribute nothing to Σ w·span — Gansner's standard
+ * device for constraint-only edges (dot uses w=0 for flat-edge constraints).
+ * The caller MUST pass a `longestPathDepths` floor that is feasible for the
+ * AUGMENTED edge set (e.g. a longest-path over real ∪ zero-weight edges).
+ * Absent/empty ⇒ byte-identical behavior to the 3-arg form.
  */
 export function computeNetworkSimplexDepths(
   collapsedEdges: readonly { source: string; target: string }[],
   clusterIds: readonly string[],
   longestPathDepths: ReadonlyMap<string, number>,
+  zeroWeightEdges?: readonly { source: string; target: string }[],
 ): Map<string, number> {
   const ids = [...clusterIds];
   const identity = (): Map<string, number> =>
@@ -765,13 +775,31 @@ export function computeNetworkSimplexDepths(
     const k = e.source + SEP + e.target;
     weightByPair.set(k, (weightByPair.get(k) ?? 0) + 1);
   }
+  const realPairCount = weightByPair.size;
+  // Zero-weight constraint edges: dedupe (u,v); a pair already present as a real
+  // edge is skipped — the real edge's δ=1 constraint subsumes it and a parallel
+  // w=0 copy could pair with it as a 2-edge... it can't (same direction), but it
+  // would be pure noise in every tie-break scan.
+  if (zeroWeightEdges) {
+    for (const e of zeroWeightEdges) {
+      if (e.source === e.target) {
+        continue;
+      }
+      const k = e.source + SEP + e.target;
+      if (!weightByPair.has(k)) {
+        weightByPair.set(k, 0);
+      }
+    }
+  }
   const edges: NsEdge[] = [...weightByPair.entries()]
     .map(([k, w]): NsEdge => {
       const sep = k.indexOf(SEP);
       return { u: k.slice(0, sep), v: k.slice(sep + 1), w };
     })
     .sort((a, b) => a.u.localeCompare(b.u) || a.v.localeCompare(b.v));
-  if (edges.length === 0) {
+  // No REAL (weighted) edges ⇒ objective is identically 0 and the supplied floor
+  // is already feasible (caller contract) ⇒ nothing to optimize.
+  if (realPairCount === 0) {
     return identity();
   }
 

@@ -123,16 +123,27 @@ function collectStrataLeafIds(hull: StrataHullNode, out: string[]): void {
  * - **Observable fallback:** an augmented-graph cycle keeps the base floor and
  *   reports `fallbackReason="augmented-cycle"` — never a silent rank expansion.
  *
- * @param hullRoot  the Strata hull tree (units per hull = child hulls ∪ leaves).
- * @param baseFloor the longest-path floor (A1) — returned verbatim on a no-op.
- * @param effEdges  effective E′ leaf edges (post-A3 reversal, C10′); the DAG
- *                  that produced `baseFloor`. Self-loops are excluded upstream.
+ * Whole-model separation-constraint collection (steps 1–3 of the separated
+ * floor), exported for the R8-F9 joint constrained-NS probe
+ * (`terraformPipelineStrataJointNsProbe`): the probe needs the SAME leaf
+ * universe / leaf edges / all-to-all separation edges the sequential RS pass
+ * derives, as zero-weight constraint inputs to the network simplex.
  */
-export function computeStrataSeparatedFloor(
+export type StrataSeparationConstraints = {
+  /** Every leaf cluster id in the whole model (hull-tree order). */
+  allLeaves: string[];
+  /** Whole-model leaf→leaf E′ edges (the DAG that produced the base floor). */
+  leafEdges: { from: string; to: string }[];
+  /** All-to-all sibling-separation precedence edges (a→b per one-way pair). */
+  sepEdges: { from: string; to: string }[];
+  /** One-way sibling-unit quotient pairs found across ALL hulls. */
+  pairCount: number;
+};
+
+export function collectStrataSeparationConstraints(
   hullRoot: StrataHullNode,
-  baseFloor: ReadonlyMap<string, number>,
   effEdges: readonly { source: string; target: string }[],
-): StrataRankSeparateMeta {
+): StrataSeparationConstraints {
   // 1. Every leaf cluster id in the whole model.
   const allLeaves: string[] = [];
   collectStrataLeafIds(hullRoot, allLeaves);
@@ -224,6 +235,40 @@ export function computeStrataSeparatedFloor(
     }
   };
   walk(hullRoot);
+
+  return { allLeaves, leafEdges, sepEdges, pairCount };
+}
+
+/**
+ * Whole-model-global sibling-separation layering for the Strata model (OD-14,
+ * the Sander base-node construction). Ranks EVERY leaf cluster in ONE
+ * longest-path pass over the whole-model leaf DAG (`effEdges`) augmented with
+ * separation constraints, so every real leaf edge is a constraint in the SAME
+ * frame and CANNOT invert.
+ *
+ * - **Co-axial cycles stay co-axial.** A mutual cycle between two sibling units
+ *   collapses to ONE SCC quotient (`buildSeparationConstraintGraph`) ⇒ no
+ *   separation edge between them.
+ * - **All-to-all** (not one rep→rep edge): for each one-way quotient pair A→B
+ *   add `a→b ∀ a∈leaves(A), b∈leaves(B)`, so the rightward push holds even when
+ *   another constraint moves a different extreme leaf.
+ * - **No-op short-circuit:** `pairCount === 0` returns the base floor DIRECTLY
+ *   (does NOT re-run `longestPath`) ⇒ OFF geometry is byte-identical.
+ * - **Observable fallback:** an augmented-graph cycle keeps the base floor and
+ *   reports `fallbackReason="augmented-cycle"` — never a silent rank expansion.
+ *
+ * @param hullRoot  the Strata hull tree (units per hull = child hulls ∪ leaves).
+ * @param baseFloor the longest-path floor (A1) — returned verbatim on a no-op.
+ * @param effEdges  effective E′ leaf edges (post-A3 reversal, C10′); the DAG
+ *                  that produced `baseFloor`. Self-loops are excluded upstream.
+ */
+export function computeStrataSeparatedFloor(
+  hullRoot: StrataHullNode,
+  baseFloor: ReadonlyMap<string, number>,
+  effEdges: readonly { source: string; target: string }[],
+): StrataRankSeparateMeta {
+  const { allLeaves, leafEdges, sepEdges, pairCount } =
+    collectStrataSeparationConstraints(hullRoot, effEdges);
 
   // 4. No one-way pairs ⇒ separation is a no-op ⇒ return the base floor verbatim
   //    (OFF byte-identical; do NOT re-rank — a re-ranked floor could re-zero).

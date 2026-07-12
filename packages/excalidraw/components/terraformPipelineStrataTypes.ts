@@ -148,6 +148,21 @@ export type StrataRankResult = {
   /** One-way sibling-unit pairs found; leaf clusters whose rank moved. */
   rankSeparatePairCount?: number;
   rankSeparateChangedRankCount?: number;
+  /**
+   * EXPERIMENTAL W5b probe (round-8 R8-F9): joint constrained-NS refinement of
+   * the separated floor. Present only when the probe flag was live (requires a
+   * live rankSeparate). `jointNsApplied` true iff the joint floor replaced the
+   * sequential separated floor; spans are Σ multiplicity·span over real E′
+   * edges before/after (the NS objective).
+   */
+  jointNsApplied?: boolean;
+  jointNsFallback?:
+    | "no-separation-pairs"
+    | "constraint-violated"
+    | "unchanged"
+    | "rank-separate-not-applied";
+  jointNsRealSpanBefore?: number;
+  jointNsRealSpanAfter?: number;
 };
 
 /** Axis-aligned box; hull-local during layoutHull, ABSOLUTE after root pass. */
