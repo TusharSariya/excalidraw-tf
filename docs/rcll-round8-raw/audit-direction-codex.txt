@@ -1,0 +1,211 @@
+I’m treating this as a read-only direction audit. I’ll use the project’s graphify workflow to scope the normative/as-built evidence, then the graph-layout RAG workflow for independent literature; I will not touch the prohibited skill directories or modify any files.
+[codex ran] /bin/zsh -lc 'cat .agents/skills/graphify/SKILL.md'
+[codex ran] /bin/zsh -lc 'cat .agents/skills/graph-layout-rag/SKILL.md'
+The graphify skill routes this directly to an existing-graph query; it does not call for a rebuild. I’m loading only its query instructions, then I’ll query the roadmap/premise rather than browse the whole graph report.
+[codex ran] /bin/zsh -lc "sed -n '521,900p' .agents/skills/graphify/SKILL.md"
+[codex ran] /bin/zsh -lc "sed -n '261,520p' .agents/skills/graphify/SKILL.md"
+[codex ran] /bin/zsh -lc 'cat .agents/skills/graphify/references/query.md'
+[codex ran] /bin/zsh -lc "sed -n '1,260p' .agents/skills/graphify/SKILL.md"
+[codex ran] /bin/zsh -lc "test -f graphify-out/graph.json && python3 - <<'PY'
+import json,re
+from pathlib import Path
+d=json.loads(Path('graphify-out/graph.json').read_text())
+want={'strata','readability','impact','tracing','baseline','parity','decision','integration','milestone','provider','export','ownership','replace','persistence','collaboration','preset','battery','band','roadmap','gate'}
+v=set()
+for n in d['nodes']:
+    label=n.get('label','') or ''
+    for c in re.findall(r'["'^'"\\W\\d_]+',label,re.UNICODE):
+        for p in re.findall(r'[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+',c) or [c]:
+            t=p.lower()
+            if 3<=len(t)<=30:v.add(t)
+print(' '.join(sorted(want & v)))
+PY"
+Query expanded from the graph’s own vocabulary (22 tokens): `band baseline battery collaboration decision export gate impact integration milestone ownership parity persistence preset provider readability replace roadmap strata tracing`. I’m using a broad traversal because this is a premise/roadmap audit, not a single dependency chain.
+[codex ran] /bin/zsh -lc 'graphify query "band baseline battery collaboration decision export gate impact integration milestone ownership parity persistence preset provider readability replace roadmap strata tracing" --budget 5000'
+The broad graph traversal hit generic Excalidraw “Integration” nodes and is a dead end for this audit. I’m narrowing to the Strata-specific vocabulary (`strata readability parity battery roadmap`) and will verify every substantive claim against the source documents rather than trusting the graph summary.
+[codex ran] /bin/zsh -lc 'graphify query "strata readability parity battery roadmap" --budget 5000'
+[codex ran] /bin/zsh -lc "wc -l docs/rcll-strata-doc-index.md docs/rcll-v2-spec-v3.1.md docs/rcll-v2-spec-v3.md docs/rcll-v2-spec-v2.md docs/strata-view-decision-log.md docs/strata-view-implementation-flow.md docs/strata-view-w3-battery-report.md docs/strata-view-w4-extent-report.md docs/rcll-v2-shit-test-round5.md docs/rcll-v2-shit-test-round6.md docs/pipeline-rcll-v2-pivot-recommendation.md docs/rcll-v2-foundation-spec.md docs/rcll-v2-spec.md docs/pipeline-rcll-layout-design.md docs/rcll-code-map.md docs/rcll-reading-list.md docs/rcll-papers-reference-chart.md
+rg -n '"'^#{1,4} '"' docs/rcll-strata-doc-index.md docs/rcll-v2-spec-v3.1.md docs/rcll-v2-spec-v3.md docs/rcll-v2-spec-v2.md docs/strata-view-decision-log.md docs/strata-view-implementation-flow.md docs/strata-view-w3-battery-report.md docs/strata-view-w4-extent-report.md"
+[codex ran] /bin/zsh -lc 'cat docs/rcll-strata-doc-index.md'
+[codex ran] /bin/zsh -lc 'cat docs/rcll-v2-spec-v3.1.md'
+[codex ran] /bin/zsh -lc 'cat docs/rcll-v2-spec-v3.md'
+[codex ran] /bin/zsh -lc "sed -n '261,540p' docs/rcll-v2-spec-v2.md"
+[codex ran] /bin/zsh -lc "sed -n '1,260p' docs/rcll-v2-spec-v2.md"
+The normative stack confirms the gate’s design target is slice-B geometry, while the product target is impact tracing; that distinction is now the central hypothesis under test. Next I’m extracting the as-built milestone decisions and exact per-preset measurements, including the cells excluded or voided by the gate.
+[codex ran] /bin/zsh -lc 'cat docs/strata-view-implementation-flow.md'
+[codex ran] /bin/zsh -lc 'cat docs/strata-view-decision-log.md'
+[codex ran] /bin/zsh -lc 'cat docs/strata-view-w3-battery-report.md'
+[codex ran] /bin/zsh -lc 'cat docs/strata-view-w4-extent-report.md'
+[codex ran] /bin/zsh -lc "sed -n '80,180p' docs/strata-view-decision-log.md"
+[codex ran] /bin/zsh -lc "sed -n '1,220p' docs/strata-view-implementation-flow.md"
+[codex ran] /bin/zsh -lc 'cat docs/strata-baselines/README.md
+rg --files docs/strata-baselines | sort'
+[codex ran] /bin/zsh -lc "rg -n '\\*\\*SDEC-(3[6-9]|4[0-9]|5[0-9])' docs/strata-view-decision-log.md"
+[codex ran] /bin/zsh -lc "sed -n '39,115p' docs/rcll-v2-spec-v2.md
+sed -n '330,455p' docs/rcll-v2-spec-v2.md"
+[codex ran] /bin/zsh -lc "sed -n '104,158p' docs/rcll-v2-spec-v3.md
+rg -n -C 3 'S7|M3|replaceAllElements|overlay|collab|persistence|view switch|switching' docs/rcll-v2-spec-v3.1.md docs/rcll-v2-spec-v3.md docs/rcll-v2-spec-v2.md docs/strata-view-decision-log.md docs/strata-view-implementation-flow.md"
+[codex ran] /bin/zsh -lc 'cat docs/rcll-v2-shit-test-round6.md'
+[codex ran] /bin/zsh -lc 'cat docs/rcll-v2-shit-test-round5.md'
+[codex ran] /bin/zsh -lc "rg -n '"'^## |''^### |''^'"\\*\\*F[0-9]+' docs/rcll-v2-shit-test-round6.md
+sed -n '1,125p' docs/rcll-v2-shit-test-round6.md"
+[codex ran] /bin/zsh -lc "rg -n 'P3|MULTISTATE|CYCLIC|cyclic|J2|rankSeparate|strataRankSep' packages/excalidraw/components/terraformPipelineQ2Audit.test.ts packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts docs/strata-view-w3-battery-report.md docs/strata-view-w4-extent-report.md"
+[codex ran] /bin/zsh -lc "jq 'keys' docs/strata-baselines/Q2_AUDIT_REPORT_P1.json
+jq '. | type' docs/strata-baselines/Q2_AUDIT_REPORT_P1.json
+jq '.[0] // .arms // .' docs/strata-baselines/Q2_AUDIT_REPORT_P1.json | head -120"
+A frame-level issue is emerging: “Strata reached parity” describes the K=4+A7+rankSeparate comparison arm, while all three optimizations are documented as opt-in/default-off. I’m checking the actual defaults and then the P3/cyclic evidence coverage; if confirmed, the roadmap is benchmarking a configuration users do not get by merely selecting Strata.
+[codex ran] /bin/zsh -lc "rg -n -C 3 'strataSweeps|strataCoordinateRefine|strataRankSeparate|strataRankSep' packages/excalidraw/components/TerraformStrataSettings.tsx packages/excalidraw/components/useTerraformImportDialog.ts packages/excalidraw/components/terraformPipelineStrata.ts packages/excalidraw/components/terraformDemoUrlParams.ts packages/excalidraw/components/terraformLayoutCore.ts"
+[codex ran] /bin/zsh -lc "sed -n '105,175p' packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts
+sed -n '410,460p' packages/excalidraw/components/terraformPipelineQ2Audit.test.ts
+jq '{A_v2_baseline: .A_v2_baseline, F_v2_full_ancillary: .F_v2_full_ancillary}' docs/strata-baselines/Q2_AUDIT_REPORT_P3_MULTISTATE.json
+jq '{A_v2_baseline: .A_v2_baseline, G_strata_k0: .G_strata_k0, H_strata_k4: .H_strata_k4, I_strata_k4_a7: .I_strata_k4_a7}' docs/strata-baselines/Q2_AUDIT_REPORT_CYCLIC.json"
+[codex ran] /bin/zsh -lc "jq 'keys' docs/strata-baselines/Q2_AUDIT_REPORT_CYCLIC.json
+jq 'to_entries[] | {key, crossings:(.value.metrics.crossings // null), bounds:(.value.bounds // null), slices:(.value.metrics.slices.extent // null), degraded:(.value.resolvedMeta.rcllV2Degraded // null)}' docs/strata-baselines/Q2_AUDIT_REPORT_CYCLIC.json"
+[codex ran] /bin/zsh -lc "rg -n 'useState.*strata|strataSweeps.*useState|strataCoordinateRefine.*useState|strataRankSeparate.*useState' packages/excalidraw/components/useTerraformImportDialog.ts
+sed -n '120,170p' packages/excalidraw/components/useTerraformImportDialog.ts"
+[codex ran] /bin/zsh -lc "sed -n '200,245p' packages/excalidraw/components/useTerraformImportDialog.ts
+rg -n -C 5 'handleSetView|setView' packages/excalidraw/components/useTerraformImportDialog.ts"
+[codex ran] /bin/zsh -lc "rg -n 'applyCompoundHierarchicalLayout|strataAncillaryDeferred|includeAncillary|ancillary' packages/excalidraw/components/terraformPipelineStrataSceneBuild.ts packages/excalidraw/components/terraformPipelineStrata.ts docs/strata-view-implementation-flow.md docs/strata-view-decision-log.md"
+[codex ran] /bin/zsh -lc "rg -n 'replaceAllElements|tombstone|strataGeneration|generation|priorHashes|TerraformOverlayStore|overlay' packages/excalidraw/components/terraformSceneApply.ts packages/excalidraw/components/terraformPipelineStrata.ts excalidraw-app/data docs/rcll-v2-spec-v3.1.md docs/rcll-v2-spec-v2.md | head -260"
+The actual defaults confirm the parity label is configuration-conditioned: selecting Strata yields K=0, no A7, no rankSeparate; the parity arm requires all three toggles. I’m now checking independent literature on path-tracing performance and task-based evaluation, then I’ll test whether OD-15’s visual simplification has evidence for the primary task.
+[codex ran] /bin/zsh -lc 'bin/rag graph "directed graph path tracing task performance edge continuity crossings highlighting interaction" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "Ware Purchase Colpoys McGill path tracing continuity edge crossings shortest path user study" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "graph visualization path highlighting neighborhood highlighting dependency tracing interaction user study" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag read graph doi-10-1057-palgrave-ivs-9500013 --pages 1-10'
+[codex ran] /bin/zsh -lc 'bin/rag read graph forward-10-48550-arxiv-0810-4431 --pages 1-8'
+[codex ran] /bin/zsh -lc 'bin/rag read graph s2-10-1109-access-2020-3047616 --pages 1-10'
+The corpus’s `read` channel returned empty for all three shortlisted papers (the same failure mode round 6 recorded), so I’m not treating that as evidence. I’ll use the corpus snippets for discovery and verify claims against the papers’ primary PDFs on the web.
+[codex ran] /bin/zsh -lc "sed -n '175,270p' packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts
+sed -n '270,390p' packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts
+rg -n -C 4 'pairedP90|p90|ci\\.hi|gatePolicy|expect\\(' packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts"
+[codex ran] /bin/zsh -lc "sed -n '1,240p' packages/excalidraw/components/terraformPipelineBootstrapCi.ts"
+[codex ran] /bin/zsh -lc "sed -n '240,360p' packages/excalidraw/components/terraformPipelineBootstrapCi.ts"
+[codex ran] /bin/zsh -lc "rg -n 'aws_[a-z0-9_]+\\.[A-Za-z0-9_\\[\\]\"-]+' packages/backend/terraform/staging-localstack packages/backend/terraform/staging-extended-localstack-v2 | head -80"
+[codex ran] /bin/zsh -lc 'bin/rag graph "compound graph group boundary removal enclosure path tracing readability user study" --top 8'
+[codex ran] /bin/zsh -lc "rg -n 'Q7-AXIS|20-edge|hand-label|impact-tracing' docs packages/excalidraw/components | head -120"
+Two prerequisite studies were never completed: the planned Q7-AXIS check exists only as scheduling prose, and the W4 “gate” bootstraps the mean while merely reporting p90—even though p90 is the named gated statistic. I’m doing the final consistency pass now, including verifying the workspace stayed untouched.
+[codex ran] /bin/zsh -lc "nl -ba packages/excalidraw/components/terraformPipelineBootstrapCi.ts | sed -n '1,35p;90,175p;225,275p'
+nl -ba packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts | sed -n '400,430p;690,705p'
+nl -ba packages/excalidraw/components/useTerraformImportDialog.ts | sed -n '115,132p;224,240p;756,770p'
+nl -ba packages/excalidraw/components/terraformPipelineStrata.ts | sed -n '28,52p;90,122p'"
+[codex ran] /bin/zsh -lc 'git status --short'
+## Findings
+
+### **[P1] “Parity” is configuration-specific; default Strata remains materially worse than v2**
+
+All three optimizations used for the W4 parity claim are default-off: K=0, A7 off, rankSeparate off ([`useTerraformImportDialog.ts`](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/useTerraformImportDialog.ts:121), [`terraformPipelineStrata.ts`](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineStrata.ts:93)). Selecting Strata does not yield the validated W4 arm.
+
+| Preset | Honest current delta against v2 |
+|---|---|
+| **P1 compact** | Default K0: crossings 273 vs 177; median deviation 1093 vs 402; slice-B p90 17,723 vs 7,098; height 19,066 vs 10,056. Fully optimized W4 arm: paired mean −112px, CI `[−956,+784]`; p90 still 9,166 vs 7,098; height still 13,761 vs 10,056. This is parity on one mean-CI statistic, not overall readability parity. |
+| **P2 compact** | Default K0: crossings 39 vs 33; median 1,523 vs 459; slice-B p90 10,135 vs 1,955; height 12,106 vs 5,734. K4+A7 remains worse: median 1,439, p90 7,487. W4 rankSeparate remains v2-favoured, CI `[+1178,+3142]`. |
+| **P3 multistate** | W3 states Strata matches P2’s numbers; this composition resolves to the same effective graph for the relevant arms. No W4 rankSeparate cell exists. It is not independent validation. |
+| **Cyclic** | K4+A7 improves crossings, 124 vs 175, with R2 zeros. No W4 extent, default-arm, or impact-tracing result was reported. This establishes structural robustness, not readability superiority. |
+
+P1 full mode shows a large optimized extent win, but that comparison is explicitly voided by slice-classification/ancillary asymmetry. Evidence: [W3 §§1–4](/Users/tusharsariya/Projects/excalidraw-tf/docs/strata-view-w3-battery-report.md:20), [W4 §2](/Users/tusharsariya/Projects/excalidraw-tf/docs/strata-view-w4-extent-report.md:42).
+
+### **[P1] The “strict §2.5 pass” being chased is not the specified p90 gate**
+
+The normative metric family gates slice-B p50 and p90 (`rcll-v2-spec-v3.md` §2; v3.1 §2.5/§12). The implementation instead bootstraps the **mean paired delta** ([`terraformPipelineBootstrapCi.ts`](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineBootstrapCi.ts:121)). `bootstrapGatePolicy` labels a cell “p90,” but the result is not used to bootstrap or decide p90. The harness declares a pass solely when the mean CI has `hi < 0`, and explicitly never asserts it ([`terraformPipelineStrataExtentGate.test.ts`](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineStrataExtentGate.test.ts:422)).
+
+W4 is the counterexample: the arm is called statistical parity because mean CI straddles zero while p90 is still **+2,068px worse**. OD-15 could therefore obtain a “strict pass” while the named tail statistic—and potentially impact tracing—remains worse. Chasing that result is not legitimate roadmap evidence until the gate contract and harness agree.
+
+### **[P1] The primary task has never been evaluated—and its direction prerequisite was skipped**
+
+SDEC-9 defines the task as impact tracing, but §2.5 measures geometry proxies. The scheduled Q7-AXIS check—whether the X direction actually matches the dataflow direction users follow—has no result artifact: a reproducible `rg Q7-AXIS docs packages/excalidraw/components` finds only plans in v3.0 §8.5, SDEC-24, and the implementation flow.
+
+The owner checkpoints were visual N=1 reviews, not path-tracing trials. SDEC-47’s acceptance was effectively “looks good / trust the implementation,” despite the failed automatic gate.
+
+This distinction matters empirically:
+
+- Ware et al. found shortest-path performance primarily affected by path length, continuity, crossings, and branches—not canvas height alone ([paper](https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf), corpus `doi-10-1057-palgrave-ivs-9500013`).
+- Huang’s 16-person path-search study found crossing angles and misleading geometric path tendency affected tracing performance ([paper](https://arxiv.org/abs/0810.4431), corpus `forward-10-48550-arxiv-0810-4431`).
+- The empirical-evaluation survey says feasibility ultimately requires human performance on relevant graph tasks ([paper](https://eprints.gla.ac.uk/227646/1/227646.pdf), corpus `s2-10-1109-access-2020-3047616`).
+
+The missing comparator is also frame-level: not just static Strata vs static v2, but **Strata vs v2 with selection-driven upstream/downstream highlighting**. A 32-participant study found combined static and temporal subgraph highlighting at least as effective as static highlighting for path tracing ([Ephemeral Paths](https://www.cs.ubc.ca/tr/2011/tr-2011-10)). That interaction may buy more impact-tracing performance than another layout pass and would benefit the shipped default.
+
+A task-grounded crossover should measure accuracy, completion time, wrong-branch/backtracking count, pan/zoom distance, and confidence for:
+
+1. direct and transitive dependents;
+2. direct and transitive dependencies;
+3. path existence between two resources;
+4. first boundary crossed across module/account/provider;
+5. changed-resource impact after a plan diff.
+
+Conditions should include v2, v2+trace highlighting, default Strata, and optimized Strata, on held-out real states.
+
+### **[P1] The evidence base cannot support a direction decision**
+
+Round 6 itself says “two distinct graphs, still not a battery.” P3 is composition consistency over P2’s effective graph; cyclic is one injected reverse edge; W4 evaluates only P1/P2; the battery remains AWS-taxonomy-specific; and no real all-resources readability or task trial exists. Seed `20260704` makes bootstrap results reproducible—it does nothing for stimulus representativeness.
+
+Required coverage is missing for multiple providers, non-AWS providers, deep module nesting, high fan-out, dense and sparse states, ancillary-heavy states, and several naturally cyclic graphs. Owner validation does not replace that sample.
+
+### **[P1] S7/M3 is materially less specified than the layout engine**
+
+The export re-stack seam is closed for M1: Strata bypasses `applyCompoundHierarchicalLayout` and has a multi-provider provider-Y assertion (`implementation-flow` P8; SDEC-34). Do not re-litigate it. The risk returns only because the ancillary port has no comparable scene-build contract.
+
+The actual integration gaps are:
+
+- Generation remains constant at `1`; the app-side monotone counter is explicitly deferred to S7/M3 ([`terraformPipelineStrata.ts`](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineStrata.ts:43)). Until implemented, same-cardinality regeneration/collab propagation re-enters the exact failure class found in round 5.
+- `TerraformOverlayStore` is “app-level, keyed by address” but specifies no scene/import/workspace namespace, storage lifecycle, conflict policy, undo/redo behavior, or migration rules (`rcll-v2-spec-v3.1.md` §6.2).
+- Full mode can create multiple satellite appearances for one address (SDEC-42), while styles/group members remain keyed by bare address. Whether edits apply globally or to one appearance is undefined.
+- “Pre-Strata scenes re-import” is not a saved-scene migration contract.
+- `replaceAllElements` mechanics specify post-apply styles/annotations, but not capture-before-replace, persistence failures, collab merge ordering, or behaviour during degraded-v2 fallback.
+- Preset selection bypasses `handleSetView` and calls raw `setView` ([`useTerraformImportDialog.ts`](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/useTerraformImportDialog.ts:760)); per-view option and overlay switching semantics remain incomplete.
+
+S7 is therefore not implementation-ready.
+
+### **[P1] OD-15 is gate-worship and the wrong opportunity-cost choice**
+
+W4 already records that the residual is driven by full-width provider/account bands, while OD-15 removes subnet-level frames; its payoff is explicitly uncertain and visually changes containment frames into rails (`strata-view-w4-extent-report.md` §4). There is no evidence that this improves impact tracing, and removing hierarchy cues could hurt it.
+
+Meanwhile Strata is the fourth pipeline engine (`rcll-v2-spec-v3.1.md` §7, Q5-TCO), and the engine-endgame decision has not occurred. The same effort spent on view-agnostic dependency selection/highlighting would directly address the primary task and improve the shipped v2 baseline.
+
+### **[P2] Fix the icon-ownership flake before overlays depend on canonical identities**
+
+The finalize flake is rare and probably test-environment-sensitive, but its mechanism is unconfirmed and relies on geometric containment to assign icon ownership (SDEC-52; W4 §3). Failure degrades to v2 output, disabling Strata-scoped tombstones and canonical identity assumptions. It is not direction-threatening alone, but it must precede S7/collab work.
+
+## Verdict
+
+**NO-GO** on proceeding as planned. Strata should remain available as an experimental engine, but the roadmap has not established that it beats the default for impact tracing. “Parity” applies only to an opt-in configuration and one mean-CI statistic; P2 remains materially worse, P3 is non-independent, cyclic evidence is structural only, and the gate implementation does not enforce its named p90 objective. Stop OD-15 and S7 investment until a task-level comparison—including v2 with tracing interaction—shows where Strata creates user value.
+
+## What I would change
+
+1. **Insert a task-evidence milestone now.** Run Q7-AXIS plus randomized impact-tracing trials on representative real states, comparing v2, v2+trace interaction, default Strata, and optimized Strata.
+2. **Repair §2.5 before using it again.** Bootstrap/assert the selected p50 or p90 statistic; report mean separately. Publish default-arm and optimized-arm verdicts independently.
+3. **Build a small view-agnostic tracing spike:** select a resource, highlight upstream/downstream transitive closure with direction controls, dim unrelated elements, and expose the path/set in a side panel.
+4. **Expand the corpus and hold out evaluation states.** Include multi-provider, non-AWS, deep-module, high-fan-out, ancillary-heavy, dense/sparse, naturally cyclic, and all-resources cases.
+5. **Write an S7/M3 integration RFC before code:** overlay namespace, appearance semantics, monotone generation lifecycle, persistence, undo/redo, migration, fallback, view switching, ancillary scene-build ownership, and collab conflict tests.
+6. **Resolve Q5-TCO.** Decide whether task evidence justifies keeping a fourth engine and which configuration users receive by default.
+7. **Only reconsider OD-15** if task traces identify vertical band traversal as a dominant error source and a provider/account-targeted design improves it.
+
+| Remaining item | Decision | Reason |
+|---|---|---|
+| **OD-15** | **Gate behind evidence** | Targets the wrong structural level; current “strict pass” is not a valid p90 gate. |
+| **Icon-ownership flake** | **Keep; reprioritize before S7** | Canonical identity is a prerequisite for overlays/tombstones/collab. |
+| **S7** | **Gate behind integration spec** | Generation, namespacing, persistence, migration, appearance, fallback, and collab semantics are unresolved. |
+| **M3** | **Reprioritize** | Lead with task-grounded tracing interaction and integration hardening; defer ancillary/routing/de-band until evidence identifies the bottleneck. |
+
+## Research log
+
+- Graphify:
+  - `graphify query "band baseline battery collaboration decision export gate impact integration milestone ownership parity persistence preset provider readability replace roadmap strata tracing"`
+  - Narrowed query: `graphify query "strata readability parity battery roadmap"`  
+  Both traversals hit generic/parity-script nodes and were treated as dead ends; source docs were verified directly.
+- Local RAG:
+  - `directed graph path tracing task performance edge continuity crossings highlighting interaction`
+  - `Ware Purchase Colpoys McGill path tracing continuity edge crossings shortest path user study`
+  - `graph visualization path highlighting neighborhood highlighting dependency tracing interaction user study`
+  - `compound graph group boundary removal enclosure path tracing readability user study`
+- Shortlisted corpus papers:
+  - `doi-10-1057-palgrave-ivs-9500013`
+  - `forward-10-48550-arxiv-0810-4431`
+  - `s2-10-1109-access-2020-3047616`
+  - `crossref-10-1007-978-3-319-50106-2-43`
+  - `s2-10-1109-vis55277-2024-00035`
+  - `crossref-10-1007-978-3-540-31843-9-41`
+- `bin/rag read` returned empty for the three attempted deep reads; claims were instead checked against the primary PDFs/web records linked above.
+- Audit actions were read-only; existing dirty workspace state was left untouched.
+
+tokens used: 5328037
+CODEX_EXIT=0
