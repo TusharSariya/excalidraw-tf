@@ -15,6 +15,7 @@ describe("resolveStrataDemoOptions", () => {
       strataSweeps: 4,
       strataCoordinateRefine: true,
       strataRankSeparate: false,
+      strataPackedScoring: false,
     });
   });
 
@@ -53,6 +54,18 @@ describe("resolveStrataDemoOptions", () => {
       strataSweeps: 4,
       strataCoordinateRefine: true,
       strataRankSeparate: true,
+      strataPackedScoring: false,
     });
+  });
+
+  it("resolves strataPackedScoring: default false, explicit URL param wins", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    expect(resolveStrataDemoOptions(bare!).strataPackedScoring).toBe(false);
+    const on = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1",
+    );
+    expect(resolveStrataDemoOptions(on!).strataPackedScoring).toBe(true);
   });
 });

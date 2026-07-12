@@ -405,6 +405,23 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       refs: ["Sander 1996 — Layout of Compound Directed Graphs"],
     },
   },
+  "strata.packedscoring.off": {
+    title: "Packed edge scoring · Off",
+    body: "Region/VPC sibling order keeps the legacy per-sweep acceptance: a reorder is accepted only when the LOCAL sibling-chord crossing count strictly decreases. Round 9 proved that counter blind to crossings against a sibling container's internal edges, so edge-shortening moves are often rejected.",
+    dev: {
+      implements:
+        "strataPackedScoring=false: packed hulls keep the v2.0 strict-crossings-decrease acceptance chain in orderStrataUnits; byte-identical to the pre-round-9 engine.",
+    },
+  },
+  "strata.packedscoring.on": {
+    title: "Packed edge scoring · On — round-9 probe",
+    body: "Every packed ordering candidate (initial + each sweep) is trial-placed on the real skyline and the WHOLE layout is scored: global edge crossings, then edges tunneling through unrelated containers, then total edge length. Fixes the round-9 blind spot (e.g. a regional SQS parked above a VPC it never talks to). Probe lever pending its gate battery.",
+    dev: {
+      implements:
+        "strataPackedScoring=true (SDEC-57): placeStrataHullsPackedScored trial-places every packed sweep snapshot (chained unconditionally, no per-sweep gate) and selects the lexicographic (crossings, penetrations, L1 length) winner on real leaf-level geometry; banded hulls unchanged.",
+      refs: ["Förster 2002 — Crossings in Clustered Level Graphs (properness precondition)"],
+    },
+  },
 };
 
 export type OptionHelpKey = keyof typeof OPTION_HELP;

@@ -217,6 +217,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata OD-14 — whole-model sibling-separation ranking (the height lever).
    * Default off. */
   strataRankSeparate?: boolean;
+  /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
+   * Default off. */
+  strataPackedScoring?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -259,6 +262,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataSweeps"
   | "strataCoordinateRefine"
   | "strataRankSeparate"
+  | "strataPackedScoring"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -287,6 +291,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataSweeps: session.strataSweeps ?? 0,
   strataCoordinateRefine: session.strataCoordinateRefine === true,
   strataRankSeparate: session.strataRankSeparate === true,
+  strataPackedScoring: session.strataPackedScoring === true,
 });
 
 /**
@@ -324,6 +329,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataSweeps"
   | "strataCoordinateRefine"
   | "strataRankSeparate"
+  | "strataPackedScoring"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -363,6 +369,7 @@ function buildPipelineFamilyLayoutOptions(
     strataSweeps: options.strataSweeps ?? 0,
     strataCoordinateRefine: options.strataCoordinateRefine === true,
     strataRankSeparate: options.strataRankSeparate === true,
+    strataPackedScoring: options.strataPackedScoring === true,
   };
 }
 

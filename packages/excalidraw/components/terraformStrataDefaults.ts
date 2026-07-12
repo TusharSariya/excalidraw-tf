@@ -11,6 +11,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   strataSweeps: 4,
   strataCoordinateRefine: true,
   strataRankSeparate: false,
+  /** Round 9 (SDEC-57): packed-hull whole-layout candidate scoring — probe
+   * lever, default off pending its gate battery. */
+  strataPackedScoring: false,
 } as const;
 
 /**
@@ -25,6 +28,7 @@ export const resolveStrataDemoOptions = (params: {
   strataSweeps?: number;
   strataCoordRefine?: boolean;
   strataRankSeparate?: boolean;
+  strataPackedScoring?: boolean;
 }) => ({
   strataNetworkSimplexRank:
     params.strataNsRank ??
@@ -37,4 +41,7 @@ export const resolveStrataDemoOptions = (params: {
   strataRankSeparate:
     params.strataRankSeparate ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate,
+  strataPackedScoring:
+    params.strataPackedScoring ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring,
 });

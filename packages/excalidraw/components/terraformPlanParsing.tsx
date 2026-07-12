@@ -179,6 +179,10 @@ export type TerraformPlanParsingOptions = {
   /** EXPERIMENTAL W5b probe (round-8 R8-F9): joint constrained-NS refinement of
    * the separated floor. Harness-only, default off; inert without rankSeparate. */
   strataJointNsRank?: boolean;
+  /** Strata round 9 (SDEC-57): whole-layout candidate-set scoring for packed-hull
+   * ordering (real-skyline trials; lexicographic crossings → penetrations →
+   * length). Default off. */
+  strataPackedScoring?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;

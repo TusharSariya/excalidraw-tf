@@ -37,6 +37,16 @@ export type StrataEngineOptions = {
   sweeps: number;
   /** SA7: A7 coordinate refinement (M1b, flag-gated). */
   coordinateRefine: boolean;
+  /**
+   * Round 9 (SDEC-57, default off): whole-layout candidate-set scoring for
+   * PACKED-hull ordering. Replaces the per-sweep strict-local-crossings
+   * acceptance (structurally blind — R9-F1) with trial placement of every
+   * sweep snapshot on the real skyline, scored lexicographically on real
+   * leaf-level geometry (global crossings, unrelated edge–box penetrations,
+   * integer L1 edge length). Banded hulls unaffected. Optional so existing
+   * option literals (flag-OFF byte-identity) are unaffected.
+   */
+  packedScoring?: boolean;
 };
 
 /**

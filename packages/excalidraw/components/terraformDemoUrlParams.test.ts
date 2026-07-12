@@ -37,6 +37,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataSweeps: 0,
   strataCoordinateRefine: false,
   strataRankSeparate: false,
+  strataPackedScoring: false,
   moduleLayoutMode: "default",
 };
 
@@ -419,7 +420,7 @@ describe("terraformDemoUrlParams", () => {
     it("parses strata engine flags (strataNsRank/strataSweeps/strataCoordRefine/strataRankSep)", () => {
       expect(
         parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1",
+          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=1",
         ),
       ).toEqual({
         presetId: "demo",
@@ -428,7 +429,14 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 4,
         strataCoordRefine: true,
         strataRankSeparate: true,
+        strataPackedScoring: true,
       });
+    });
+
+    it("omits strataPackedScoring when the URL does not carry it", () => {
+      const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(params).not.toBeNull();
+      expect(params!.strataPackedScoring).toBeUndefined();
     });
 
     it("rejects a non-integer or negative strataSweeps", () => {
@@ -511,6 +519,7 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 4,
         strataCoordRefine: true,
         strataRankSeparate: true,
+        strataPackedScoring: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
@@ -639,6 +648,20 @@ describe("terraformDemoUrlParams", () => {
         strataCoordRefine: true,
         strataRankSeparate: true,
       });
+    });
+
+    it("strataPackedScoring emits truthy-only (like strataNsRank)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataPackedScoring" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataPackedScoring: true,
+      });
+      expect(on.strataPackedScoring).toBe(true);
     });
 
     it("strata K=0 snapshot round-trips as an explicit K=0 URL", () => {

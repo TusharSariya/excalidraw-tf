@@ -77,6 +77,8 @@ export type TerraformImportSession = {
   /** Strata OD-14 — whole-model sibling-separation ranking (the height lever).
    * Default off. */
   strataRankSeparate?: boolean;
+  /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring. */
+  strataPackedScoring?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

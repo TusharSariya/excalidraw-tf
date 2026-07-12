@@ -33,6 +33,7 @@ import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
 import {
   liftStrataEdgesToUnits,
   orderStrataUnits,
+  strataPackedCandidateSequences,
   strataUnitId,
 } from "./terraformPipelineStrataOrdering";
 
@@ -133,6 +134,14 @@ export function placeStrataHulls(
   edgesPrime: readonly StrataPrimeEdge[],
   rank: StrataRankResult,
   options: StrataEngineOptions,
+  /**
+   * ADDITIVE-OPTIONAL (round 9, `strataPackedScoring`): when set, every PACKED
+   * hull uses its unconditional sweep-chain snapshot at this index (clamped to
+   * the hull's own candidate count) instead of the v2.0 acceptance-chain order
+   * — the whole-layout scorer trial-places each index and picks the winner.
+   * Banded hulls are unaffected. `undefined` ⇒ byte-identical legacy behavior.
+   */
+  packedCandidateIndex?: number,
 ): StrataPlacementResult {
   const rankOf = (clusterId: string): number => {
     const r = rank.rank.get(clusterId);
@@ -250,19 +259,28 @@ export function placeStrataHulls(
     // `infos` / the lift over this hull), and inside the engine's failure
     // contract a deterministic degenerate answer for an unreachable case beats
     // adding a new throw path (so no new "Strata A2"-prefixed throw is needed).
-    const ordered = orderStrataUnits({
+    const orderParams = {
       units: infos.map((info) => info.unit),
-      contentKeyOf: (unit) => infoByUnitId.get(strataUnitId(unit))!.contentKey,
+      contentKeyOf: (unit: StrataUnit) =>
+        infoByUnitId.get(strataUnitId(unit))!.contentKey,
       liftedEdges,
-      unitHeightOf: (id) => infoByUnitId.get(id)?.height ?? 0,
+      unitHeightOf: (id: string) => infoByUnitId.get(id)?.height ?? 0,
       policy: hull.policy,
       sweeps: options.sweeps,
-      unitXSpanOf: (id): readonly [number, number] => {
+      unitXSpanOf: (id: string): readonly [number, number] => {
         const info = infoByUnitId.get(id);
         return info ? [info.x0, info.x1] : [0, 0];
       },
-      unitColSpanOf: (id) => infoByUnitId.get(id)?.colSpan ?? [0, 0],
-    });
+      unitColSpanOf: (id: string): readonly [number, number] =>
+        infoByUnitId.get(id)?.colSpan ?? [0, 0],
+    };
+    let ordered: readonly StrataUnit[];
+    if (packedCandidateIndex !== undefined && hull.policy === "packed") {
+      const cands = strataPackedCandidateSequences(orderParams);
+      ordered = cands[Math.min(packedCandidateIndex, cands.length - 1)]!;
+    } else {
+      ordered = orderStrataUnits(orderParams);
+    }
 
     // Step 4: place by policy. Content starts below FRAME_PAD + TITLE_RESERVE
     // (root carries no title strip — it is the canvas, not a titled frame).

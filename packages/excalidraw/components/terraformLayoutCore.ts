@@ -465,6 +465,9 @@ type LayoutSceneContext = {
   /** EXPERIMENTAL W5b probe (round-8 R8-F9): joint constrained-NS refinement of
    * the separated floor. Harness-only, default off; inert without rankSeparate. */
   strataJointNsRank?: boolean;
+  /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
+   * Default off. */
+  strataPackedScoring?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
@@ -570,6 +573,7 @@ async function buildPipelineLayoutSceneBody(
         strataNetworkSimplexRank: ctx.strataNetworkSimplexRank,
         strataRankSeparate: ctx.strataRankSeparate,
         strataJointNsRank: ctx.strataJointNsRank,
+        strataPackedScoring: ctx.strataPackedScoring,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
       };
@@ -1113,6 +1117,7 @@ export async function layoutTerraformFromSources(
     strataNetworkSimplexRank: options?.strataNetworkSimplexRank === true,
     strataRankSeparate: options?.strataRankSeparate === true,
     strataJointNsRank: options?.strataJointNsRank === true,
+    strataPackedScoring: options?.strataPackedScoring === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     colorMode: options?.colorMode,

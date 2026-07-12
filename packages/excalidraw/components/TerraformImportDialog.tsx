@@ -72,6 +72,7 @@ export const TerraformImportModal = ({
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
+    strataPackedScoring,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -639,9 +640,11 @@ terraform show -json tfplan > plan.json`}</code>
               strataSweeps={strataSweeps}
               strataCoordinateRefine={strataCoordinateRefine}
               strataRankSeparate={strataRankSeparate}
+              strataPackedScoring={strataPackedScoring}
               setStrataSweeps={dialog.setStrataSweeps}
               setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
               setStrataRankSeparate={dialog.setStrataRankSeparate}
+              setStrataPackedScoring={dialog.setStrataPackedScoring}
             />
           )}
           {view === "module" && (

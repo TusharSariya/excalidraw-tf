@@ -10,6 +10,7 @@ import {
   checkStrataStructure,
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
+import { placeStrataHullsPackedScored } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
@@ -43,6 +44,16 @@ export type TerraformStrataSceneOptions = {
   /** OD-2 (M1b): directional sweep count for the A2 ordering pass. Threaded at
    * S0a; consumed by `placeStrataHulls`. Default 0 (M1a "model-order bands"). */
   strataSweeps?: number;
+  /**
+   * Round 9 (SDEC-57, default off): whole-layout candidate-set scoring for
+   * PACKED-hull ordering — replaces the blind per-sweep local-crossings
+   * acceptance (R9-F1) with trial placement of every sweep snapshot on the
+   * real skyline, scored on real leaf-level geometry (global crossings →
+   * edge–box penetrations → integer L1 length, lexicographic, earliest tie
+   * wins). Banded hulls unchanged. Consumed at the A0 stage via
+   * `placeStrataHullsPackedScored`.
+   */
+  strataPackedScoring?: boolean;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -126,6 +137,8 @@ export async function buildTerraformStrataExcalidrawScene(
   // W5b probe: only meaningful WITH rankSeparate (it refines the separated
   // floor); requesting it without RS is inert and echoed as such.
   const strataJointNsRank = options?.strataJointNsRank === true;
+  // Round 9 (SDEC-57): packed candidate-set scoring, default off.
+  const strataPackedScoring = options?.strataPackedScoring === true;
 
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
@@ -136,6 +149,7 @@ export async function buildTerraformStrataExcalidrawScene(
     strataNetworkSimplexRank,
     strataRankSeparate,
     ...(strataJointNsRank ? { strataJointNsRank } : {}),
+    ...(strataPackedScoring ? { strataPackedScoring } : {}),
     strataSweeps,
     strataCoordinateRefine,
     strataGeneration,
@@ -158,6 +172,7 @@ export async function buildTerraformStrataExcalidrawScene(
     rankSeparate: strataRankSeparate,
     sweeps: strataSweeps,
     coordinateRefine: strataCoordinateRefine,
+    ...(strataPackedScoring ? { packedScoring: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -204,13 +219,27 @@ export async function buildTerraformStrataExcalidrawScene(
     stage = "a0";
     gate("a0");
     let placement: ReturnType<typeof placeStrataHulls>;
+    // Round-9 packed scoring observability (success meta, flag-on only).
+    let packedScored:
+      | ReturnType<typeof placeStrataHullsPackedScored>
+      | undefined;
     try {
-      placement = placeStrataHulls(
-        model,
-        repair.edgesPrime,
-        rank,
-        engineOptions,
-      );
+      if (strataPackedScoring) {
+        packedScored = placeStrataHullsPackedScored(
+          model,
+          repair.edgesPrime,
+          rank,
+          engineOptions,
+        );
+        placement = packedScored.placement;
+      } else {
+        placement = placeStrataHulls(
+          model,
+          repair.edgesPrime,
+          rank,
+          engineOptions,
+        );
+      }
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("Strata A2")) {
         stage = "a2";
@@ -292,6 +321,13 @@ export async function buildTerraformStrataExcalidrawScene(
                     strataJointNsRealSpanAfter: rank.jointNsRealSpanAfter,
                   }
                 : {}),
+            }
+          : {}),
+        // Round-9 packed-scoring observability — present only when flag-on.
+        ...(packedScored
+          ? {
+              strataPackedScoringWinner: packedScored.winnerIndex,
+              strataPackedScoringScores: packedScored.candidateScores,
             }
           : {}),
         // R2 evidence (all-zero on the success path).

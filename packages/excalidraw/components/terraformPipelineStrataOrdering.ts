@@ -380,6 +380,71 @@ function heightAwareGreedySeed(
 }
 
 /**
+ * Packed-hull candidate sequences for whole-layout scoring (round 9, SDEC-57;
+ * consumed only when the default-off `strataPackedScoring` option is live).
+ * Returns the ordering SNAPSHOTS {initial, after sweep 1, …, after sweep K}
+ * with the sweeps chained UNCONDITIONALLY — no per-sweep strict-crossings
+ * acceptance (round 9 R9-F1: the local chord counter is structurally blind to
+ * the crossings packed moves affect, and the acceptance-chain form kills
+ * neutral intermediate orders that lead to later wins). Selection between the
+ * snapshots is the caller's job (the A0-level scorer trial-places each on the
+ * real skyline and scores real leaf-level geometry). K≤0 or a trivial hull ⇒
+ * `[initial]` only. Deterministic: same inputs, same snapshots.
+ */
+export function strataPackedCandidateSequences(
+  params: StrataOrderParams,
+): readonly (readonly StrataUnit[])[] {
+  const { units, contentKeyOf, liftedEdges, sweeps, unitColSpanOf } = params;
+
+  const keyOf = new Map<string, string>();
+  const unitById = new Map<string, StrataUnit>();
+  for (const unit of units) {
+    const id = strataUnitId(unit);
+    keyOf.set(id, contentKeyOf(unit));
+    unitById.set(id, unit);
+  }
+  const initialUnits = [...units].sort(
+    (a, b) =>
+      compareStrataContentKeys(
+        keyOf.get(strataUnitId(a))!,
+        keyOf.get(strataUnitId(b))!,
+      ) || compareStrataContentKeys(strataUnitId(a), strataUnitId(b)),
+  );
+  if (sweeps <= 0 || units.length <= 1) {
+    return [initialUnits];
+  }
+
+  const initialIds = initialUnits.map(strataUnitId);
+  const layerOf = (id: string): number =>
+    unitColSpanOf ? unitColSpanOf(id)[0] : 0;
+  const adjacency = new Map<string, Incidence[]>();
+  const pushInc = (id: string, inc: Incidence): void => {
+    const list = adjacency.get(id);
+    if (list) {
+      list.push(inc);
+    } else {
+      adjacency.set(id, [inc]);
+    }
+  };
+  for (const e of liftedEdges) {
+    const sameLayer = layerOf(e.from) === layerOf(e.to);
+    pushInc(e.from, { other: e.to, kind: "out", sameLayer });
+    pushInc(e.to, { other: e.from, kind: "in", sameLayer });
+  }
+
+  const toUnits = (seq: readonly string[]): readonly StrataUnit[] =>
+    seq.map((id) => unitById.get(id)!);
+  const snapshots: (readonly StrataUnit[])[] = [initialUnits];
+  let chain = initialIds;
+  for (let k = 1; k <= sweeps; k++) {
+    const direction: SweepDir = k % 2 === 1 ? "down" : "up";
+    chain = applyStrataSweep(chain, adjacency, keyOf, direction);
+    snapshots.push(toUnits(chain));
+  }
+  return snapshots;
+}
+
+/**
  * Order one hull's units (A0 step 3). At K=0 returns the initial model order:
  * units sorted by content key with the unit-id as the pinned tiebreak (C4′) —
  * BYTE-IDENTICAL to the M1a checkpoint. At K>0 runs the §6-A2 sweeps + §1.3

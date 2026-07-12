@@ -34,16 +34,20 @@ export const TerraformStrataSettings = ({
   strataSweeps,
   strataCoordinateRefine,
   strataRankSeparate,
+  strataPackedScoring,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
+  setStrataPackedScoring,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
   strataRankSeparate: boolean;
+  strataPackedScoring: boolean;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
+  setStrataPackedScoring: (packedScoring: boolean) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -139,6 +143,28 @@ export const TerraformStrataSettings = ({
               )}
               {option("On", strataRankSeparate, "strata.rankseparate.on", () =>
                 setStrataRankSeparate(true),
+              )}
+            </div>
+          </div>
+          <div role="group" aria-label="Strata packed edge scoring">
+            <span className="TerraformImportModal__controlLabel">
+              Packed edge scoring{" "}
+              <span>
+                score region/VPC sibling order on real edge geometry (round 9)
+              </span>
+            </span>
+            <div className="TerraformImportModal__segmentedControl">
+              {option(
+                "Off",
+                !strataPackedScoring,
+                "strata.packedscoring.off",
+                () => setStrataPackedScoring(false),
+              )}
+              {option(
+                "On",
+                strataPackedScoring,
+                "strata.packedscoring.on",
+                () => setStrataPackedScoring(true),
               )}
             </div>
           </div>

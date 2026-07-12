@@ -103,6 +103,8 @@ export type TerraformDemoUrlParams = {
   strataCoordRefine?: boolean;
   /** OD-14: whole-model sibling-separation ranking (the height lever). */
   strataRankSeparate?: boolean;
+  /** Round 9 (SDEC-57): packed-hull whole-layout candidate scoring. */
+  strataPackedScoring?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -360,6 +362,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataRankSeparate === null) {
     return null;
   }
+  const strataPackedScoring = parseBooleanParam("strataPackedScoring");
+  if (strataPackedScoring === null) {
+    return null;
+  }
 
   // ─── Runtime canvas view settings ───
   const lodEnabled = parseBooleanParam("lodEnabled");
@@ -472,6 +478,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataSweeps != null ? { strataSweeps } : {}),
     ...(strataCoordRefine != null ? { strataCoordRefine } : {}),
     ...(strataRankSeparate != null ? { strataRankSeparate } : {}),
+    ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -535,6 +542,7 @@ export const buildTerraformDemoUrl = (
   setNum("strataSweeps", params.strataSweeps);
   setBool("strataCoordRefine", params.strataCoordRefine);
   setBool("strataRankSep", params.strataRankSeparate);
+  setBool("strataPackedScoring", params.strataPackedScoring);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -590,6 +598,7 @@ export type TerraformDemoSettingsSnapshot = {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
   strataRankSeparate: boolean;
+  strataPackedScoring: boolean;
 };
 
 /**
@@ -666,6 +675,8 @@ export const collectTerraformDemoParams = (
       strataSweeps: snapshot.strataSweeps,
       strataCoordRefine: snapshot.strataCoordinateRefine,
       strataRankSeparate: snapshot.strataRankSeparate,
+      // Round 9: default-off, no dialog default flip — truthy-only like NS.
+      ...(snapshot.strataPackedScoring ? { strataPackedScoring: true } : {}),
     };
   }
 

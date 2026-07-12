@@ -135,6 +135,12 @@ export const useTerraformImportDialog = ({
   const [strataRankSeparate, setStrataRankSeparate] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate as boolean,
   );
+  // Strata round 9 (SDEC-57, strata-only): packed-hull whole-layout candidate
+  // scoring — fixes the blind local-crossings acceptance (R9-F1). Default OFF
+  // pending its v3.2 gate battery.
+  const [strataPackedScoring, setStrataPackedScoring] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring as boolean,
+  );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -433,6 +439,7 @@ export const useTerraformImportDialog = ({
         strataSweeps,
         strataCoordinateRefine,
         strataRankSeparate,
+        strataPackedScoring,
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -573,6 +580,7 @@ export const useTerraformImportDialog = ({
           strataSweeps,
           strataCoordinateRefine,
           strataRankSeparate,
+          strataPackedScoring,
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -679,6 +687,7 @@ export const useTerraformImportDialog = ({
         strataSweeps,
         strataCoordinateRefine,
         strataRankSeparate,
+        strataPackedScoring,
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -899,6 +908,7 @@ export const useTerraformImportDialog = ({
         strataSweeps,
         strataCoordinateRefine,
         strataRankSeparate,
+        strataPackedScoring,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -926,6 +936,7 @@ export const useTerraformImportDialog = ({
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
+    strataPackedScoring,
     moduleLayoutOptions.mode,
   ]);
 
@@ -954,6 +965,7 @@ export const useTerraformImportDialog = ({
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
+    strataPackedScoring,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1004,6 +1016,7 @@ export const useTerraformImportDialog = ({
     setStrataSweeps,
     setStrataCoordinateRefine,
     setStrataRankSeparate,
+    setStrataPackedScoring,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,
