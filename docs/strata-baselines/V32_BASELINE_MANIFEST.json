@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Frozen from the v3.2 minimal-slice working tree (W5 battery era). Regen: STRATA_FREEZE_REGEN=1 vitest run terraformPipelineStrataFreezeBaselines.test.ts. After any engine change, regen AND re-adjudicate gateRegister.json.",
+  "seedConvention": "mulberry32(20260704), B=1000 (v3.1 §2.5 / §12)",
+  "files": {
+    "V32_ROWS_P1_COMPACT.json": "ddeb7cb0221abed86fbfbe0f3ad99df94d4db21d283d091e89ab68638cdb34c3",
+    "V32_ROWS_P2_COMPACT.json": "0c495edbffdd2c3a9d61a01f3764c8bddc3c01137c314539822468a0712125db"
+  }
+}

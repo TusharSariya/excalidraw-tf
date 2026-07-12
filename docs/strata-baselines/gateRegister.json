@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "_comment": "v3.2 gate register (R8-F3). Every cell's claimedStatus is recomputed by terraformPipelineStrataGateRegister.test.ts from the frozen V32_ROWS_* artifacts — a claim that does not recompute is a red build. FAIL-WAIVED = owner-overridden computed FAIL (auditable, never rendered as PASS). Statuses recorded from the W5 battery (docs/strata-view-w5-repaired-stats-report.md); owner reviews this register as part of the v3.2 amendment.",
+  "cells": [
+    {
+      "id": "P1-compact/extentSliceB/p50/A_vs_J",
+      "artifact": "V32_ROWS_P1_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "J_strata_k4_a7_rs",
+      "metric": "extentSliceB",
+      "statistic": "p50",
+      "claimedStatus": "PARITY",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md §P1 (p50 CI [-389, +796])"
+    },
+    {
+      "id": "P1-compact/extentSliceB/p90/A_vs_J",
+      "artifact": "V32_ROWS_P1_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "J_strata_k4_a7_rs",
+      "metric": "extentSliceB",
+      "statistic": "p90",
+      "claimedStatus": "FAIL-WAIVED",
+      "adjudication": "recorded-from-W5",
+      "evidence": "SDEC-53 (V3 owner override, W4) restated under honest p90 by W5 finding (a): CI [+1252, +3659] entirely worse",
+      "note": "W4's 'statistical parity' was the legacy mean CI (R8-F1); the waived gate is the p90 the spec names."
+    },
+    {
+      "id": "P1-compact/extentSliceB/p90/A_vs_I",
+      "artifact": "V32_ROWS_P1_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "I_strata_k4_a7",
+      "metric": "extentSliceB",
+      "statistic": "p90",
+      "claimedStatus": "FAIL-WAIVED",
+      "adjudication": "recorded-from-W5",
+      "evidence": "SDEC-47 (V2 owner override of the SDEC-44 P1-compact extent FAIL, W3); W5 confirms the fail under honest p90"
+    },
+    {
+      "id": "P1-compact/rtHat/p50/A_vs_I",
+      "artifact": "V32_ROWS_P1_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "I_strata_k4_a7",
+      "metric": "rtHat",
+      "statistic": "p50",
+      "claimedStatus": "PASS",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md finding (b): first task-metric win, CI [-0.48, -0.05]"
+    },
+    {
+      "id": "P1-compact/rtHat/p90/A_vs_I",
+      "artifact": "V32_ROWS_P1_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "I_strata_k4_a7",
+      "metric": "rtHat",
+      "statistic": "p90",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md finding (b)",
+      "note": "Regressed (+2.07 point) — measured, not yet a gated milestone claim; v3.2 gates pending owner adoption.",
+      "reportAssert": "none"
+    },
+    {
+      "id": "P1-compact/rtHat/p50/A_vs_G",
+      "artifact": "V32_ROWS_P1_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "G_strata_k0",
+      "metric": "rtHat",
+      "statistic": "p50",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md finding (f)",
+      "note": "Shipping default arm; decisively worse (+2.68 point) — recorded pending the K4+A7 default flip.",
+      "reportAssert": "none"
+    },
+    {
+      "id": "P2-compact/extentSliceB/p90/A_vs_J",
+      "artifact": "V32_ROWS_P2_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "J_strata_k4_a7_rs",
+      "metric": "extentSliceB",
+      "statistic": "p90",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md §P2 (nB=4, floor-ineligible per v3.1 §2.5 + v3.2 floors)",
+      "reportAssert": "floorIneligible"
+    },
+    {
+      "id": "P2-compact/extentSliceB/p50/A_vs_J",
+      "artifact": "V32_ROWS_P2_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "J_strata_k4_a7_rs",
+      "metric": "extentSliceB",
+      "statistic": "p50",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md §P2 (nB=4 < p50 floor 10)",
+      "reportAssert": "floorIneligible"
+    },
+    {
+      "id": "P2-compact/rtHat/p50/A_vs_I",
+      "artifact": "V32_ROWS_P2_COMPACT.json",
+      "baselineArm": "A_v2_baseline",
+      "candidateArm": "I_strata_k4_a7",
+      "metric": "rtHat",
+      "statistic": "p50",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W5",
+      "evidence": "strata-view-w5-repaired-stats-report.md §P2",
+      "note": "Regressed (+0.98 point) — P1's median win does not generalize; ungated pending v3.2 adoption.",
+      "reportAssert": "none"
+    }
+  ]
+}
