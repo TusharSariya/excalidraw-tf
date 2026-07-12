@@ -8,6 +8,19 @@
 | What did NOT change | Engine shape (D2′ substrate — now double-preset supported), D1′/D3′/D4′/D5′/D6′/D7′ decisions, A3 (verified exact), A1, A0's placement mechanics (contiguity/overlap proof attacked and held), A6 ids/seeds/versions (verified against real code), the build order S0a→S9→S4→S0b→sweeps→SA7→S0c→S8→S2, C1′/C2/C4′/C5′, C7–C10′, R1–R3, R5, R7–R10, T1/T2/T3/T5–T8, OD-2/4/6/7/8/10/11. *(Round-7 note: revision 3.1 amends this document — [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) wins on conflict.)* **Touched with scope notes or asserts (not redesigned):** C3′ + R6 (scope clarifications, §6), T4 (+assert, §6), S0b (+assert §7, failure contract §8.4), T9/T10 (§2), OD-1 (§4.5), M1 exit (§9). |
 | Audience | Same as v2.0. An implementer reads v2.0 with this document open beside it; §5 below lists every v2.0 anchor that is superseded. |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Normative-amendment |
+| Status | Current amendment — superseded on conflict by v3.1 |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md); [`rcll-v2-shit-test-round6.md`](./rcll-v2-shit-test-round6.md) |
+| Children | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) |
+| Sisters | — |
+| Next (agent) | Read §0–§3 with v2.0 open; then open v3.1 for Round-7 pins. |
+
 ## 0. What changed since v2.0 and why (read this first)
 
 Round 6 measured and refuted the premise that **A7 is the near-straightness lever**:

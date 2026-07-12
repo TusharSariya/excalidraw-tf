@@ -4,6 +4,18 @@
 
 ---
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Decision |
+| Status | Historical — findings record; superseded for forward plan by architecture-decision |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Children | [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Sisters | [`rcll-layout-engine-spec.md`](./rcll-layout-engine-spec.md) |
+| Next (agent) | Read sister engine-spec, then architecture-decision Round 4. |
+
 ## 0. Canonical evaluation lens (pinned to real flag values)
 
 The daily-driver view is **all-resources + compact + no-debanding + everything-on** (the heaviest configuration). **This is not a named preset** — verified against `terraformPipelineLayoutProfiles.ts:144–178`:
@@ -17,6 +29,7 @@ The daily-driver view is **all-resources + compact + no-debanding + everything-o
 | `straighten` (M5) | `true` | `true` |
 | `columnPacking` | `compact` | `compact` |
 | `reorder` / `staircaseBandOverlap` | `true` / `true` | `true` / `true` |
+
 
 So the canonical lens = **`compact`-profile flags + `crossingMin` forced ON + `deBandLevel` forced NONE.** Individual options override the profile (`terraformLayoutCore.ts:958,990`; URL params expose each flag). **Consequence:** `crossingMin`'s "−28 % crossings" is **opt-in** — it is OFF in every named profile, so it helps the canonical view only because the operator manually enables it, not because a preset does.
 

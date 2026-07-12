@@ -9,6 +9,19 @@
 | First milestone | **M1 = engine exists, readable, honestly gated**, split into **M1a** (S0a → S9 → S4 → S0b@K=0 — shippable rendering checkpoint) and **M1b** (sweeps → SA7 → S0c → S8 → S2 — gates frozen). NOT diff-stability-only. |
 | Audience | An implementing agent executing §7 step by step; a reviewer checking §8 conformance. Where an algorithmic choice is genuinely open, it is an **OD-n** block in §9 with options + tradeoffs — do not resolve silently; pick per the stated default or escalate. |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Normative-base |
+| Status | Current base — read with v3.0 + v3.1 (later wins) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec.md`](./rcll-v2-spec.md); [`rcll-v2-shit-test-round5.md`](./rcll-v2-shit-test-round5.md) |
+| Children | [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md); [`rcll-v2-shit-test-round6.md`](./rcll-v2-shit-test-round6.md) |
+| Sisters | — |
+| Next (agent) | Implement: algorithms §6 + steps §7, then apply v3.0/v3.1 amendments beside it. |
+
 ## 0. What changed since v1.0 and why (read this first)
 
 Revision 2 exists because round 5 falsified parts of v1.0 and re-weighted its objective:

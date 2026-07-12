@@ -8,6 +8,19 @@
 | Supersedes | [`pipeline-rcll-v2-pivot-recommendation.md`](./pipeline-rcll-v2-pivot-recommendation.md) (2026-06-20) |
 | Companions | [`rcll-architecture-assessment-report.md`](./rcll-architecture-assessment-report.md) · [`rcll-layout-engine-spec.md`](./rcll-layout-engine-spec.md) · RFC [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Decision |
+| Status | Historical — rounds 1–4; in-doc decisions superseded by normative specs |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`pipeline-rcll-v2-pivot-recommendation.md`](./pipeline-rcll-v2-pivot-recommendation.md); [`rcll-architecture-assessment-report.md`](./rcll-architecture-assessment-report.md); [`rcll-layout-engine-spec.md`](./rcll-layout-engine-spec.md) |
+| Children | [`rcll-v2-foundation-spec.md`](./rcll-v2-foundation-spec.md); [`rcll-v2-spec.md`](./rcll-v2-spec.md); [`rcll-reading-list.md`](./rcll-reading-list.md) |
+| Sisters | — |
+| Next (agent) | Lineage: Round 4 section → foundation (superseded) → v1.0. Current law: Hub → v3.1. |
+
 ## Context (why this document exists)
 
 The RCLL (Recursive Compound Layered Layout) Terraform "pipeline view" engine was built on a first attempt, accreting design mistakes made while learning the problem — most visibly **per-container recursion that produced cross-account backward edges**. The [pivot memo](./pipeline-rcll-v2-pivot-recommendation.md) (2026-06-20) recommended abandoning the RCLL rule stack for a "hull-first" `pipelineVariant:"v2"` engine.

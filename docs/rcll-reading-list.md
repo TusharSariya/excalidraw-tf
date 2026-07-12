@@ -46,6 +46,19 @@ quotes against the canonical URLs, not `rag read`.
 | `docs/terraform-pipeline-import-agent-guide.md` | The import toggles (compact/compound/packed/ancillary) the layouts run under |
 | `docs/excalidraw-canvas-architecture.md` | What happens to the layout *after* layout — rendering, caching, hover |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Living — literature; Forster-missing claim corrected by round6/v3.0 |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Children | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md) |
+| Sisters | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md); [`rcll-v2-shit-test-round6.md`](./rcll-v2-shit-test-round6.md) |
+| Next (agent) | Cite papers; for corpus corrections open sister round6. |
+
 ---
 
 ## 0. The problem, in one paragraph (read before anything)

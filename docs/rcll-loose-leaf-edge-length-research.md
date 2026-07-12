@@ -6,6 +6,18 @@
 
 ---
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Historical — Y/loose-leaf research |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
+| Children | — |
+| Sisters | — |
+| Next (agent) | Background only; hull-Y NO-GO trail continues in architecture-decision / specs. |
+
 ## 1. Diagnosis — there was no "push loose resources up" decision to undo
 
 The most important finding: **there is no degree-based / "loose-resource pusher" anywhere in the code.** The "pushed up" symptom is an _emergent_ conflict between two mechanisms, and your mental model ("I made a bad rule, remove it") is slightly off — there is nothing to remove; there is a half-finished phase to complete.
@@ -44,6 +56,7 @@ The "loose leaf pinned to the top of a column" symptom is the **textbook signatu
 | **Min-cost-flow coord assignment w/ prescribed width** | Jünger–Mutzel–Spisla GD'18 (jgaa paper500) | Minimize total edge length **while bounding max width** and per-pair min/max gaps; can force chosen edges straight. | The optimal option when you also want to cap frame width. |
 | **Network-simplex on auxiliary graph** | Gansner GKNV93 | Exact min total weighted edge length; edge-type weights real-real=1, real-virtual=2, virtual-virtual=8 (keep long/dummy chains straight, still pull real leaves). | You already shipped NS on the **X** axis (`columnPacking:"shorten"`); this is its **Y** analog. |
 | **Dummy nodes for column-skipping edges** | standard Sugiyama; **= your DEC-5** (PARKED/OPEN) | Insert virtual nodes along long edges so multi-column edges have a chain to align along. | **Prerequisite** for fixing the distant-neighbor leaf subclass (Mechanism-B limitation #2). |
+
 
 ---
 

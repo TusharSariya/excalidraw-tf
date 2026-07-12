@@ -4,6 +4,18 @@ _Which papers actually shaped the Recursive Compound Layered Layout (RCLL) engin
 
 **Headline:** ~7 papers running in code · ~7 measured-and-rejected (one built-then-superseded) · the rest justify the priority order.
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Living — built vs rejected paper chart |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-reading-list.md`](./rcll-reading-list.md); [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
+| Children | — |
+| Sisters | [`rcll-reading-list.md`](./rcll-reading-list.md) |
+| Next (agent) | Quick triage of which papers shaped code; deep reads via reading-list. |
+
 ---
 
 ## ✅ Running in the engine (verified citations in source)
@@ -17,6 +29,7 @@ _Which papers actually shaped the Recursive Compound Layered Layout (RCLL) engin
 | **R10** | Brandes, Köpf — _Fast & Simple Horizontal Coordinate Assignment_ (2001) | The centering/straightener — hubs centered over fan-outs; its per-column down-separation is also the actual de-overlap step |
 | **R12** | Rüegg et al. — _Size- & Port-Aware Horizontal Node Coordinate Assignment_ (2015) | Made that straightener respect real card sizes |
 | **—** | Rüegg et al. 2016 + Liao–Wong 1983 _(cited inline)_ | Bidirectional 1-D compaction behind `columnCompact` (pull-left into whitespace) |
+
 
 ---
 

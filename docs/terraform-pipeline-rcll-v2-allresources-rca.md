@@ -2,6 +2,18 @@
 
 **Date:** 2026-06-22 **Scope:** Root-cause measurement only. No optimization landed in this pass — see `docs/terraform-import-performance-log.md` for where to pick that up.
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Historical — prep cost RCA (feeds T10 / OD-10) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) |
+| Children | — |
+| Sisters | — |
+| Next (agent) | Use for felt-cost vs engine-budget; T10 reports shared-prep wall-clock. |
+
 ## The question
 
 Importing `staging-extended-localstack-v2` with pipeline view **RCLL**, **Compact** detail, **All resources** (`includeAncillary: true`), **no debanding** (`deBandLevel: "none"`), all optional stages on (crossingMin, straighten, reorder, rankSeparate, columnCompact, swimlaneLaneRise, staircaseBandOverlap) takes **17-25s in a Node test harness** and **30-60s felt in the browser**. Before this pass, the entire build ran inside one opaque `layout.pipeline` profiler span — there was no way to attribute the time to a specific step.
@@ -31,6 +43,7 @@ Median self-ms across 3 runs, all-resources config:
 | `pipeline.rcll.ancillaryStrips` | 6.0 | 1 |
 | `pipeline.rcll.crossingMin.count` | 5.1 | 4 |
 | `pipeline.prep.materialize` | 4.0 | 1 |
+
 
 `pipeline.prep` (the parent span) is ~7.9s inclusive but only ~1.9ms self — i.e. essentially 100% of `prep` is these two sub-calls. **Dataflow-only** (`includeAncillary: false`) shows the identical ~3,950-3,980ms for both spans — ancillary inclusion does not touch this cost at all. RCLL's own stages (layering, placement, crossingMin, reorder, straighten, rankSeparate, columnCompact) and the ancillary allocator together are **under 400ms combined** — a rounding error against the ~7.9s prep phase.
 

@@ -13,6 +13,19 @@ Direct code links for the **Recursive Compound Layered Layout (RCLL)** pipeline.
 | **Headless proof API** | `excalidraw-app/dev/terraformImportPresetDevPlugin.mjs` — `GET /api/terraform-layout?layoutMode=rcll&…` |
 | **Canonical fixture** | preset `staging-extended-localstack-v2` (used in `terraformPipelineRcll.test.ts`) |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Living — RCLL v1 code anchors |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
+| Children | — |
+| Sisters | — |
+| Next (agent) | Jump to file:line for as-built RCLL; Strata modules are separate. |
+
 ### Call graph
 
 ```

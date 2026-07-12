@@ -8,6 +8,19 @@
 | Method | 10 research agents (2 as-built/inventory sonnet, 5 adversarial literature opus lanes with full-PDF deep reads, SOTA web sweep, live corpus audit) · 2-agent refute panel (fable skeptic on the architectural composite; opus on the tombstone chain) · 4 empirical probes (Q2 battery ×3 presets, cyclic 2-cycle fixture, churn on preset #2, as-built pipeline trace) · orchestrator code verification of new seams |
 | Headline | **GO on the backbone, STOP on M1b as aimed.** The substrate decision is now *double-preset* supported and A3/A6-identity/A4-citations survive counter-attack — but the plan's near-straightness thesis is structurally wrong: A7 cannot move the owner's long cross-hull vertical edges (the 2D-inseparability NO-GO transfers), the gates certify the wrong statistic (median, not the tail the owner sees), the owner's liked view **does not generalize** (measured), and the A6 tombstone contradicts the spec's own C3′. Spec v3 required. |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Review |
+| Status | Evidence-only — attacked v2.0; produced v3.0 (DEC-12→OD-14 corrected in v3.1) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md) |
+| Children | [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md) |
+| Sisters | [`rcll-reading-list.md`](./rcll-reading-list.md) |
+| Next (agent) | Read TL;DR + CRITICAL; open v3.0 for normative amendments. |
+
 ## 0. TL;DR
 
 Round 6 asked three questions. All three have answers now.

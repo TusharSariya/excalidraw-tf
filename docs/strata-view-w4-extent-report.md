@@ -6,6 +6,18 @@
 
 ---
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Battery |
+| Status | Historical — W4 / OD-14 extent closure (accepted SDEC-53) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`strata-view-decision-log.md`](./strata-view-decision-log.md) |
+| Children | — |
+| Sisters | [`strata-view-w3-battery-report.md`](./strata-view-w3-battery-report.md) |
+| Next (agent) | OD-14 numbers; OD-15 not built — see decision-log SDEC-51/53. |
+
 ## 1. TL;DR
 
 The extent gate failed at V2 because Strata's banded canvas ran ~1.9× taller than
@@ -40,6 +52,7 @@ canvas figures are the raw Y extent.
 | **I** — K4+A7 (V2's best) | +1005 `[−76, +2276]` | −637 | **+6369** (7098→13467) | fails: tail regresses |
 | **Jc** — rankSeparate **alone** (K=0) | +2295 `[+880, +3973]` | +3845 | +5089 (7098→12187) | **worse** — lever alone hurts |
 | **J** — K4+A7+**rankSeparate** | **−112** `[−956, +784]` | −620 | **+2068** (7098→9166) | **parity** — mean neutral, tail cut ⅔ |
+
 
 Raw canvas Y extent, P1 compact: v2 ≈ 10056 · strata K4+A7 = 19066 · **strata + rankSeparate = 13761 (−27.8%)**.
 

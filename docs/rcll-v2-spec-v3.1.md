@@ -8,6 +8,19 @@
 | Owner decisions folded | **Q0-TASK closed: the primary reader task is IMPACT TRACING** ("if X changes, what breaks downstream" — left-to-right dependency following). View name **Strata** (`view=strata`); build scope M1 (D10 → S0a → M1a → M1b) with owner visual validation at every milestone. |
 | What did NOT change | The build order, A0/A3/A6/A7 algorithm text (except the A6 restorations in §6), all v3.0 amendments not listed in §10, D1′–D8″, C1′–C11 (except the §8 freeze-list additions), R1–R10, T1–T8, OD-1–OD-13. The v3.0 tombstone amendment survived code verification unchanged (`getUpdatedTimestamp` importable from `@excalidraw/common`, no layer violation; 24h window confirmed). |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Normative-amendment |
+| Status | Current top amendment — precedence v3.1 > v3.0 > v2.0 |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md) |
+| Children | [`strata-view-decision-log.md`](./strata-view-decision-log.md); [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md); [`strata-baselines/README.md`](./strata-baselines/README.md); [`terraform-pipeline-rcll-v2-allresources-rca.md`](./terraform-pipeline-rcll-v2-allresources-rca.md) |
+| Sisters | — |
+| Next (agent) | Implement: §0 then §1–§8; status/as-built → decision-log; freezes → strata-baselines. |
+
 ## 0. What changed since v3.0 and why (read this first)
 
 Round 7 attacked what round 6 wrote — the same discipline rounds 5 and 6 applied to their predecessors. Verdict: **AMEND, then GO.** Nothing was refuted at the architecture level; every defect is an objective mis-aim, an executability pin, or a lost disposition:

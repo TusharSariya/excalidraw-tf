@@ -5,6 +5,18 @@
 
 Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-localstack` (validation), P3 = `multi-state-expanded` (composition; matches P2's numbers modulo the E/F arms and is omitted from the tables below). E/F arms carry ancillary; strata M1 is extraction-free (`strataAncillaryDeferred` honest meta, SDEC-24/29) — every full-mode comparison reads against that asymmetry.
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Battery |
+| Status | Historical — M1b / V2 checkpoint (arm-E accepted; see decision-log SDEC-47) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`strata-view-decision-log.md`](./strata-view-decision-log.md) |
+| Children | — |
+| Sisters | [`strata-view-w4-extent-report.md`](./strata-view-w4-extent-report.md) |
+| Next (agent) | Numbers only; dispositions in decision-log. Extent residual → sister W4. |
+
 ## 1. Verdict summary
 
 **Passed:**
@@ -40,6 +52,7 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 | collisions | 0 | 0 | 0 | 0 |
 | degraded | no | no | no | no |
 | wall ms (incl. prep) | 2784 | 195 | 197 | 193 |
+
 
 ### P1 full (E/F carry ancillary; strata is extraction-free — honest asymmetry, SDEC-24)
 

@@ -7,6 +7,19 @@
 | Companion | [`strata-view-decision-log.md`](./strata-view-decision-log.md) (SDEC register; appended every work package + checkpoint) |
 | Process | Milestones W0→W3; every milestone ends with a **test battery + owner visual validation (hard stop)**; codex review before each checkpoint commit; commit only on owner OK. Implementation agents: **sonnet** (plumbing/mechanical/tests), **opus** (algorithm cores). The orchestrator writes/updates docs, reviews every diff against the specs, runs batteries, and owns gate interpretation. |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Companion |
+| Status | Living — build plan (specs win on conflict; check decision-log for as-built) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) |
+| Children | — |
+| Sisters | [`strata-view-decision-log.md`](./strata-view-decision-log.md) |
+| Next (agent) | Use for piece→file mapping; confirm landed work in sister decision-log. |
+
 ## 1. The flow, end to end
 
 ```

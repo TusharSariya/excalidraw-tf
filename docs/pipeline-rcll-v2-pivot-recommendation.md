@@ -12,6 +12,19 @@
 | Scope | Pipeline view layout architecture |
 | Related RFC | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Superseded |
+| Status | Superseded by `rcll-v2-architecture-decision.md` — research artifact only |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
+| Children | [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Sisters | — |
+| Next (agent) | Do not build from this body; open architecture-decision for corrected verdict. |
+
 ## Executive Recommendation
 
 Pivot away from the current RCLL rule stack and use a hull-first architecture for the next layout generation.

@@ -8,6 +8,19 @@
 | Method | Full code-anchor re-verification (8 agents) · 9 adversarial literature agents (graph-layout-rag corpus + web, citations fetched at source) · codex outside voice (independent cold read) · office-hours product review · eng plan review · 4 empirical probes (semantic audit, churn A/B, 7-arm Q2 readability A/B, refute panel) |
 | Headline | **NO-GO on M1 as specified. The architecture backbone survives — and is empirically *strengthened* — but the plan is not executable as written: A2 is refuted, A3's pseudocode is wrong, A4 cannot gate, and every readability lever is unscheduled against a readability-first product goal.** |
 
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Review |
+| Status | Evidence-only — attacked v1.0; produced v2.0 |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec.md`](./rcll-v2-spec.md) |
+| Children | [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md) |
+| Sisters | — |
+| Next (agent) | Read TL;DR + CRITICAL; dispositions live in v2.0 / later amendments. |
+
 ## 0. TL;DR
 
 Round 5 attacked the spec with everything: source re-verification of every cited anchor, hostile literature agents that fetched the spec's own citations, an independent codex read (verdict: *"[P1] Reject the spec"*), and — for the first time in five rounds — **actual measurements**, including the Q2 everything-on A/B that rounds 1–4 specified but never ran.
