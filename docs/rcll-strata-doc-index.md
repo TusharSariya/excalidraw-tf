@@ -51,7 +51,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 - [`pipeline-rcll-v2-pivot-recommendation.md`](./pipeline-rcll-v2-pivot-recommendation.md) (superseded)
 - [`rcll-v2-foundation-spec.md`](./rcll-v2-foundation-spec.md) (superseded by v1.0)
 - [`rcll-v2-spec.md`](./rcll-v2-spec.md) (v1.0 superseded by v2.0)
-- Round-5 / round-6 / round-8 reports (evidence only; a later spec amendment may override dispositions)
+- Round-5 / round-6 / round-8 / round-9 reports (evidence only; a later spec amendment may override dispositions)
 
 ## Full catalog
 
@@ -73,6 +73,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`rcll-v2-shit-test-round8.md`](./rcll-v2-shit-test-round8.md) | Review | Evidence-only | Cross-model (codex gpt-5.6-sol ×3) audit of v3.1 stack + roadmap |
 | [`rcll-v2-gate-family-v3.2-proposal.md`](./rcll-v2-gate-family-v3.2-proposal.md) | Decision | Adopted as v3.2 | Consolidated codex+Fable literature-grounded gate family (Ware path-cost headline) fixing R8-F1/F3/F6 |
 | [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) | Normative-amendment | Current (top) | Repaired statistics contract + gate register + M-RT family + default/OD re-scopes |
+| [`rcll-v2-shit-test-round9.md`](./rcll-v2-shit-test-round9.md) | Review | Evidence-only | Packed-hull crossing objective structurally blind — experiment-confirmed (owner case: 123→120 vs counter 0→0) |
 | [`strata-view-decision-log.md`](./strata-view-decision-log.md) | Companion | Living | As-built SDEC register |
 | [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md) | Companion | Living | How to build each piece |
 | [`strata-view-w3-battery-report.md`](./strata-view-w3-battery-report.md) | Battery | Historical | M1b / V2 battery |
@@ -115,6 +116,7 @@ flowchart TB
     R6[shit-test-round6]
     R8[shit-test-round8]
     Prop[gate-family-v3.2-proposal]
+    R9[shit-test-round9]
   end
 
   subgraph strata [Strata live]
@@ -160,6 +162,7 @@ flowchart TB
   Prop --> V32
   W5 --> V32
   W5b --> V32
+  R9 --- V32
 
   V32 --> Flow
   V32 --> Log
