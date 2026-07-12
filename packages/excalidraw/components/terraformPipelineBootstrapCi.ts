@@ -23,6 +23,13 @@
  * Determinism (C4′): the seed is fixed and the resample loop is the ONLY
  * consumer of randomness, so `pairedBootstrapCi` is a pure function of its
  * inputs — running it twice yields byte-identical output.
+ *
+ * v3.2 (round-8 R8-F1 repair): the CI can now be computed ON "mean" | "p50" |
+ * "p90" via `options.statistic` — each bootstrap replicate computes the NAMED
+ * statistic of its resample, so a result labelled p90 is a CI on p90 itself.
+ * Default stays "mean" (byte-identical for all pre-v3.2 callers); the legacy
+ * `bootstrapGatePolicy` keeps v3.1 semantics untouched, and the new v3.2
+ * floors live in `statisticGateEligible` (p90 ⇒ n ≥ 31, p50 ⇒ n ≥ 10).
  */
 
 /** Frozen §2.5/§12 constants — single source of truth. */
@@ -32,6 +39,18 @@ export const BOOTSTRAP_B = 1000;
 export const BOOTSTRAP_N_B_MIN = 30;
 /** Below this matched-pair count a slice-B cell is excluded from gating. */
 export const BOOTSTRAP_N_B_FLOOR = 10;
+/**
+ * v3.2 statistic-gating floors (round-8 R8-F1 repair; gate-family proposal §3).
+ * P90 floor is 31, NOT v3.1 §12.2's 30 — that pin's order-statistic rationale
+ * ("27th order statistic with 3 points above") is off by one under the frozen
+ * nearest-rank convention `sorted[floor(0.9·n)]`: at n=30 that index (27,
+ * zero-based) is the 28th observation with only 2 above; n=31 (floor(27.9)=27)
+ * is the first size where 3 observations sit above the selected statistic.
+ * These floors gate the NEW per-statistic bootstrap below; the legacy
+ * `bootstrapGatePolicy` (v3.1 semantics) is intentionally untouched.
+ */
+export const BOOTSTRAP_N_P90_MIN_V32 = 31;
+export const BOOTSTRAP_N_P50_MIN_V32 = 10;
 /** Unmatched-fraction VOID threshold (v3.1 §2.5). */
 export const BOOTSTRAP_UNMATCHED_VOID_FRACTION = 0.2;
 
@@ -83,7 +102,12 @@ function percentileFloor(sortedAsc: readonly number[], q: number): number {
   return sortedAsc[Math.min(n - 1, Math.max(0, Math.floor(q * n)))]!;
 }
 
+export type BootstrapStatistic = "mean" | "p50" | "p90";
+
 export type BootstrapCiResult = {
+  /** Which statistic this CI is ON (v3.2 R8-F1 repair — a result labelled
+   * "p90" is a bootstrap CI on p90 itself, never a relabelled mean CI). */
+  statistic: BootstrapStatistic;
   /** Matched pairs the CI is computed over (the paired-delta vector length). */
   n: number;
   nBaseline: number;
@@ -91,9 +115,9 @@ export type BootstrapCiResult = {
   /** Keys present in exactly one arm — excluded from the delta vector, counted
    * for honesty (never silently dropped). */
   nUnmatched: number;
-  /** Observed mean paired delta (candidate − baseline). */
+  /** Observed `statistic` of the paired deltas (candidate − baseline). */
   point: number;
-  /** Percentile CI on the mean paired delta. */
+  /** Percentile CI on the named statistic of the paired deltas. */
   lo: number;
   hi: number;
   /** hi − lo (realized width, v3.1 §2.5). */
@@ -115,7 +139,28 @@ export type PairedBootstrapInput = {
 export type PairedBootstrapOptions = {
   seed?: number;
   B?: number;
+  /** Statistic the CI is computed ON (v3.2, R8-F1). Default "mean" preserves
+   * the exact pre-v3.2 behavior for existing callers. */
+  statistic?: BootstrapStatistic;
 };
+
+/**
+ * v3.2 per-statistic gating floor: may `statistic` be GATED at matched-pair
+ * count `n`? (p90 ⇒ n ≥ 31; p50 ⇒ n ≥ 10 — see the *_V32 constants above.
+ * "mean" is never a v3.2 gate statistic: it exists for reporting/back-compat.)
+ */
+export function statisticGateEligible(
+  statistic: BootstrapStatistic,
+  n: number,
+): boolean {
+  if (statistic === "p90") {
+    return n >= BOOTSTRAP_N_P90_MIN_V32;
+  }
+  if (statistic === "p50") {
+    return n >= BOOTSTRAP_N_P50_MIN_V32;
+  }
+  return false;
+}
 
 /**
  * Paired per-key bootstrap CI on the mean delta (candidate − baseline).
@@ -132,6 +177,7 @@ export function pairedBootstrapCi(
 ): BootstrapCiResult {
   const seed = opts.seed ?? BOOTSTRAP_SEED;
   const B = opts.B ?? BOOTSTRAP_B;
+  const statistic = opts.statistic ?? "mean";
   const { baseline, candidate } = input;
 
   const nBaseline = baseline.size;
@@ -168,6 +214,7 @@ export function pairedBootstrapCi(
 
   if (n === 0) {
     return {
+      statistic,
       n: 0,
       nBaseline,
       nCandidate,
@@ -182,31 +229,64 @@ export function pairedBootstrapCi(
     };
   }
 
-  const point = deltas.reduce((a, b) => a + b, 0) / n;
+  const sortedDeltas = [...deltas].sort((a, b) => a - b);
+  const observedStat = (): number => {
+    if (statistic === "p50") {
+      return percentileFloor(sortedDeltas, 0.5);
+    }
+    if (statistic === "p90") {
+      return percentileFloor(sortedDeltas, 0.9);
+    }
+    return deltas.reduce((a, b) => a + b, 0) / n;
+  };
+  const point = observedStat();
   let sampleMax = -Infinity;
   for (const d of deltas) {
     sampleMax = Math.max(sampleMax, d);
   }
 
+  // One resampled statistic per draw. The RNG is consumed IDENTICALLY (n draws
+  // per replicate) for every statistic, and statistic:"mean" reproduces the
+  // pre-v3.2 running-sum path exactly — existing callers are byte-identical.
   const rng = mulberry32(seed);
-  const means = new Array<number>(B);
+  const stats = new Array<number>(B);
+  const resample = new Array<number>(n);
   for (let b = 0; b < B; b++) {
-    let s = 0;
-    for (let i = 0; i < n; i++) {
-      const idx = Math.floor(rng() * n);
-      s += deltas[idx]!;
+    if (statistic === "mean") {
+      let s = 0;
+      for (let i = 0; i < n; i++) {
+        const idx = Math.floor(rng() * n);
+        s += deltas[idx]!;
+      }
+      stats[b] = s / n;
+    } else {
+      for (let i = 0; i < n; i++) {
+        const idx = Math.floor(rng() * n);
+        resample[i] = deltas[idx]!;
+      }
+      const sorted = [...resample].sort((a, b) => a - b);
+      stats[b] = percentileFloor(sorted, statistic === "p50" ? 0.5 : 0.9);
     }
-    means[b] = s / n;
   }
-  means.sort((a, b) => a - b);
+  stats.sort((a, b) => a - b);
 
-  const lo = percentileFloor(means, 0.025);
-  const hi = percentileFloor(means, 0.975);
-  // A bootstrap-of-the-mean upper bound can only reach the sample max when the
-  // delta vector is (near-)constant, i.e. the CI has collapsed onto an extreme.
-  const degenerate = Math.abs(hi - sampleMax) < 1e-9;
+  const lo = percentileFloor(stats, 0.025);
+  const hi = percentileFloor(stats, 0.975);
+  const maxReplicate = stats[stats.length - 1]!;
+  // Degeneracy per statistic (v3.2): for a quantile statistic the CI has
+  // collapsed onto the extreme when the upper bound IS the largest replicate
+  // AND that replicate is the sample max (the resampled quantile pinned to the
+  // top of the data — nothing above it to bound the tail). For "mean" keep the
+  // pre-v3.2 semantics verbatim: a bootstrap-of-the-mean upper bound can only
+  // reach the sample max when the delta vector is (near-)constant.
+  const degenerate =
+    statistic === "mean"
+      ? Math.abs(hi - sampleMax) < 1e-9
+      : Math.abs(hi - maxReplicate) < 1e-9 &&
+        Math.abs(maxReplicate - sampleMax) < 1e-9;
 
   return {
+    statistic,
     n,
     nBaseline,
     nCandidate,

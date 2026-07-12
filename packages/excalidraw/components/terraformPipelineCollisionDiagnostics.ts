@@ -72,6 +72,31 @@ export type PipelineSceneDiagnostics = {
   /** T9 (WP-2d): slice-A/B split + companion metrics. Additive — see
    * terraformPipelineSliceMetrics.ts. */
   slices: PipelineSliceMetrics;
+  /** v3.2 gate-family minimal slice (round-8 follow-up): crossing-angle
+   * summary over the SAME crossing pairs `dataflow.crossings` counts. Additive. */
+  crossingAngles: CrossingAngleSummary;
+};
+
+/**
+ * Sharp-crossing threshold (degrees). Crossings with an acute angle below this
+ * read materially worse: Huang 2008's eye-tracking study (arXiv:0810.4431)
+ * found small crossing angles trigger extra eye movements and delay path
+ * search, and the RAC/large-angle literature's conventional "large angle"
+ * boundary is ~30° (e.g. LNCS 6502 §"large angle crossings"). v3.2 gate: the
+ * candidate's sharpShare must not exceed baseline + 0.02.
+ */
+export const SHARP_CROSSING_MAX_DEG = 30;
+
+export type CrossingAngleSummary = {
+  /** Crossing arrow PAIRS (same pair-once semantics as `dataflow.crossings`). */
+  nCross: number;
+  /** Fraction of crossing pairs with θ < SHARP_CROSSING_MAX_DEG (0 when
+   * nCross is 0 — vacuous, read with nCross). */
+  sharpShare: number;
+  /** Nearest-rank p10 of θ across crossing pairs, degrees (0 when nCross 0). */
+  p10Deg: number;
+  /** Minimum θ across crossing pairs, degrees (0 when nCross 0). */
+  minDeg: number;
 };
 
 // Metric tolerances, derived from the layout spacing in
@@ -170,16 +195,41 @@ function arrowGeometry(el: ExcalidrawElement): ArrowGeometry | null {
   return { segments, verticalExtent: maxY - minY };
 }
 
-/** True if any segment of arrow `a` crosses any segment of arrow `b`. */
-function arrowsCross(a: ArrowGeometry, b: ArrowGeometry): boolean {
+/** Acute angle between two segments' direction vectors, degrees ∈ [0, 90]. */
+function segmentAngleDeg(a: Seg, b: Seg): number {
+  const ux = a.x2 - a.x1;
+  const uy = a.y2 - a.y1;
+  const vx = b.x2 - b.x1;
+  const vy = b.y2 - b.y1;
+  const nu = Math.hypot(ux, uy);
+  const nv = Math.hypot(vx, vy);
+  if (nu === 0 || nv === 0) {
+    return 90; // degenerate zero-length segment — never the sharp minimum
+  }
+  const cos = Math.min(1, Math.abs(ux * vx + uy * vy) / (nu * nv));
+  return (Math.acos(cos) * 180) / Math.PI;
+}
+
+/**
+ * Minimum acute crossing angle between two arrows' polylines, or null when no
+ * segment pair properly crosses (v3.2 crossing-angle capture). Uses the SAME
+ * `segmentsCross` kernel as the crossing count, so a pair contributes an angle
+ * iff it contributes to `dataflow.crossings`; when several segment pairs of
+ * the two polylines cross, the pair's angle is the WORST (minimum θ).
+ */
+function minCrossingAngleDeg(a: ArrowGeometry, b: ArrowGeometry): number | null {
+  let min: number | null = null;
   for (const sa of a.segments) {
     for (const sb of b.segments) {
       if (segmentsCross(sa, sb)) {
-        return true;
+        const deg = segmentAngleDeg(sa, sb);
+        if (min === null || deg < min) {
+          min = deg;
+        }
       }
     }
   }
-  return false;
+  return min;
 }
 
 function orient(
@@ -363,12 +413,16 @@ export function diagnosePipelineScene(
     .filter((g): g is ArrowGeometry => g != null);
   // Crossings: count each arrow PAIR at most once, even if multiple of their
   // segments intersect ("edges that cross", not segment intersections). For
-  // 2-point arrows this reduces to the previous chord-vs-chord count.
+  // 2-point arrows this reduces to the previous chord-vs-chord count. The same
+  // pass captures each crossing pair's worst acute angle (v3.2).
   let crossings = 0;
+  const crossingAngleDegs: number[] = [];
   for (let i = 0; i < geoms.length; i++) {
     for (let j = i + 1; j < geoms.length; j++) {
-      if (arrowsCross(geoms[i]!, geoms[j]!)) {
+      const deg = minCrossingAngleDeg(geoms[i]!, geoms[j]!);
+      if (deg !== null) {
         crossings += 1;
+        crossingAngleDegs.push(deg);
       }
     }
   }
@@ -500,5 +554,27 @@ export function diagnosePipelineScene(
       aspect: Math.round(aspect * 100) / 100,
     },
     slices: computeSliceMetrics(elements),
+    crossingAngles: crossingAngleSummaryOf(crossingAngleDegs),
+  };
+}
+
+/** Summarize crossing-pair angles (degrees) into the v3.2 scene scalars.
+ * Nearest-rank p10 uses the file family's `sorted[floor(n·f)]` convention. */
+export function crossingAngleSummaryOf(
+  degs: readonly number[],
+): CrossingAngleSummary {
+  const n = degs.length;
+  if (n === 0) {
+    return { nCross: 0, sharpShare: 0, p10Deg: 0, minDeg: 0 };
+  }
+  const sorted = [...degs].sort((a, b) => a - b);
+  const sharp = sorted.filter((d) => d < SHARP_CROSSING_MAX_DEG).length;
+  const p10 = sorted[Math.min(n - 1, Math.floor(n * 0.1))]!;
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  return {
+    nCross: n,
+    sharpShare: round2(sharp / n),
+    p10Deg: round2(p10),
+    minDeg: round2(sorted[0]!),
   };
 }
