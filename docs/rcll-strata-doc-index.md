@@ -79,6 +79,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`strata-view-w4-extent-report.md`](./strata-view-w4-extent-report.md) | Battery | Historical | OD-14 / V3 extent closure |
 | [`strata-view-w5-repaired-stats-report.md`](./strata-view-w5-repaired-stats-report.md) | Battery | Current | Repaired p50/p90 stats + first M-RT (Ware path-cost) battery |
 | [`strata-view-w5b-joint-ns-probe.md`](./strata-view-w5b-joint-ns-probe.md) | Battery | Current | R8-F9 joint constrained-NS probe — feasible but NO-GO vs sequential RS |
+| [`strata-view-w6-highlight-spike-report.md`](./strata-view-w6-highlight-spike-report.md) | Battery | Current (owner-eval pending) | v3.2 §8 highlight-spike crossover sweep — v2+HL vs unaided strata-I |
 | [`strata-baselines/README.md`](./strata-baselines/README.md) | Battery | Current (frozen) | S0b baseline JSON pins |
 | [`rcll-reading-list.md`](./rcll-reading-list.md) | Aux | Living | Literature reading list |
 | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md) | Aux | Living | Built vs rejected papers |
@@ -123,6 +124,7 @@ flowchart TB
     W4[w4-extent-report]
     W5[w5-repaired-stats-report]
     W5b[w5b-joint-ns-probe]
+    W6[w6-highlight-spike-report]
     Base[strata-baselines]
   end
 
@@ -166,6 +168,8 @@ flowchart TB
   Log --> W4
   Log --> W5
   W5 --> W5b
+  V32 --> W6
+  W5 --- W6
   W3 --- W4
   W4 --- W5
   V32 --> Base

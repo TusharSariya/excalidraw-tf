@@ -553,6 +553,163 @@ export function computeStrataPathMetrics(
   };
 }
 
+// ── W6 highlight-spike additions (spec v3.2 §8) ──────────────────────────────
+// Everything below is ADDITIVE: nothing above this line changed, and no
+// existing export's behavior depends on anything defined here (W5 stays
+// byte-identical reproducible).
+
+/**
+ * Highlight-adjusted Ware composite (W6 crossover sweep). A rendered path
+ * highlight substitutes for the VISUAL SEARCH the cr/con terms price; alpha
+ * scales those two terms (1 = unaided, 0 = full substitution). hops and br
+ * are layout-invariant structure and are never attenuated — which is exactly
+ * why the alpha=0 bound carries zero layout information (paired deltas of
+ * this function at alpha=0 are identically 0 across arms; the W6 harness
+ * reports that as a self-check, never as a comparison).
+ */
+export function rtHatAttenuated(
+  row: Pick<PathMetricsRow, "k" | "con" | "cr" | "br">,
+  alpha: number,
+): number {
+  return (
+    WARE_COEF_HOPS * row.k +
+    alpha *
+      (WARE_COEF_CONTINUITY * row.con + WARE_COEF_CROSSINGS_ON_PATH * row.cr) +
+    WARE_COEF_BRANCHES * row.br
+  );
+}
+
+/** Cone anchors sampled per arm (seeded; report the eligible total). */
+export const CONE_SAMPLE_MAX = 50;
+/** An anchor is eligible when its downstream cone has ≥ this many arrows —
+ * a 1-arrow "cone" is a single edge, not an impact-tracing scenario. */
+export const CONE_MIN_EDGES = 2;
+
+export type ConeMetricsRow = {
+  /** Anchor resource address. */
+  anchor: string;
+  /** Downstream-reachable nodes (full reachability, anchor included). */
+  coneNodes: number;
+  /** Distinct directed edges inside the cone (parallel arrows collapsed). */
+  coneEdges: number;
+  /** Rendered arrows inside the cone (parallel arrows counted — these are
+   * what a highlight would light up). */
+  coneArrows: number;
+  /** Distinct unordered pairs of cone arrows properly crossing each other
+   * (pairs sharing a graph endpoint excluded — same convention as `cr`).
+   * A highlight does NOT erase these: they are highlighted-vs-highlighted. */
+  coneCrossings: number;
+};
+
+export type StrataConeMetrics = {
+  /** Anchors with coneEdges ≥ CONE_MIN_EDGES, before sampling. */
+  anchorsEligible: number;
+  /** Anchors measured (== anchorsEligible when ≤ CONE_SAMPLE_MAX). */
+  sampled: number;
+  /** One row per measured anchor, ascending anchor address. */
+  rows: ConeMetricsRow[];
+};
+
+/**
+ * Downstream-cone metrics for the W6 one-to-many impact-tracing scenario:
+ * highlighting the FULL downstream cone of an anchor lights up every arrow
+ * reachable from it; crossings BETWEEN highlighted arrows survive the
+ * highlight and are the residual clutter the crossover sweep cannot see.
+ * Full reachability (not 2–5 hops): "show me everything this impacts".
+ * Deterministic: ascending anchors, mulberry32(BOOTSTRAP_SEED) sample.
+ */
+export function computeStrataConeMetrics(
+  elements: readonly ExcalidrawElement[],
+): StrataConeMetrics {
+  type ArrowInfo = { source: string; target: string; segs: Seg[] };
+  const arrows: ArrowInfo[] = [];
+  for (const el of tfdArrowsOf(elements)) {
+    const r = relOf(el)!;
+    const poly = polylineOf(el);
+    if (!poly) {
+      continue;
+    }
+    arrows.push({
+      source: r.source as string,
+      target: r.target as string,
+      segs: segsOf(poly),
+    });
+  }
+  const g = digraphOf(arrows);
+
+  const rowsByAnchor: ConeMetricsRow[] = [];
+  for (const anchor of g.nodes) {
+    // Full downstream reachability BFS.
+    const reach = new Set<string>([anchor]);
+    let frontier = [anchor];
+    while (frontier.length > 0) {
+      const next: string[] = [];
+      for (const u of frontier) {
+        for (const v of g.out.get(u) ?? []) {
+          if (!reach.has(v)) {
+            reach.add(v);
+            next.push(v);
+          }
+        }
+      }
+      frontier = next;
+    }
+    // Cone arrows: source in the reach set (target then is too, by closure).
+    const coneArrows = arrows.filter((a) => reach.has(a.source));
+    const edgeKeys = new Set<string>();
+    for (const a of coneArrows) {
+      edgeKeys.add(a.source + KEY_DELIM + a.target);
+    }
+    if (edgeKeys.size < CONE_MIN_EDGES) {
+      continue;
+    }
+    let coneCrossings = 0;
+    for (let i = 0; i < coneArrows.length; i++) {
+      const a = coneArrows[i]!;
+      for (let j = i + 1; j < coneArrows.length; j++) {
+        const b = coneArrows[j]!;
+        if (
+          a.source === b.source ||
+          a.source === b.target ||
+          a.target === b.source ||
+          a.target === b.target
+        ) {
+          continue;
+        }
+        let crosses = false;
+        for (const sa of a.segs) {
+          for (const sb of b.segs) {
+            if (segmentsCross(sa, sb)) {
+              crosses = true;
+              break;
+            }
+          }
+          if (crosses) {
+            break;
+          }
+        }
+        if (crosses) {
+          coneCrossings += 1;
+        }
+      }
+    }
+    rowsByAnchor.push({
+      anchor,
+      coneNodes: reach.size,
+      coneEdges: edgeKeys.size,
+      coneArrows: coneArrows.length,
+      coneCrossings,
+    });
+  }
+  // rowsByAnchor is already ascending (g.nodes is sorted).
+  const sampled = sampleSorted(rowsByAnchor, CONE_SAMPLE_MAX, BOOTSTRAP_SEED);
+  return {
+    anchorsEligible: rowsByAnchor.length,
+    sampled: sampled.length,
+    rows: sampled,
+  };
+}
+
 // ── paired comparison (proposal §3) ──────────────────────────────────────────
 
 export type PairedPathMetricsCi = {
