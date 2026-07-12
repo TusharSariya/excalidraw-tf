@@ -3,9 +3,10 @@
 # rag — query the desktop RAG corpora from the Mac without SSH gymnastics.
 #
 # The RAG tools (graph-layout-rag, rag-literature-rag) live only on the desktop
-# at ~/excalidraw-tf-rag/<tool>; query-time embedding routes through the desktop
-# GPU gateway. This wraps `ssh desktop -> uv run <tool> query --json` so you can
-# just run `rag graph "sugiyama layer assignment"` and get readable results.
+# at ~/gpu-gateway-temp/<tool>; query-time embedding runs on the desktop (local
+# model fallback — the k3s GPU gateway no longer exists on the rebuilt machine).
+# This wraps `ssh desktop -> uv run <tool> query --json` so you can just run
+# `rag graph "sugiyama layer assignment"` and get readable results.
 #
 # Usage:
 #   rag graph  "<query>"  [--top N] [--tag X] [--category Y] [--pdf-only] [--json]
@@ -19,15 +20,15 @@
 #
 # Config (env overrides):
 #   RAG_SSH_HOST    ssh host/alias for the desktop        (default: desktop)
-#   RAG_REMOTE_ROOT dir holding the tool packages         (default: ~/excalidraw-tf-rag)
+#   RAG_REMOTE_ROOT dir holding the tool packages         (default: ~/gpu-gateway-temp)
 #   RAG_REMOTE_UV   uv binary on the desktop              (default: ~/.local/bin/uv)
-#   RAG_GATEWAY_URL gateway base URL for `rag health`     (default: https://gpu-gateway.10.0.0.156.sslip.io)
+#   RAG_GATEWAY_URL optional gateway URL for `rag health` (default: unset — no gateway)
 set -euo pipefail
 
 RAG_SSH_HOST="${RAG_SSH_HOST:-desktop}"
-RAG_REMOTE_ROOT="${RAG_REMOTE_ROOT:-\$HOME/excalidraw-tf-rag}"   # expanded remotely
+RAG_REMOTE_ROOT="${RAG_REMOTE_ROOT:-\$HOME/gpu-gateway-temp}"    # expanded remotely
 RAG_REMOTE_UV="${RAG_REMOTE_UV:-\$HOME/.local/bin/uv}"           # expanded remotely
-RAG_GATEWAY_URL="${RAG_GATEWAY_URL:-https://gpu-gateway.10.0.0.156.sslip.io}"
+RAG_GATEWAY_URL="${RAG_GATEWAY_URL:-}"
 RAG_BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 RAG_REPO_ROOT="$(cd "$RAG_BIN_DIR/.." && pwd)"
 READ_REMOTE="$RAG_REPO_ROOT/scripts/rag-mcp/read_remote.py"
@@ -48,10 +49,29 @@ usage() { sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 sub="$1"; shift
 
 # ---- health ---------------------------------------------------------------
+# Checks the real query path: SSH to the desktop, verify each tool dir + uv.
+# The gateway curl is secondary and only runs if RAG_GATEWAY_URL is set.
 if [ "$sub" = health ] || [ "$sub" = -h ] || [ "$sub" = --help ]; then
   [ "$sub" = health ] || usage 0
-  curl -sS --max-time 10 "$RAG_GATEWAY_URL/health" | python3 -m json.tool 2>/dev/null \
-    || die "gateway unreachable at $RAG_GATEWAY_URL"
+  ssh -o ConnectTimeout=10 "$RAG_SSH_HOST" \
+    "RAG_ROOT=\"$RAG_REMOTE_ROOT\" RAG_UV=\"$RAG_REMOTE_UV\" bash -s" <<'REMOTE' \
+    || die "desktop unreachable or RAG tools missing (host: $RAG_SSH_HOST)"
+set -u
+fail=0
+for tool in graph-layout-rag rag-literature-rag; do
+  if [ -d "$RAG_ROOT/$tool" ]; then
+    echo "ok: $RAG_ROOT/$tool"
+  else
+    echo "MISSING: $RAG_ROOT/$tool"; fail=1
+  fi
+done
+if [ -x "$RAG_UV" ]; then echo "ok: uv at $RAG_UV"; else echo "MISSING: uv at $RAG_UV"; fail=1; fi
+exit "$fail"
+REMOTE
+  if [ -n "$RAG_GATEWAY_URL" ]; then
+    curl -sS --max-time 10 "$RAG_GATEWAY_URL/health" | python3 -m json.tool 2>/dev/null \
+      || printf 'rag: warning: gateway unreachable at %s (queries still work via local embed)\n' "$RAG_GATEWAY_URL" >&2
+  fi
   exit 0
 fi
 

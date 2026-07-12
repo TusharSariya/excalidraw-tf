@@ -26,7 +26,23 @@ Agents can instead call the **`search`** / **`cite_related`** / **`read_paper`**
 
 ## Architecture (one fact to internalize)
 
-**Everything runs on the desktop; the Mac only wraps it.** The corpus, the indexes, and the query CLI all live on the desktop at `~/excalidraw-tf-rag/graph-layout-rag`. `bin/rag` (and the `search` MCP tool) SSH to the desktop, run `uv run graph-layout-rag query --json`, and query-time embedding routes through the desktop GPU gateway (`RAG_GPU_GATEWAY_URL=https://gpu-gateway.10.0.0.156.sslip.io`, a k3s-served Ray Serve deployment that handles model loading + LRU VRAM eviction). The desktop must be reachable — `rag health` checks it. Because the whole query now runs on the desktop, the keyword vs natural-language split below is just a choice of `--embed-profile`, not of where it runs.
+**Everything runs on the desktop; the Mac only wraps it.** The corpus, the indexes, and the query CLI all live on the desktop at `~/gpu-gateway-temp/graph-layout-rag` (the desktop was rebuilt on Ubuntu 26; the old `~/excalidraw-tf-rag` checkout and the k3s GPU gateway are gone). `bin/rag` (and the `search` MCP tool) SSH to the desktop and run `uv run graph-layout-rag query --json`; query-time embedding loads the model in-process on the desktop (you'll see `Loading weights…` on cold start — slower first query, then fine). The desktop must be reachable — `rag health` checks the tool dirs + uv over SSH. Because the whole query runs on the desktop, the keyword vs natural-language split below is just a choice of `--embed-profile`, not of where it runs.
+
+### When the desktop layout moves again (overrides)
+
+`bin/rag` respects env overrides so you don't have to edit anything:
+
+- `RAG_SSH_HOST` — ssh alias for the desktop (default `desktop`).
+- `RAG_REMOTE_ROOT` — dir holding the tool packages (default `$HOME/gpu-gateway-temp`).
+- `RAG_REMOTE_UV` — uv binary on the desktop (default `$HOME/.local/bin/uv`).
+- `RAG_GATEWAY_URL` — optional gateway URL for a secondary `rag health` curl (default unset — no gateway exists; set it only if a gateway is stood up again, e.g. `http://10.0.0.156:8765`).
+
+Note the two *separate* gateway knobs: `RAG_GATEWAY_URL` is only for the optional `rag health` curl from the Mac, while query-time embedding would use `RAG_GPU_GATEWAY_URL` from the **desktop tool's `.env`**. `bin/rag` does **not** forward `RAG_GPU_GATEWAY_URL` to the remote shell. With no `.env`/gateway (current state), `rag graph` returns correct results via the in-process embedder. Defaults verified working 2026-07-12:
+
+```bash
+rag health
+rag graph "sugiyama layer assignment" --top 5
+```
 
 ## Two query regimes (pick the right one)
 
