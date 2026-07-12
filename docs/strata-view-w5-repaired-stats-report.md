@@ -1,6 +1,6 @@
 # Strata W5 — repaired-statistics battery + first M-RT (impact-tracing) numbers
 
-**Date:** 2026-07-12 · **Status:** Battery report (measurement only; owner adjudication pending). Follows round 8 (R8-F1) and the v3.2 gate-family proposal's minimal slice.
+**Date:** 2026-07-12 · **Status:** Battery report (measurement only; adjudicated into [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) per SDEC-55). Follows round 8 (R8-F1) and the v3.2 gate-family proposal's minimal slice.
 
 ## Document graph
 
@@ -11,7 +11,7 @@
 | Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
 | Parent | [`rcll-v2-gate-family-v3.2-proposal.md`](./rcll-v2-gate-family-v3.2-proposal.md) |
 | Sisters | [`strata-view-w3-battery-report.md`](./strata-view-w3-battery-report.md), [`strata-view-w4-extent-report.md`](./strata-view-w4-extent-report.md) |
-| Next (agent) | Owner adjudication → roadmap re-aim (OD-15 vs continuity/RS-composition work) |
+| Next (agent) | Adjudicated — findings codified in [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) (SDEC-55): default flip §6, RS relabel §5, OD-15 re-scope §7, task-evidence precondition §8 |
 
 ## Methodology
 

@@ -16,7 +16,7 @@ Agent entry point for the RCLL → Strata layout-engine documentation cluster. T
 
 ## Precedence (normative)
 
-On conflict: **[`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) > [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md) > [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md)**.
+On conflict: **[`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) > [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) > [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md) > [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md)**.
 
 As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-decision-log.md). Build plan: [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md).
 
@@ -39,7 +39,8 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 
 | Task | Start | Then |
 | --- | --- | --- |
-| Implement / modify Strata | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) §0 | v2.0 algorithms → v3.0 amendments → decision-log Part II |
+| Implement / modify Strata | [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) §0 | v3.1 pins → v2.0 algorithms → v3.0 amendments → decision-log Part II |
+| Gate / measure a milestone | [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) §1–§3, §8 | gate-family proposal (adopted) → strata-baselines README |
 | What shipped / what’s left | [`strata-view-decision-log.md`](./strata-view-decision-log.md) | W3/W4 battery reports |
 | Lineage / why a decision | This hub → architecture-decision → round5/round6 | Never treat reviews as current law |
 | As-built RCLL v1 (`view=rcll`) | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) | [`rcll-code-map.md`](./rcll-code-map.md) |
@@ -68,9 +69,10 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md) | Normative-base | Current (base) | Algorithms + build order |
 | [`rcll-v2-shit-test-round6.md`](./rcll-v2-shit-test-round6.md) | Review | Evidence-only | Attacked v2.0 → produced v3.0 |
 | [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md) | Normative-amendment | Current (amend) | Slice metrics + A2/A7 rescope |
-| [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) | Normative-amendment | Current (top) | Round-7 pins + freeze registers |
+| [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) | Normative-amendment | Current (amend) | Round-7 pins + freeze registers |
 | [`rcll-v2-shit-test-round8.md`](./rcll-v2-shit-test-round8.md) | Review | Evidence-only | Cross-model (codex gpt-5.6-sol ×3) audit of v3.1 stack + roadmap |
-| [`rcll-v2-gate-family-v3.2-proposal.md`](./rcll-v2-gate-family-v3.2-proposal.md) | Decision | Pending owner adjudication | Consolidated codex+Fable literature-grounded gate family (Ware path-cost headline) fixing R8-F1/F3/F6 |
+| [`rcll-v2-gate-family-v3.2-proposal.md`](./rcll-v2-gate-family-v3.2-proposal.md) | Decision | Adopted as v3.2 | Consolidated codex+Fable literature-grounded gate family (Ware path-cost headline) fixing R8-F1/F3/F6 |
+| [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) | Normative-amendment | Current (top) | Repaired statistics contract + gate register + M-RT family + default/OD re-scopes |
 | [`strata-view-decision-log.md`](./strata-view-decision-log.md) | Companion | Living | As-built SDEC register |
 | [`strata-view-implementation-flow.md`](./strata-view-implementation-flow.md) | Companion | Living | How to build each piece |
 | [`strata-view-w3-battery-report.md`](./strata-view-w3-battery-report.md) | Battery | Historical | M1b / V2 battery |
@@ -104,12 +106,14 @@ flowchart TB
     V2[rcll-v2-spec-v2]
     V3[rcll-v2-spec-v3]
     V31[rcll-v2-spec-v3.1]
+    V32[rcll-v2-spec-v3.2]
   end
 
   subgraph reviews [Reviews]
     R5[shit-test-round5]
     R6[shit-test-round6]
     R8[shit-test-round8]
+    Prop[gate-family-v3.2-proposal]
   end
 
   subgraph strata [Strata live]
@@ -118,6 +122,7 @@ flowchart TB
     W3[w3-battery-report]
     W4[w4-extent-report]
     W5[w5-repaired-stats-report]
+    W5b[w5b-joint-ns-probe]
     Base[strata-baselines]
   end
 
@@ -129,7 +134,7 @@ flowchart TB
     RCA[allresources-rca]
   end
 
-  Hub --> V31
+  Hub --> V32
   Hub --> Log
   Hub --> RFC
 
@@ -148,16 +153,22 @@ flowchart TB
   R6 --> V3
   V3 --> V31
   R8 --- V31
+  V31 --> V32
+  R8 --> Prop
+  Prop --> V32
+  W5 --> V32
+  W5b --> V32
 
-  V31 --> Flow
-  V31 --> Log
+  V32 --> Flow
+  V32 --> Log
   Flow --- Log
   Log --> W3
   Log --> W4
   Log --> W5
+  W5 --> W5b
   W3 --- W4
   W4 --- W5
-  V31 --> Base
+  V32 --> Base
 
   ArchDec --> ReadList
   ReadList --- Papers

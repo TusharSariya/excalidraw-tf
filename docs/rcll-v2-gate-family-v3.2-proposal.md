@@ -1,17 +1,18 @@
 # Strata readability gate family — v3.2 proposal (cross-model consolidated)
 
-**Date:** 2026-07-12 · **Status:** Proposal — owner adjudication required before it becomes a normative amendment (v3.2). Fixes round-8 R8-F1/R8-F3/R8-F6 by construction.
+**Date:** 2026-07-12 · **Status:** ADOPTED as normative revision [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) (owner direction 2026-07-12, SDEC-55) — the spec supersedes this proposal on any wording difference. Fixes round-8 R8-F1/R8-F3/R8-F6 by construction.
 
 ## Document graph
 
 | Relation | Link |
 | --- | --- |
 | Role | Decision (proposal) |
-| Status | Pending owner adjudication |
+| Status | Adopted as v3.2 (SDEC-55) |
 | Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
 | Parent | [`rcll-v2-shit-test-round8.md`](./rcll-v2-shit-test-round8.md) (the defects this repairs) |
-| Sisters | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) (the stack this would amend) |
-| Next (agent) | Owner accepts/trims → author v3.2 amendment + implement the minimal slice |
+| Children | [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) (the normative amendment this became) |
+| Sisters | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) (the stack it amends) |
+| Next (agent) | Read [`rcll-v2-spec-v3.2.md`](./rcll-v2-spec-v3.2.md) — it is the normative text; this doc remains the design rationale + research trail |
 
 ## Provenance & method
 
