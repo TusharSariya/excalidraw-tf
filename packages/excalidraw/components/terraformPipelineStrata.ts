@@ -420,9 +420,16 @@ export async function buildTerraformStrataExcalidrawScene(
               strataPackedScoringScore: packedScored.score,
               strataPackedScoringTrials: packedScored.trialCount,
               strataPackedScoringFellBack: packedScoringFellBack,
-              // W8b ε-constraint echoes (0/0 = strict rule, today's behavior).
-              strataPackedScoringEpsilon: packedScored.epsilon,
-              strataPackedScoringEffectiveDelta: packedScored.effectiveDelta,
+              // W8b ε-constraint echoes — emitted only when the effective
+              // epsilon is nonzero, so the ε=0/unset (strict) path stays
+              // bit-identical at the meta level to pre-W8b behavior.
+              ...(packedScored.epsilon !== 0
+                ? {
+                    strataPackedScoringEpsilon: packedScored.epsilon,
+                    strataPackedScoringEffectiveDelta:
+                      packedScored.effectiveDelta,
+                  }
+                : {}),
               ...(packedFrontierTrials
                 ? { strataPackedScoringFrontierTrials: packedFrontierTrials }
                 : {}),

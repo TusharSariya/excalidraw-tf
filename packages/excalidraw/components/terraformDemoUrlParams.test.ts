@@ -472,6 +472,30 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("rejects a fractional strataPackedEps >= 1 (absolute mode must be integer)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=1.5",
+        ),
+      ).toBeNull();
+    });
+
+    it("accepts strataPackedEps=0.5 (relative mode, fractional < 1 is valid)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=0.5",
+        )!.strataPackedEps,
+      ).toBe(0.5);
+    });
+
+    it("accepts strataPackedEps=2 (absolute mode, integer)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=2",
+        )!.strataPackedEps,
+      ).toBe(2);
+    });
+
     it("parses strataEdgeRouting and omits it when the URL does not carry it", () => {
       const on = parseTerraformDemoUrlParams(
         "?preset=demo&view=strata&strataEdgeRouting=1",

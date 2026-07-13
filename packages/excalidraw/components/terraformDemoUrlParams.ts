@@ -384,6 +384,12 @@ export const parseTerraformDemoUrlParams = (
     if (!Number.isFinite(parsed) || parsed < 0) {
       return null;
     }
+    // Absolute mode (>= 1) is an integer crossings budget; a fractional
+    // value there (e.g. 1.5) violates the contract, so reject it. Relative
+    // mode (0 < eps < 1) stays fractional.
+    if (parsed >= 1 && !Number.isInteger(parsed)) {
+      return null;
+    }
     strataPackedEps = parsed;
   }
 

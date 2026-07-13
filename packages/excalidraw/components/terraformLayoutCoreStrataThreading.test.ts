@@ -134,15 +134,16 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(on.meta.strataPackedScoringEpsilon).toBe(1);
       expect(on.meta.strataPackedScoringEffectiveDelta).toBe(1);
 
-      // Epsilon 0 (or absent) keeps the strict rule: echo present with 0
-      // inside the packed block, and no frontier meta without the dev seam.
+      // Epsilon 0 (or absent) keeps the strict rule: the pre-W8b engine
+      // emitted neither echo key, so the ε=0 path must stay bit-identical
+      // at the meta level — both keys are ABSENT, not present-with-0.
       const strict = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
         strataPackedScoring: true,
       });
-      expect(strict.meta.strataPackedScoringEpsilon).toBe(0);
-      expect(strict.meta.strataPackedScoringEffectiveDelta).toBe(0);
+      expect(strict.meta.strataPackedScoringEpsilon).toBeUndefined();
+      expect(strict.meta.strataPackedScoringEffectiveDelta).toBeUndefined();
       expect(strict.meta.strataPackedScoringFrontierTrials).toBeUndefined();
 
       // The W8b frontier dev seam echoes per-trial records when requested.

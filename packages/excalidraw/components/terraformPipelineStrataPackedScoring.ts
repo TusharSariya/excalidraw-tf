@@ -48,13 +48,21 @@
  * strict rule. Ties still keep the EARLIEST candidate.
  *
  * Termination: the descent is structurally bounded (≤2 passes × fixed hull
- * list × fixed per-hull candidate count), so it terminates unconditionally.
- * Additionally every adoption strictly decreases a well-founded quantity —
- * strict-lexicographic wins decrease the full (crossings, penetrations,
- * lengthL1) triple, and ε-band wins strictly decrease the (penetrations,
- * lengthL1) pair over nonnegative integers while crossings stay inside the
- * bounded set [0, baseline + delta] — so no adoption cycle is possible and
- * the pass-2 legacy-retry cannot oscillate.
+ * list × fixed per-hull candidate count), so it terminates unconditionally
+ * — that bound is the ONLY thing guaranteeing termination. Adoption is NOT
+ * monotone under a single ordering when delta > 0: an ε-band win only
+ * strictly decreases (penetrations, lengthL1), not crossings, so a later
+ * strict-lexicographic win at a different hull can raise crossings back up
+ * within the [0, baseline + delta] band, after which a further ε-band win
+ * is adoptable again. Concrete counterexample (baseline=10, delta=1):
+ * (11,9,10) adopts via ε (crossings 11 <= 10+1, penetrations/lengthL1
+ * strictly improve) → (10,100,100) adopts via strict crossings (10 < 11)
+ * → (11,9,10) is adoptable via ε again. So oscillation between ε-band and
+ * strict adoptions across hull visits is possible; there is no well-founded
+ * quantity that decreases on every adoption. Determinism does not depend on
+ * monotonicity: it comes from the fixed two-pass × hulls × candidates cap
+ * (termination) plus stable iteration order and earliest-tie rules (which
+ * candidate wins at each step, given the cap).
  *
  * Determinism: pure integer arithmetic on the doubled-coordinate system, no
  * RNG/clock, stable iteration orders (edgesPrime is C4′-sorted upstream; the
@@ -171,7 +179,14 @@ export function resolveStrataPackedEpsilonDelta(
   if (!Number.isFinite(epsilon) || epsilon <= 0) {
     return 0;
   }
-  return epsilon >= 1 ? epsilon : Math.ceil(epsilon * baselineCrossings);
+  // Defensive integer normalization: absolute mode (>= 1) is an integer
+  // crossings budget by contract. Callers upstream of this resolver (e.g.
+  // the demo URL parser) should already reject fractional epsilon >= 1, but
+  // this is the single choke point every caller routes through, so floor it
+  // here too rather than trusting every call site.
+  return epsilon >= 1
+    ? Math.floor(epsilon)
+    : Math.ceil(epsilon * baselineCrossings);
 }
 
 /**
