@@ -56,8 +56,29 @@
  *     FAILED-TRANSFER) and the report is STILL written. P1/P2 layout throws
  *     remain hard failures (in-sample harness breakage).
  *
- * fullDetailBlock is a null placeholder — WP3 fills it in THIS report
- * (additive; same file, same JSON).
+ * fullDetailBlock (WP3, additive — same orchestrator, same single report):
+ *   F_v2_full_ancillary (baseline) vs H2/I2/J2 full-detail arms on P1 + P2
+ *   (P3 as a stretch cell), option objects copied VERBATIM from
+ *   terraformPipelineStrataExtentGate.test.ts (L110-147) but EVERY arm —
+ *   baseline included — built through the SAME layoutTerraformViaWorkers seam
+ *   (plan D4 single-seam rule; NO buildV2). Per pair: extent p50/p90 + rt̂
+ *   p50/p90 paired CIs with the frozen pairedBootstrapCi statuses VERBATIM
+ *   (voided/status/nUnmatched — voids EXPECTED at full detail, W4 precedent:
+ *   the honest outcome, never adjudicated away) plus a slice-classification-
+ *   asymmetry DIAGNOSTIC number (never determines status). Content-parity
+ *   caveat recorded per cell (F_v2 includes ancillary; strata full arms defer
+ *   it via strataAncillaryDeferred — element populations differ by
+ *   construction). Cells that exceed the WP1-smoke-derived soft budget or
+ *   throw on the full-detail path are stamped TIMEOUT/INCOMPLETE or
+ *   LAYOUT-THROW and the matrix is NEVER reshaped (no dropped arms).
+ *   Timing split (plan D6): terraformImportProfiler enabled+reset per cell;
+ *   partition formula stated in the report meta; NO new spans. Verified on
+ *   this branch: vitest has no Worker global and pipeline/strata modes run
+ *   runSequential in layoutTerraformViaWorkers, so layout executes IN-PROCESS
+ *   and the profiler IS reachable through the worker seam; `pipeline.prep`
+ *   exists only on the rcll variant (terraformPipelineLayoutRcll.ts) — the v2
+ *   and strata builders emit no nested spans, so its term is expected 0 here
+ *   (recorded, not assumed).
  *
  * Determinism: seed 20260704 everywhere; no Date.now/Math.random in any
  * report-affecting path (performance.now feeds ONLY buildMs, which is
@@ -93,6 +114,12 @@ import {
 } from "./terraformPipelineBootstrapCi";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
+import {
+  setTerraformImportProfilerEnabled,
+  terraformImportProfilerReset,
+  terraformImportProfilerSummary,
+  type TerraformImportProfilerSpan,
+} from "./terraformImportProfiler";
 import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
 import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
@@ -130,7 +157,9 @@ type PresetLabel = keyof typeof PRESETS;
 const PRESET_LABELS: readonly PresetLabel[] = ["P1", "P2", "P3"];
 
 const REPORT_DIR = process.env.Q12_REPORT_DIR ?? tmpdir();
-const TIMEOUT = STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12;
+/** WP3: transfer block (36 builds) + full-detail block (12 builds) share the
+ * one orchestrating test — plan cap ×60 (WP3 row), up from WP2's ×12. */
+const TIMEOUT = STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 60;
 
 /**
  * FROZEN A4 register thresholds — copied verbatim from the normative source,
@@ -400,6 +429,247 @@ function armSummary(arm: ArmData): Record<string, unknown> {
     },
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FULL-DETAIL SCALE BLOCK (WP3) — arms, budget, builder, cells.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Full-detail arm option bundles — copied VERBATIM (not imported) from
+ * terraformPipelineStrataExtentGate.test.ts ARM_OPTIONS L110-147 (plan D4).
+ * EVERY arm, baseline included, builds through the same
+ * layoutTerraformViaWorkers seam (single-seam rule; NO buildV2).
+ */
+const FULL_DETAIL_ARM_OPTIONS: Record<string, Record<string, unknown>> = {
+  F_v2_full_ancillary: {
+    layoutMode: "pipeline",
+    pipelineLayoutVariant: "v2",
+    pipelineCompact: false,
+    pipelineIncludeAncillary: true,
+  },
+  H2_strata_k4_full: {
+    layoutMode: "strata",
+    pipelineCompact: false,
+    strataSweeps: 4,
+  },
+  I2_strata_k4_a7_full: {
+    layoutMode: "strata",
+    pipelineCompact: false,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+  },
+  J2_strata_k4_a7_rs_full: {
+    layoutMode: "strata",
+    pipelineCompact: false,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+    strataRankSeparate: true,
+  },
+};
+const FULL_DETAIL_ARM_LABELS = Object.keys(FULL_DETAIL_ARM_OPTIONS);
+const FULL_DETAIL_BASELINE = "F_v2_full_ancillary";
+const FULL_DETAIL_CANDIDATES = [
+  "H2_strata_k4_full",
+  "I2_strata_k4_a7_full",
+  "J2_strata_k4_a7_rs_full",
+];
+/** Full-detail block presets: P1 + P2 headline, P3 stretch (cheap per WP1). */
+const FULL_DETAIL_PRESETS: readonly PresetLabel[] = ["P1", "P2", "P3"];
+
+/**
+ * Soft per-cell time budget, derived from the WP1 smoke wall-clocks frozen in
+ * docs/strata-baselines/q12/P3_DISTINCTNESS_PROFILE.json p3Smokes (F_v2_full
+ * 205.3ms / I2_full 171.07ms on P3's 396 resources): max smoke ≈ 205.3ms ×
+ * ~290 headroom (covers P1's ~3× resource scale with generous margin) ≈ 60s.
+ * SOFT: the in-process build cannot be aborted mid-flight; an overrun is
+ * detected after completion and STAMPED (TIMEOUT/INCOMPLETE) — the cell stays
+ * in the matrix, metrics that completed are still reported (never censored,
+ * never reshaped). The overall vitest timeout stays the plan's ×60 cap.
+ */
+const FULL_DETAIL_CELL_BUDGET_MS = 60_000;
+
+/** Outer (pre-layout) spans — outside `layout.pipeline` per plan D6 /
+ * terraformLayoutCore.ts (prep.cache L965, merge.plans L972, parse.nodes
+ * L1024, parse.tfd L1032). */
+const OUTER_SPAN_NAMES = [
+  "prep.cache",
+  "merge.plans",
+  "parse.nodes",
+  "parse.tfd",
+];
+
+const TIMING_PARTITION_FORMULA =
+  "wallClockMs = outerPrepMergeParseMs (Σ inclusive ms of spans outside layout.pipeline: " +
+  `${OUTER_SPAN_NAMES.join("+")}) + layoutPipelineExclNestedPrepMs ` +
+  "(ms(layout.pipeline) − ms(pipeline.prep)) + pipelinePrepMs (ms(pipeline.prep), " +
+  "nested inside layout.pipeline — fires ONLY on the rcll variant, expected 0 for the " +
+  "v2/strata builders on this branch) + remainderMs (wallClockMs − Σ top-level spans; " +
+  "seam/metric overhead outside all spans). Inclusive ms used throughout (selfMs is " +
+  "unreliable for nested spans); NO new spans added by W12.";
+
+type TimingSplit = {
+  status: "ok" | "unavailable-through-worker-seam";
+  reason?: string;
+  wallClockMs?: number;
+  outerPrepMergeParseMs?: number;
+  layoutPipelineMs?: number;
+  layoutPipelineExclNestedPrepMs?: number;
+  pipelinePrepMs?: number;
+  remainderMs?: number;
+  firedSpans?: Array<{ name: string; ms: number; callCount: number }>;
+  unclassifiedSpanNames?: string[];
+};
+
+function computeTimingSplit(
+  spans: readonly TerraformImportProfilerSpan[],
+  wallClockMs: number,
+): TimingSplit {
+  if (spans.length === 0) {
+    return {
+      status: "unavailable-through-worker-seam",
+      reason:
+        "no profiler spans fired through layoutTerraformViaWorkers — layout did not run " +
+        "in-process (single-seam rule wins; buildMs only)",
+    };
+  }
+  const ms = (name: string) => spans.find((s) => s.name === name)?.ms ?? 0;
+  const outer = OUTER_SPAN_NAMES.reduce((sum, n) => sum + ms(n), 0);
+  const layoutPipeline = ms("layout.pipeline");
+  const pipelinePrep = ms("pipeline.prep");
+  const unclassified = spans
+    .map((s) => s.name)
+    .filter(
+      (n) =>
+        !OUTER_SPAN_NAMES.includes(n) &&
+        n !== "layout.pipeline" &&
+        !n.startsWith("pipeline."),
+    )
+    .sort((a, b) => (a === b ? 0 : a < b ? -1 : 1));
+  return {
+    status: "ok",
+    wallClockMs: round2(wallClockMs),
+    outerPrepMergeParseMs: round2(outer),
+    layoutPipelineMs: round2(layoutPipeline),
+    layoutPipelineExclNestedPrepMs: round2(layoutPipeline - pipelinePrep),
+    pipelinePrepMs: round2(pipelinePrep),
+    remainderMs: round2(wallClockMs - outer - layoutPipeline),
+    firedSpans: spans.map((s) => ({
+      name: s.name,
+      ms: s.ms,
+      callCount: s.callCount,
+    })),
+    unclassifiedSpanNames: unclassified,
+  };
+}
+
+function edgesKeyedAll(perEdge: readonly SliceEdgeRow[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of perEdge) {
+    const key = canonicalEdgeKey(row.source, row.target, row.relKind);
+    if (!map.has(key)) {
+      map.set(key, row.extentPx);
+    }
+  }
+  return map;
+}
+
+type FullDetailArmData = ArmData & {
+  /** ALL-slice keyed extents — feeds the slice-classification-asymmetry
+   * DIAGNOSTIC only (never a status input). */
+  allEdges: Map<string, number>;
+  /** Wall-clock-derived fields — nested so stripTimings drops them wholesale
+   * (budgetStatus depends on wall-clock and MUST not break run-twice
+   * determinism; the raw report keeps it). */
+  timing: {
+    budgetMs: number;
+    wallClockMs: number;
+    budgetStatus: "OK" | "TIMEOUT/INCOMPLETE";
+    timingSplit: TimingSplit;
+  };
+};
+
+async function buildFullDetailArm(
+  sources: TerraformImportPresetSources,
+  options: Record<string, unknown>,
+): Promise<FullDetailArmData> {
+  // Profiler enabled + reset PER CELL (plan D6); restored to auto afterwards
+  // so the transfer block's behavior is untouched.
+  setTerraformImportProfilerEnabled(true);
+  terraformImportProfilerReset();
+  let spans: TerraformImportProfilerSpan[] = [];
+  let arm: ArmData;
+  try {
+    arm = await buildArm(sources, options);
+    spans = terraformImportProfilerSummary();
+  } finally {
+    terraformImportProfilerReset();
+    setTerraformImportProfilerEnabled(null);
+  }
+  const wallClockMs = arm.buildMs;
+  return {
+    ...arm,
+    allEdges: edgesKeyedAll(computeSliceMetrics(arm.elements).perEdge),
+    timing: {
+      budgetMs: FULL_DETAIL_CELL_BUDGET_MS,
+      wallClockMs,
+      budgetStatus:
+        wallClockMs > FULL_DETAIL_CELL_BUDGET_MS ? "TIMEOUT/INCOMPLETE" : "OK",
+      timingSplit: computeTimingSplit(spans, wallClockMs),
+    },
+  };
+}
+
+/** Slice-classification-asymmetry DIAGNOSTIC (pre-registered record §1 /
+ * plan D4: reported separately, NEVER determines status): of the pairing keys
+ * the frozen CI could not match slice-B-to-slice-B, how many exist in the
+ * OTHER arm's scene under a different slice (re-classified) vs not at all
+ * (population difference — e.g. the ancillary content-parity gap)? */
+function sliceAsymmetryDiagnostic(
+  base: FullDetailArmData,
+  cand: FullDetailArmData,
+) {
+  let baseSliceBReclassifiedInCandidate = 0;
+  let baseSliceBAbsentFromCandidate = 0;
+  for (const key of base.sliceB.keys()) {
+    if (cand.sliceB.has(key)) {
+      continue;
+    }
+    if (cand.allEdges.has(key)) {
+      baseSliceBReclassifiedInCandidate += 1;
+    } else {
+      baseSliceBAbsentFromCandidate += 1;
+    }
+  }
+  let candSliceBReclassifiedInBaseline = 0;
+  let candSliceBAbsentFromBaseline = 0;
+  for (const key of cand.sliceB.keys()) {
+    if (base.sliceB.has(key)) {
+      continue;
+    }
+    if (base.allEdges.has(key)) {
+      candSliceBReclassifiedInBaseline += 1;
+    } else {
+      candSliceBAbsentFromBaseline += 1;
+    }
+  }
+  return {
+    note: "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+    asymmetry:
+      baseSliceBReclassifiedInCandidate + candSliceBReclassifiedInBaseline,
+    baseSliceBReclassifiedInCandidate,
+    baseSliceBAbsentFromCandidate,
+    candSliceBReclassifiedInBaseline,
+    candSliceBAbsentFromBaseline,
+    nSliceBBaseline: base.sliceB.size,
+    nSliceBCandidate: cand.sliceB.size,
+  };
+}
+
+const FULL_DETAIL_CONTENT_PARITY_CAVEAT =
+  "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary " +
+  "(pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, " +
+  "unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched " +
+  "edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Churn mutation builders — the A4 ChurnTriple THREE-mutation fixture, cloned
@@ -1107,7 +1377,10 @@ const W11_P1_PAIRED_RTHAT_P50 = { lo: -0.48, hi: -0.05 };
 
 // ── determinism normalization (wall-clock keys only) ─────────────────────────
 
-const TIMING_KEYS = new Set(["buildMs"]);
+/** `timing` (full-detail block) nests EVERY wall-clock-derived field —
+ * wallClockMs, budgetStatus (a wall-clock comparison), the timing split and
+ * fired spans — so the run-twice determinism diff drops it wholesale. */
+const TIMING_KEYS = new Set(["buildMs", "timing"]);
 
 function stripTimings(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -1169,10 +1442,8 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
           interpretationNote:
             "interpretation is BLOCKED-ON-Q7 (open W11 exit criterion) — transferAssessment fields are mechanical, not adjudicated",
         },
-        // TODO(W12-WP3): full-detail scale block (F_v2_full_ancillary vs
-        // H2/I2/J2 on P1/P2, P3 stretch; single worker seam; frozen void
-        // statuses; TIMEOUT/INCOMPLETE stamping; partition-formula timing
-        // split) fills this key in THIS report — additive, same file.
+        // WP3: assigned after the transfer assessment below (key declared
+        // here to keep its report position; null only if the block never ran).
         fullDetailBlock: null,
       };
 
@@ -1182,6 +1453,12 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
       // hard-asserted, and ONLY THEN is P3 built/evaluated and the report
       // written. No P3 computation happens before a green anchor.
       const armsByPreset = new Map<PresetLabel, Map<string, ArmData>>();
+      /** Resolved sources retained for the WP3 full-detail block (loaded once
+       * per preset; same seam for every consumer). */
+      const sourcesByPreset = new Map<
+        PresetLabel,
+        TerraformImportPresetSources
+      >();
       const transferCellsByPreset = new Map<
         PresetLabel,
         Record<string, TransferCell>
@@ -1197,6 +1474,7 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
         const sources = resolveSourcesWithTfdComposition(
           raw! as TerraformImportPresetSources,
         );
+        sourcesByPreset.set(presetLabel, sources);
 
         const arms = new Map<string, ArmData>();
         const armReports: Record<string, unknown> = {};
@@ -1815,6 +2093,137 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
         p3LayoutThrows,
         blockVerdict,
       };
+
+      // ── FULL-DETAIL SCALE BLOCK (WP3) — additive; single seam; frozen void
+      // statuses verbatim; TIMEOUT/INCOMPLETE + LAYOUT-THROW stamping; the
+      // matrix is NEVER reshaped (every preset × arm × pair key is present,
+      // possibly as a stamped non-result) ───────────────────────────────────
+      const fullDetailBlock: Record<string, unknown> = {
+        meta: {
+          arms: FULL_DETAIL_ARM_OPTIONS,
+          armProvenance:
+            "option objects copied VERBATIM from terraformPipelineStrataExtentGate.test.ts " +
+            "ARM_OPTIONS (F_v2_full_ancillary / H2 / I2 / J2, L110-147); every arm — baseline " +
+            "included — built through the SAME getTerraformImportPresetSourcesFromDb → " +
+            "resolveSourcesWithTfdComposition → layoutTerraformViaWorkers seam (plan D4; no buildV2)",
+          presets: {
+            headline: ["P1", "P2"],
+            stretch: ["P3"],
+          },
+          contentParityCaveat: FULL_DETAIL_CONTENT_PARITY_CAVEAT,
+          voidExpectation:
+            "extent/rt̂ statuses are taken VERBATIM from the frozen pairedBootstrapCi result " +
+            "(voided/status/nUnmatched) — expected to often VOID at full detail (W4 precedent); " +
+            "that is the honest outcome, not a failure",
+          softBudget: {
+            budgetMs: FULL_DETAIL_CELL_BUDGET_MS,
+            derivation:
+              "WP1 smoke wall-clocks (docs/strata-baselines/q12/P3_DISTINCTNESS_PROFILE.json " +
+              "p3Smokes: F_v2_full 205.3ms / I2_full 171.07ms on P3) × ~290 headroom ≈ 60s; " +
+              "SOFT — the in-process build cannot be aborted, an overrun is stamped " +
+              "TIMEOUT/INCOMPLETE after the fact and the cell stays in the matrix",
+          },
+          timingSplit: {
+            partitionFormula: TIMING_PARTITION_FORMULA,
+            seamNote:
+              "verified on this branch: vitest has no Worker global and pipeline/strata layout " +
+              "modes take runSequential inside layoutTerraformViaWorkers, so layout runs " +
+              "IN-PROCESS and terraformImportProfiler is reachable through the worker seam; " +
+              "per-cell fired span names are recorded in each arm's timing.timingSplit " +
+              "(pipeline.prep fires only on the rcll variant — expected 0 for v2/strata arms)",
+            noNewSpans: true,
+          },
+          determinismNote:
+            "the per-arm `timing` object (wallClockMs, budgetStatus, split, fired spans) is " +
+            "wall-clock-derived and stripped by the run-twice normalization alongside buildMs",
+        },
+      };
+      for (const presetLabel of FULL_DETAIL_PRESETS) {
+        const preset = PRESETS[presetLabel];
+        const sources = sourcesByPreset.get(presetLabel);
+        if (!sources) {
+          // Unreachable in practice (sources resolve before any build), kept
+          // so a missing preset is a stamped cell, never a reshaped matrix.
+          fullDetailBlock[presetLabel] = {
+            preset,
+            status: "INCOMPLETE",
+            reason: "preset sources unavailable (transfer-block load failed)",
+          };
+          continue;
+        }
+        const built = new Map<string, FullDetailArmData>();
+        const armReports: Record<string, unknown> = {};
+        for (const armLabel of FULL_DETAIL_ARM_LABELS) {
+          try {
+            const arm = await buildFullDetailArm(
+              sources,
+              FULL_DETAIL_ARM_OPTIONS[armLabel]!,
+            );
+            built.set(armLabel, arm);
+            armReports[armLabel] = {
+              status:
+                arm.timing.budgetStatus === "OK" ? "OK" : "TIMEOUT/INCOMPLETE",
+              options: FULL_DETAIL_ARM_OPTIONS[armLabel],
+              ...armSummary(arm),
+              nAllEdges: arm.allEdges.size,
+              timing: arm.timing,
+            };
+          } catch (err) {
+            // Full-detail path throw (ANY preset) — stamped, never reshaped;
+            // scale-block breakage is itself the finding under measure here.
+            armReports[armLabel] = {
+              status: "LAYOUT-THROW",
+              options: FULL_DETAIL_ARM_OPTIONS[armLabel],
+              error: String(err instanceof Error ? err.message : err),
+            };
+          }
+        }
+        const cells: Record<string, unknown> = {};
+        const baseArm = built.get(FULL_DETAIL_BASELINE);
+        for (const candLabel of FULL_DETAIL_CANDIDATES) {
+          const pairKey = `${FULL_DETAIL_BASELINE}__vs__${candLabel}`;
+          const candArm = built.get(candLabel);
+          if (!baseArm || !candArm) {
+            cells[pairKey] = {
+              status: "NOT-EVALUATED",
+              reason: `LAYOUT-THROW on ${
+                !baseArm ? FULL_DETAIL_BASELINE : candLabel
+              } — paired cells not computable; matrix key retained (never reshaped)`,
+              contentParityCaveat: FULL_DETAIL_CONTENT_PARITY_CAVEAT,
+            };
+            continue;
+          }
+          const cell: TransferCell = {
+            extent: extentCell(baseArm.sliceB, candArm.sliceB),
+            paths: pathsCell(baseArm.paths.rows, candArm.paths.rows),
+          };
+          const again: TransferCell = {
+            extent: extentCell(baseArm.sliceB, candArm.sliceB),
+            paths: pathsCell(baseArm.paths.rows, candArm.paths.rows),
+          };
+          if (JSON.stringify(cell) !== JSON.stringify(again)) {
+            softFailures.push(
+              `${preset}/fullDetail/${pairKey}: cell recompute NOT deterministic`,
+            );
+          }
+          cells[pairKey] = {
+            status: "OK",
+            contentParityCaveat: FULL_DETAIL_CONTENT_PARITY_CAVEAT,
+            extent: cell.extent,
+            paths: cell.paths,
+            sliceClassificationAsymmetry: sliceAsymmetryDiagnostic(
+              baseArm,
+              candArm,
+            ),
+          };
+        }
+        fullDetailBlock[presetLabel] = {
+          preset,
+          arms: armReports,
+          cells,
+        };
+      }
+      report.fullDetailBlock = fullDetailBlock;
 
       // ── write report ──────────────────────────────────────────────────────
       const json = JSON.stringify({ ...report, softFailures }, null, 2);
