@@ -168,6 +168,13 @@ export const TerraformStrataSettings = ({
               )}
             </div>
           </div>
+          {strataRankSeparate && strataPackedScoring && (
+            <div className="TerraformImportModal__controlNote">
+              Measured to conflict (W8): rank separation rebuilds the column
+              grid and packed edge scoring then optimizes global crossings at
+              the expense of pair locality. Prefer one or the other.
+            </div>
+          )}
           {/* Future: OD-15 "de-band" toggle lands here as an additional
               role="group" block in this same grid. */}
         </div>

@@ -1171,4 +1171,52 @@ describe("TerraformImportModal", () => {
       expect.objectContaining({ strataRankSeparate: false }),
     );
   });
+
+  it("Strata view: no W8 conflict note when only one of Compact height / Packed edge scoring is on", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+  });
+
+  it("Strata view: shows W8 conflict note when Compact height AND Packed edge scoring are both on", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    const packedScoring = screen.getByRole("group", {
+      name: /strata packed edge scoring/i,
+    });
+
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+
+    fireEvent.click(
+      within(packedScoring).getByRole("button", { name: /^on$/i }),
+    );
+    expect(
+      screen.getByText(/measured to conflict \(w8\)/i),
+    ).toBeInTheDocument();
+
+    // Turning either back off clears the note.
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^off$/i }),
+    );
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+  });
 });
