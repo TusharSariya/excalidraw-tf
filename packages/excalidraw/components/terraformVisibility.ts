@@ -83,7 +83,10 @@ const getCustomData = (element: ExcalidrawElement) => element.customData ?? {};
  * foreign endpoint lands far further out. Sized well above the pad and well
  * below any genuine re-anchor displacement (the stale-arrow repro moves 200 px).
  */
-const ROUTED_ANCHOR_TOLERANCE = 100;
+// Legit routed endpoints attach ~38.5px off their card (W9, 322 edges);
+// 48 gives ~10px slack above that while capping retained stale geometry far
+// below any real re-anchor (codex probe: 100px retained a visibly stale route).
+const ROUTED_ANCHOR_TOLERANCE = 48;
 
 /** Chebyshev distance a point lies OUTSIDE an axis-aligned rect (0 if inside/on). */
 const chebyshevDistanceOutsideRect = (
@@ -1113,9 +1116,9 @@ export const repairTerraformEdgeBindings = (
     // centre-clipped chord anchors does NOT work: the router's card-attach
     // convention differs from that clip by the same ~38.5 px on every legit
     // arrow, which would flatten all of them.)
-    const hasRoutedMarker =
-      getCustomData(element).terraformRoutedPolyline === true &&
-      element.points.length > 2;
+    const hasRoutedFlag =
+      getCustomData(element).terraformRoutedPolyline === true;
+    const hasRoutedMarker = hasRoutedFlag && element.points.length > 2;
     const firstPoint = element.points[0]!;
     const lastPoint = element.points[element.points.length - 1]!;
     const routedEndpointsOnCards =
@@ -1137,7 +1140,9 @@ export const repairTerraformEdgeBindings = (
         hB,
       ) <= ROUTED_ANCHOR_TOLERANCE;
     const isRoutedPolyline = hasRoutedMarker && routedEndpointsOnCards;
-    const stripStaleMarker = hasRoutedMarker && !routedEndpointsOnCards;
+    // Strip the flag from any arrow we flatten — including a marked 2-point
+    // arrow (no route to preserve), else the stale flag could resurrect later.
+    const stripStaleMarker = hasRoutedFlag && !(hasRoutedMarker && routedEndpointsOnCards);
 
     const patch = {
       ...(isRoutedPolyline
@@ -1173,7 +1178,9 @@ export const repairTerraformEdgeBindings = (
       },
     };
 
-    if (arrowGeometryEqual(element, patch)) {
+    // Never short-circuit past a pending marker strip: a marked 2-point arrow
+    // whose flattened geometry already matches would otherwise keep the flag.
+    if (!stripStaleMarker && arrowGeometryEqual(element, patch)) {
       return element;
     }
 

@@ -54,7 +54,7 @@ Q9_REPORT_DIR=<dir> yarn vitest run \
 
 All arms: collisions 0, `rcllV2Degraded` absent, TFD arrow population 145 (P1) / 69 (P2). Unrouted arms carry zero bends and no routing meta (flag-off inertness at the arm level).
 
-> **Regenerated 2026-07-13** after the R-F1 acceptance-test fix (`segmentIntersectsStrataBoxInterior` rewritten as an exact Liang–Barsky open-interior test — the old proper-side-crossing test spuriously rejected clean corner/boundary detours). The corrected acceptance routes **3 more edges per arm** (routed 72/65/41/40 → 75/68/44/43; unroutable 10/19/8/12 → 7/16/5/9), lowering routed-arm penetrations (P2 P_R best: 36→24) at a small crossings/rt̂ cost. Unrouted arms (I, P), the owner case, and all extent cells are byte-identical. Build-ms are the pre-fix wall-clock (hardware-dependent noise, not refreshed).
+> **Regenerated 2026-07-13** after the R-F1 acceptance-test fix (`segmentIntersectsStrataBoxInterior` rewritten as an exact Liang–Barsky open-interior test — the old proper-side-crossing test was blind to corner/boundary-through interior passes (false negatives — a 83,521-case grid vs a BigInt oracle found 1,196 old misclassifications, incl. 972 non-corner boundary-to-boundary crossings), so the router both accepted some dirty detours and, downstream of differing blocker detection, settled on different fallbacks). The corrected acceptance routes **3 more edges per arm** (routed 72/65/41/40 → 75/68/44/43; unroutable 10/19/8/12 → 7/16/5/9), lowering routed-arm penetrations (P2 P_R best: 36→24) at a small crossings/rt̂ cost. Unrouted arms (I, P), the owner case, and all extent cells are byte-identical. Build-ms are the pre-fix wall-clock (hardware-dependent noise, not refreshed).
 
 ## KEY GATE CELL (report-only — no PASS minted)
 

@@ -302,7 +302,11 @@ export function segmentIntersectsStrataBoxInterior(
       }
       continue;
     }
-    // r = qk / pk, normalised to a positive denominator.
+    // r = qk / pk, normalised to a positive denominator. Cross-multiplied
+    // comparisons are exact only while products stay within Number's 2^53
+    // integer range — safe for engine coordinates (|doubled coords| << 2^26),
+    // NOT for arbitrary inputs (a ±1e8 segment can misclassify; BigInt oracle
+    // verified 83,521-case agreement inside engine bounds — codex re-review).
     let rn = qk;
     let rd = pk;
     if (rd < 0) {

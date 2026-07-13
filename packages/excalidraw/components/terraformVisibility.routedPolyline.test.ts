@@ -184,6 +184,33 @@ describe("repairTerraformEdgeBindings — routed polyline validate-before-trust"
     expect(out.endBinding?.elementId).toBe("r-b");
   });
 
+  it("strips the flag from a marked 2-point arrow even when geometry already matches", () => {
+    const rectA = resourceRect("r-a", A, 0, 0);
+    const rectB = resourceRect("r-b", B, 400, 300);
+    // Derive the exact repaired chord, then re-tag it with the routed flag but
+    // only 2 points — the resurrection hazard: geometry is already correct, so
+    // a geometry-equality short-circuit must not skip the marker strip.
+    const straight = repairEdge([rectA, rectB, depEdge("routed", A, B)], "routed");
+    const marked = depEdge("routed", A, B, {
+      x: straight.x,
+      y: straight.y,
+      width: straight.width,
+      height: straight.height,
+      points: straight.points,
+      startBinding: straight.startBinding,
+      endBinding: straight.endBinding,
+      customData: {
+        terraformEdgeLayer: "dependency",
+        relationship: { source: A, target: B },
+        terraformRoutedPolyline: true,
+      },
+    } as unknown as Partial<ExcalidrawElement>);
+
+    const out = repairEdge([rectA, rectB, marked], "routed");
+    expect(out.points.length).toBe(2);
+    expect(out.customData?.terraformRoutedPolyline).toBeUndefined();
+  });
+
   it("flattens + strips a foreign arrow carrying the flag with garbage points", () => {
     const rectA = resourceRect("r-a", A, 0, 0);
     const rectB = resourceRect("r-b", B, 400, 300);
