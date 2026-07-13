@@ -40,9 +40,21 @@
  *      adds only the .md reports), so the anchor cross-checks this battery's
  *      own deterministic P1/P2 fields against the numbers RECORDED in
  *      docs/strata-view-w11-task-tracing.md (mismatch precision 0.464/0.483,
- *      recall 0.682/0.739; directed 1.0/1.0; anchors 50/36; rt̂ p50/p90 per
- *      arm; P1 paired rt̂ p50 CI [-0.48, -0.05]). Any anchor mismatch fails
- *      the battery loudly; P3 cells are not read until the anchor is green.
+ *      recall 0.682/0.739; directed 1.0/1.0; anchors 50/36 — requested,
+ *      mappable AND zero unmappable; rt̂ p50/p90 per arm; P1 paired rt̂ p50 CI
+ *      [-0.48, -0.05]). Any anchor mismatch fails the battery loudly; the
+ *      orchestrator is ORDERED so P3 is not even BUILT until the anchor is
+ *      green (codex W12 diff-review F3/F4).
+ *
+ * Codex W12 diff-review semantics (F1/F2, folded 2026-07-13):
+ *   - F1: a churn cell with |U| < N_min records the shortfall IN THE CELL and
+ *     flows to the pre-registered block-level VOID (record §5) — it is NOT a
+ *     harness hard-failure. Hard failures are reserved for genuine harness
+ *     breakage (empty scenes, non-deterministic recompute, anchor mismatch).
+ *   - F2: a P3 layout THROW (base or mutated build) is captured and stamped
+ *     into the report per the pre-registered degradation clause (§5 ⇒
+ *     FAILED-TRANSFER) and the report is STILL written. P1/P2 layout throws
+ *     remain hard failures (in-sample harness breakage).
  *
  * fullDetailBlock is a null placeholder — WP3 fills it in THIS report
  * (additive; same file, same JSON).
@@ -1165,13 +1177,20 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
       };
 
       // ── build all arms once per preset + per-preset fragments ─────────────
+      // F3 (codex diff-review): ORDERED orchestration — processPreset (the
+      // former loop body) runs for P1/P2 first, the sanity anchor is
+      // hard-asserted, and ONLY THEN is P3 built/evaluated and the report
+      // written. No P3 computation happens before a green anchor.
       const armsByPreset = new Map<PresetLabel, Map<string, ArmData>>();
       const transferCellsByPreset = new Map<
         PresetLabel,
         Record<string, TransferCell>
       >();
+      /** F2: P3 layout throws — reported findings (record §5 degradation
+       * clause ⇒ FAILED-TRANSFER), never aborts the report write. */
+      const p3LayoutThrows: Array<{ stage: string; error: string }> = [];
 
-      for (const presetLabel of PRESET_LABELS) {
+      const processPreset = async (presetLabel: PresetLabel): Promise<void> => {
         const preset = PRESETS[presetLabel];
         const raw = getTerraformImportPresetSourcesFromDb(preset);
         expect(raw, `preset ${preset} exists`).toBeTruthy();
@@ -1182,7 +1201,33 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
         const arms = new Map<string, ArmData>();
         const armReports: Record<string, unknown> = {};
         for (const armLabel of ARM_LABELS) {
-          const arm = await buildArm(sources, ARM_OPTIONS[armLabel]!);
+          let arm: ArmData;
+          try {
+            arm = await buildArm(sources, ARM_OPTIONS[armLabel]!);
+          } catch (err) {
+            if (presetLabel !== "P3") {
+              // In-sample layout throw = harness breakage: stays HARD (F2).
+              throw err;
+            }
+            // F2: a P3 layout throw is a REPORTED W12 finding (pre-registered
+            // record §5 degradation clause ⇒ FAILED-TRANSFER), stamped into
+            // the report — which is still written. Remaining P3 cells cannot
+            // be computed without base arms, so P3 processing stops here.
+            const error = String(err instanceof Error ? err.message : err);
+            p3LayoutThrows.push({ stage: `base/${armLabel}`, error });
+            report[presetLabel] = {
+              preset,
+              layoutFailure: {
+                stage: `base/${armLabel}`,
+                options: ARM_OPTIONS[armLabel],
+                error,
+              },
+              note:
+                "P3 base-layout THROW — reported per the pre-registered degradation clause " +
+                "(record §5 ⇒ FAILED-TRANSFER), never patched/retuned; remaining P3 cells NOT computed",
+            };
+            return;
+          }
           arms.set(armLabel, arm);
           armReports[armLabel] = {
             options: ARM_OPTIONS[armLabel],
@@ -1329,12 +1374,35 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
               };
               continue;
             }
-            const mutated = await buildArmFrom(
-              mutation.planDotBundles,
-              mutation.tfdTexts,
-              sources.tfdLabels,
-              ARM_OPTIONS[armLabel]!,
-            );
+            let mutated: ArmData;
+            try {
+              mutated = await buildArmFrom(
+                mutation.planDotBundles,
+                mutation.tfdTexts,
+                sources.tfdLabels,
+                ARM_OPTIONS[armLabel]!,
+              );
+            } catch (err) {
+              if (presetLabel !== "P3") {
+                // In-sample layout throw = harness breakage: stays HARD (F2).
+                throw err;
+              }
+              // F2: P3 mutated-layout throw — stamped in the cell + report
+              // still written (record §5 degradation clause).
+              const error = String(err instanceof Error ? err.message : err);
+              p3LayoutThrows.push({
+                stage: `churn/${armLabel}/${mutLabel}`,
+                error,
+              });
+              armCell[mutLabel] = {
+                status: "LAYOUT-THROW",
+                error,
+                note:
+                  "P3 mutated-layout THROW — reported per the pre-registered degradation " +
+                  "clause (record §5 ⇒ FAILED-TRANSFER), never patched/retuned",
+              };
+              continue;
+            }
             if (mutated.elements.length === 0) {
               softFailures.push(
                 `${preset}/${armLabel}/${mutLabel}: mutated scene EMPTY`,
@@ -1405,14 +1473,23 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
               mutated.elements,
               renames ? { renames, nMin: N_MIN } : { nMin: N_MIN },
             );
-            if (STRATA_ARMS.has(armLabel) && !metrics.U.gatable) {
-              softFailures.push(
-                `${preset}/${armLabel}/${mutLabel}: U.size=${metrics.U.size} < nMin=${metrics.U.nMin} ` +
-                  `(BELOW FROZEN N_MIN — flagged prominently, never loosened)`,
-              );
-            }
+            // F1 (codex diff-review): a churn cell below the frozen N_min is
+            // NOT a harness failure — the shortfall is recorded IN THE CELL
+            // (flagged prominently, never loosened) and flows to the
+            // pre-registered block-level VOID via the uGatable clause below
+            // (record §5: a deciding churn cell with |U| < N_min voids the
+            // block). Hard failures stay reserved for harness breakage.
             armCell[mutLabel] = {
               status: "OK",
+              ...(!metrics.U.gatable
+                ? {
+                    belowFrozenNMin:
+                      `U.size=${metrics.U.size} < nMin=${metrics.U.nMin} — frozen v3.1 §12 ` +
+                      "precondition unmet; recorded in-cell and classified via the " +
+                      "pre-registered block-level VOID (record §5), never loosened, " +
+                      "never a harness hard-failure (F1)",
+                  }
+                : {}),
               mutationNote: mutation.note,
               uSize: metrics.U.size,
               uGatable: metrics.U.gatable,
@@ -1491,9 +1568,16 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
           ),
           tracing,
         };
+      };
+
+      // In-sample presets FIRST — any throw here is harness breakage (hard).
+      for (const presetLabel of ["P1", "P2"] as const) {
+        await processPreset(presetLabel);
       }
 
-      // ── SANITY ANCHOR (P1/P2 vs W11-doc recorded numbers) ────────────────
+      // ── SANITY ANCHOR (P1/P2 vs W11-doc recorded numbers) — asserted
+      // BEFORE any P3 computation (F3) ──────────────────────────────────────
+      const anchorFailures: string[] = [];
       for (const presetLabel of ["P1", "P2"] as const) {
         const anchor = W11_DOC_ANCHORS[presetLabel];
         const preset = PRESETS[presetLabel];
@@ -1508,11 +1592,39 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
         const mismatch = fragment.tracing.taskMismatchShippedDefault;
 
         const fail = (msg: string) =>
-          softFailures.push(`${preset}: SANITY ANCHOR FAILED — ${msg}`);
+          anchorFailures.push(`${preset}: SANITY ANCHOR FAILED — ${msg}`);
 
         if (directed.anchorsMappable !== anchor.anchorsMappable) {
           fail(
             `anchorsMappable ${directed.anchorsMappable} != ${anchor.anchorsMappable}`,
+          );
+        }
+        // F4: the doc's "50/50 / 36/36" claim means requested == mappable with
+        // ZERO unmappable anchors — a 51-requested/50-mappable population must
+        // not pass. Assert the requested count and the empty unmappable list
+        // on BOTH tracing cells (they share the anchor population).
+        if (directed.anchorsRequested !== anchor.anchorsMappable) {
+          fail(
+            `anchorsRequested ${directed.anchorsRequested} != ${anchor.anchorsMappable}`,
+          );
+        }
+        if (directed.unmappableAnchors.length !== 0) {
+          fail(
+            `unmappableAnchors not empty: ${JSON.stringify(
+              directed.unmappableAnchors,
+            )}`,
+          );
+        }
+        if (
+          mismatch.anchorsRequested !== anchor.anchorsMappable ||
+          mismatch.anchorsMappable !== anchor.anchorsMappable ||
+          mismatch.unmappableAnchors.length !== 0
+        ) {
+          fail(
+            `mismatch-cell anchor population requested=${mismatch.anchorsRequested} ` +
+              `mappable=${mismatch.anchorsMappable} unmappable=${JSON.stringify(
+                mismatch.unmappableAnchors,
+              )} != ${anchor.anchorsMappable}/${anchor.anchorsMappable}/[]`,
           );
         }
         if (
@@ -1564,7 +1676,7 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
           round2(ci.lo) !== W11_P1_PAIRED_RTHAT_P50.lo ||
           round2(ci.hi) !== W11_P1_PAIRED_RTHAT_P50.hi
         ) {
-          softFailures.push(
+          anchorFailures.push(
             `${PRESETS.P1}: SANITY ANCHOR FAILED — paired rtHat p50 CI ` +
               `[${round2(ci.lo)}, ${round2(ci.hi)}] != [${
                 W11_P1_PAIRED_RTHAT_P50.lo
@@ -1572,25 +1684,51 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
           );
         }
       }
-      const anchorGreen = !softFailures.some((f) =>
-        f.includes("SANITY ANCHOR FAILED"),
-      );
+      const anchorGreen = anchorFailures.length === 0;
       report.sanityAnchor = {
         source: "docs/strata-view-w11-task-tracing.md (see meta)",
         anchors: W11_DOC_ANCHORS,
         pairedRtHatP50P1: W11_P1_PAIRED_RTHAT_P50,
         green: anchorGreen,
       };
+      // Pre-registered §7 + F3: an anchor mismatch fails the battery LOUDLY,
+      // and P3 is never built/read under a red anchor (in-sample harness
+      // health, so no report is written either).
+      expect(
+        anchorFailures,
+        `SANITY ANCHOR failures (P3 NOT built):\n${anchorFailures.join("\n")}`,
+      ).toEqual([]);
+
+      // ── P3 (out-of-tuning-distribution) — built only under a green anchor.
+      // A P3 layout throw inside is captured (F2) and the report still
+      // written; any other P3 throw stays hard (harness breakage).
+      await processPreset("P3");
 
       // ── transfer assessment (mechanical application of the record §5/§6) ──
       const headlineVerdicts: Record<string, unknown> = {};
       let anyFailedTransfer = false;
       let anyVoidCell = false;
       let allSupport = true;
+      const p3TransferCells = transferCellsByPreset.get("P3");
       for (const [baseLabel, candLabel] of CELL_PAIRS) {
         const pairKey = `${baseLabel}__vs__${candLabel}`;
         const perStat: Record<string, unknown> = {};
         for (const stat of HEADLINE_STATS) {
+          if (!p3TransferCells) {
+            // F2: P3 base-layout throw — headline cells not computable; the
+            // block verdict is FAILED-TRANSFER via the degradation clause.
+            allSupport = false;
+            perStat[stat.key] = {
+              classes: {
+                P1: stat.pick(transferCellsByPreset.get("P1")![pairKey]!).class,
+                P2: stat.pick(transferCellsByPreset.get("P2")![pairKey]!).class,
+                P3: "NOT-EVALUATED",
+              },
+              verdict:
+                "NOT-EVALUATED — P3 layout throw (record §5 degradation clause)",
+            };
+            continue;
+          }
           const cls = Object.fromEntries(
             PRESET_LABELS.map((p) => [
               p,
@@ -1612,12 +1750,17 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
         headlineVerdicts[pairKey] = perStat;
       }
       // Churn/structural clauses for the block verdict (P3 strata arms).
-      const p3Churn = (report.P3 as { churn: Record<string, unknown> }).churn;
+      const p3Churn = (report.P3 as { churn?: Record<string, unknown> }).churn;
       let p3ChurnAllWithin = true;
       let p3ChurnThresholdExceeded = false;
       let p3ChurnIncompleteOrShort = false;
-      for (const armLabel of STRATA_ARMS) {
-        const armCell = p3Churn[armLabel] as Record<
+      if (!p3Churn) {
+        // P3 base-layout throw — churn cells not computable.
+        p3ChurnAllWithin = false;
+        p3ChurnIncompleteOrShort = true;
+      }
+      for (const armLabel of p3Churn ? STRATA_ARMS : []) {
+        const armCell = p3Churn![armLabel] as Record<
           string,
           {
             status: string;
@@ -1646,7 +1789,10 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
           (f.includes("R2 structural nonzero") || f.includes("rcllV2Degraded")),
       );
       const blockVerdict =
-        anyFailedTransfer || p3ChurnThresholdExceeded || !p3StructuralClean
+        anyFailedTransfer ||
+        p3ChurnThresholdExceeded ||
+        !p3StructuralClean ||
+        p3LayoutThrows.length > 0
           ? "FAILED-TRANSFER"
           : anyVoidCell || p3ChurnIncompleteOrShort
           ? "VOID"
@@ -1664,6 +1810,9 @@ describe("W12 held-out transfer battery (report-emitting; REPORT-only cells; nev
           incompleteOrBelowNMin: p3ChurnIncompleteOrShort,
         },
         p3StructuralClean,
+        // F2: P3 layout throws (base or mutated) — each is a reported W12
+        // finding feeding the FAILED-TRANSFER degradation clause.
+        p3LayoutThrows,
         blockVerdict,
       };
 
