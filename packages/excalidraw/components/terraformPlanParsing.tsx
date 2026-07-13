@@ -727,10 +727,15 @@ export function resolveTerraformPlanNodeKey(
 
   // W14 WP2: falling through to the O(N) scan path — record why (no scope vs.
   // scope present but ref-mismatch) for the fallback-scan observability counter.
-  if (activePlanNodeKeyIndex !== null) {
-    planNodeKeyScopeRefMismatch += 1;
-  } else {
-    planNodeKeyScanWithoutScope += 1;
+  // W14 F6: gate the increments behind `import.meta.env.DEV` so production builds
+  // pay nothing (the only consumers are dev tests + the WP4 dev-build trace, both
+  // of which run with DEV=true; prod skips the writes entirely).
+  if (import.meta.env.DEV) {
+    if (activePlanNodeKeyIndex !== null) {
+      planNodeKeyScopeRefMismatch += 1;
+    } else {
+      planNodeKeyScanWithoutScope += 1;
+    }
   }
 
   const parsed = parseStackAddress(address);

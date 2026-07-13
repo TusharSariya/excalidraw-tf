@@ -1,7 +1,10 @@
 import graphlibDot from "@dagrejs/graphlib-dot";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
+import {
+  getTerraformImportPresetSourcesFromDb,
+  loadImportPresetsCatalog,
+} from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
 
 import {
   STAGING_DB_LOAD_TEST_TIMEOUT_MS,
@@ -521,6 +524,46 @@ function assertIndexedEqualsScan(nodes: TerraformPlanNodesMap): number {
 }
 
 describe("W14 WP1 - preset node-map indexed path ≡ linear scan", () => {
+  // W14 F3 — the §3 obligation is "across all committed presets' node maps (not
+  // just P1)". Enumerate EVERY entry in import-presets.catalog.json (not a
+  // hard-coded name list) and run the indexed-vs-scan differential over each
+  // preset's real merged, tfd-overlaid node map. Key-resolution differential
+  // only (prep-cache parse, no layout builds) to keep runtime sane. A catalog
+  // preset that fails to load is a loud failure, never a silent skip.
+  describe("all committed catalog presets: indexed path ≡ linear scan", () => {
+    const catalogPresetIds = loadImportPresetsCatalog().map(
+      (preset: { id: string }) => preset.id,
+    );
+
+    it("the catalog is non-empty (guard against a silently-empty enumeration)", () => {
+      expect(catalogPresetIds.length).toBeGreaterThan(0);
+    });
+
+    for (const presetId of catalogPresetIds) {
+      it(
+        `${presetId}: every probe resolves identically with and without an active index scope`,
+        () => {
+          const raw = getTerraformImportPresetSourcesFromDb(presetId);
+          // Loud fail: a catalog preset must be resolvable via the committed DB.
+          expect(
+            raw,
+            `catalog preset "${presetId}" must be resolvable via the committed preset DB`,
+          ).toBeTruthy();
+
+          const nodes = loadPresetNodesForW14(presetId);
+          const keys = w14RealNodeKeys(nodes);
+          expect(
+            keys.length,
+            `preset "${presetId}" parsed to an empty node map`,
+          ).toBeGreaterThan(0);
+          const probeCount = assertIndexedEqualsScan(nodes);
+          expect(probeCount).toBeGreaterThan(keys.length);
+        },
+        STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+      );
+    }
+  });
+
   it(
     "P1 (staging-extended-localstack-v2): every probe resolves identically with and without an active index scope",
     () => {

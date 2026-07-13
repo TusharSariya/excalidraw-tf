@@ -11,10 +11,13 @@ import {
   layoutTerraformViaWorkers,
   setTerraformLayoutWorkersEnabledForTests,
 } from "./terraformLayoutWorkerClient";
+import { runTerraformLayoutWorkerRequest } from "./terraform-layout-worker.chunk";
 import {
   buildTerraformLayoutSnapshot,
   type TerraformLayoutSnapshot,
 } from "./terraformLayoutSnapshot";
+
+import type { TerraformLayoutWorkerJob } from "./terraformLayoutWorkerTypes";
 import {
   stagingMultiStateLayoutSources,
   stagingMultiStatePipelineLayoutSources,
@@ -194,11 +197,111 @@ describe("terraform layout worker parity", () => {
             workerScene as Parameters<typeof buildTerraformLayoutSnapshot>[0],
           );
 
+          // W14 F2(a): raw, un-normalized element-count parity. The snapshot
+          // above normalizes coords/refs (element ids/nonces are randomized per
+          // build, so a raw deep-equal of the full scene is infeasible — the
+          // snapshot IS the correct equivalence vehicle). This extra assertion
+          // guards the one thing normalization could mask: an element silently
+          // dropped or added on the worker path.
+          const coreElements =
+            (coreResult.scene as { elements?: unknown[] }).elements ?? [];
+          const workerElements =
+            (workerScene as { elements?: unknown[] }).elements ?? [];
+          expect(workerElements.length).toBeGreaterThan(0);
+          expect(workerElements.length).toBe(coreElements.length);
+
           expect(workerSnap).toEqual(coreSnap);
         },
         STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS,
       );
     }
+
+    // W14 F2(b): exercise the ACTUAL worker-side dispatch + success response
+    // channel. jsdom defines `window`, so the chunk's `self.onmessage` guard
+    // never installs the handler in vitest; `runTerraformLayoutWorkerRequest` is
+    // the extracted, importable body of that handler. This covers the response
+    // envelope the failing-worker fallback path (which only reaches
+    // `runJobOnMainThread`) never touches.
+    it(
+      "worker-side handler dispatches a pipelineFull request and returns an ok success envelope matching the sequential build",
+      async () => {
+        const sources = stagingLocalstackPipelineSources();
+        const options: TerraformLayoutOptions = {
+          semanticLayout: false,
+          layoutMode: "strata",
+          strataSweeps: 4,
+          strataCoordinateRefine: true,
+        };
+
+        const response = await runTerraformLayoutWorkerRequest({
+          id: 4242,
+          job: { type: "pipelineFull", sources, options },
+        });
+
+        expect(response.id).toBe(4242);
+        expect(response.ok).toBe(true);
+        if (!response.ok) {
+          throw new Error(`worker response not ok: ${response.error}`);
+        }
+        expect(response.result.type).toBe("pipelineFull");
+        const jobResult = response.result;
+        if (jobResult.type !== "pipelineFull") {
+          throw new Error("unexpected worker result type");
+        }
+        expect(jobResult.result.ok).toBe(true);
+        if (!jobResult.result.ok) {
+          throw new Error("worker layout failed");
+        }
+
+        const coreResult = await layoutTerraformFromSources(sources, options);
+        expect(coreResult.ok).toBe(true);
+        if (!coreResult.ok) {
+          throw new Error("core layout failed");
+        }
+        const workerSnap = buildTerraformLayoutSnapshot(
+          jobResult.result.scene as Parameters<
+            typeof buildTerraformLayoutSnapshot
+          >[0],
+        );
+        const coreSnap = buildTerraformLayoutSnapshot(
+          coreResult.scene as Parameters<
+            typeof buildTerraformLayoutSnapshot
+          >[0],
+        );
+        expect(workerSnap).toEqual(coreSnap);
+      },
+      STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS,
+    );
+
+    // W14 F2(c): the pipelineFull job crosses the main-thread/worker boundary via
+    // postMessage, which uses the structured-clone algorithm. Prove the job for
+    // the real P2 sources/options is clone-safe (never throws DataCloneError) and
+    // survives the round-trip structurally — the boundary cost the worker offload
+    // introduces, asserted directly rather than assumed.
+    it("pipelineFull job for the P2 sources/options is structured-clone safe", () => {
+      const sources = stagingLocalstackPipelineSources();
+      const options: TerraformLayoutOptions = {
+        semanticLayout: false,
+        layoutMode: "strata",
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      };
+      const job: TerraformLayoutWorkerJob = {
+        type: "pipelineFull",
+        sources,
+        options,
+      };
+
+      const clone = structuredClone(job);
+      expect(clone.type).toBe("pipelineFull");
+      if (clone.type !== "pipelineFull") {
+        throw new Error("clone changed job type");
+      }
+      expect(clone.sources.planDotBundles.length).toBe(
+        sources.planDotBundles.length,
+      );
+      expect(clone.options).toEqual(options);
+    });
 
     it("worker-path layout failure surfaces as a thrown Error", async () => {
       // Empty sources ⇒ layoutTerraformFromSources returns { ok:false }, which
