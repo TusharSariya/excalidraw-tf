@@ -229,6 +229,15 @@ type RefBlock = {
 type RefHull = {
   hull: StrataHullNode;
   policy: "banded" | "packed";
+  /**
+   * W10 Stage 2: the policy A7's CONSTRAINTS follow. Equals `policy` unless
+   * `bandCompact` is live, where a banded NON-ROOT hull resolves to "packed"
+   * so both `blocksConstrain` (geometric x-overlap, not all-pairs) and
+   * `minGap` (leaf-leaf CLUSTER, not LANE) mirror the A0 skyline it was
+   * placed with — fixing only blocksConstrain would let seedCompact
+   * re-inflate leaf-leaf gaps from CLUSTER back to LANE (gap parity).
+   */
+  constraintPolicy: "banded" | "packed";
   topInset: number;
   boxXLeft: number;
   boxWidth: number;
@@ -266,12 +275,20 @@ function blocksConstrain(
 function buildRefHull(
   hull: StrataHullNode,
   placement: StrataPlacementResult,
+  bandCompact: boolean,
 ): RefHull {
   const bh = placement.boxedHulls.get(hull.id);
   if (bh === undefined) {
     throw new Error(`Strata A7: hull "${hull.id}" is missing from placement`);
   }
   const policy = hull.policy;
+  // W10 Stage 2 resolution — mirrors the A0 branch exactly: skyline-placed
+  // hulls get skyline constraints. Identity when the option is absent
+  // (constraintPolicy === policy ⇒ flag-off behavior byte-identical).
+  const constraintPolicy: "banded" | "packed" =
+    policy === "packed" || (bandCompact && hull.role !== "root")
+      ? "packed"
+      : "banded";
   const topInset = framePad() + (hull.role === "root" ? 0 : titleReserve());
   const blocks: RefBlock[] = bh.placed.map((pu) => ({
     kind: pu.unit.kind,
@@ -287,11 +304,12 @@ function buildRefHull(
   }));
   const childById = new Map<string, RefHull>();
   for (const child of hull.children) {
-    childById.set(child.id, buildRefHull(child, placement));
+    childById.set(child.id, buildRefHull(child, placement, bandCompact));
   }
   return {
     hull,
     policy,
+    constraintPolicy,
     topInset,
     boxXLeft: bh.box.x,
     boxWidth: bh.box.width,
@@ -364,12 +382,12 @@ function seedCompact(rh: RefHull): void {
     let floor = rh.topInset;
     for (let j = 0; j < i; j++) {
       const bj = ordered[j]!;
-      if (blocksConstrain(rh.policy, bi, bj)) {
+      if (blocksConstrain(rh.constraintPolicy, bi, bj)) {
         floor = Math.max(
           floor,
           bj.top +
             bj.height +
-            minGap(rh.policy, bj.kind === "hull", bi.kind === "hull"),
+            minGap(rh.constraintPolicy, bj.kind === "hull", bi.kind === "hull"),
         );
       }
     }
@@ -450,7 +468,7 @@ function sweepHull(
       gaps.push(
         movable[i]!.height +
           minGap(
-            rh.policy,
+            rh.constraintPolicy,
             movable[i]!.kind === "hull",
             movable[i + 1]!.kind === "hull",
           ),
@@ -461,10 +479,14 @@ function sweepHull(
     for (let i = 0; i < movable.length; i++) {
       const m = movable[i]!;
       for (const f of fixed) {
-        if (!blocksConstrain(rh.policy, m, f)) {
+        if (!blocksConstrain(rh.constraintPolicy, m, f)) {
           continue;
         }
-        const gap = minGap(rh.policy, m.kind === "hull", f.kind === "hull");
+        const gap = minGap(
+          rh.constraintPolicy,
+          m.kind === "hull",
+          f.kind === "hull",
+        );
         // Preserve the current relative order against the fixed block (ties
         // broken by the content comparator for determinism).
         const mAbove =
@@ -639,8 +661,19 @@ export function refineStrataCoordinates(
   placement: StrataPlacementResult,
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
+  /**
+   * W10 Stage 2 (trailing optional — existing callers unaffected):
+   * `bandCompact` must match the A0 placement's option so constraint
+   * resolution mirrors how the geometry was actually placed. Absent ⇒
+   * constraintPolicy === policy ⇒ behavior byte-identical to pre-W10.
+   */
+  opts?: { bandCompact?: boolean },
 ): StrataPlacementResult {
-  const root = buildRefHull(model.hullRoot, placement);
+  const root = buildRefHull(
+    model.hullRoot,
+    placement,
+    opts?.bandCompact === true,
+  );
   const chordsByHull = buildChordsByHull(model.hullRoot, edgesPrime);
 
   refineHull(root, chordsByHull);

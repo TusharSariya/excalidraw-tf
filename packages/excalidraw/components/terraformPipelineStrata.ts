@@ -76,6 +76,22 @@ export type TerraformStrataSceneOptions = {
    */
   strataPackedFrontierMeta?: boolean;
   /**
+   * W10 Stage 2 (SDEC-62/OD-15 re-scoped, default off): order-constrained
+   * row-share at the banded provider/account levels. A0 places banded
+   * NON-ROOT hulls' children with the packed dropY skyline over ACTUAL
+   * x-extents in canonical A2 order (gap semantics verbatim, owner D1:
+   * hull-adjacent = LANE, leaf-leaf = CLUSTER — leaf-bearing banded hulls
+   * therefore change under this flag even without row-share); root stays a
+   * full-width stack (v3.1 §1.4). A7's overlap constraint + min-gap follow
+   * the same resolution. Meta: `strataBandCompactRequested` (option echo,
+   * rides the fallback too), `strataBandCompactAppliedHullCount` (success
+   * path only, snapshotted from the A0 result BEFORE A7 — A7 rebuilds the
+   * placement object and the diagnostic does not survive it) and
+   * `strataBandCompactReclaimedPx` (pre-A7 diagnostic, only when > 0).
+   * Primarily effective with `strataRankSeparate`.
+   */
+  strataBandCompact?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -174,6 +190,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataPackedFrontierMeta = options?.strataPackedFrontierMeta === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
+  // W10 Stage 2 (OD-15 re-scoped): banded row-share lever, default off.
+  const strataBandCompact = options?.strataBandCompact === true;
 
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
@@ -189,6 +207,10 @@ export async function buildTerraformStrataExcalidrawScene(
       ? { strataPackedScoringEpsilon }
       : {}),
     ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
+    // W10 Stage 2 honest meta (codex#6): a REQUESTED echo only — it rides the
+    // v2-fallback path too (like the packedScoring echo above) but never
+    // claims application; AppliedHullCount/ReclaimedPx are success-path only.
+    ...(strataBandCompact ? { strataBandCompactRequested: true } : {}),
     strataSweeps,
     strataCoordinateRefine,
     strataGeneration,
@@ -217,6 +239,9 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataPackedScoring && strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
       : {}),
+    // W10 Stage 2: truthy spread only — this literal must NEVER emit
+    // `bandCompact: false` (flag-off engine options stay byte-identical).
+    ...(strataBandCompact ? { bandCompact: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -297,6 +322,15 @@ export async function buildTerraformStrataExcalidrawScene(
       throw err;
     }
 
+    // W10 Stage 2 diagnostic snapshot (eng-review delta 2 / codex#3): A7
+    // rebuilds the placement object from {boxedHulls, leafBoxes} at re-anchor,
+    // so the A0 band-compact diagnostic does NOT survive it — snapshot BEFORE
+    // the A7 stage and echo the snapshot, never the post-A7 object. On the
+    // packed-scoring path the chosen placement was still built by
+    // placeStrataHulls internally, so the fields are present at runtime.
+    const bandCompactAppliedHullCount = placement.bandCompactAppliedHullCount;
+    const bandCompactReclaimedPx = placement.bandCompactReclaimedPx;
+
     // A7 coordinate refinement (M1b, flag-gated). Transforms the placement in
     // place of nothing when OFF (byte-identical to A0). Every throw it raises
     // self-identifies with the "Strata A7" message prefix — re-tagged in the
@@ -317,11 +351,13 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
+          { bandCompact: strataBandCompact },
         );
         const legacyFinal = refineStrataCoordinates(
           packedScored.baselinePlacement,
           model,
           repair.edgesPrime,
+          { bandCompact: strataBandCompact },
         );
         const chosen = chooseStrataRefinedPlacement(
           scoredFinal,
@@ -338,6 +374,7 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
+          { bandCompact: strataBandCompact },
         );
       }
     }
@@ -432,6 +469,21 @@ export async function buildTerraformStrataExcalidrawScene(
                 : {}),
               ...(packedFrontierTrials
                 ? { strataPackedScoringFrontierTrials: packedFrontierTrials }
+                : {}),
+            }
+          : {}),
+        // W10 Stage 2 observability — success path only, flag-on only. The
+        // hull count is the ACTUAL number of banded hulls that took the
+        // skyline branch (snapshotted pre-A7); ReclaimedPx follows the ε
+        // only-when-nonzero precedent. NO bare `Applied` boolean — it would
+        // lie on degraded builds (codex#6).
+        ...(strataBandCompact
+          ? {
+              strataBandCompactAppliedHullCount:
+                bandCompactAppliedHullCount ?? 0,
+              ...(bandCompactReclaimedPx !== undefined &&
+              bandCompactReclaimedPx > 0
+                ? { strataBandCompactReclaimedPx: bandCompactReclaimedPx }
                 : {}),
             }
           : {}),

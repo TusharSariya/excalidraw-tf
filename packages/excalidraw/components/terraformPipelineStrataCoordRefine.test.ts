@@ -667,3 +667,166 @@ describe("A7 full engine — flag OFF ≡ flag-absent, flag ON succeeds", () => 
     );
   }
 });
+
+// ── W10 Stage 2: bandCompact — constraintPolicy resolution + gap parity ───────
+//
+// A7 must mirror the A0 skyline a bandCompact placement was built with:
+// `constraintPolicy` resolves to "packed" for banded NON-ROOT hulls when the
+// option is live, at BOTH blocksConstrain (geometric x-overlap, not all-pairs)
+// AND minGap (leaf-leaf CLUSTER, not LANE). Fixing only blocksConstrain would
+// let seedCompact re-inflate leaf-leaf gaps from CLUSTER back to LANE — the
+// contrast arms below pin exactly that failure mode.
+
+describe("A7 bandCompact — constraintPolicy resolution + gap parity (W10 Stage 2)", () => {
+  const BC: StrataEngineOptions = { ...OPTS, bandCompact: true };
+
+  /** Account 111 with two X-overlapping DIRECT leaves (same column). */
+  function leafBearingAccount() {
+    const acct = (id: string, addr: string): PipelineCluster => ({
+      ...frameCluster(id, placement("aws", "111", "r1"), addr, 200, 80),
+      ancillaryScopeRole: "account",
+    });
+    const clusters = [acct("l1", "aws.l1"), acct("l2", "aws.l2")];
+    const model = buildStrataModel(prep(clusters), OPTS);
+    const primes = primeEdges([]);
+    const a0 = placeStrataHulls(model, primes, rankStub({ l1: 0, l2: 0 }), BC);
+    return { model, primes, a0 };
+  }
+
+  it("keeps the CLUSTER leaf-leaf gap through A7 (minGap parity, not re-inflated to LANE)", () => {
+    const { model, primes, a0 } = leafBearingAccount();
+    const gapOf = (p: StrataPlacementResult): number =>
+      p.leafBoxes.get("l2")!.y -
+      (p.leafBoxes.get("l1")!.y + p.leafBoxes.get("l1")!.height);
+    expect(gapOf(a0)).toBe(36); // A0 skyline: CLUSTER between two leaf cards
+
+    // Parity: with bandCompact threaded, A7 is a no-op (no chords) and the
+    // CLUSTER gap survives seedCompact.
+    const refined = refineStrataCoordinates(a0, model, primes, {
+      bandCompact: true,
+    });
+    expect(gapOf(refined)).toBe(36);
+    expect(fingerprint(refined)).toBe(fingerprint(a0));
+
+    // Contrast arm (the half-fix the design guards against): withOUT the
+    // option threaded, banded constraints re-inflate the gap to LANE.
+    const unthreaded = refineStrataCoordinates(a0, model, primes);
+    expect(gapOf(unthreaded)).toBe(96);
+  });
+
+  it("uses geometric overlap at blocksConstrain: X-disjoint row-share survives A7", () => {
+    // Two accounts under one provider, X-disjoint columns ⇒ A0 (bandCompact)
+    // row-shares them at the provider level.
+    const clusters = [
+      frameCluster(
+        "c1",
+        placement("aws", "111", "r1", "vpc-1", "s1"),
+        "aws.c1",
+        200,
+        100,
+      ),
+      frameCluster(
+        "c2",
+        placement("aws", "222", "r1", "vpc-2", "s2"),
+        "aws.c2",
+        200,
+        100,
+      ),
+    ];
+    const model = buildStrataModel(prep(clusters), OPTS);
+    const primes = primeEdges([]);
+    const a0 = placeStrataHulls(model, primes, rankStub({ c1: 0, c2: 1 }), BC);
+    const a111 = keyOf("aws", "111");
+    const a222 = keyOf("aws", "222");
+    expect(a0.boxedHulls.get(a111)!.box.y).toBe(a0.boxedHulls.get(a222)!.box.y);
+
+    // With bandCompact threaded, the X-disjoint pair does not constrain ⇒
+    // the shared row survives (identity — no chords to act on).
+    const refined = refineStrataCoordinates(a0, model, primes, {
+      bandCompact: true,
+    });
+    expect(refined.boxedHulls.get(a111)!.box.y).toBe(
+      refined.boxedHulls.get(a222)!.box.y,
+    );
+    expect(fingerprint(refined)).toBe(fingerprint(a0));
+
+    // Contrast arm: unthreaded, banded blocksConstrain treats EVERY pair as
+    // overlapping ⇒ seedCompact stacks the shared row back into bands.
+    const unthreaded = refineStrataCoordinates(a0, model, primes);
+    expect(unthreaded.boxedHulls.get(a222)!.box.y).toBeGreaterThan(
+      unthreaded.boxedHulls.get(a111)!.box.y,
+    );
+  });
+
+  it("flag-off parity: opts absent ≡ { bandCompact: false } (constraintPolicy === policy)", () => {
+    const { model, primes, a0 } = fixtureB();
+    const noOpts = refineStrataCoordinates(a0, model, primes);
+    const explicitFalse = refineStrataCoordinates(a0, model, primes, {
+      bandCompact: false,
+    });
+    expect(fingerprint(explicitFalse)).toBe(fingerprint(noOpts));
+  });
+});
+
+// ── W10 Stage 2: engine meta echo (Requested / AppliedHullCount / ReclaimedPx) ─
+
+describe("strataBandCompact — engine meta echo rules (W10 Stage 2)", () => {
+  const preset = "staging-localstack";
+
+  it(
+    "flag OFF: meta is byte-identical to flag-absent and carries NO strataBandCompact* keys",
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+      const absent = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+      });
+      const off = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+        strataBandCompact: false,
+      });
+      expect(off.meta).toEqual(absent.meta);
+      expect(
+        Object.keys(absent.meta).filter((k) =>
+          k.startsWith("strataBandCompact"),
+        ),
+      ).toEqual([]);
+      expect(
+        Object.keys(off.meta).filter((k) => k.startsWith("strataBandCompact")),
+      ).toEqual([]);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "flag ON (with rankSeparate + A7): Requested echo, pre-A7 AppliedHullCount snapshot, ReclaimedPx only-when-positive",
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+      const on = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+        strataRankSeparate: true,
+        strataCoordinateRefine: true,
+        strataBandCompact: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataBandCompactRequested).toBe(true);
+      // The snapshot is taken from the A0 result BEFORE A7 rebuilds the
+      // placement object — with coordinateRefine ON this only survives if the
+      // engine snapshots correctly.
+      const count = on.meta.strataBandCompactAppliedHullCount;
+      expect(typeof count).toBe("number");
+      expect(count as number).toBeGreaterThan(0);
+      // ε only-when-nonzero precedent: present ⇒ strictly positive. Under
+      // rankSeparate the W10 Stage-1 evidence says the row-share reclaims
+      // real height on this preset.
+      expect(on.meta.strataBandCompactReclaimedPx).toBeDefined();
+      expect(on.meta.strataBandCompactReclaimedPx as number).toBeGreaterThan(0);
+      // R2 evidence still all-zero on the final geometry.
+      expect(on.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+});

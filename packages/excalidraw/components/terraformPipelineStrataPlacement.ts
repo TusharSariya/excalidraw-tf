@@ -66,6 +66,24 @@ const strataLeafGapY = (): number => PIPELINE_CLUSTER_GAP_Y;
 /** A rectangle already occupied in a hull's local frame (for geometric drop). */
 type SkylineRect = { x0: number; x1: number; y1: number; isHull: boolean };
 
+/**
+ * W10 Stage 2 (`bandCompact`) placement diagnostics, present on the A0 result
+ * ONLY when `options.bandCompact === true` (flag-off byte-identity). PRE-A7
+ * diagnostic: `bandCompactReclaimedPx` is Σ over banded non-root hulls of
+ * max(0, full-width-stack bottom − skyline bottom) computed against the trivial
+ * cursor counterfactual (Σ height + LANE_GAP_Y, call-time reads) inside the
+ * same placement loop. A7 rebuilds the placement object at re-anchor, so these
+ * fields do NOT survive coordinate refinement — the engine snapshots them
+ * before A7. The adjudication-grade number is the W10b battery's paired
+ * final-height delta, never this field.
+ */
+export type StrataBandCompactPlacementDiagnostics = {
+  /** Count of banded non-root hulls that took the skyline branch. */
+  bandCompactAppliedHullCount?: number;
+  /** Σ per-hull max(0, stackBottom − skylineBottom), pre-A7. */
+  bandCompactReclaimedPx?: number;
+};
+
 /** Stacked gap between two blocks: wide if either is a framed hull. */
 function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
   return aIsHull || bIsHull ? strataHullGapY() : strataLeafGapY();
@@ -151,7 +169,13 @@ export function placeStrataHulls(
    * generation per packed hull on the reporting run only.
    */
   onPackedCandidateCount?: (hullId: string, count: number) => void,
-): StrataPlacementResult {
+): StrataPlacementResult & StrataBandCompactPlacementDiagnostics {
+  // W10 Stage 2 (OD-15 re-scoped): option-gated row-share at the banded
+  // non-root levels — NOT a third policy value (role→policy map + the T9
+  // mirror untouched). Root stays a full-width stack (v3.1 §1.4).
+  const bandCompact = options.bandCompact === true;
+  let bandCompactAppliedHullCount = 0;
+  let bandCompactReclaimedPx = 0;
   const rankOf = (clusterId: string): number => {
     const r = rank.rank.get(clusterId);
     if (r === undefined) {
@@ -288,8 +312,8 @@ export function placeStrataHulls(
       packedCandidateIndex === undefined
         ? undefined
         : typeof packedCandidateIndex === "number"
-          ? packedCandidateIndex
-          : packedCandidateIndex.get(hull.id);
+        ? packedCandidateIndex
+        : packedCandidateIndex.get(hull.id);
     if (hull.policy === "packed" && onPackedCandidateCount) {
       onPackedCandidateCount(
         hull.id,
@@ -309,14 +333,34 @@ export function placeStrataHulls(
       PIPELINE_FRAME_PAD + (hull.role === "root" ? 0 : strataTitleReserve());
     const placed: LocalPlaced[] = [];
 
-    if (hull.policy === "packed") {
+    // W10 Stage 2: under `bandCompact` a banded NON-ROOT hull (provider/
+    // account) also takes the skyline branch — canonical A2 order preserved
+    // (ordering path untouched; the packedScoring candidate machinery above
+    // stays `policy === "packed"`-guarded), gap semantics = dropY/gapBetween
+    // VERBATIM (owner D1: hull-adjacent = LANE, leaf-leaf = CLUSTER).
+    const bandCompactHull =
+      bandCompact && hull.policy !== "packed" && hull.role !== "root";
+    if (hull.policy === "packed" || bandCompactHull) {
       const rects: SkylineRect[] = [];
+      // Pre-A7 reclaim diagnostic: run the trivial full-width cursor
+      // counterfactual (the legacy banded stack: Σ height + LANE_GAP_Y,
+      // call-time reads) alongside the skyline in the same loop.
+      let skylineBottom = topInset;
+      let stackCursor = topInset;
       for (const unit of ordered) {
         const info = infoByUnitId.get(strataUnitId(unit))!;
         const isHull = unit.kind === "hull";
         const y = dropY(rects, info.x0, info.x1, topInset, isHull);
         placed.push({ info, localYTop: y });
         rects.push({ x0: info.x0, x1: info.x1, y1: y + info.height, isHull });
+        skylineBottom = Math.max(skylineBottom, y + info.height);
+        stackCursor += info.height + PIPELINE_LANE_GAP_Y;
+      }
+      if (bandCompactHull) {
+        bandCompactAppliedHullCount += 1;
+        const stackBottom =
+          placed.length > 0 ? stackCursor - PIPELINE_LANE_GAP_Y : topInset;
+        bandCompactReclaimedPx += Math.max(0, stackBottom - skylineBottom);
       }
     } else {
       let cursor = topInset;
@@ -389,7 +433,15 @@ export function placeStrataHulls(
 
   assignAbsolute(localByHullId.get(model.hullRoot.id)!, PIPELINE_MARGIN);
 
-  return { boxedHulls, leafBoxes };
+  // Diagnostics ride ONLY when the flag is on, so the flag-off result object
+  // is deep-equal (same keys) to pre-W10 behavior.
+  return {
+    boxedHulls,
+    leafBoxes,
+    ...(bandCompact
+      ? { bandCompactAppliedHullCount, bandCompactReclaimedPx }
+      : {}),
+  };
 }
 
 // ── R2 structural checks (S0b acceptance; standing T9 invariant) ───────────────
