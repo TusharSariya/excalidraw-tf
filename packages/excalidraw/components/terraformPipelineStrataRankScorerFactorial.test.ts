@@ -23,9 +23,11 @@
  *
  * Cells: per-arm battery scalars (crossings, angles, penetrations on FINAL
  * geometry, structural collisions, wall-clock), owner-case distances
- * (SQS→RDS AND SQS→Dynamo centre px + leaf-column span — per-node rank is
- * NOT exposed in engine meta, so column indices are DERIVED from leaf card
- * X-centre clustering; the report says so), engine meta echoes
+ * (SQS→RDS AND SQS→Dynamo centre px + the SQS↔Dynamo owner-pair Δx/Δy
+ * between primaryCluster frame centres, resolved the canonical way via
+ * customData.terraformPrimaryAddress — the same resolution
+ * computeStrataPathMetrics uses; no leaf-column clustering heuristic),
+ * engine meta echoes
  * (packed-scoring scores/selections/trials/fellBack, rankSeparate applied/
  * changed-rank counts, toggle suppressions), and paired extent + M-RT
  * path-family CIs vs arm I (v3.2 discipline, seed 20260704 inside the shared
@@ -37,7 +39,7 @@
  *     --exclude "**\/.claude/**"
  * Writes W8_RANK_SCORER_REPORT.json to $Q8_REPORT_DIR (default tmpdir).
  */
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { performance } from "node:perf_hooks";
 
@@ -271,11 +273,14 @@ function countPenetrations(
 // W7 measured SQS(regional_writer_west)→RDS centre distance. W8 adds:
 //   - SQS→Dynamo centre distance, where Dynamo = the staging-extended-events
 //     DynamoDB table in us-west-2 (`aws_dynamodb_table.regional_events_west`);
-//   - the leaf X-column span between SQS and Dynamo. Per-node rank is NOT
-//     exposed in the engine meta (only pipelineColumnCount), so column
-//     indices are DERIVED from leaf card X-centres: sort distinct resource
-//     card centre-Xs, split into columns where the gap exceeds 40px, then
-//     bucket each node's centre-X to the nearest derived column centre.
+//   - the SQS↔Dynamo owner-pair Δx / Δy between their `primaryCluster` frame
+//     centres, resolved the CANONICAL way (the same resolution the path-metrics
+//     computeStrataPathMetrics uses): each node resolves to the primaryCluster
+//     frame whose customData.terraformPrimaryAddress matches, and we record the
+//     signed and absolute centre-to-centre Δx/Δy directly. This replaces the
+//     earlier leaf-card X-centre clustering heuristic — Δx≈0 with a large Δy is
+//     an unambiguous vertical (not X-column) split, read straight off the
+//     frame centres rather than inferred from derived column buckets.
 
 const SQS_PATH_RE = /aws_sqs_queue\.regional_writer_west(?![\w])/;
 const DYNAMO_PATH_RE = /aws_dynamodb_table\.regional_events_west(?![\w])/;
@@ -284,11 +289,14 @@ type OwnerCaseW8 = {
   found: boolean;
   sqsToRdsPx: number | null;
   sqsToDynamoPx: number | null;
-  sqsColumn: number | null;
-  dynamoColumn: number | null;
-  columnSpanAbs: number | null;
-  derivedColumnCount: number | null;
-  columnDerivation: string;
+  sqsFrameCenter: { x: number; y: number } | null;
+  dynamoFrameCenter: { x: number; y: number } | null;
+  /** dynamo − sqs primaryCluster frame-centre delta (signed) + absolutes. */
+  ownerPairDx: number | null;
+  ownerPairDy: number | null;
+  ownerPairDxAbs: number | null;
+  ownerPairDyAbs: number | null;
+  resolution: string;
 } | null;
 
 function ownerCaseW8(elements: readonly ExcalidrawElement[]): OwnerCaseW8 {
@@ -346,59 +354,64 @@ function ownerCaseW8(elements: readonly ExcalidrawElement[]): OwnerCaseW8 {
   const dist = (a?: ExcalidrawElement, b?: ExcalidrawElement): number | null =>
     a && b ? round2(Math.hypot(cx(a) - cx(b), cy(a) - cy(b))) : null;
 
-  // Derive leaf columns from resource card centre-Xs.
-  const cardCentres = elements
-    .filter(isResourceCard)
-    .map((e) => cx(e))
-    .sort((a, b) => a - b);
-  const columnCentres: number[] = [];
-  {
-    let bucket: number[] = [];
-    const flush = () => {
-      if (bucket.length > 0) {
-        columnCentres.push(
-          bucket.reduce((s, v) => s + v, 0) / bucket.length,
-        );
-        bucket = [];
-      }
-    };
-    for (let i = 0; i < cardCentres.length; i++) {
-      if (bucket.length > 0 && cardCentres[i]! - bucket[bucket.length - 1]! > 40) {
-        flush();
-      }
-      bucket.push(cardCentres[i]!);
+  // Canonical resolution (mirrors computeStrataPathMetrics): resolve both nodes
+  // to their primaryCluster frame via customData.terraformPrimaryAddress, then
+  // record centre-to-centre Δx/Δy directly. No X-column clustering heuristic —
+  // the arrow relationship source/target ARE these primary addresses, so the
+  // RDS arrow's own source is the exact SQS address; Dynamo is matched by regex
+  // against the frame addresses.
+  const frameCenterByAddress = new Map<string, { x: number; y: number }>();
+  for (const el of elements) {
+    if (el.type !== "frame" || el.isDeleted) {
+      continue;
     }
-    flush();
+    const cd = el.customData as Record<string, unknown> | undefined;
+    if (cd?.terraformTopologyRole !== "primaryCluster") {
+      continue;
+    }
+    const addr = cd?.terraformPrimaryAddress;
+    if (typeof addr === "string" && !frameCenterByAddress.has(addr)) {
+      frameCenterByAddress.set(addr, { x: cx(el), y: cy(el) });
+    }
   }
-  const colOf = (el?: ExcalidrawElement): number | null => {
-    if (!el || columnCentres.length === 0) {
-      return null;
-    }
-    const x = cx(el);
-    let best = 0;
-    for (let i = 1; i < columnCentres.length; i++) {
-      if (Math.abs(columnCentres[i]! - x) < Math.abs(columnCentres[best]! - x)) {
-        best = i;
-      }
-    }
-    return best;
-  };
-
-  const sqsColumn = colOf(sqs);
-  const dynamoColumn = colOf(dynamo);
+  const sqsAddress =
+    (rdsArrow &&
+      (
+        (rdsArrow.customData as Record<string, unknown>)
+          .relationship as Record<string, string>
+      ).source) ||
+    [...frameCenterByAddress.keys()].find((a) => SQS_PATH_RE.test(a)) ||
+    null;
+  const dynamoAddress =
+    [...frameCenterByAddress.keys()].find((a) => DYNAMO_PATH_RE.test(a)) ?? null;
+  const sqsFrameCenter =
+    (sqsAddress && frameCenterByAddress.get(sqsAddress)) ?? null;
+  const dynamoFrameCenter =
+    (dynamoAddress && frameCenterByAddress.get(dynamoAddress)) ?? null;
+  const ownerPairDx =
+    sqsFrameCenter && dynamoFrameCenter
+      ? round2(dynamoFrameCenter.x - sqsFrameCenter.x)
+      : null;
+  const ownerPairDy =
+    sqsFrameCenter && dynamoFrameCenter
+      ? round2(dynamoFrameCenter.y - sqsFrameCenter.y)
+      : null;
   return {
     found: true,
     sqsToRdsPx: dist(sqs, rds),
     sqsToDynamoPx: dist(sqs, dynamo),
-    sqsColumn,
-    dynamoColumn,
-    columnSpanAbs:
-      sqsColumn != null && dynamoColumn != null
-        ? Math.abs(sqsColumn - dynamoColumn)
-        : null,
-    derivedColumnCount: columnCentres.length,
-    columnDerivation:
-      "leaf resource-card centre-X clustering (gap>40px splits); per-node rank is not exposed in engine meta",
+    sqsFrameCenter: sqsFrameCenter
+      ? { x: round2(sqsFrameCenter.x), y: round2(sqsFrameCenter.y) }
+      : null,
+    dynamoFrameCenter: dynamoFrameCenter
+      ? { x: round2(dynamoFrameCenter.x), y: round2(dynamoFrameCenter.y) }
+      : null,
+    ownerPairDx,
+    ownerPairDy,
+    ownerPairDxAbs: ownerPairDx != null ? Math.abs(ownerPairDx) : null,
+    ownerPairDyAbs: ownerPairDy != null ? Math.abs(ownerPairDy) : null,
+    resolution:
+      "primaryCluster frame centres resolved by customData.terraformPrimaryAddress (canonical, same as computeStrataPathMetrics); Δ = dynamo − sqs frame centre",
   };
 }
 
@@ -533,10 +546,16 @@ function ciView(ci: BootstrapCiResult) {
     voided: ci.voided,
     ciExcludesZeroImproving: !ci.voided && ci.hi < 0,
     ciExcludesZeroWorsening: !ci.voided && ci.lo > 0,
-    gateEligible: statisticGateEligible(
-      ci.statistic as Exclude<BootstrapStatistic, never>,
-      ci.n,
-    ),
+    // A cell may only be gated when it clears the per-statistic pair floor AND
+    // is neither voided (unmatched>20% or n=0) nor a degenerate p90 (upper
+    // bound pinned to the sample max — v3.1 §2.5 voids the p90 gate).
+    gateEligible:
+      statisticGateEligible(
+        ci.statistic as Exclude<BootstrapStatistic, never>,
+        ci.n,
+      ) &&
+      !ci.voided &&
+      !(ci.statistic === "p90" && ci.degenerate),
   };
 }
 
@@ -589,13 +608,19 @@ function armSummary(data: ArmData, rows: readonly PathMetricsRow[]) {
   };
 }
 
-/** armSummary minus wall-clock, for the byte-compare determinism probe. */
-function armSummaryDeterministic(
-  data: ArmData,
-  rows: readonly PathMetricsRow[],
-) {
-  const { buildMs: _buildMs, ...rest } = armSummary(data, rows);
-  return rest;
+/**
+ * Normalized deterministic payload for byte-comparison: everything EXCEPT the
+ * two fields that legitimately differ across otherwise-equivalent builds — the
+ * wall-clock `buildMs`, and `metaEcho.strataToggleSuppressions` (populated on
+ * ALL, empty on P_RS, yet the two produce identical geometry once NS is
+ * suppressed). Comparing this payload proves "effective geometry and comparison
+ * cells identical", not literal byte-for-byte equality of the raw summary.
+ */
+function armSummaryNormalized(data: ArmData, rows: readonly PathMetricsRow[]) {
+  const { buildMs: _buildMs, metaEcho, ...rest } = armSummary(data, rows);
+  const { strataToggleSuppressions: _suppressions, ...metaRest } =
+    metaEcho as Record<string, unknown>;
+  return { ...rest, metaEcho: metaRest };
 }
 
 // ── harness ──────────────────────────────────────────────────────────────────
@@ -611,11 +636,13 @@ describe("W8 rank×scorer factorial battery (report-emitting; never asserts gate
           "strataRankSeparate} × strataPackedScoring {off, on} + the ALL arm " +
           "(NS+RS+scorer; NS expected suppressed). Per-arm battery scalars " +
           "(global crossings + angles, structural collisionCount, edge–box " +
-          "penetrations on FINAL geometry, wall-clock), owner-case " +
+          "penetrations on FINAL geometry (hullPenetrationsProbe — a " +
+          "non-normative probe, not the M-H counter), wall-clock), owner-case " +
           "SQS(regional_writer_west)→RDS and →Dynamo(regional_events_west) " +
-          "centre distances + DERIVED leaf-column span (per-node rank not in " +
-          "meta), engine meta echoes, and paired extent + M-RT path-family " +
-          "CIs vs arm I plus I_RS→P_RS. Report-only — no gate is asserted.",
+          "centre distances + SQS↔Dynamo Δx/Δy between primaryCluster frame " +
+          "centres (canonical terraformPrimaryAddress resolution), engine meta " +
+          "echoes, and paired extent + M-RT path-family CIs vs arm I plus " +
+          "I_RS→P_RS. Report-only — no gate is asserted.",
       };
 
       for (const [presetLabel, preset] of [
@@ -679,32 +706,57 @@ describe("W8 rank×scorer factorial battery (report-emitting; never asserts gate
           cells[`${baseLabel}__vs__${candLabel}`] = cell;
         }
 
-        // Determinism probe: rebuild arm I end-to-end and byte-compare its
-        // wall-clock-free summary and its I→P cell against the originals.
+        // Determinism probe: rebuild arms I, P_RS and ALL end-to-end and
+        // compare their normalized (buildMs- and suppression-free) summaries
+        // against the originals; also byte-compare the I→P cell from a rebuilt
+        // I. Extending beyond arm I closes the "only I was proven deterministic"
+        // gap and re-exercises the two scorer-heavy arms.
         {
-          const rebuilt = await buildArm(sources, ARM_OPTIONS.I!);
-          const before = JSON.stringify(
-            armSummaryDeterministic(armData.get("I")!, armRows.get("I")!),
-          );
-          const after = JSON.stringify(
-            armSummaryDeterministic(rebuilt.data, rebuilt.pathRows),
-          );
-          if (before !== after) {
-            softFailures.push(
-              `${preset}/I: full arm rebuild NOT byte-identical (sans buildMs)`,
+          for (const armLabel of ["I", "P_RS", "ALL"] as const) {
+            const rebuilt = await buildArm(sources, ARM_OPTIONS[armLabel]!);
+            const before = JSON.stringify(
+              armSummaryNormalized(
+                armData.get(armLabel)!,
+                armRows.get(armLabel)!,
+              ),
             );
+            const after = JSON.stringify(
+              armSummaryNormalized(rebuilt.data, rebuilt.pathRows),
+            );
+            if (before !== after) {
+              softFailures.push(
+                `${preset}/${armLabel}: full arm rebuild NOT deterministic (normalized: sans buildMs + suppressions)`,
+              );
+            }
+            if (armLabel === "I") {
+              const cellBefore = JSON.stringify(cells.I__vs__P);
+              const cellAfter = JSON.stringify({
+                extent: extentCell(
+                  rebuilt.data.sliceB,
+                  armData.get("P")!.sliceB,
+                ),
+                paths: pathsCell(rebuilt.pathRows, armRows.get("P")!),
+              });
+              if (cellBefore !== cellAfter) {
+                softFailures.push(
+                  `${preset}/I->P: cell from rebuilt I NOT byte-identical`,
+                );
+              }
+            }
           }
-          const cellBefore = JSON.stringify(cells.I__vs__P);
-          const cellAfter = JSON.stringify({
-            extent: extentCell(
-              rebuilt.data.sliceB,
-              armData.get("P")!.sliceB,
-            ),
-            paths: pathsCell(rebuilt.pathRows, armRows.get("P")!),
-          });
-          if (cellBefore !== cellAfter) {
+
+          // ALL ≡ P_RS on effective geometry and comparison cells: identical
+          // once buildMs and the (ALL-only) suppression list are normalized out.
+          if (
+            JSON.stringify(
+              armSummaryNormalized(armData.get("ALL")!, armRows.get("ALL")!),
+            ) !==
+            JSON.stringify(
+              armSummaryNormalized(armData.get("P_RS")!, armRows.get("P_RS")!),
+            )
+          ) {
             softFailures.push(
-              `${preset}/I->P: cell from rebuilt I NOT byte-identical`,
+              `${preset}/ALL vs P_RS: effective geometry/cells NOT identical (normalized)`,
             );
           }
         }
@@ -713,6 +765,7 @@ describe("W8 rank×scorer factorial battery (report-emitting; never asserts gate
       }
 
       const json = JSON.stringify({ ...report, softFailures }, null, 2);
+      mkdirSync(REPORT_DIR, { recursive: true });
       writeFileSync(`${REPORT_DIR}/W8_RANK_SCORER_REPORT.json`, json);
       // eslint-disable-next-line no-console -- probe output IS the deliverable
       console.log(

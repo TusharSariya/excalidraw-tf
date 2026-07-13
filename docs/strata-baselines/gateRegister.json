@@ -111,217 +111,217 @@
       "reportAssert": "none"
     }
   ],
-  "_scalarComment": "Round-9 scalar claim families (M-H hull penetrations / M-TCR battery crossings / M-ANG sharp-angle share). Recorded from the W7 packed-scoring battery (docs/strata-view-w7-packed-scoring-battery.md 'Per-arm scalars'); the P_strata_k4_a7_packed arm and the hull-penetration counter are not in the frozen paired artifacts, so these are measured scalars (REPORT-only, owner adjudication of the default posture pending — W7 mints no PASS). recomputeScalarCell recomputes the improvement direction from value+baseline so a future relabel (FAIL→PASS) still goes red, and FAIL-WAIVED must cite an SDEC. Chain: v2 (reference) → I (baseline v2) → P (baseline I, the lever's own baseline per W7 'I→P').",
+  "_scalarComment": "Round-9 battery-scalar PROBES (not accepted gates), all recorded from the W7 packed-scoring battery (docs/strata-view-w7-packed-scoring-battery.md 'Per-arm scalars'). Three families: (1) hullPenetrationsProbe — a NON-NORMATIVE penetration probe (W7 edge-vs-hull-frame counter, 2px pad, hull frames only). It is NOT the normative M-H hard gate, whose exact-zero vector also covers leaf-outside-hull, sibling-hull overlap, interleaved band Y-intervals, arrows crossing an UNRELATED CARD INTERIOR, and left-of-source targets (rcll-v2-gate-family-v3.2-proposal.md:42); the normative M-H exact-zero counter remains OUTSTANDING as a round-9 prerequisite. (2) batteryCrossings — an M-TCR battery-scalar probe. (3) sharpShare — an M-ANG battery-scalar probe. Every cell is kind='report-observation': a provenance-recorded MEASUREMENT that asserts NOTHING (claimedStatus MUST be REPORT; the test enforces it), so no edited value can mint a PASS. Improvement direction is hard-coded per metric in code (all three lower-is-better), never read from the cell. Comparators are given by baselineRef (the id of another cell in the v2→I→P chain) and resolved by the test — never a duplicated number. Upgrading a probe to a real PASS/PARITY/FAIL claim requires kind='comparative', which the test rejects until a pinned scalar artifact (path + sha256) exists.",
   "scalarCells": [
     {
       "id": "P1-compact/batteryCrossings/v2",
+      "kind": "report-observation",
       "metric": "batteryCrossings",
       "preset": "P1-compact",
       "configuration": "v2 baseline, P1 compact, W7",
       "value": 177,
-      "lowerIsBetter": true,
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 v2 crossings 177)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 v2 crossings 177). M-TCR battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P1-compact/batteryCrossings/I",
+      "kind": "report-observation",
       "metric": "batteryCrossings",
       "preset": "P1-compact",
       "configuration": "strata K4+A7, P1 compact, W7",
       "value": 123,
-      "baseline": { "arm": "v2", "value": 177 },
-      "lowerIsBetter": true,
+      "baselineRef": "P1-compact/batteryCrossings/v2",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 I crossings 123)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 I crossings 123). M-TCR battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P1-compact/batteryCrossings/P",
+      "kind": "report-observation",
       "metric": "batteryCrossings",
       "preset": "P1-compact",
       "configuration": "strata K4+A7+packedScoring, P1 compact, W7",
       "value": 97,
-      "baseline": { "arm": "I_strata_k4_a7", "value": 123 },
-      "lowerIsBetter": true,
+      "baselineRef": "P1-compact/batteryCrossings/I",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars + round-9 gate cell M-TCR (P1 123→97, strict improvement)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 123→97). M-TCR battery-scalar probe seeded REPORT, not an accepted gate."
     },
     {
       "id": "P2-compact/batteryCrossings/v2",
+      "kind": "report-observation",
       "metric": "batteryCrossings",
       "preset": "P2-compact",
       "configuration": "v2 baseline, P2 compact, W7",
       "value": 33,
-      "lowerIsBetter": true,
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 v2 crossings 33)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 v2 crossings 33). M-TCR battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P2-compact/batteryCrossings/I",
+      "kind": "report-observation",
       "metric": "batteryCrossings",
       "preset": "P2-compact",
       "configuration": "strata K4+A7, P2 compact, W7",
       "value": 39,
-      "baseline": { "arm": "v2", "value": 33 },
-      "lowerIsBetter": true,
+      "baselineRef": "P2-compact/batteryCrossings/v2",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 I crossings 39)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 I crossings 39). M-TCR battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P2-compact/batteryCrossings/P",
+      "kind": "report-observation",
       "metric": "batteryCrossings",
       "preset": "P2-compact",
       "configuration": "strata K4+A7+packedScoring, P2 compact, W7",
       "value": 24,
-      "baseline": { "arm": "I_strata_k4_a7", "value": 39 },
-      "lowerIsBetter": true,
+      "baselineRef": "P2-compact/batteryCrossings/I",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars + round-9 gate cell M-TCR (P2 39→24; first strata arm to beat v2 on raw crossings)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 39→24). M-TCR battery-scalar probe seeded REPORT, not an accepted gate."
     },
     {
-      "id": "P1-compact/hullPenetrations/v2",
-      "metric": "hullPenetrations",
+      "id": "P1-compact/hullPenetrationsProbe/v2",
+      "kind": "report-observation",
+      "metric": "hullPenetrationsProbe",
       "preset": "P1-compact",
       "configuration": "v2 baseline, P1 compact, W7",
       "value": 123,
-      "lowerIsBetter": true,
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 v2 hull pen. 123)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 v2 hull pen. 123). NON-NORMATIVE penetration probe (2px pad, hull frames only); normative M-H exact-zero counter outstanding."
     },
     {
-      "id": "P1-compact/hullPenetrations/I",
-      "metric": "hullPenetrations",
+      "id": "P1-compact/hullPenetrationsProbe/I",
+      "kind": "report-observation",
+      "metric": "hullPenetrationsProbe",
       "preset": "P1-compact",
       "configuration": "strata K4+A7, P1 compact, W7",
       "value": 115,
-      "baseline": { "arm": "v2", "value": 123 },
-      "lowerIsBetter": true,
+      "baselineRef": "P1-compact/hullPenetrationsProbe/v2",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 I hull pen. 115)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 I hull pen. 115). NON-NORMATIVE penetration probe (2px pad, hull frames only); normative M-H exact-zero counter outstanding."
     },
     {
-      "id": "P1-compact/hullPenetrations/P",
-      "metric": "hullPenetrations",
+      "id": "P1-compact/hullPenetrationsProbe/P",
+      "kind": "report-observation",
+      "metric": "hullPenetrationsProbe",
       "preset": "P1-compact",
       "configuration": "strata K4+A7+packedScoring, P1 compact, W7",
       "value": 87,
-      "baseline": { "arm": "I_strata_k4_a7", "value": 115 },
-      "lowerIsBetter": true,
+      "baselineRef": "P1-compact/hullPenetrationsProbe/I",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 P hull pen. 87; cuts tunneling below v2). Report-only battery probe, not yet the normative M-H exact-zero counter."
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 P hull pen. 87). NON-NORMATIVE penetration probe (2px pad, hull frames only); normative M-H exact-zero counter (incl. unrelated card interiors) remains OUTSTANDING as a round-9 prerequisite."
     },
     {
-      "id": "P2-compact/hullPenetrations/v2",
-      "metric": "hullPenetrations",
+      "id": "P2-compact/hullPenetrationsProbe/v2",
+      "kind": "report-observation",
+      "metric": "hullPenetrationsProbe",
       "preset": "P2-compact",
       "configuration": "v2 baseline, P2 compact, W7",
       "value": 23,
-      "lowerIsBetter": true,
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 v2 hull pen. 23)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 v2 hull pen. 23). NON-NORMATIVE penetration probe (2px pad, hull frames only); normative M-H exact-zero counter outstanding."
     },
     {
-      "id": "P2-compact/hullPenetrations/I",
-      "metric": "hullPenetrations",
+      "id": "P2-compact/hullPenetrationsProbe/I",
+      "kind": "report-observation",
+      "metric": "hullPenetrationsProbe",
       "preset": "P2-compact",
       "configuration": "strata K4+A7, P2 compact, W7",
       "value": 61,
-      "baseline": { "arm": "v2", "value": 23 },
-      "lowerIsBetter": true,
+      "baselineRef": "P2-compact/hullPenetrationsProbe/v2",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 I hull pen. 61)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 I hull pen. 61). NON-NORMATIVE penetration probe (2px pad, hull frames only); normative M-H exact-zero counter outstanding."
     },
     {
-      "id": "P2-compact/hullPenetrations/P",
-      "metric": "hullPenetrations",
+      "id": "P2-compact/hullPenetrationsProbe/P",
+      "kind": "report-observation",
+      "metric": "hullPenetrationsProbe",
       "preset": "P2-compact",
       "configuration": "strata K4+A7+packedScoring, P2 compact, W7",
       "value": 33,
-      "baseline": { "arm": "I_strata_k4_a7", "value": 61 },
-      "lowerIsBetter": true,
+      "baselineRef": "P2-compact/hullPenetrationsProbe/I",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 P hull pen. 33). Report-only battery probe, not yet the normative M-H exact-zero counter."
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 P hull pen. 33). NON-NORMATIVE penetration probe (2px pad, hull frames only); normative M-H exact-zero counter (incl. unrelated card interiors) remains OUTSTANDING as a round-9 prerequisite."
     },
     {
       "id": "P1-compact/sharpShare/v2",
+      "kind": "report-observation",
       "metric": "sharpShare",
       "preset": "P1-compact",
       "configuration": "v2 baseline, P1 compact, W7",
       "value": 0.28,
-      "lowerIsBetter": true,
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 v2 sharpShare 0.28)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 v2 sharpShare 0.28). M-ANG battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P1-compact/sharpShare/I",
+      "kind": "report-observation",
       "metric": "sharpShare",
       "preset": "P1-compact",
       "configuration": "strata K4+A7, P1 compact, W7",
       "value": 0.41,
-      "baseline": { "arm": "v2", "value": 0.28 },
-      "lowerIsBetter": true,
+      "baselineRef": "P1-compact/sharpShare/v2",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 I sharpShare 0.41)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 I sharpShare 0.41). M-ANG battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P1-compact/sharpShare/P",
+      "kind": "report-observation",
       "metric": "sharpShare",
       "preset": "P1-compact",
       "configuration": "strata K4+A7+packedScoring, P1 compact, W7",
       "value": 0.29,
-      "baseline": { "arm": "I_strata_k4_a7", "value": 0.41 },
-      "lowerIsBetter": true,
+      "baselineRef": "P1-compact/sharpShare/I",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars + round-9 gate cell M-ANG (P1 sharpShare 0.41→0.29, improves vs I)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P1 sharpShare 0.41→0.29). M-ANG battery-scalar probe seeded REPORT, not an accepted gate."
     },
     {
       "id": "P2-compact/sharpShare/v2",
+      "kind": "report-observation",
       "metric": "sharpShare",
       "preset": "P2-compact",
       "configuration": "v2 baseline, P2 compact, W7",
       "value": 0.48,
-      "lowerIsBetter": true,
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 v2 sharpShare 0.48)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 v2 sharpShare 0.48). M-ANG battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P2-compact/sharpShare/I",
+      "kind": "report-observation",
       "metric": "sharpShare",
       "preset": "P2-compact",
       "configuration": "strata K4+A7, P2 compact, W7",
       "value": 0.95,
-      "baseline": { "arm": "v2", "value": 0.48 },
-      "lowerIsBetter": true,
+      "baselineRef": "P2-compact/sharpShare/v2",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 I sharpShare 0.95)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 I sharpShare 0.95). M-ANG battery-scalar probe, not an accepted gate."
     },
     {
       "id": "P2-compact/sharpShare/P",
+      "kind": "report-observation",
       "metric": "sharpShare",
       "preset": "P2-compact",
       "configuration": "strata K4+A7+packedScoring, P2 compact, W7",
       "value": 0.71,
-      "baseline": { "arm": "I_strata_k4_a7", "value": 0.95 },
-      "lowerIsBetter": true,
+      "baselineRef": "P2-compact/sharpShare/I",
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
-      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars + round-9 gate cell M-ANG (P2 sharpShare 0.95→0.71, improves vs I; still worse than v2's 0.48)"
+      "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 sharpShare 0.95→0.71, still worse than v2's 0.48). M-ANG battery-scalar probe seeded REPORT, not an accepted gate."
     }
   ]
 }

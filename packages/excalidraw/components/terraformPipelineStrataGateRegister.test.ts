@@ -28,8 +28,11 @@ import {
   recomputeCell,
   recomputeScalarCell,
   scalarClaimMismatch,
+  scalarLowerIsBetter,
+  SDEC_TOKEN_RE,
   type FrozenRowsArtifact,
   type GateRegister,
+  type GateRegisterScalarCell,
   type ScalarMetricId,
 } from "./terraformPipelineStrataGateRegister";
 
@@ -120,11 +123,24 @@ describe("v3.2 gate register (always-on assertions)", () => {
     ).toEqual([]);
   });
 
-  it("scalar cells (M-H / M-TCR / M-ANG) are schema-valid and recompute", () => {
-    const scalarCells = register.scalarCells ?? [];
+  const scalarCells = register.scalarCells ?? [];
+  const scalarById = new Map(scalarCells.map((c) => [c.id, c]));
+  const resolveScalar = (id: string): GateRegisterScalarCell | undefined =>
+    scalarById.get(id);
+
+  // The decision log is committed; grep it so a well-formed but nonexistent
+  // SDEC token still fails (Fix 4 — SDEC citation existence).
+  const decisionLog = readFileSync(
+    join(BASE_DIR, "../strata-view-decision-log.md"),
+    "utf8",
+  );
+  const sdecExistsInLog = (token: string): boolean =>
+    new RegExp(`(^|[^0-9A-Za-z-])${token}([^0-9]|$)`).test(decisionLog);
+
+  it("scalar cells (M-H / M-TCR / M-ANG probes) are schema-valid and recompute", () => {
     expect(scalarCells.length).toBeGreaterThan(0);
     const validMetrics = new Set<ScalarMetricId>([
-      "hullPenetrations",
+      "hullPenetrationsProbe",
       "batteryCrossings",
       "sharpShare",
     ]);
@@ -141,6 +157,15 @@ describe("v3.2 gate register (always-on assertions)", () => {
         false,
       );
       ids.add(cell.id);
+      // Honest cell class is mandatory. All current cells are recorded
+      // measurements (report-observation), which assert nothing.
+      expect(
+        cell.kind === "report-observation" || cell.kind === "comparative",
+        `${cell.id}: kind`,
+      ).toBe(true);
+      expect(cell.kind, `${cell.id}: all seeded cells are report-observation`).toBe(
+        "report-observation",
+      );
       expect(validMetrics.has(cell.metric), `${cell.id}: metric id`).toBe(true);
       expect(validStatuses.has(cell.claimedStatus), `${cell.id}: status`).toBe(
         true,
@@ -157,22 +182,32 @@ describe("v3.2 gate register (always-on assertions)", () => {
       expect(Number.isFinite(cell.value), `${cell.id}: numeric value`).toBe(
         true,
       );
-      expect(typeof cell.lowerIsBetter, `${cell.id}: lowerIsBetter`).toBe(
-        "boolean",
-      );
       expect(cell.evidence.length, `${cell.id}: evidence pointer`).toBeGreaterThan(
         0,
       );
-      if (cell.baseline) {
+      // Direction is derived in code from the metric, never read from the cell.
+      expect(scalarLowerIsBetter(cell.metric), `${cell.id}: direction`).toBe(
+        true,
+      );
+      // A baselineRef, when present, must resolve to a real register cell (the
+      // v2→I→P chain) — never a duplicated number.
+      if (cell.baselineRef !== undefined) {
         expect(
-          Number.isFinite(cell.baseline.value),
-          `${cell.id}: baseline value`,
+          resolveScalar(cell.baselineRef),
+          `${cell.id}: baselineRef ${cell.baselineRef} resolves`,
+        ).toBeTruthy();
+      }
+      // FAIL-WAIVED must cite a well-formed SDEC that exists in the log.
+      if (cell.claimedStatus === "FAIL-WAIVED") {
+        expect(cell.sdec && SDEC_TOKEN_RE.test(cell.sdec), `${cell.id}: sdec`).toBe(
+          true,
+        );
+        expect(
+          sdecExistsInLog(cell.sdec!),
+          `${cell.id}: cited ${cell.sdec} exists in decision log`,
         ).toBe(true);
       }
-      // Same discipline as paired cells: FAIL-WAIVED must cite an SDEC, and a
-      // claim must match the direction recomputed from value+baseline (so a
-      // computed regression can never be relabeled PASS).
-      const mismatch = scalarClaimMismatch(cell, recomputeScalarCell(cell));
+      const mismatch = scalarClaimMismatch(cell, resolveScalar);
       if (mismatch) {
         mismatches.push(mismatch);
       }
@@ -183,44 +218,115 @@ describe("v3.2 gate register (always-on assertions)", () => {
     ).toEqual([]);
   });
 
-  it("negative path: a scalar regression cannot be relabeled PASS, and FAIL-WAIVED needs an SDEC", () => {
-    const scalarCells = register.scalarCells ?? [];
-    // A comparative cell whose recorded value is worse than its baseline (a
-    // computed FAIL under lower-is-better).
-    const regressing = scalarCells.find(
-      (c) =>
-        c.baseline !== undefined &&
-        c.lowerIsBetter &&
-        c.value > c.baseline.value,
+  it("recomputeScalarCell derives direction from the metric (hard-coded), not the cell", () => {
+    // Both are lower-is-better, so a smaller value is PASS regardless of any
+    // per-cell field (there is none). Uses the resolved comparator.
+    const base: GateRegisterScalarCell = {
+      id: "unit/base",
+      kind: "comparative",
+      metric: "batteryCrossings",
+      preset: "Px",
+      configuration: "unit",
+      value: 100,
+      claimedStatus: "REPORT",
+      adjudication: "unit",
+      evidence: "unit",
+    };
+    const resolve = (id: string) => (id === "unit/base" ? base : undefined);
+    const better = recomputeScalarCell(
+      { ...base, id: "unit/better", value: 80, baselineRef: "unit/base" },
+      resolve,
+    );
+    const worse = recomputeScalarCell(
+      { ...base, id: "unit/worse", value: 120, baselineRef: "unit/base" },
+      resolve,
+    );
+    const equal = recomputeScalarCell(
+      { ...base, id: "unit/equal", value: 100, baselineRef: "unit/base" },
+      resolve,
+    );
+    expect(better.computed).toBe("PASS");
+    expect(worse.computed).toBe("FAIL");
+    expect(equal.computed).toBe("PARITY");
+    // No comparator → pure REPORT.
+    expect(recomputeScalarCell(base, resolve).computed).toBe("REPORT");
+  });
+
+  it("negative path: report-observation with a non-REPORT status is flagged", () => {
+    const obs = scalarCells.find((c) => c.kind === "report-observation")!;
+    expect(obs, "register has a report-observation cell").toBeTruthy();
+    for (const status of ["PASS", "PARITY", "FAIL-WAIVED"] as const) {
+      expect(
+        scalarClaimMismatch(
+          {
+            ...obs,
+            claimedStatus: status,
+            // give FAIL-WAIVED a legal SDEC so the failure is purely the kind
+            sdec: status === "FAIL-WAIVED" ? "SDEC-1" : undefined,
+          },
+          resolveScalar,
+        ),
+        `report-observation claiming ${status} must be flagged`,
+      ).not.toBeNull();
+    }
+  });
+
+  it("negative path: a comparative scalar cell is unmintable (schema-ready only)", () => {
+    const donor = scalarCells.find((c) => c.baselineRef !== undefined)!;
+    // Missing pinned artifact → rejected on the artifact requirement.
+    const noArtifact = scalarClaimMismatch(
+      { ...donor, kind: "comparative", claimedStatus: "PASS" },
+      resolveScalar,
+    );
+    expect(noArtifact, "comparative without a pinned artifact must be flagged")
+      .not.toBeNull();
+    expect(noArtifact).toContain("pinned artifact");
+    // Even WITH a well-formed pinned artifact, comparative is rejected today —
+    // no scalar pinned artifact exists (this is the anti-mint property).
+    const withArtifact = scalarClaimMismatch(
+      {
+        ...donor,
+        kind: "comparative",
+        claimedStatus: "PASS",
+        pinnedArtifact: { path: "docs/strata-baselines/nope.json", sha256: "0" },
+      },
+      resolveScalar,
+    );
+    expect(withArtifact, "comparative is not yet mintable").not.toBeNull();
+    expect(withArtifact).toContain("not yet mintable");
+  });
+
+  it("negative path: an unresolvable baselineRef is flagged", () => {
+    const donor = scalarCells.find((c) => c.baselineRef !== undefined)!;
+    expect(
+      scalarClaimMismatch(
+        { ...donor, baselineRef: "does/not/exist" },
+        resolveScalar,
+      ),
+      "a dangling baselineRef must be flagged",
+    ).not.toBeNull();
+  });
+
+  it("negative path: FAIL-WAIVED needs a well-formed, existing SDEC", () => {
+    const obs = scalarCells.find((c) => c.kind === "report-observation")!;
+    // Comparative FAIL-WAIVED with a malformed SDEC → flagged on the SDEC.
+    const malformed = scalarClaimMismatch(
+      { ...obs, kind: "comparative", claimedStatus: "FAIL-WAIVED", sdec: "SDEC-" },
+      resolveScalar,
+    );
+    expect(malformed, "malformed SDEC must be flagged").not.toBeNull();
+    expect(malformed).toContain("SDEC");
+    // A well-formed but nonexistent SDEC is caught by the decision-log grep.
+    expect(SDEC_TOKEN_RE.test("SDEC-99999"), "SDEC-99999 is well-formed").toBe(
+      true,
     );
     expect(
-      regressing,
-      "register has a comparative scalar regression to test",
-    ).toBeTruthy();
-    // Relabel it PASS — must be flagged.
-    expect(
-      scalarClaimMismatch(
-        { ...regressing!, claimedStatus: "PASS" },
-        recomputeScalarCell(regressing!),
-      ),
-      "a computed scalar FAIL relabeled PASS must be flagged",
-    ).not.toBeNull();
-    // FAIL-WAIVED over that FAIL with no SDEC must be flagged; with an SDEC it
-    // is a legal waiver.
-    expect(
-      scalarClaimMismatch(
-        { ...regressing!, claimedStatus: "FAIL-WAIVED", sdec: undefined },
-        recomputeScalarCell(regressing!),
-      ),
-      "FAIL-WAIVED without an SDEC must be flagged",
-    ).not.toBeNull();
-    expect(
-      scalarClaimMismatch(
-        { ...regressing!, claimedStatus: "FAIL-WAIVED", sdec: "SDEC-99" },
-        recomputeScalarCell(regressing!),
-      ),
-      "FAIL-WAIVED citing an SDEC over a computed FAIL is legal",
-    ).toBeNull();
+      sdecExistsInLog("SDEC-99999"),
+      "SDEC-99999 must not exist in the decision log",
+    ).toBe(false);
+    // A well-formed one that does exist passes the regex + log checks.
+    expect(SDEC_TOKEN_RE.test("SDEC-1")).toBe(true);
+    expect(sdecExistsInLog("SDEC-1")).toBe(true);
   });
 
   it("negative path: a relabeled claim is detected (the R8-F3 property)", () => {

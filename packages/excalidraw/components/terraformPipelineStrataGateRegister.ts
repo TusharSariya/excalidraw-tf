@@ -86,19 +86,71 @@ export type GateRegisterCell = {
   reportAssert?: "none" | "floorIneligible";
 };
 
-/** Round-9 per-arm scalar metric families (docs/rcll-v2-shit-test-round9.md,
+/** Round-9 per-arm scalar metric probes (docs/rcll-v2-shit-test-round9.md,
  * docs/strata-view-w7-packed-scoring-battery.md):
- *   hullPenetrations = M-H   (edge–hull-frame tunneling on final geometry)
- *   batteryCrossings = M-TCR (battery global edge crossings)
- *   sharpShare       = M-ANG (share of crossings below the sharp-angle floor)
- * Unlike the paired cells above, these are single per-arm scalars — the W7
- * `P_strata_k4_a7_packed` arm and the hull-penetration counter are NOT in the
- * frozen paired artifacts, so a scalar cell records the measured value (with the
- * evidence doc as its provenance) rather than recomputing a paired bootstrap. */
-export type ScalarMetricId = "hullPenetrations" | "batteryCrossings" | "sharpShare";
+ *   hullPenetrationsProbe = NON-NORMATIVE M-H probe — the W7 battery's
+ *       edge-vs-hull-frame tunneling counter (2px pad, hull frames only). It is
+ *       NOT the normative M-H hard gate: that gate is an exact-zero vector over
+ *       leaf-outside-hull, sibling-hull overlap, interleaved band Y-intervals,
+ *       arrows crossing an UNRELATED CARD INTERIOR, and left-of-source targets
+ *       (rcll-v2-gate-family-v3.2-proposal.md:42), which this counter does not
+ *       cover. The normative M-H counter remains OUTSTANDING (round-9 prereq).
+ *   batteryCrossings = M-TCR probe (battery global edge-crossing count)
+ *   sharpShare       = M-ANG probe (share of crossings below the sharp-angle
+ *       floor). Lower is better.
+ * These are battery-scalar probes seeded REPORT, NOT accepted gates. Unlike the
+ * paired cells above, they are single per-arm scalars — the W7
+ * `P_strata_k4_a7_packed` arm and the hull-penetration counter are NOT in any
+ * frozen paired artifact. */
+export type ScalarMetricId =
+  | "hullPenetrationsProbe"
+  | "batteryCrossings"
+  | "sharpShare";
+
+/** Improvement direction is hard-coded PER METRIC in code — never read from the
+ * cell — so editing the JSON cannot flip a regression's polarity to mint a PASS.
+ * All three round-9 probes are lower-is-better (fewer crossings / penetrations /
+ * sharp-angle crossings), verified against the W7 battery semantics. */
+export const SCALAR_METRIC_LOWER_IS_BETTER: Record<ScalarMetricId, boolean> = {
+  hullPenetrationsProbe: true,
+  batteryCrossings: true,
+  sharpShare: true,
+};
+
+export function scalarLowerIsBetter(metric: ScalarMetricId): boolean {
+  return SCALAR_METRIC_LOWER_IS_BETTER[metric];
+}
+
+/** SDEC citation must be a well-formed decision-log token. The always-on test
+ * additionally greps docs/strata-view-decision-log.md so a nonexistent token
+ * (e.g. SDEC-99999) still fails. */
+export const SDEC_TOKEN_RE = /^SDEC-[0-9]+$/;
+
+/**
+ * A scalar cell is one of two honest classes:
+ *
+ *  - "report-observation": a provenance-recorded MEASUREMENT that asserts
+ *    NOTHING. Its claimedStatus MUST be REPORT (the test enforces it). All 18
+ *    current W7 scalar cells are this class. This is what kills the
+ *    "edit the JSON value to mint PASS" hole — a recorded number can never claim
+ *    an improvement.
+ *
+ *  - "comparative": MAY (in future) claim PASS/PARITY/FAIL-WAIVED, but only by
+ *    recomputing value+baseline from a PINNED ARTIFACT (path + sha256, the same
+ *    discipline as the frozen-baseline manifest). No scalar pinned artifacts
+ *    exist yet, so the test REJECTS every comparative cell today: the schema is
+ *    ready but unmintable. Any upgrade path therefore runs through a pinned
+ *    artifact, never through an editable literal.
+ */
+export type ScalarCellKind = "report-observation" | "comparative";
+
+/** Pinned-artifact reference (mirrors the frozen-baseline SHA-256 manifest). */
+export type PinnedArtifactRef = { path: string; sha256: string };
 
 export type GateRegisterScalarCell = {
   id: string;
+  /** Honest cell class — see ScalarCellKind. */
+  kind: ScalarCellKind;
   metric: ScalarMetricId;
   preset: string;
   /** Exact arm/configuration the claim names — v3.2 requires claims to name
@@ -106,18 +158,19 @@ export type GateRegisterScalarCell = {
   configuration: string;
   /** Measured scalar value recorded from the evidence doc. */
   value: number;
-  /** Baseline (comparator) this claim is measured against, when comparative.
-   * Absent = this cell is the reference arm (no gate verdict, REPORT only). */
-  baseline?: { arm: string; value: number };
-  /** true when a smaller value is better — all three round-9 scalars are
-   * lower-is-better (fewer crossings / penetrations / sharp angles). */
-  lowerIsBetter: boolean;
+  /** Comparator: the `id` of ANOTHER scalar cell in this register (the v2→I→P
+   * chain). The comparator value is resolved from that cell — never a duplicated
+   * number baked into this cell. Absent = reference arm (no comparator). */
+  baselineRef?: string;
   claimedStatus: GateRegisterStatus;
   /** How this entry was decided (e.g. "recorded-from-W7"). */
   adjudication: string;
   /** Doc/SDEC references backing the measurement. */
   evidence: string;
-  /** Required (non-empty) when claimedStatus === "FAIL-WAIVED". */
+  /** Required for kind==="comparative": the pinned artifact whose bytes the
+   * value+baseline recompute from. */
+  pinnedArtifact?: PinnedArtifactRef;
+  /** Required (must match SDEC_TOKEN_RE) when claimedStatus === "FAIL-WAIVED". */
   sdec?: string;
   note?: string;
 };
@@ -234,29 +287,45 @@ export function claimMismatch(
 }
 
 export type ScalarRecompute = {
-  /** Improvement direction the recorded value+baseline support (before waiver):
+  /** Improvement direction the recorded value + RESOLVED baseline support, using
+   * the hard-coded per-metric direction (never the cell's own field):
    *  PASS   = comparative and strictly better than baseline.
    *  PARITY = comparative and equal to baseline.
    *  FAIL   = comparative and worse than baseline.
-   *  REPORT = no comparator recorded — a pure measurement, no gate verdict. */
+   *  REPORT = no comparator (or unresolved) — a pure measurement, no verdict. */
   computed: "PASS" | "PARITY" | "FAIL" | "REPORT";
   /** Signed candidate−baseline delta oriented so <0 is better (undefined when
    * there is no comparator). */
   orientedDelta?: number;
+  /** Comparator value resolved from the referenced cell (undefined when absent
+   * or unresolved). */
+  baselineValue?: number;
 };
 
+/** Resolver: cell id → cell (typically backed by the register's own cells). */
+export type ScalarCellLookup = (
+  id: string,
+) => GateRegisterScalarCell | undefined;
+
 /** Recompute a scalar cell's categorical direction from its recorded value and
- * baseline. Mirrors recomputeCell()'s PASS/PARITY/FAIL semantics so the same
- * mismatch discipline (FAIL-WAIVED never renders as PASS) applies to the M-H /
- * M-TCR / M-ANG families. */
+ * the value RESOLVED from its baselineRef, using the hard-coded per-metric
+ * direction. This is provenance/reporting only — scalarClaimMismatch() gates on
+ * the cell KIND, not on this direction, so no computed direction can mint a PASS
+ * from an editable literal. */
 export function recomputeScalarCell(
   cell: GateRegisterScalarCell,
+  resolve?: ScalarCellLookup,
 ): ScalarRecompute {
-  if (!cell.baseline) {
+  if (cell.baselineRef === undefined) {
     return { computed: "REPORT" };
   }
-  const delta = cell.value - cell.baseline.value;
-  const oriented = cell.lowerIsBetter ? delta : -delta;
+  const base = resolve?.(cell.baselineRef);
+  if (!base) {
+    // Unresolved reference — no verdict here; scalarClaimMismatch() reports it.
+    return { computed: "REPORT" };
+  }
+  const delta = cell.value - base.value;
+  const oriented = scalarLowerIsBetter(cell.metric) ? delta : -delta;
   let computed: ScalarRecompute["computed"];
   if (oriented < 0) {
     computed = "PASS";
@@ -265,42 +334,58 @@ export function recomputeScalarCell(
   } else {
     computed = "FAIL";
   }
-  return { computed, orientedDelta: oriented };
+  return { computed, orientedDelta: oriented, baselineValue: base.value };
 }
 
-/** null = claim consistent; string = human-readable mismatch (test fails). */
+/**
+ * null = claim consistent; string = human-readable mismatch (test fails).
+ *
+ * The verdict gates on the cell KIND, which is what makes the register honest:
+ *  - report-observation → MUST be REPORT (asserts nothing).
+ *  - comparative        → schema-ready but UNMINTABLE (no pinned scalar
+ *    artifact exists), so it is always rejected today.
+ * Plus cross-cutting discipline: a well-formed SDEC for every FAIL-WAIVED, and a
+ * baselineRef that resolves to a real cell.
+ */
 export function scalarClaimMismatch(
   cell: GateRegisterScalarCell,
-  rc: ScalarRecompute,
+  resolve?: ScalarCellLookup,
 ): string | null {
-  // Waiver discipline: a FAIL-WAIVED must cite an SDEC regardless of direction.
+  if (cell.kind !== "report-observation" && cell.kind !== "comparative") {
+    return `${cell.id}: unknown cell kind ${String(cell.kind)}`;
+  }
+  // Waiver discipline: FAIL-WAIVED must cite a well-formed SDEC token. (The
+  // test additionally greps the decision log so a nonexistent token fails.)
+  if (cell.claimedStatus === "FAIL-WAIVED") {
+    if (!cell.sdec || !SDEC_TOKEN_RE.test(cell.sdec.trim())) {
+      return `${cell.id}: claimed FAIL-WAIVED without a well-formed SDEC citation (^SDEC-[0-9]+$)`;
+    }
+  }
+  // A baselineRef, when present, must resolve to a real register cell — a
+  // dangling reference can no longer masquerade as a comparator.
+  if (cell.baselineRef !== undefined && !resolve?.(cell.baselineRef)) {
+    return `${cell.id}: baselineRef ${cell.baselineRef} does not resolve to a register cell`;
+  }
+
+  if (cell.kind === "report-observation") {
+    // A recorded measurement asserts NOTHING — it may only be REPORT.
+    if (cell.claimedStatus !== "REPORT") {
+      return `${cell.id}: report-observation cells must claim REPORT, got ${cell.claimedStatus}`;
+    }
+    return null;
+  }
+
+  // kind === "comparative": schema-ready but UNMINTABLE today. A comparative
+  // claim must recompute value+baseline from a pinned artifact (path + sha256);
+  // no scalar pinned artifacts exist yet, so every comparative cell is rejected.
+  // This is what forbids "edit the JSON to mint PASS" on the upgrade path: the
+  // only mint route runs through a pinned artifact that does not yet exist.
   if (
-    cell.claimedStatus === "FAIL-WAIVED" &&
-    (!cell.sdec || cell.sdec.trim() === "")
+    !cell.pinnedArtifact ||
+    !cell.pinnedArtifact.path ||
+    !cell.pinnedArtifact.sha256
   ) {
-    return `${cell.id}: claimed FAIL-WAIVED without an SDEC citation`;
+    return `${cell.id}: comparative scalar cell requires a pinned artifact (path + sha256)`;
   }
-  const got = `computed=${rc.computed}${
-    rc.orientedDelta === undefined ? "" : ` orientedDelta=${rc.orientedDelta}`
-  }`;
-  switch (cell.claimedStatus) {
-    case "PASS":
-      return rc.computed === "PASS"
-        ? null
-        : `${cell.id}: claimed PASS but ${got}`;
-    case "PARITY":
-      return rc.computed === "PARITY"
-        ? null
-        : `${cell.id}: claimed PARITY but ${got}`;
-    case "FAIL-WAIVED":
-      return rc.computed === "FAIL"
-        ? null
-        : `${cell.id}: claimed FAIL-WAIVED but ${got} — waiver is stale`;
-    case "REPORT":
-      // Measurement-only: asserts nothing about direction. Legitimate for the
-      // W7 numbers (owner adjudication of the default posture pending).
-      return null;
-    default:
-      return `${cell.id}: unknown claimedStatus ${String(cell.claimedStatus)}`;
-  }
+  return `${cell.id}: comparative scalar cells are not yet mintable — no pinned scalar artifact exists (schema-ready only)`;
 }
