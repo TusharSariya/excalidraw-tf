@@ -72,6 +72,7 @@ import {
   type BootstrapStatistic,
 } from "./terraformPipelineBootstrapCi";
 import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
+import { sourceLeftOfTarget } from "./terraformPipelineStrataQ7AxisScore";
 import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
 import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
 import { isTerraformLayerEdge } from "./terraformElementMetadata";
@@ -315,10 +316,8 @@ const mean = (vals: readonly number[]): number =>
   vals.length === 0 ? 0 : vals.reduce((s, v) => s + v, 0) / vals.length;
 
 // ── direction-consistency proxy (cell 7) ─────────────────────────────────────
-// TODO(W11-WP4): swap to the shared helper from
-// terraformPipelineStrataQ7AxisScore once merged (WP2 builds it; the
-// orchestrator consolidates — this local copy exists only to keep WP2/WP3
-// decoupled during parallel implementation).
+// Uses the shared source-left-of-target proxy from the Q7-AXIS scorer module
+// (single implementation, W11 plan decision 13); ties use its 0.5px band.
 
 type DirectionConsistency = {
   note: string;
@@ -375,9 +374,10 @@ function directionConsistencyProxy(
       continue;
     }
     resolvedEdges += 1;
-    if (sx < tx) {
+    const left = sourceLeftOfTarget(sx, tx);
+    if (left === true) {
       sourceLeftCount += 1;
-    } else if (sx === tx) {
+    } else if (left === null) {
       tieCount += 1;
     }
   }
