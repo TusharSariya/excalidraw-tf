@@ -90,6 +90,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`strata-view-w10b-band-compact-battery.md`](./strata-view-w10b-band-compact-battery.md) | Battery | Current (owner adjudication pending) | OD-15 re-scope Stage-2 — `strataBandCompact` SHIPPED (default OFF); real reclaim under RS (P1 −7446px, P2 −3800px) at an rt̂ p50+p90 tax and worsening add-churn; PS-on-final-substrate improves rt̂ p50/crossings both presets w/ residual p90 tax; ε=1 confirmed not-inert but adverse on every axis; 3-model panel VALIDATED-WITH-FIXES; all three adjudications ready for owner |
 | [`strata-view-w11-task-tracing.md`](./strata-view-w11-task-tracing.md) | Battery | Current (Q7-AXIS labeling open exit criterion) | Directed relationship-focus traversal + Q7-AXIS blinded instrument + task-tracing battery, all default-off/REPORT-only — shipped undirected 3-hop click-highlight quantified task-mismatched (precision ~0.46–0.48, recall ~0.68–0.74) vs the modeled directed cone; production-call validation precision=recall=1.0 unfiltered; Q7-AXIS owner labeling standing open |
 | [`strata-view-w12-heldout-scale.md`](./strata-view-w12-heldout-scale.md) | Battery | Current (interpretation BLOCKED-ON-Q7; R8-F4 open) | Out-of-tuning-distribution transfer + full-detail scale battery — synthetic P3 (`staging-heldout-mesh`, claim-scoped: NOT held-out closure); mechanical transfer blockVerdict SUPPORT (in-sample direction reproduces, against the strata arms); full-detail extent frozen-VOID by construction (M3 port = the pairing unlock); browser felt-cost trace appendix |
+| [`strata-view-w13-hop-sweep.md`](./strata-view-w13-hop-sweep.md) | Battery | Current (pre-registration committed; battery PENDING; interpretation BLOCKED-ON-Q7) | Hop-depth K × direction sweep pre-registration for relationship focus — frozen recommendation rule (smallest K w/ macro precision ≥0.90 AND recall ≥0.95 on BOTH P1/P2, else keep default 3), per-direction truth builders, W12-artifact sanity anchors; population-match evidence only, NOT task evidence |
 | [`strata-baselines/README.md`](./strata-baselines/README.md) | Battery | Current (frozen) | S0b baseline JSON pins |
 | [`rcll-reading-list.md`](./rcll-reading-list.md) | Aux | Living | Literature reading list |
 | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md) | Aux | Living | Built vs rejected papers |
@@ -145,6 +146,7 @@ flowchart TB
     W10b[w10b-band-compact-battery]
     W11[w11-task-tracing]
     W12[w12-heldout-scale]
+    W13[w13-hop-sweep]
     Base[strata-baselines]
   end
 
@@ -208,6 +210,8 @@ flowchart TB
   W10b --- W11
   W11 --> W12
   R8 --- W12
+  W11 --> W13
+  W12 --- W13
   V32 --> Base
 
   ArchDec --> ReadList
