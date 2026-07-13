@@ -222,6 +222,32 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataBandCompact through the sceneContext literal (WP2 — threading-only; engine consumption + meta echo is WP1's parallel build)",
+    async () => {
+      // Both literals in terraformLayoutCore.ts (LayoutSceneContext +
+      // buildPipelineLayoutSceneBody's builderOptions, and the
+      // layoutTerraformFromSources resolution literal) are exercised by
+      // this end-to-end call — an option missing from either is silently
+      // dropped on the real app path, so a crash-free, non-degraded build
+      // with the flag on proves both seams forward it.
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandCompact: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.elements.length).toBeGreaterThan(0);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
     "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
     async () => {
       const strataOff = await buildStrata();

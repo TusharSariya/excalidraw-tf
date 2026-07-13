@@ -165,6 +165,7 @@ describe("TerraformImportModal", () => {
       strataPackedScoring: false,
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
+      strataBandCompact: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -209,6 +210,7 @@ describe("TerraformImportModal", () => {
       strataPackedScoring: false,
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
+      strataBandCompact: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -995,6 +997,7 @@ describe("TerraformImportModal", () => {
         strataPackedScoring: false,
         strataPackedScoringEpsilon: 0,
         strataEdgeRouting: false,
+        strataBandCompact: false,
       }),
     );
   });
@@ -1175,6 +1178,71 @@ describe("TerraformImportModal", () => {
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
       expect.objectContaining({ strataRankSeparate: false }),
+    );
+  });
+
+  it("Strata view: Compact bands defaults Off and On flips aria-pressed + threads strataBandCompact true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactBands = screen.getByRole("group", {
+      name: /strata compact bands/i,
+    });
+    const offBtn = within(compactBands).getByRole("button", {
+      name: /^off$/i,
+    });
+    const onBtn = within(compactBands).getByRole("button", {
+      name: /^on$/i,
+    });
+
+    // Opt-in default-OFF: Off starts pressed.
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(onBtn);
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataBandCompact: true }),
+    );
+  });
+
+  it("Strata view: Compact bands On then back to Off threads strataBandCompact false", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactBands = screen.getByRole("group", {
+      name: /strata compact bands/i,
+    });
+    const offBtn = within(compactBands).getByRole("button", {
+      name: /^off$/i,
+    });
+    const onBtn = within(compactBands).getByRole("button", {
+      name: /^on$/i,
+    });
+
+    fireEvent.click(onBtn);
+    fireEvent.click(offBtn);
+    expect(offBtn).toHaveAttribute("aria-pressed", "true");
+    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataBandCompact: false }),
     );
   });
 

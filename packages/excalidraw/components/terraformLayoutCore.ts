@@ -471,6 +471,9 @@ type LayoutSceneContext = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer.
    * Default 0 (strict rule; inert without `strataPackedScoring`). */
   strataPackedScoringEpsilon?: number;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. */
+  strataBandCompact?: boolean;
   /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
   strataPackedFrontierMeta?: boolean;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
@@ -583,6 +586,7 @@ async function buildPipelineLayoutSceneBody(
         strataJointNsRank: ctx.strataJointNsRank,
         strataPackedScoring: ctx.strataPackedScoring,
         strataPackedScoringEpsilon: ctx.strataPackedScoringEpsilon,
+        strataBandCompact: ctx.strataBandCompact,
         strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
         strataEdgeRouting: ctx.strataEdgeRouting,
         strataSweeps: ctx.strataSweeps,
@@ -1130,6 +1134,7 @@ export async function layoutTerraformFromSources(
     strataJointNsRank: options?.strataJointNsRank === true,
     strataPackedScoring: options?.strataPackedScoring === true,
     strataPackedScoringEpsilon: options?.strataPackedScoringEpsilon ?? 0,
+    strataBandCompact: options?.strataBandCompact === true,
     strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
     strataEdgeRouting: options?.strataEdgeRouting === true,
     strataSweeps: options?.strataSweeps ?? 0,

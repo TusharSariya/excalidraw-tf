@@ -40,6 +40,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataPackedScoring: false,
   strataPackedScoringEpsilon: 0,
   strataEdgeRouting: false,
+  strataBandCompact: false,
   moduleLayoutMode: "default",
 };
 
@@ -441,6 +442,25 @@ describe("terraformDemoUrlParams", () => {
       expect(params!.strataPackedScoring).toBeUndefined();
     });
 
+    it("parses strataBandCompact and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandCompact=1",
+      );
+      expect(on).not.toBeNull();
+      expect(on!.strataBandCompact).toBe(true);
+      const bare = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(bare).not.toBeNull();
+      expect(bare!.strataBandCompact).toBeUndefined();
+    });
+
+    it("rejects junk strataBandCompact", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataBandCompact=maybe",
+        ),
+      ).toBeNull();
+    });
+
     it("parses strataPackedEps (integer, and fractional relative mode)", () => {
       expect(
         parseTerraformDemoUrlParams(
@@ -602,6 +622,7 @@ describe("terraformDemoUrlParams", () => {
         strataRankSeparate: true,
         strataPackedScoring: true,
         strataPackedEps: 2,
+        strataBandCompact: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
@@ -758,6 +779,20 @@ describe("terraformDemoUrlParams", () => {
         strataEdgeRouting: true,
       });
       expect(on.strataEdgeRouting).toBe(true);
+    });
+
+    it("strataBandCompact emits truthy-only (like strataPackedScoring)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataBandCompact" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBandCompact: true,
+      });
+      expect(on.strataBandCompact).toBe(true);
     });
 
     it("strataPackedScoringEpsilon emits truthy-only as strataPackedEps", () => {

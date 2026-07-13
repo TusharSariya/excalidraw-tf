@@ -37,12 +37,14 @@ export const TerraformStrataSettings = ({
   strataPackedScoring,
   strataPackedScoringEpsilon,
   strataEdgeRouting,
+  strataBandCompact,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
   setStrataEdgeRouting,
+  setStrataBandCompact,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
@@ -50,12 +52,14 @@ export const TerraformStrataSettings = ({
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
+  strataBandCompact: boolean;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
+  setStrataBandCompact: (bandCompact: boolean) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -192,6 +196,23 @@ export const TerraformStrataSettings = ({
               )}
             </div>
           </div>
+          <div role="group" aria-label="Strata compact bands">
+            <span className="TerraformImportModal__controlLabel">
+              Compact bands{" "}
+              <span>let X-disjoint provider/account siblings share rows</span>
+            </span>
+            <div className="TerraformImportModal__segmentedControl">
+              {option(
+                "Off",
+                !strataBandCompact,
+                "strata.bandcompact.off",
+                () => setStrataBandCompact(false),
+              )}
+              {option("On", strataBandCompact, "strata.bandcompact.on", () =>
+                setStrataBandCompact(true),
+              )}
+            </div>
+          </div>
           {strataPackedScoring && (
             <div role="group" aria-label="Strata packed crossing budget">
               <span className="TerraformImportModal__controlLabel">
@@ -226,6 +247,12 @@ export const TerraformStrataSettings = ({
               Measured to conflict (W8): rank separation rebuilds the column
               grid and packed edge scoring then optimizes global crossings at
               the expense of pair locality. Prefer one or the other.
+            </div>
+          )}
+          {strataBandCompact && !strataRankSeparate && (
+            <div className="TerraformImportModal__controlNote">
+              Primarily effective with rank separation (W10: 46-53% height
+              reclaim with it, ~0 without).
             </div>
           )}
           {/* Future: OD-15 "de-band" toggle lands here as an additional

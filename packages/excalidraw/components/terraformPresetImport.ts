@@ -91,6 +91,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. */
+  strataBandCompact?: boolean;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -128,6 +131,7 @@ export const runTerraformImportWithView = async ({
   strataPackedScoring,
   strataPackedScoringEpsilon,
   strataEdgeRouting,
+  strataBandCompact,
   importedTfdTexts,
   preset = null,
   signal,
@@ -171,6 +175,7 @@ export const runTerraformImportWithView = async ({
           strataPackedScoring,
           strataPackedScoringEpsilon,
           strataEdgeRouting,
+          strataBandCompact,
         }
       : {}),
     importedTfdTexts,
@@ -210,6 +215,7 @@ export type RunTerraformPresetImportOptions = {
   strataPackedScoring?: boolean;
   strataPackedScoringEpsilon?: number;
   strataEdgeRouting?: boolean;
+  strataBandCompact?: boolean;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -272,6 +278,7 @@ export const runTerraformPresetImport = async (
     strataPackedScoring: options.strataPackedScoring,
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
     strataEdgeRouting: options.strataEdgeRouting,
+    strataBandCompact: options.strataBandCompact,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

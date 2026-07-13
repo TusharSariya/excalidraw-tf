@@ -83,6 +83,9 @@ export type TerraformImportSession = {
   strataPackedScoringEpsilon?: number;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing. */
   strataEdgeRouting?: boolean;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. */
+  strataBandCompact?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

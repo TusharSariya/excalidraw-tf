@@ -111,6 +111,10 @@ export type TerraformDemoUrlParams = {
   /** Package C spike (W9): post-A7 obstacle-avoiding edge routing
    * (`strataEdgeRouting=1/0`). Default off. */
   strataEdgeRouting?: boolean;
+  /** W10 (SDEC-63): banded row-share compaction lever
+   * (`strataBandCompact=1/0`). Default off; primarily effective with
+   * rankSeparate. */
+  strataBandCompact?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -377,6 +381,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataEdgeRouting === null) {
     return null;
   }
+  const strataBandCompact = parseBooleanParam("strataBandCompact");
+  if (strataBandCompact === null) {
+    return null;
+  }
   const strataPackedEpsRaw = params.get("strataPackedEps");
   let strataPackedEps: number | undefined;
   if (strataPackedEpsRaw != null && strataPackedEpsRaw.trim() !== "") {
@@ -507,6 +515,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
+    ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -573,6 +582,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataPackedScoring", params.strataPackedScoring);
   setNum("strataPackedEps", params.strataPackedEps);
   setBool("strataEdgeRouting", params.strataEdgeRouting);
+  setBool("strataBandCompact", params.strataBandCompact);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -631,6 +641,7 @@ export type TerraformDemoSettingsSnapshot = {
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
+  strataBandCompact: boolean;
 };
 
 /**
@@ -715,6 +726,8 @@ export const collectTerraformDemoParams = (
         : {}),
       // Package C spike (W9): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
+      // W10 (SDEC-63): default-off — truthy-only, like packed scoring.
+      ...(snapshot.strataBandCompact ? { strataBandCompact: true } : {}),
     };
   }
 

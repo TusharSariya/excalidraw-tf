@@ -21,6 +21,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** Package C spike (W9): post-A7 obstacle-avoiding edge routing — probe
    * lever, default off pending its gate battery. */
   strataEdgeRouting: false,
+  /** W10 (SDEC-63): banded row-share compaction lever — probe lever, default
+   * off pending owner adjudication (primarily effective with rankSeparate). */
+  strataBandCompact: false,
 } as const;
 
 /**
@@ -38,6 +41,7 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedScoring?: boolean;
   strataPackedEps?: number;
   strataEdgeRouting?: boolean;
+  strataBandCompact?: boolean;
 }) => ({
   strataNetworkSimplexRank:
     params.strataNsRank ??
@@ -59,4 +63,7 @@ export const resolveStrataDemoOptions = (params: {
   strataEdgeRouting:
     params.strataEdgeRouting ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
+  strataBandCompact:
+    params.strataBandCompact ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,
 });
