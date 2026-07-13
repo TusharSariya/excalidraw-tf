@@ -712,9 +712,17 @@ describe("W9 routing spike battery (report-emitting; never asserts gates)", () =
           keyGateCell[armLabel] = {
             hullPenetrations: d.penetrations.hullPenetrations,
             cardPenetrations: d.penetrations.cardPenetrations,
-            exactZero:
+            // Whole-scene exact-zero: no hull OR card penetration anywhere in the
+            // arm (includes straight arrows the router never touched). False in
+            // every routed arm today — kept for continuity, not the gate signal.
+            sceneExactZero:
               d.penetrations.hullPenetrations === 0 &&
               d.penetrations.cardPenetrations === 0,
+            // Routed-eligible exact-zero: no penetration on the arrows explicitly
+            // routed (bent, poly.length > 2). This is the actual Package C gate
+            // signal — straight residuals are unroutable-cap fallbacks, not
+            // routing failures, so they must not sink the routed exact-zero.
+            routedExactZero: d.penetrations.onBentArrows === 0,
             residualReasons: {
               unroutableEdges: d.metaEcho.strataEdgeRoutingUnroutable,
               penetrationsOnBentArrows: d.penetrations.onBentArrows,

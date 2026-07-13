@@ -250,11 +250,23 @@ function segmentsProperlyCross(
 }
 
 /**
- * Segment intersects the OPEN interior of an axis-aligned box (all in the
- * doubled coordinate system). True iff an endpoint lies strictly inside, or
- * the segment properly crosses one of the four box sides. Boundary-touching
- * and collinear-along-a-side passes do NOT count (strict semantics — same
- * convention as the crossing kernel).
+ * Segment intersects the OPEN interior of an axis-aligned box (typically the
+ * doubled coordinate system, but any numeric inputs are accepted). True iff the
+ * segment shares a positive-length overlap with the box whose midpoint lies
+ * STRICTLY inside the open box. Boundary-touching, corner-grazing and
+ * collinear-along-a-side passes do NOT count (strict semantics — same intent as
+ * the crossing kernel).
+ *
+ * Implemented as an exact Liang–Barsky slab clip: compute the parameter
+ * interval [t0,t1] of the segment inside the CLOSED box, intersected with the
+ * segment's own [0,1] range, then report true iff that interval has positive
+ * length AND its clipped midpoint is strictly interior. The old
+ * proper-crossing-of-a-side test missed corner-to-corner diagonal passes: at a
+ * corner the orientation is collinear, so no side "properly crosses" and an
+ * interior diagonal went undetected (router accepted a detour through a raw
+ * foreign box). The t-bounds are kept as exact rationals (numerator/denominator
+ * integer pairs, all comparisons by cross-multiplication — no division), so
+ * integer inputs are decided exactly, including the measure-zero diagonal.
  */
 export function segmentIntersectsStrataBoxInterior(
   ax: number,
@@ -266,26 +278,64 @@ export function segmentIntersectsStrataBoxInterior(
   x1: number,
   y1: number,
 ): boolean {
-  // Trivial reject: both endpoints beyond one closed side.
-  if (
-    (ax <= x0 && bx <= x0) ||
-    (ax >= x1 && bx >= x1) ||
-    (ay <= y0 && by <= y0) ||
-    (ay >= y1 && by >= y1)
-  ) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  // Liang–Barsky: p[k] < 0 ⇒ segment entering slab k (raises lower bound t0);
+  // p[k] > 0 ⇒ leaving (lowers upper bound t1); p[k] === 0 ⇒ parallel to slab.
+  const p = [-dx, dx, -dy, dy];
+  const q = [ax - x0, x1 - ax, ay - y0, y1 - ay];
+
+  // t0 = t0n/t0d (lower bound, starts 0), t1 = t1n/t1d (upper bound, starts 1);
+  // denominators are kept strictly positive so cross-multiplied comparisons hold.
+  let t0n = 0;
+  let t0d = 1;
+  let t1n = 1;
+  let t1d = 1;
+
+  for (let k = 0; k < 4; k++) {
+    const pk = p[k]!;
+    const qk = q[k]!;
+    if (pk === 0) {
+      // Parallel to this slab and outside it ⇒ no interior overlap at all.
+      if (qk < 0) {
+        return false;
+      }
+      continue;
+    }
+    // r = qk / pk, normalised to a positive denominator.
+    let rn = qk;
+    let rd = pk;
+    if (rd < 0) {
+      rn = -rn;
+      rd = -rd;
+    }
+    if (pk < 0) {
+      // Entering: t0 = max(t0, r) ⇔ r > t0 ⇔ rn*t0d > t0n*rd (rd,t0d > 0).
+      if (rn * t0d > t0n * rd) {
+        t0n = rn;
+        t0d = rd;
+      }
+    } else if (rn * t1d < t1n * rd) {
+      // Leaving: t1 = min(t1, r) ⇔ r < t1 ⇔ rn*t1d < t1n*rd (rd,t1d > 0).
+      t1n = rn;
+      t1d = rd;
+    }
+  }
+
+  // Positive-length interior overlap required: t0 < t1 strictly
+  // (t0n/t0d < t1n/t1d ⇔ t0n*t1d < t1n*t0d). Equal bounds = a boundary graze.
+  if (t0n * t1d >= t1n * t0d) {
     return false;
   }
-  const inside = (px: number, py: number): boolean =>
-    px > x0 && px < x1 && py > y0 && py < y1;
-  if (inside(ax, ay) || inside(bx, by)) {
-    return true;
-  }
-  return (
-    segmentsProperlyCross(ax, ay, bx, by, x0, y0, x1, y0) || // top
-    segmentsProperlyCross(ax, ay, bx, by, x0, y1, x1, y1) || // bottom
-    segmentsProperlyCross(ax, ay, bx, by, x0, y0, x0, y1) || // left
-    segmentsProperlyCross(ax, ay, bx, by, x1, y0, x1, y1) // right
-  );
+
+  // Midpoint tm = (t0 + t1)/2 = (t0n*t1d + t1n*t0d) / (2*t0d*t1d), mden > 0.
+  const mnum = t0n * t1d + t1n * t0d;
+  const mden = 2 * t0d * t1d;
+  // Point = A + tm·d. Strictly inside the OPEN box on both axes
+  // (x0 < ax + (mnum/mden)·dx < x1, ×mden > 0 ⇒ integer comparisons).
+  const mx = ax * mden + mnum * dx;
+  const my = ay * mden + mnum * dy;
+  return x0 * mden < mx && mx < x1 * mden && y0 * mden < my && my < y1 * mden;
 }
 
 /** One scored leaf-level segment (doubled-centre coordinates). */

@@ -40,6 +40,7 @@ import {
   placeStrataHullsPackedScored,
   resolveStrataPackedEpsilonDelta,
   scoreStrataPlacementGeometry,
+  segmentIntersectsStrataBoxInterior,
   strataPackedScoreAdoptable,
   strataPackedScoreLess,
   type StrataPackedScore,
@@ -818,5 +819,59 @@ describe("strataPackedScoreLess — lexicographic acceptance", () => {
 
   it("exact tie is NOT less (earliest candidate wins upstream)", () => {
     expect(strataPackedScoreLess(s(5, 1, 10), s(5, 1, 10))).toBe(false);
+  });
+});
+
+describe("segmentIntersectsStrataBoxInterior — exact open-interior test", () => {
+  // Box [0,0]-[10,10] (closed corners), open interior (0,0)..(10,10).
+  const X0 = 0;
+  const Y0 = 0;
+  const X1 = 10;
+  const Y1 = 10;
+  const hit = (ax: number, ay: number, bx: number, by: number): boolean =>
+    segmentIntersectsStrataBoxInterior(ax, ay, bx, by, X0, Y0, X1, Y1);
+
+  it("corner-to-corner diagonal pass is a HIT (the R-F1 repro)", () => {
+    // Passes exactly through opposite corners (0,0) and (10,10). The old
+    // proper-side-crossing test returned false here (collinear at corners),
+    // wrongly ACCEPTING a detour through a raw foreign box.
+    expect(hit(-5, -5, 15, 15)).toBe(true);
+    // The other diagonal, corners (10,0)->(0,10).
+    expect(hit(15, -5, -5, 15)).toBe(true);
+  });
+
+  it("boundary graze (single corner touch, no interior) is NOT a hit", () => {
+    // Passes exactly through corner (10,10) but stays outside otherwise.
+    expect(hit(12, 8, 8, 12)).toBe(false);
+    // Passes exactly through corner (0,0) but stays outside otherwise.
+    expect(hit(-2, 2, 2, -2)).toBe(false);
+  });
+
+  it("collinear-along-a-side pass is NOT a hit", () => {
+    // Along the top edge y = 0 (a closed side, not the open interior).
+    expect(hit(-5, 0, 15, 0)).toBe(false);
+    // Along the right edge x = 10.
+    expect(hit(10, -5, 10, 15)).toBe(false);
+    // Along the bottom edge y = 10.
+    expect(hit(15, 10, -5, 10)).toBe(false);
+  });
+
+  it("endpoint on boundary but segment crosses through interior is a HIT", () => {
+    // Starts on the top edge (5,0) at interior-x, dives into the interior.
+    expect(hit(5, 0, 5, 8)).toBe(true);
+    // Starts on the left edge (0,5), crosses to the far side.
+    expect(hit(0, 5, 15, 5)).toBe(true);
+  });
+
+  it("endpoint strictly inside is a HIT; segment fully outside is NOT", () => {
+    expect(hit(5, 5, 20, 20)).toBe(true); // one endpoint interior
+    expect(hit(2, 2, 8, 8)).toBe(true); // both endpoints interior
+    expect(hit(-5, -5, -1, -1)).toBe(false); // wholly outside
+    expect(hit(11, 0, 11, 10)).toBe(false); // parallel, right of box
+  });
+
+  it("boundary-touching endpoint that does not enter interior is NOT a hit", () => {
+    // Endpoint exactly on the edge, segment heads away from the box.
+    expect(hit(5, 0, 5, -8)).toBe(false);
   });
 });
