@@ -58,6 +58,18 @@ export type StrataEngineOptions = {
    * literals (flag-OFF byte-identity) are unaffected.
    */
   packedScoringEpsilon?: number;
+  /**
+   * W10 Stage 2 (SDEC-62, OD-15 re-scoped, default off): order-constrained
+   * row-share at the banded provider/account levels ("bandedCompact"). A0
+   * places those hulls' children with the packed dropY skyline over ACTUAL
+   * x-extents in canonical A2 order (a child never rises above an
+   * X-overlapping earlier sibling); root stays a full-width stack (v3.1
+   * §1.4). A7's overlap constraint follows actual X-extents for those hulls
+   * when live. The role→policy map is untouched — this is an option-gated
+   * placement behavior, not a third policy value (T9 mirror unaffected).
+   * Optional so existing option literals (flag-OFF byte-identity) hold.
+   */
+  bandCompact?: boolean;
 };
 
 /**
