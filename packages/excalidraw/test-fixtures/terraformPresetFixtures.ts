@@ -96,6 +96,23 @@ export function loadStagingCloudflareMultiImportFixture(options?: {
   };
 }
 
+/**
+ * W12 P3 synthetic held-out preset (`staging-heldout-mesh`) sources from the
+ * committed preset DB. SELF-AUTHORED fixture (scripts/generate-heldout-plan.mjs,
+ * seed 20260704) — out-of-tuning-distribution transfer material, NOT an
+ * independently sampled held-out plan (R8-F4 stays open).
+ */
+export function loadStagingHeldoutMeshFixture() {
+  const sources = getTerraformImportPresetSourcesFromDb("staging-heldout-mesh");
+  if (!sources) {
+    throw new Error(
+      "staging-heldout-mesh preset missing from the committed preset DB. " +
+        "Run node scripts/generate-heldout-plan.mjs and regenerate the test DB.",
+    );
+  }
+  return sources;
+}
+
 export {
   hasTerraformImportRepoFileInDb,
   loadStagingMultiStatePlanDotBundlesFromDb,
