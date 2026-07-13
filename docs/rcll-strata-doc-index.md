@@ -83,6 +83,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`strata-view-w5b-joint-ns-probe.md`](./strata-view-w5b-joint-ns-probe.md) | Battery | Current | R8-F9 joint constrained-NS probe — feasible but NO-GO vs sequential RS |
 | [`strata-view-w6-highlight-spike-report.md`](./strata-view-w6-highlight-spike-report.md) | Battery | Current (owner-eval pending) | v3.2 §8 highlight-spike crossover sweep — v2+HL vs unaided strata-I |
 | [`strata-view-w7-packed-scoring-battery.md`](./strata-view-w7-packed-scoring-battery.md) | Battery | Current (owner adjudication pending) | Round-9 remedy battery — strataPackedScoring vs I/v2; default-on candidate w/ paired-tail churn cells open |
+| [`strata-view-w8-rank-scorer-factorial.md`](./strata-view-w8-rank-scorer-factorial.md) | Battery | Current | Rank×scorer factorial — RS×packedScoring interaction regresses the owner case (scorer wins are substrate-conditional); ALL≡P_RS (NS suppressed) |
 | [`strata-baselines/README.md`](./strata-baselines/README.md) | Battery | Current (frozen) | S0b baseline JSON pins |
 | [`rcll-reading-list.md`](./rcll-reading-list.md) | Aux | Living | Literature reading list |
 | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md) | Aux | Living | Built vs rejected papers |
@@ -131,6 +132,7 @@ flowchart TB
     W5b[w5b-joint-ns-probe]
     W6[w6-highlight-spike-report]
     W7[w7-packed-scoring-battery]
+    W8[w8-rank-scorer-factorial]
     Base[strata-baselines]
   end
 
@@ -180,6 +182,8 @@ flowchart TB
   W5 --- W6
   R9 --> W7
   W5 --- W7
+  W7 --> W8
+  R9 --- W8
   W3 --- W4
   W4 --- W5
   V32 --> Base

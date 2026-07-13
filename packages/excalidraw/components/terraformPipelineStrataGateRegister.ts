@@ -86,9 +86,49 @@ export type GateRegisterCell = {
   reportAssert?: "none" | "floorIneligible";
 };
 
+/** Round-9 per-arm scalar metric families (docs/rcll-v2-shit-test-round9.md,
+ * docs/strata-view-w7-packed-scoring-battery.md):
+ *   hullPenetrations = M-H   (edge–hull-frame tunneling on final geometry)
+ *   batteryCrossings = M-TCR (battery global edge crossings)
+ *   sharpShare       = M-ANG (share of crossings below the sharp-angle floor)
+ * Unlike the paired cells above, these are single per-arm scalars — the W7
+ * `P_strata_k4_a7_packed` arm and the hull-penetration counter are NOT in the
+ * frozen paired artifacts, so a scalar cell records the measured value (with the
+ * evidence doc as its provenance) rather than recomputing a paired bootstrap. */
+export type ScalarMetricId = "hullPenetrations" | "batteryCrossings" | "sharpShare";
+
+export type GateRegisterScalarCell = {
+  id: string;
+  metric: ScalarMetricId;
+  preset: string;
+  /** Exact arm/configuration the claim names — v3.2 requires claims to name
+   * their configuration (e.g. "strata K4+A7+packedScoring, P1 compact, W7"). */
+  configuration: string;
+  /** Measured scalar value recorded from the evidence doc. */
+  value: number;
+  /** Baseline (comparator) this claim is measured against, when comparative.
+   * Absent = this cell is the reference arm (no gate verdict, REPORT only). */
+  baseline?: { arm: string; value: number };
+  /** true when a smaller value is better — all three round-9 scalars are
+   * lower-is-better (fewer crossings / penetrations / sharp angles). */
+  lowerIsBetter: boolean;
+  claimedStatus: GateRegisterStatus;
+  /** How this entry was decided (e.g. "recorded-from-W7"). */
+  adjudication: string;
+  /** Doc/SDEC references backing the measurement. */
+  evidence: string;
+  /** Required (non-empty) when claimedStatus === "FAIL-WAIVED". */
+  sdec?: string;
+  note?: string;
+};
+
 export type GateRegister = {
   schemaVersion: 1;
   cells: GateRegisterCell[];
+  /** Round-9 scalar claim cells (M-H / M-TCR / M-ANG). Optional so older
+   * registers stay valid; when present the test enforces the same label
+   * discipline as the paired cells. */
+  scalarCells?: GateRegisterScalarCell[];
 };
 
 const metricMap = (
@@ -187,6 +227,78 @@ export function claimMismatch(
       if (cell.reportAssert === "floorIneligible" && rc.gateEligible) {
         return `${cell.id}: claimed REPORT(floorIneligible) but n=${rc.ci.n} is gate-eligible`;
       }
+      return null;
+    default:
+      return `${cell.id}: unknown claimedStatus ${String(cell.claimedStatus)}`;
+  }
+}
+
+export type ScalarRecompute = {
+  /** Improvement direction the recorded value+baseline support (before waiver):
+   *  PASS   = comparative and strictly better than baseline.
+   *  PARITY = comparative and equal to baseline.
+   *  FAIL   = comparative and worse than baseline.
+   *  REPORT = no comparator recorded — a pure measurement, no gate verdict. */
+  computed: "PASS" | "PARITY" | "FAIL" | "REPORT";
+  /** Signed candidate−baseline delta oriented so <0 is better (undefined when
+   * there is no comparator). */
+  orientedDelta?: number;
+};
+
+/** Recompute a scalar cell's categorical direction from its recorded value and
+ * baseline. Mirrors recomputeCell()'s PASS/PARITY/FAIL semantics so the same
+ * mismatch discipline (FAIL-WAIVED never renders as PASS) applies to the M-H /
+ * M-TCR / M-ANG families. */
+export function recomputeScalarCell(
+  cell: GateRegisterScalarCell,
+): ScalarRecompute {
+  if (!cell.baseline) {
+    return { computed: "REPORT" };
+  }
+  const delta = cell.value - cell.baseline.value;
+  const oriented = cell.lowerIsBetter ? delta : -delta;
+  let computed: ScalarRecompute["computed"];
+  if (oriented < 0) {
+    computed = "PASS";
+  } else if (oriented === 0) {
+    computed = "PARITY";
+  } else {
+    computed = "FAIL";
+  }
+  return { computed, orientedDelta: oriented };
+}
+
+/** null = claim consistent; string = human-readable mismatch (test fails). */
+export function scalarClaimMismatch(
+  cell: GateRegisterScalarCell,
+  rc: ScalarRecompute,
+): string | null {
+  // Waiver discipline: a FAIL-WAIVED must cite an SDEC regardless of direction.
+  if (
+    cell.claimedStatus === "FAIL-WAIVED" &&
+    (!cell.sdec || cell.sdec.trim() === "")
+  ) {
+    return `${cell.id}: claimed FAIL-WAIVED without an SDEC citation`;
+  }
+  const got = `computed=${rc.computed}${
+    rc.orientedDelta === undefined ? "" : ` orientedDelta=${rc.orientedDelta}`
+  }`;
+  switch (cell.claimedStatus) {
+    case "PASS":
+      return rc.computed === "PASS"
+        ? null
+        : `${cell.id}: claimed PASS but ${got}`;
+    case "PARITY":
+      return rc.computed === "PARITY"
+        ? null
+        : `${cell.id}: claimed PARITY but ${got}`;
+    case "FAIL-WAIVED":
+      return rc.computed === "FAIL"
+        ? null
+        : `${cell.id}: claimed FAIL-WAIVED but ${got} — waiver is stale`;
+    case "REPORT":
+      // Measurement-only: asserts nothing about direction. Legitimate for the
+      // W7 numbers (owner adjudication of the default posture pending).
       return null;
     default:
       return `${cell.id}: unknown claimedStatus ${String(cell.claimedStatus)}`;

@@ -26,8 +26,11 @@ import { describe, expect, it } from "vitest";
 import {
   claimMismatch,
   recomputeCell,
+  recomputeScalarCell,
+  scalarClaimMismatch,
   type FrozenRowsArtifact,
   type GateRegister,
+  type ScalarMetricId,
 } from "./terraformPipelineStrataGateRegister";
 
 const BASE_DIR = join(__dirname, "../../../docs/strata-baselines");
@@ -115,6 +118,109 @@ describe("v3.2 gate register (always-on assertions)", () => {
       mismatches,
       `gate-register claims failed to recompute:\n${mismatches.join("\n")}`,
     ).toEqual([]);
+  });
+
+  it("scalar cells (M-H / M-TCR / M-ANG) are schema-valid and recompute", () => {
+    const scalarCells = register.scalarCells ?? [];
+    expect(scalarCells.length).toBeGreaterThan(0);
+    const validMetrics = new Set<ScalarMetricId>([
+      "hullPenetrations",
+      "batteryCrossings",
+      "sharpShare",
+    ]);
+    const validStatuses = new Set([
+      "PASS",
+      "PARITY",
+      "FAIL-WAIVED",
+      "REPORT",
+    ]);
+    const mismatches: string[] = [];
+    const ids = new Set<string>();
+    for (const cell of scalarCells) {
+      expect(ids.has(cell.id), `duplicate scalar cell id ${cell.id}`).toBe(
+        false,
+      );
+      ids.add(cell.id);
+      expect(validMetrics.has(cell.metric), `${cell.id}: metric id`).toBe(true);
+      expect(validStatuses.has(cell.claimedStatus), `${cell.id}: status`).toBe(
+        true,
+      );
+      expect(typeof cell.preset, `${cell.id}: preset`).toBe("string");
+      expect(cell.preset.length, `${cell.id}: preset non-empty`).toBeGreaterThan(
+        0,
+      );
+      // v3.2: a claim must name its exact configuration.
+      expect(
+        cell.configuration.length,
+        `${cell.id}: configuration named`,
+      ).toBeGreaterThan(0);
+      expect(Number.isFinite(cell.value), `${cell.id}: numeric value`).toBe(
+        true,
+      );
+      expect(typeof cell.lowerIsBetter, `${cell.id}: lowerIsBetter`).toBe(
+        "boolean",
+      );
+      expect(cell.evidence.length, `${cell.id}: evidence pointer`).toBeGreaterThan(
+        0,
+      );
+      if (cell.baseline) {
+        expect(
+          Number.isFinite(cell.baseline.value),
+          `${cell.id}: baseline value`,
+        ).toBe(true);
+      }
+      // Same discipline as paired cells: FAIL-WAIVED must cite an SDEC, and a
+      // claim must match the direction recomputed from value+baseline (so a
+      // computed regression can never be relabeled PASS).
+      const mismatch = scalarClaimMismatch(cell, recomputeScalarCell(cell));
+      if (mismatch) {
+        mismatches.push(mismatch);
+      }
+    }
+    expect(
+      mismatches,
+      `scalar-register claims failed to recompute:\n${mismatches.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("negative path: a scalar regression cannot be relabeled PASS, and FAIL-WAIVED needs an SDEC", () => {
+    const scalarCells = register.scalarCells ?? [];
+    // A comparative cell whose recorded value is worse than its baseline (a
+    // computed FAIL under lower-is-better).
+    const regressing = scalarCells.find(
+      (c) =>
+        c.baseline !== undefined &&
+        c.lowerIsBetter &&
+        c.value > c.baseline.value,
+    );
+    expect(
+      regressing,
+      "register has a comparative scalar regression to test",
+    ).toBeTruthy();
+    // Relabel it PASS — must be flagged.
+    expect(
+      scalarClaimMismatch(
+        { ...regressing!, claimedStatus: "PASS" },
+        recomputeScalarCell(regressing!),
+      ),
+      "a computed scalar FAIL relabeled PASS must be flagged",
+    ).not.toBeNull();
+    // FAIL-WAIVED over that FAIL with no SDEC must be flagged; with an SDEC it
+    // is a legal waiver.
+    expect(
+      scalarClaimMismatch(
+        { ...regressing!, claimedStatus: "FAIL-WAIVED", sdec: undefined },
+        recomputeScalarCell(regressing!),
+      ),
+      "FAIL-WAIVED without an SDEC must be flagged",
+    ).not.toBeNull();
+    expect(
+      scalarClaimMismatch(
+        { ...regressing!, claimedStatus: "FAIL-WAIVED", sdec: "SDEC-99" },
+        recomputeScalarCell(regressing!),
+      ),
+      "FAIL-WAIVED citing an SDEC over a computed FAIL is legal",
+    ).toBeNull();
   });
 
   it("negative path: a relabeled claim is detected (the R8-F3 property)", () => {
