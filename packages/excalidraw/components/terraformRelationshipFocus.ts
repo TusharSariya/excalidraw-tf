@@ -158,6 +158,26 @@ const isParentGroupOfFocusedNode = (
   );
 };
 
+/**
+ * Like {@link isParentGroupOfFocusedNode}, but only counts children within one
+ * hop of the focus. Group reveal must obey the same ≤1-hop invariant as edges
+ * and resources: with an uncapped hop budget the full `focusedNodePaths` cone
+ * can reach arbitrarily far, and revealing a soft-deleted group that deep
+ * fights the collapsed-overview visibility reconciler and never settles.
+ */
+const isParentGroupOfNearFocusedNode = (
+  element: ExcalidrawElement,
+  nodeDistance: ReadonlyMap<string, number>,
+) => {
+  const childKeys = element.customData?.terraformGroupChildKeys;
+  return Boolean(
+    Array.isArray(childKeys) &&
+      childKeys.some(
+        (key) => typeof key === "string" && (nodeDistance.get(key) ?? 99) <= 1,
+      ),
+  );
+};
+
 type PreviewAction = "set" | "clear" | "leave";
 
 /**
@@ -264,7 +284,16 @@ export const getTerraformRelationshipFocus = (
   maxHops: number = TERRAFORM_FOCUS_MAX_HOPS,
   options?: TerraformFocusOptions,
 ) => {
-  const direction: TerraformFocusDirection = options?.direction ?? "both";
+  // Explicit matching, not a "non-both ⇒ dependents" ternary: AppState can
+  // carry junk direction strings via public `updateScene`/`restore` (the type
+  // is a compile-time promise only), and anything unrecognized must take the
+  // undirected legacy ("both") path rather than silently becoming a directed
+  // walk. See `buildTerraformRuntimeFocusUpdate` for the AppState-side
+  // normalization; this keeps the traversal safe for direct API callers too.
+  const direction: TerraformFocusDirection =
+    options?.direction === "dependencies" || options?.direction === "dependents"
+      ? options.direction
+      : "both";
   // `options.maxHops` wins over the legacy positional param when both are given.
   // `Infinity` means uncapped: the BFS below still terminates because visited
   // nodes (`nodeDistance`) are never re-entered, so cycles cannot loop.
@@ -317,6 +346,8 @@ export const getTerraformRelationshipFocus = (
     // declared-dependency orientation and get identical treatment. What this
     // axis semantically reads as on canvas is owned by Q7-AXIS — no claim here.
     const linkDirected = (source: string, target: string) => {
+      // Only reachable with a validated direction (see the explicit matching
+      // above), so this two-way pick cannot swallow junk values.
       const [from, to] =
         direction === "dependencies" ? [source, target] : [target, source];
       (adjacency.get(from) ?? adjacency.set(from, new Set()).get(from)!).add(
@@ -653,11 +684,18 @@ export const applyTerraformRelationshipFocus = (
         element,
         focusedNodePaths,
       );
+      // Reveal only groups containing the focus or a direct (1-hop) neighbor;
+      // parents of deeper cone nodes are highlighted (via `nextLevel`) when
+      // already visible but never un-deleted — mirrors the edge/resource
+      // ≤1-hop reveal gating above.
+      const isNearParent =
+        isFocusedParent &&
+        isParentGroupOfNearFocusedNode(element, nodeDistance);
       const nextLevel = isFocusedParent
         ? TERRAFORM_CONTAINER_LEVEL
         : TERRAFORM_DIM_NODE_LEVEL;
-      const shouldReveal = isFocusedParent && element.isDeleted;
-      const shouldHideExpiredPreview = !isFocusedParent && isPreview;
+      const shouldReveal = isNearParent && element.isDeleted;
+      const shouldHideExpiredPreview = !isNearParent && isPreview;
       const nextIsDeleted = shouldHideExpiredPreview
         ? true
         : shouldReveal

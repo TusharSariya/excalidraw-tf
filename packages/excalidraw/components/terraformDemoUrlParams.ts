@@ -134,10 +134,12 @@ export type TerraformDemoUrlParams = {
    */
   focusDirection?: TerraformFocusDirection;
   /**
-   * Relationship-focus hop-cap override. Only `Infinity` is meaningful
-   * (`focushops=all`, menu "Unlimited"); omitted = legacy default (3 hops).
-   * `JSON.stringify(Infinity) === null`, so this never round-trips through JSON —
-   * only through this URL param and the in-memory options object.
+   * Relationship-focus hop-cap override. `Infinity` (`focushops=all`, menu
+   * "Unlimited") or a finite integer cap 1..99 (`focushops=2` — W11 F5:
+   * API-set finite caps must survive sharing); omitted = legacy default
+   * (3 hops). `JSON.stringify(Infinity) === null`, so Infinity never
+   * round-trips through JSON — only through this URL param and the in-memory
+   * options object (AppState stores the `-1` sentinel instead).
    */
   focusMaxHops?: number;
 };
@@ -478,15 +480,23 @@ export const parseTerraformDemoUrlParams = (
     }
   }
 
-  // `focushops=all` (W11 WP1) — the only meaningful explicit value ("Unlimited");
-  // the legacy default (3 hops) is represented by omission only.
+  // `focushops=all` (W11 WP1, "Unlimited" → Infinity) or an explicit finite
+  // cap `focushops=1..99` (W11 F5 — AppState accepts any finite cap via the
+  // API, so shares must round-trip it). The legacy default (3 hops) is
+  // represented by omission only.
   const focusHopsRaw = params.get("focushops");
   let focusMaxHops: number | undefined;
   if (focusHopsRaw != null && focusHopsRaw.trim() !== "") {
-    if (focusHopsRaw.trim().toLowerCase() === "all") {
+    const normalized = focusHopsRaw.trim().toLowerCase();
+    if (normalized === "all") {
       focusMaxHops = Infinity;
     } else {
-      return null;
+      const parsedHops = Number(normalized);
+      if (Number.isInteger(parsedHops) && parsedHops >= 1 && parsedHops <= 99) {
+        focusMaxHops = parsedHops;
+      } else {
+        return null;
+      }
     }
   }
 
@@ -653,15 +663,43 @@ export const buildTerraformDemoUrl = (
   } else if (params.focusDirection === "dependents") {
     sp.set("focusdir", "dependents");
   }
-  // `Infinity` never hits JSON — encoded as the string "all" here.
+  // `Infinity` never hits JSON — encoded as the string "all" here. Finite
+  // non-null caps (W11 F5) are emitted numerically so they round-trip.
   if (params.focusMaxHops === Infinity) {
     sp.set("focushops", "all");
+  } else if (params.focusMaxHops != null) {
+    sp.set("focushops", String(params.focusMaxHops));
   }
 
   const pathname = options?.pathname ?? "/demo";
   const origin = options?.origin ?? "";
   return `${origin}${pathname}?${sp.toString()}`;
 };
+
+/**
+ * Resolve the AppState relationship-focus pair from parsed share/demo params
+ * (W11 F2). The share codec omits both params at their defaults while both
+ * AppState fields are browser-persisted, so a recipient with stale non-default
+ * local state (e.g. `dependents`/unlimited) would silently keep it when
+ * opening a "default" share URL. Omitted params therefore mean EXPLICIT
+ * defaults (`"both"` / `null`) and the auto-import must always set the pair.
+ * `Infinity` (`focushops=all`) maps to the JSON-safe stored sentinel `-1`;
+ * finite caps are stored verbatim.
+ */
+export const resolveTerraformFocusSettingsFromDemoParams = (
+  params: Pick<TerraformDemoUrlParams, "focusDirection" | "focusMaxHops">,
+): {
+  terraformFocusDirection: TerraformFocusDirection;
+  terraformFocusMaxHops: number | null;
+} => ({
+  terraformFocusDirection: params.focusDirection ?? "both",
+  terraformFocusMaxHops:
+    params.focusMaxHops === undefined
+      ? null
+      : params.focusMaxHops === Infinity
+      ? -1
+      : params.focusMaxHops,
+});
 
 /** The dialog/hook settings the demo URL captures (mirrors the import option threading). */
 export type TerraformDemoSettingsSnapshot = {

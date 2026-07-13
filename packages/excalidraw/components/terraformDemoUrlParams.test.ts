@@ -8,6 +8,7 @@ import {
   isDemoPathname,
   normalizePresetIdParam,
   parseTerraformDemoUrlParams,
+  resolveTerraformFocusSettingsFromDemoParams,
   type TerraformDemoSettingsSnapshot,
   type TerraformDemoUrlParams,
 } from "./terraformDemoUrlParams";
@@ -964,12 +965,30 @@ describe("terraformDemoUrlParams", () => {
       expect(absent!.focusMaxHops).toBeUndefined();
     });
 
-    it("rejects a non-'all' focushops value", () => {
+    it("parses a finite focushops cap 1..99 (W11 F5)", () => {
       expect(
-        parseTerraformDemoUrlParams("?preset=demo&focushops=3"),
-      ).toBeNull();
+        parseTerraformDemoUrlParams("?preset=demo&focushops=2"),
+      ).toMatchObject({ focusMaxHops: 2 });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=99"),
+      ).toMatchObject({ focusMaxHops: 99 });
+    });
+
+    it("rejects focushops values outside 'all' / integer 1..99", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=unlimited"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=-1"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=100"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=2.5"),
       ).toBeNull();
     });
 
@@ -985,14 +1004,59 @@ describe("terraformDemoUrlParams", () => {
       ).toEqual(full);
     });
 
-    it("never emits focusdir=both or a focushops param for a finite hop cap", () => {
+    it("round-trips a finite focushops cap through build/parse (W11 F5)", () => {
+      const finite: TerraformDemoUrlParams = {
+        presetId: "demo",
+        view: "rcll",
+        focusMaxHops: 2,
+      };
+      const url = buildTerraformDemoUrl(finite);
+      expect(url).toContain("focushops=2");
+      expect(parseTerraformDemoUrlParams(queryOf(url))).toEqual(finite);
+    });
+
+    it("never emits focusdir=both; finite caps are emitted numerically", () => {
       const url = buildTerraformDemoUrl({
         presetId: "demo",
         focusDirection: "both",
         focusMaxHops: 3,
       });
       expect(url).not.toContain("focusdir");
-      expect(url).not.toContain("focushops");
+      expect(url).toContain("focushops=3");
+    });
+
+    it("resolveTerraformFocusSettingsFromDemoParams always yields the full pair (W11 F2)", () => {
+      // Omitted params = EXPLICIT defaults, so stale persisted settings reset.
+      expect(resolveTerraformFocusSettingsFromDemoParams({})).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: null,
+      });
+      // Infinity (focushops=all) maps to the JSON-safe -1 stored sentinel.
+      expect(
+        resolveTerraformFocusSettingsFromDemoParams({
+          focusDirection: "dependents",
+          focusMaxHops: Infinity,
+        }),
+      ).toEqual({
+        terraformFocusDirection: "dependents",
+        terraformFocusMaxHops: -1,
+      });
+      // Finite caps (W11 F5) are stored verbatim.
+      expect(
+        resolveTerraformFocusSettingsFromDemoParams({ focusMaxHops: 2 }),
+      ).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: 2,
+      });
+      // Partial URLs must not leave the other field stale either.
+      expect(
+        resolveTerraformFocusSettingsFromDemoParams({
+          focusDirection: "dependencies",
+        }),
+      ).toEqual({
+        terraformFocusDirection: "dependencies",
+        terraformFocusMaxHops: null,
+      });
     });
 
     it("round-trips a full runtime-settings params object", () => {

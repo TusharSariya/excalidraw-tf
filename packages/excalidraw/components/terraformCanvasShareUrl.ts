@@ -136,9 +136,15 @@ export const buildTerraformCanvasShareUrl = (
     ...(view.terraformFocusDirection !== "both"
       ? { focusDirection: view.terraformFocusDirection }
       : {}),
+    // `-1` is the stored AppState sentinel for "unlimited"; a runtime Infinity
+    // (API misuse, tolerated at the traversal boundary) shares identically.
+    // Finite non-null caps (W11 F5) are emitted verbatim so API-set caps
+    // survive the share round-trip instead of silently reverting to 3.
     ...(view.terraformFocusMaxHops === -1 ||
     view.terraformFocusMaxHops === Infinity
       ? { focusMaxHops: Infinity }
+      : view.terraformFocusMaxHops != null
+      ? { focusMaxHops: view.terraformFocusMaxHops }
       : {}),
   };
 

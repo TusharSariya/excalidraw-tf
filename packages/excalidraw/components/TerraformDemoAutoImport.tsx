@@ -5,6 +5,7 @@ import { useApp, useExcalidrawSetAppState } from "./App";
 import {
   isDemoPathname,
   parseTerraformDemoUrlParams,
+  resolveTerraformFocusSettingsFromDemoParams,
   type TerraformDemoUrlParams,
 } from "./terraformDemoUrlParams";
 import { getTerraformImportPreset } from "./terraformImportPresets";
@@ -57,20 +58,20 @@ const applyCanvasViewSettings = (
     ...(params.minimap !== undefined
       ? { terraformMinimapEnabled: params.minimap }
       : {}),
+    // NOTE: `terraformEdgeLayerPins` is browser-persisted too and only patched
+    // when the URL carries `layers=…`, so a recipient's stale non-default pins
+    // survive a "default" share URL — the same staleness the focus pair fixes
+    // below (W11 F2). Left as-is deliberately: changing pins behavior is out
+    // of scope for W11 (see w11 diff-review disposition F2).
     ...(params.edgeLayerPins
       ? { terraformEdgeLayerPins: params.edgeLayerPins }
       : {}),
-    // W11 WP1 — omitted params leave the (already-default) AppState fields alone.
-    ...(params.focusDirection !== undefined
-      ? { terraformFocusDirection: params.focusDirection }
-      : {}),
-    ...(params.focusMaxHops !== undefined
-      ? {
-          // AppState stores the JSON-safe -1 sentinel, never Infinity.
-          terraformFocusMaxHops:
-            params.focusMaxHops === Infinity ? -1 : params.focusMaxHops,
-        }
-      : {}),
+    // W11 F2 — ALWAYS set the focus pair: the share codec omits defaults, and
+    // both fields are browser-persisted, so an omitted param must be applied
+    // as the explicit default ("both" / null) rather than leaving a stale
+    // persisted non-default value in place. Infinity → the JSON-safe -1
+    // sentinel inside the helper.
+    ...resolveTerraformFocusSettingsFromDemoParams(params),
   };
   if (Object.keys(appStatePatch).length > 0) {
     setAppState(appStatePatch as Pick<AppState, keyof typeof appStatePatch>);

@@ -173,11 +173,12 @@ describe("terraformCanvasShareUrl", () => {
       expect(url).not.toContain("focushops");
     });
 
-    it("emits focusdir + focushops=all when set to non-default", () => {
+    it("emits focusdir + focushops=all from the stored -1 sentinel (real AppState value)", () => {
       const view: TerraformCanvasViewSettings = {
         ...defaultView,
         terraformFocusDirection: "dependents",
-        terraformFocusMaxHops: Infinity,
+        // AppState persists -1 for "unlimited" (never Infinity — JSON-unsafe).
+        terraformFocusMaxHops: -1,
       };
       const url = buildTerraformCanvasShareUrl(
         makeSession({ layoutMode: "rcll" }),
@@ -189,6 +190,32 @@ describe("terraformCanvasShareUrl", () => {
         focusDirection: "dependents",
         focusMaxHops: Infinity,
       });
+    });
+
+    it("tolerates a runtime Infinity (API misuse) identically to the -1 sentinel", () => {
+      const view: TerraformCanvasViewSettings = {
+        ...defaultView,
+        terraformFocusMaxHops: Infinity,
+      };
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "rcll" }),
+        view,
+      );
+      expect(url).toContain("focushops=all");
+    });
+
+    it("emits a finite non-null hop cap numerically (W11 F5)", () => {
+      const view: TerraformCanvasViewSettings = {
+        ...defaultView,
+        terraformFocusMaxHops: 2,
+      };
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "rcll" }),
+        view,
+      );
+      expect(url).toContain("focushops=2");
+      const parsed = parseTerraformDemoUrlParams(queryOf(url!));
+      expect(parsed).toMatchObject({ focusMaxHops: 2 });
     });
   });
 });

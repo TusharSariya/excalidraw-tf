@@ -52,13 +52,36 @@ export const buildTerraformRuntimeFocusUpdate = ({
   /** W11 WP1: opt-in hop-cap override; `null` = legacy default (3 hops). */
   focusMaxHops?: AppState["terraformFocusMaxHops"];
 }) => {
+  // ── W11 F4: AppState ingress normalization ─────────────────────────────
+  // AppState may carry junk in these two fields via the public `updateScene`
+  // API or `restore` (the TS types are compile-time promises only). This is
+  // the consumption boundary, so normalize BEFORE building the options/sig:
+  // - direction: anything but "dependencies"/"dependents" ⇒ "both".
+  // - maxHops: `-1` (the JSON-safe stored sentinel) ⇒ Infinity; `null`/
+  //   undefined ⇒ legacy default (3 hops); `Infinity` (API misuse) ⇒ tolerated
+  //   as Infinity here but never re-stored — storage-side Infinity degrades
+  //   safely to `null` through JSON.stringify (accepted); any other
+  //   non-finite/NaN/<1 value ⇒ ignored (legacy default).
+  const normalizedFocusDirection: AppState["terraformFocusDirection"] =
+    focusDirection === "dependencies" || focusDirection === "dependents"
+      ? focusDirection
+      : "both";
+  const effectiveMaxHops =
+    focusMaxHops == null
+      ? null
+      : focusMaxHops === -1 || focusMaxHops === Infinity
+      ? Infinity
+      : Number.isFinite(focusMaxHops) && focusMaxHops >= 1
+      ? focusMaxHops
+      : null;
+
   const focusInputsSig = terraformFocusInputsSig(
     activeFocusNodePath,
     selectedElementIds,
     pins,
     viewBackgroundColor,
-    focusDirection,
-    focusMaxHops,
+    normalizedFocusDirection,
+    effectiveMaxHops,
   );
   const currentSceneSig = terraformFocusSceneSig(
     allElements,
@@ -76,17 +99,17 @@ export const buildTerraformRuntimeFocusUpdate = ({
     };
   }
 
-  // Options are omitted entirely at the default ("both" + no hop override) so
-  // `applyTerraformRelationshipFocus` takes its byte-identical legacy path.
-  // AppState stores the JSON-safe sentinel `-1` for "unlimited" (a stored
-  // Infinity would degrade to null through localStorage/export JSON); it is
-  // mapped to Infinity only here, at the traversal boundary.
-  const effectiveMaxHops = focusMaxHops === -1 ? Infinity : focusMaxHops;
+  // Options are omitted entirely at the (normalized) default ("both" + no hop
+  // override) so `applyTerraformRelationshipFocus` takes its byte-identical
+  // legacy path. AppState stores the JSON-safe sentinel `-1` for "unlimited";
+  // it is mapped to Infinity only above, at this traversal boundary.
   const focusOptions =
-    focusDirection === "both" && effectiveMaxHops == null
+    normalizedFocusDirection === "both" && effectiveMaxHops == null
       ? undefined
       : {
-          ...(focusDirection !== "both" ? { direction: focusDirection } : {}),
+          ...(normalizedFocusDirection !== "both"
+            ? { direction: normalizedFocusDirection }
+            : {}),
           ...(effectiveMaxHops != null ? { maxHops: effectiveMaxHops } : {}),
         };
 

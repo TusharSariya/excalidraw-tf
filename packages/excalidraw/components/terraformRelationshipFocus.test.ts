@@ -928,11 +928,45 @@ describe("terraform relationship focus", () => {
       expect(byId.get("edge:b-d")?.isDeleted).toBe(true);
     });
 
-    it("follows relationship.source/target on reversed strata back-edge arrows (C10' — no un-reversal)", () => {
-      // Strata's C10' back-edge reversal is rank-only: the drawn arrow may point
-      // "up" the layout, but customData.relationship keeps the TRUE declared
-      // dependency direction. The directed cone must follow the relationship
-      // fields verbatim, regardless of any strata reversal marker.
+    it("never reveals a soft-deleted group whose children are all >1 hop out, even uncapped (W11 F1)", () => {
+      // Chain a → b → c. With Infinity hops the full cone {a,b,c} lands in
+      // `focusedNodePaths`, so a naive "parent of any focused node" check
+      // would reveal the soft-deleted group around `c` (2 hops out). Group
+      // reveal must obey the same ≤1-hop invariant as edges and resources.
+      const elements = [
+        resource("a"),
+        resource("b"),
+        resource("c", { isDeleted: true }),
+        group("group:near", ["b"], { isDeleted: true }),
+        group("group:far", ["c"], { isDeleted: true }),
+        edge("edge:a-b", "dependency", "a", "b"),
+        edge("edge:b-c", "dependency", "b", "c"),
+      ];
+      const result = applyTerraformRelationshipFocus(elements, "a", VIEW_BG, {
+        direction: "dependencies",
+        maxHops: Infinity,
+      });
+      const byId = new Map(result.elements.map((e) => [e.id, e]));
+
+      // The far group stays soft-deleted despite `c` being in the cone…
+      expect(byId.get("group:far")?.isDeleted).toBe(true);
+      // …while the ≤1-hop parent group still reveals.
+      expect(byId.get("group:near")?.isDeleted).toBe(false);
+      expect(byId.get("group:near")?.customData?.terraformFocusPreview).toBe(
+        true,
+      );
+    });
+
+    it("follows relationship.source/target verbatim — no hidden un-reversal switch", () => {
+      // Honesty note (W11 F6): this is a SYNTHETIC unit fixture, not a real
+      // cyclic Strata scene. What it proves is exactly this: the directed
+      // traversal reads `customData.relationship.source/target` verbatim and
+      // has no hidden switch that would un-reverse an edge based on extra
+      // customData. It does NOT exercise Strata's C10' back-edge machinery
+      // (`edgesPrime.reversed` is rank-only; `prep.collapsedEdges` keeps the
+      // true declared direction — see terraformPipelineStrataSceneBuild.ts).
+      // Production-call validation on a real emitted Strata scene lives in the
+      // battery: terraformPipelineStrataTaskTracingBattery.test.ts.
       const elements = [
         resource("aws_lambda_function.app"),
         resource("aws_sqs_queue.q"),
@@ -941,8 +975,6 @@ describe("terraform relationship focus", () => {
           "dependency",
           "aws_lambda_function.app",
           "aws_sqs_queue.q",
-          {},
-          { strataRankReversed: true },
         ),
       ];
 
