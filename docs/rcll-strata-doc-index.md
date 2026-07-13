@@ -88,6 +88,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`strata-view-w9-routing-spike.md`](./strata-view-w9-routing-spike.md) | Battery | Current (owner adjudication pending) | Package C routing spike — penetrating-only detours zero penetrations on every ROUTED edge (scene residual = unroutable-cap chords, best −72%) but scene crossings jump 2.4–3.4× and rt̂ worsens p50+p90 on every arm; default-off `strataEdgeRouting` |
 | [`strata-view-w10-band-compact-probe.md`](./strata-view-w10-band-compact-probe.md) | Battery | Current (Stage 2 open, deferred) | OD-15 re-scope Stage-1 ceiling probe — banded-hull Y-waste is material under rankSeparate (46.6–52.7% reclaim) but zero without it; WAF→ELB unhelped (intra-region invariant); `strataBandCompact` registered, deferred behind ε/routing/W7 adjudications |
 | [`strata-view-w10b-band-compact-battery.md`](./strata-view-w10b-band-compact-battery.md) | Battery | Current (owner adjudication pending) | OD-15 re-scope Stage-2 — `strataBandCompact` SHIPPED (default OFF); real reclaim under RS (P1 −7446px, P2 −3800px) at an rt̂ p50+p90 tax and worsening add-churn; PS-on-final-substrate improves rt̂ p50/crossings both presets w/ residual p90 tax; ε=1 confirmed not-inert but adverse on every axis; 3-model panel VALIDATED-WITH-FIXES; all three adjudications ready for owner |
+| [`strata-view-w11-task-tracing.md`](./strata-view-w11-task-tracing.md) | Battery | Current (Q7-AXIS labeling open exit criterion) | Directed relationship-focus traversal + Q7-AXIS blinded instrument + task-tracing battery, all default-off/REPORT-only — shipped undirected 3-hop click-highlight quantified task-mismatched (precision ~0.46–0.48, recall ~0.68–0.74) vs the modeled directed cone; production-call validation precision=recall=1.0 unfiltered; Q7-AXIS owner labeling standing open |
 | [`strata-baselines/README.md`](./strata-baselines/README.md) | Battery | Current (frozen) | S0b baseline JSON pins |
 | [`rcll-reading-list.md`](./rcll-reading-list.md) | Aux | Living | Literature reading list |
 | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md) | Aux | Living | Built vs rejected papers |
@@ -141,6 +142,7 @@ flowchart TB
     W9[w9-routing-spike]
     W10[w10-band-compact-probe]
     W10b[w10b-band-compact-battery]
+    W11[w11-task-tracing]
     Base[strata-baselines]
   end
 
@@ -199,6 +201,9 @@ flowchart TB
   W10 --> W10b
   W3 --- W4
   W4 --- W5
+  V32 --> W11
+  W6 --- W11
+  W10b --- W11
   V32 --> Base
 
   ArchDec --> ReadList
