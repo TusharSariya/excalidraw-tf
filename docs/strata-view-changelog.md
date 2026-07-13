@@ -2,6 +2,7 @@
 
 | Field | Value |
 | --- | --- | --- |
+| (branch) | 2026-07-13 | **Branch relocation:** the 33 commits `f71a641c9..b1d32b756` (v3.2 slice, W5-W10b campaigns) moved from local master to branch `strata-v3.2-w5-w10b` — master is branch-protected; hashes unchanged, all SDEC/changelog citations remain valid |
 | 9b75b9677..9534701ea | 2026-07-13 | W10 Stage-2: `strataBandCompact` lever (A0 skyline + A7 constraintPolicy gap-parity + honest meta, default OFF), threading (42 sites) + Compact bands UI, 3-model codex panel (1 converged P2 fixed ef78dc90c), W10b adjudication battery (995e4845e) — SDEC-63/64; reclaim −7446px P1 under RS but rt̂ p50 +0.94/p90 +3.85 adverse; PS-on-final-substrate rt̂ p50 −2.27; ε=1 adverse |
 | e2402f976 | 2026-07-13 | W10 Stage-1 banded-compaction ceiling probe battery (`terraformPipelineStrataBandCompactProbe.test.ts`, REPORT-only) + owner-screenshot triage docs — SDEC-62; reclaim 46.6–52.7% under RS arms, 0 without RS; chords invariant-by-construction; Stage-2 `bandedCompact` registered + deferred |
 | Status | **Living document.** Chronological register of every shipped change to the Strata / RCLL-v2 layout engines. |
