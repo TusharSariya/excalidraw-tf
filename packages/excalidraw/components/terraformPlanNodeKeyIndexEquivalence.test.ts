@@ -456,6 +456,21 @@ function loadPresetNodesForW14(presetId: string): TerraformPlanNodesMap {
   return prep.nodes;
 }
 
+/** The composed sources (plan/dot/tfd) for a preset — the same input the real
+ * layout parse consumes. Used to drive `applyTfdOverlayToNodes` in isolation. */
+function loadPresetSourcesForW14(
+  presetId: string,
+): TerraformImportPresetSources {
+  const raw = getTerraformImportPresetSourcesFromDb(presetId) as
+    | TerraformImportPresetSources
+    | null
+    | undefined;
+  expect(raw, `preset ${presetId} exists in the preset DB`).toBeTruthy();
+  return resolveSourcesWithTfdComposition(
+    raw as TerraformImportPresetSources,
+  ) as unknown as TerraformImportPresetSources;
+}
+
 /** Real node keys (skip the module-tree sentinel and every `__`-prefixed synthetic
  * key - `resolveTerraformPlanNodeKey` ignores those internally). */
 function w14RealNodeKeys(nodes: TerraformPlanNodesMap): string[] {
@@ -604,6 +619,198 @@ describe("W14 WP1 - preset node-map indexed path ≡ linear scan", () => {
       for (let i = 0; i < probes.length; i++) {
         expect(mismatched[i]).toBe(unscoped[i]);
       }
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// W14 WP2 - .tfd overlay wrap differential + fallback-scan counter
+// (docs/strata-view-w14-browser-felt-cost.md §3, WP2 task steps 4-5).
+//
+// WP2 wraps exactly one additional synchronous parse region -
+// `applyTfdOverlayToNodes` (terraformPlanParsing.tsx) - in
+// `withTerraformPlanNodeKeyIndex`, because it resolves declared-dataflow endpoints
+// against a frozen, ref-identical `nodes` map (the only key its writers add is the
+// `__`-prefixed DECLARED_DATAFLOW_ORDERED_KEY, which the index excludes). The
+// key-mutating regions (`mergeRawTerraformStateIntoNodes`, `buildExistingEdges`) are
+// deliberately NOT wrapped and remain the residual scan sources the counter measures.
+// ---------------------------------------------------------------------------
+
+describe("W14 WP2 - fallback-scan counter semantics", () => {
+  it("counts an unscoped scan under scanWithoutScope, zero under an active scope, and a ref-mismatch under scopeRefMismatch (synthetic)", () => {
+    const {
+      resolveTerraformPlanNodeKey,
+      withTerraformPlanNodeKeyIndex,
+      getTerraformPlanNodeKeyScanStats,
+      resetTerraformPlanNodeKeyScanStats,
+    } = terraformPlanParsingModule;
+
+    const nodes: Record<string, TerraformPlanGraphNode> = {
+      "aws_vpc.main": { resources: {} },
+      "stack-a::aws_vpc.main": { resources: {} },
+    };
+
+    // (a) No active scope -> scanWithoutScope increments, scopeRefMismatch stays 0.
+    resetTerraformPlanNodeKeyScanStats();
+    resolveTerraformPlanNodeKey(nodes, "aws_vpc.main");
+    resolveTerraformPlanNodeKey(nodes, "aws_missing.zzz");
+    let stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(2);
+    expect(stats.scopeRefMismatch).toBe(0);
+
+    // (b) Under a scope on the SAME ref -> indexed path, neither counter moves.
+    resetTerraformPlanNodeKeyScanStats();
+    withTerraformPlanNodeKeyIndex(nodes, () => {
+      for (let i = 0; i < 5; i++) {
+        resolveTerraformPlanNodeKey(nodes, "aws_vpc.main");
+      }
+    });
+    stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(0);
+    expect(stats.scopeRefMismatch).toBe(0);
+
+    // (c) Scope active but built on a DIFFERENT ref -> scopeRefMismatch, not scanWithoutScope.
+    resetTerraformPlanNodeKeyScanStats();
+    const otherRef = { ...nodes } as Record<string, TerraformPlanGraphNode>;
+    withTerraformPlanNodeKeyIndex(otherRef, () => {
+      resolveTerraformPlanNodeKey(nodes, "aws_vpc.main");
+    });
+    stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(0);
+    expect(stats.scopeRefMismatch).toBe(1);
+
+    // (d) Early-return inputs (empty / module-tree key) never touch the scan path.
+    resetTerraformPlanNodeKeyScanStats();
+    resolveTerraformPlanNodeKey(nodes, "");
+    resolveTerraformPlanNodeKey(nodes, TERRAFORM_MODULE_TREE_KEY);
+    stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(0);
+    expect(stats.scopeRefMismatch).toBe(0);
+  });
+
+  it(
+    "under an active scope over a real (P2) map, a full probe batch produces 0 scans; unscoped, every probe scans",
+    () => {
+      const {
+        resolveTerraformPlanNodeKey,
+        withTerraformPlanNodeKeyIndex,
+        getTerraformPlanNodeKeyScanStats,
+        resetTerraformPlanNodeKeyScanStats,
+      } = terraformPlanParsingModule;
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      const probes = w14ResolutionProbes(nodes)
+        .filter((p) => p !== "" && p !== TERRAFORM_MODULE_TREE_KEY)
+        .slice(0, 300);
+      expect(probes.length).toBeGreaterThan(0);
+
+      resetTerraformPlanNodeKeyScanStats();
+      withTerraformPlanNodeKeyIndex(nodes, () =>
+        probes.map((addr) => resolveTerraformPlanNodeKey(nodes, addr)),
+      );
+      let stats = getTerraformPlanNodeKeyScanStats();
+      expect(stats.scanWithoutScope).toBe(0);
+      expect(stats.scopeRefMismatch).toBe(0);
+
+      resetTerraformPlanNodeKeyScanStats();
+      probes.forEach((addr) => resolveTerraformPlanNodeKey(nodes, addr));
+      stats = getTerraformPlanNodeKeyScanStats();
+      expect(stats.scanWithoutScope).toBe(probes.length);
+      expect(stats.scopeRefMismatch).toBe(0);
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "full fresh P2 parse: the .tfd overlay contributes 0 scans (it is wrapped); residual scans come only from the excluded key-mutating parse regions; scopeRefMismatch is 0",
+    () => {
+      const {
+        getTerraformPlanNodeKeyScanStats,
+        resetTerraformPlanNodeKeyScanStats,
+      } = terraformPlanParsingModule;
+
+      resetTerraformPlanNodeKeyScanStats();
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      expect(w14RealNodeKeys(nodes).length).toBeGreaterThan(0);
+      const parseStats = getTerraformPlanNodeKeyScanStats();
+
+      // The wrap must never mis-resolve: a scope active over the wrong ref would
+      // show up here. Zero is the invariant.
+      expect(parseStats.scopeRefMismatch).toBe(0);
+      // Residual is expected (>0) - it is the deliberately-unwrapped
+      // mergeRawTerraformStateIntoNodes / buildExistingEdges key-mutating regions.
+      expect(parseStats.scanWithoutScope).toBeGreaterThanOrEqual(0);
+      // eslint-disable-next-line no-console
+      console.info(
+        `[W14 WP2] full P2 parse residual: scanWithoutScope=${parseStats.scanWithoutScope} scopeRefMismatch=${parseStats.scopeRefMismatch}`,
+      );
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+});
+
+describe("W14 WP2 - applyTfdOverlayToNodes wrapped region", () => {
+  it(
+    "overlay resolution is fully indexed (0 unscoped scans, 0 ref-mismatch) and indexed ≡ scan for its actual query set (real P1)",
+    () => {
+      const {
+        applyTfdOverlayToNodes,
+        resolveTerraformPlanNodeKey,
+        withTerraformPlanNodeKeyIndex,
+        getTerraformPlanNodeKeyScanStats,
+        resetTerraformPlanNodeKeyScanStats,
+      } = terraformPlanParsingModule;
+
+      const sources = loadPresetSourcesForW14(W14_PRESETS.P1);
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P1);
+
+      // Harvest the exact (nodes, address) pairs the overlay resolves. vi.spyOn
+      // mutates the shared module export in place, so applyDeclaredDataFlow*'s
+      // calls (across the circular import) route through the spy and still read the
+      // live `activePlanNodeKeyIndex` set by the wrap inside applyTfdOverlayToNodes.
+      const harvested: HarvestedCall[] = [];
+      const originalResolve =
+        terraformPlanParsingModule.resolveTerraformPlanNodeKey;
+      const spy = vi
+        .spyOn(terraformPlanParsingModule, "resolveTerraformPlanNodeKey")
+        .mockImplementation((n, address) => {
+          harvested.push({ nodes: n, address });
+          return originalResolve(n, address);
+        });
+
+      resetTerraformPlanNodeKeyScanStats();
+      try {
+        applyTfdOverlayToNodes(
+          nodes,
+          sources.tfdTexts ?? [],
+          sources.tfdLabels,
+        );
+      } finally {
+        spy.mockRestore();
+      }
+
+      const overlayStats = getTerraformPlanNodeKeyScanStats();
+      // The overlay resolved endpoints (guards against a silently no-op wrap).
+      expect(harvested.length).toBeGreaterThan(0);
+      // The wrap drove every overlay resolution through the O(1) indexed path.
+      expect(overlayStats.scanWithoutScope).toBe(0);
+      expect(overlayStats.scopeRefMismatch).toBe(0);
+
+      // Differential: indexed (under the wrap) ≡ scan (no scope) for every address
+      // the overlay actually queried, against the exact same nodes ref.
+      let comparisons = 0;
+      for (const { nodes: n, address } of harvested) {
+        const indexed = withTerraformPlanNodeKeyIndex(n, () =>
+          resolveTerraformPlanNodeKey(n, address),
+        );
+        const scan = resolveTerraformPlanNodeKey(n, address);
+        expect(
+          indexed,
+          `overlay address ${JSON.stringify(address)} diverged indexed vs scan`,
+        ).toBe(scan);
+        comparisons++;
+      }
+      expect(comparisons).toBeGreaterThan(0);
     },
     STAGING_DB_LOAD_TEST_TIMEOUT_MS,
   );

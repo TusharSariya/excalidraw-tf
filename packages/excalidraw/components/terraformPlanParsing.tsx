@@ -436,19 +436,34 @@ export function applyTfdOverlayToNodes(
   if (texts.length === 0) {
     return { errors: [], warnings: [] };
   }
-  if (texts.length === 1 && tfdTexts.length === 0 && legacySingleText) {
-    const { errors, warnings } = applyDeclaredDataFlow(
-      nodes as Record<string, TerraformPlanGraphNode>,
-      texts[0],
-    );
-    return { errors, warnings };
-  }
-  const { errors, warnings } = applyDeclaredDataFlowFromMany(
+  // W14 WP2 (always-on, byte-identical): the .tfd overlay resolves every declared
+  // dataflow endpoint against `nodes` via resolveTerraformPlanNodeKey
+  // (applyDeclaredDataFlow / applyDeclaredDataFlowFromMany). By the time overlay
+  // runs the `nodes` map is fully built and its resource-key set is frozen — the
+  // only key these writers add is the `__`-prefixed DECLARED_DATAFLOW_ORDERED_KEY,
+  // which the index excludes — so wrapping the whole synchronous overlay lets every
+  // resolution take the O(1) indexed path. Ref-equality holds: applyDeclaredDataFlow*
+  // thread this exact `nodes` object straight through to the resolver. This wrap
+  // covers both call sites (terraformLayoutCore `parse.tfd` and the prep-cache build),
+  // each of which passes the frozen post-build map.
+  return withTerraformPlanNodeKeyIndex(
     nodes as Record<string, TerraformPlanGraphNode>,
-    texts,
-    tfdLabels,
+    () => {
+      if (texts.length === 1 && tfdTexts.length === 0 && legacySingleText) {
+        const { errors, warnings } = applyDeclaredDataFlow(
+          nodes as Record<string, TerraformPlanGraphNode>,
+          texts[0],
+        );
+        return { errors, warnings };
+      }
+      const { errors, warnings } = applyDeclaredDataFlowFromMany(
+        nodes as Record<string, TerraformPlanGraphNode>,
+        texts,
+        tfdLabels,
+      );
+      return { errors, warnings };
+    },
   );
-  return { errors, warnings };
 }
 
 /** Multi-file local import (plans, states, `.tfd` overlays). */
@@ -630,6 +645,37 @@ let activePlanNodeKeyIndex: {
 } | null = null;
 
 /**
+ * W14 WP2 fallback-scan observability (dev/profiler-only). Counts how often
+ * {@link resolveTerraformPlanNodeKey} still pays the original O(N) `Object.keys(nodes)`
+ * scan path instead of the O(1) indexed path:
+ *   - `scanWithoutScope`: no {@link withTerraformPlanNodeKeyIndex} scope was active
+ *     (e.g. the deliberately-unwrapped, key-mutating parse regions
+ *     `mergeRawTerraformStateIntoNodes` / `buildExistingEdges`).
+ *   - `scopeRefMismatch`: a scope WAS active but was built on a different `nodes`
+ *     object reference than the one the resolver received (the ref-equality guard
+ *     defends against silent misresolution and falls back to scan).
+ * Pure integer increments — no logging, no allocation. Read/reset via the exported
+ * helpers below for tests and the W14 WP4 browser trace.
+ */
+let planNodeKeyScanWithoutScope = 0;
+let planNodeKeyScopeRefMismatch = 0;
+
+export function getTerraformPlanNodeKeyScanStats(): {
+  scanWithoutScope: number;
+  scopeRefMismatch: number;
+} {
+  return {
+    scanWithoutScope: planNodeKeyScanWithoutScope,
+    scopeRefMismatch: planNodeKeyScopeRefMismatch,
+  };
+}
+
+export function resetTerraformPlanNodeKeyScanStats(): void {
+  planNodeKeyScanWithoutScope = 0;
+  planNodeKeyScopeRefMismatch = 0;
+}
+
+/**
  * Activate a scoped {@link TerraformPlanNodeKeyIndex} for `nodes` for the synchronous extent of `fn`, so every
  * {@link resolveTerraformPlanNodeKey} call inside `fn` (directly or transitively) can use O(1)-average indexed
  * lookups instead of the original O(N) scans. Restores the previous context (supports nested/re-entrant calls)
@@ -677,6 +723,14 @@ export function resolveTerraformPlanNodeKey(
       address,
       activePlanNodeKeyIndex.index,
     );
+  }
+
+  // W14 WP2: falling through to the O(N) scan path — record why (no scope vs.
+  // scope present but ref-mismatch) for the fallback-scan observability counter.
+  if (activePlanNodeKeyIndex !== null) {
+    planNodeKeyScopeRefMismatch += 1;
+  } else {
+    planNodeKeyScanWithoutScope += 1;
   }
 
   const parsed = parseStackAddress(address);
