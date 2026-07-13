@@ -8,7 +8,9 @@ import {
 
 describe("resolveStrataDemoOptions", () => {
   it("resolves a bare view=strata URL to the SDEC-54 validated defaults (K=4 + A7), not K=0", () => {
-    const params = parseTerraformDemoUrlParams("?preset=staging-multi-state-expanded&view=strata");
+    const params = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
     expect(params).not.toBeNull();
     expect(resolveStrataDemoOptions(params!)).toEqual({
       strataNetworkSimplexRank: false,
@@ -17,6 +19,7 @@ describe("resolveStrataDemoOptions", () => {
       strataRankSeparate: false,
       strataPackedScoring: false,
       strataPackedScoringEpsilon: 0,
+      strataEdgeRouting: false,
     });
   });
 
@@ -27,9 +30,7 @@ describe("resolveStrataDemoOptions", () => {
     expect(params).not.toBeNull();
     expect(resolveStrataDemoOptions(params!).strataSweeps).toBe(0);
     // The other fields still fall back to the defaults.
-    expect(resolveStrataDemoOptions(params!).strataCoordinateRefine).toBe(
-      true,
-    );
+    expect(resolveStrataDemoOptions(params!).strataCoordinateRefine).toBe(true);
   });
 
   it("keeps an explicit strataCoordRefine=0 (maps to strataCoordinateRefine=false)", () => {
@@ -57,6 +58,7 @@ describe("resolveStrataDemoOptions", () => {
       strataRankSeparate: true,
       strataPackedScoring: false,
       strataPackedScoringEpsilon: 0,
+      strataEdgeRouting: false,
     });
   });
 
@@ -69,6 +71,17 @@ describe("resolveStrataDemoOptions", () => {
       "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1",
     );
     expect(resolveStrataDemoOptions(on!).strataPackedScoring).toBe(true);
+  });
+
+  it("resolves strataEdgeRouting: default false, explicit URL param wins", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    expect(resolveStrataDemoOptions(bare!).strataEdgeRouting).toBe(false);
+    const on = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataEdgeRouting=1",
+    );
+    expect(resolveStrataDemoOptions(on!).strataEdgeRouting).toBe(true);
   });
 
   it("resolves strataPackedScoringEpsilon: default 0, explicit strataPackedEps wins (incl. relative)", () => {

@@ -36,22 +36,26 @@ export const TerraformStrataSettings = ({
   strataRankSeparate,
   strataPackedScoring,
   strataPackedScoringEpsilon,
+  strataEdgeRouting,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
+  setStrataEdgeRouting,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
+  strataEdgeRouting: boolean;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
+  setStrataEdgeRouting: (edgeRouting: boolean) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -169,6 +173,22 @@ export const TerraformStrataSettings = ({
                 strataPackedScoring,
                 "strata.packedscoring.on",
                 () => setStrataPackedScoring(true),
+              )}
+            </div>
+          </div>
+          <div role="group" aria-label="Strata edge routing">
+            <span className="TerraformImportModal__controlLabel">
+              Route edges around containers{" "}
+              <span>
+                detour arrows that would tunnel through unrelated boxes (W9)
+              </span>
+            </span>
+            <div className="TerraformImportModal__segmentedControl">
+              {option("Off", !strataEdgeRouting, "strata.edgerouting.off", () =>
+                setStrataEdgeRouting(false),
+              )}
+              {option("On", strataEdgeRouting, "strata.edgerouting.on", () =>
+                setStrataEdgeRouting(true),
               )}
             </div>
           </div>

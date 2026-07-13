@@ -42,6 +42,10 @@ import {
   translateSkeleton,
 } from "./terraformPipelineLayoutShared";
 import { spreadContextFrameColors } from "./terraformPrimaryVisibility";
+import {
+  routeStrataSkeletonEdges,
+  type StrataEdgeRoutingMeta,
+} from "./terraformPipelineStrataEdgeRouting";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import { STRATA_ROOT_ID } from "./terraformPipelineStrataModel";
 import {
@@ -76,6 +80,13 @@ export type StrataSceneBuildInput = {
    * tombstone machinery are fully G-parameterized regardless).
    */
   generation?: number;
+  /**
+   * Package C spike (W9): when true, TFD arrows whose straight chord
+   * penetrates a foreign box are re-emitted as detour polylines
+   * (terraformPipelineStrataEdgeRouting.ts). Default off — absent, the
+   * routing module never runs and the skeleton is byte-identical to today.
+   */
+  edgeRouting?: boolean;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
@@ -130,6 +141,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
+  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
+  edgeRouting?: StrataEdgeRoutingMeta;
 } {
   const { prep, model, placement, nodes } = input;
   const skeleton: ExcalidrawElementSkeleton[] = [];
@@ -263,6 +276,15 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
   );
 
+  // ── Package C spike (W9, flag-gated): detour TFD arrows whose straight
+  // chord penetrates a foreign box. Runs on the just-emitted TFD arrows only
+  // (the aggregated frame connectors below are relationship.aggregated and
+  // would be skipped anyway); endpoints/bindings/customData are untouched, so
+  // frame-parenting below is unaffected. Absent the flag this pass never runs.
+  const edgeRouting = input.edgeRouting
+    ? routeStrataSkeletonEdges(skeleton, input.model, input.placement)
+    : undefined;
+
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
   const frameEdgeCount = appendCompoundTopologyFrameEdgeSkeletons(
@@ -273,7 +295,12 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   );
   assignCompoundEdgeFrameParents(skeleton, prep.clusters);
 
-  return { skeleton, layoutBoxes, frameEdgeCount };
+  return {
+    skeleton,
+    layoutBoxes,
+    frameEdgeCount,
+    ...(edgeRouting ? { edgeRouting } : {}),
+  };
 }
 
 /**
@@ -291,11 +318,18 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
+  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
+  edgeRouting?: StrataEdgeRoutingMeta;
 }> {
-  const { skeleton, frameEdgeCount } = assembleStrataSceneSkeleton(input);
+  const { skeleton, frameEdgeCount, edgeRouting } =
+    assembleStrataSceneSkeleton(input);
   const converted = await convertPipelineSkeletonToElements(skeleton);
   const elements = finalizeStrataScene(converted, {
     generation: input.generation ?? 1,
   });
-  return { elements, frameEdgeCount };
+  return {
+    elements,
+    frameEdgeCount,
+    ...(edgeRouting ? { edgeRouting } : {}),
+  };
 }

@@ -147,6 +147,11 @@ export const useTerraformImportDialog = ({
   const [strataPackedScoringEpsilon, setStrataPackedScoringEpsilon] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon as number,
   );
+  // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
+  // routing — penetrating edges only. Default OFF pending its gate battery.
+  const [strataEdgeRouting, setStrataEdgeRouting] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting as boolean,
+  );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -447,6 +452,7 @@ export const useTerraformImportDialog = ({
         strataRankSeparate,
         strataPackedScoring,
         strataPackedScoringEpsilon,
+        strataEdgeRouting,
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -589,6 +595,7 @@ export const useTerraformImportDialog = ({
           strataRankSeparate,
           strataPackedScoring,
           strataPackedScoringEpsilon,
+          strataEdgeRouting,
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -697,6 +704,7 @@ export const useTerraformImportDialog = ({
         strataRankSeparate,
         strataPackedScoring,
         strataPackedScoringEpsilon,
+        strataEdgeRouting,
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -919,6 +927,7 @@ export const useTerraformImportDialog = ({
         strataRankSeparate,
         strataPackedScoring,
         strataPackedScoringEpsilon,
+        strataEdgeRouting,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -948,6 +957,7 @@ export const useTerraformImportDialog = ({
     strataRankSeparate,
     strataPackedScoring,
     strataPackedScoringEpsilon,
+    strataEdgeRouting,
     moduleLayoutOptions.mode,
   ]);
 
@@ -978,6 +988,7 @@ export const useTerraformImportDialog = ({
     strataRankSeparate,
     strataPackedScoring,
     strataPackedScoringEpsilon,
+    strataEdgeRouting,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1030,6 +1041,7 @@ export const useTerraformImportDialog = ({
     setStrataRankSeparate,
     setStrataPackedScoring,
     setStrataPackedScoringEpsilon,
+    setStrataEdgeRouting,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

@@ -168,6 +168,59 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataEdgeRouting end-to-end (sceneContext literal -> scene build -> meta echo + routed counts)",
+    async () => {
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeRouting: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataEdgeRouting).toBe(true);
+      // The scene-build pass ran and reported its counters (numbers, and on
+      // this preset the W7 penetration counts guarantee eligible edges exist).
+      expect(typeof on.meta.strataEdgeRoutingRouted).toBe("number");
+      expect(typeof on.meta.strataEdgeRoutingUnroutable).toBe("number");
+      expect(typeof on.meta.strataEdgeRoutingWaypoints).toBe("number");
+      expect(
+        (on.meta.strataEdgeRoutingRouted as number) +
+          (on.meta.strataEdgeRoutingUnroutable as number),
+      ).toBeGreaterThan(0);
+      // Routed arrows carry interior waypoints (>2 points) in the final scene.
+      if ((on.meta.strataEdgeRoutingRouted as number) > 0) {
+        expect(on.meta.strataEdgeRoutingWaypoints).toBeGreaterThan(0);
+        const multiPoint = on.elements.filter((el) => {
+          if (el.type !== "arrow") {
+            return false;
+          }
+          const cd = el.customData as Record<string, unknown> | undefined;
+          const rel = cd?.relationship as Record<string, unknown> | undefined;
+          return (
+            typeof rel?.source === "string" &&
+            rel?.aggregated !== true &&
+            cd?.terraformRoutedPolyline === true &&
+            ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
+          );
+        });
+        expect(multiPoint.length).toBe(on.meta.strataEdgeRoutingRouted);
+      }
+
+      // Flag off (default): no routing meta keys, and geometry of the frames
+      // is unchanged by threading the option surface (byte-identity of the
+      // flag-off scene is separately pinned by the W5/W7/W8/W8b regenerations).
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.strataEdgeRouting).toBeUndefined();
+      expect(off.meta.strataEdgeRoutingRouted).toBeUndefined();
+      expect(off.meta.strataEdgeRoutingUnroutable).toBeUndefined();
+      expect(off.meta.strataEdgeRoutingWaypoints).toBeUndefined();
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
     "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
     async () => {
       const strataOff = await buildStrata();

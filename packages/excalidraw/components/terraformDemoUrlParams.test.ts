@@ -39,6 +39,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataRankSeparate: false,
   strataPackedScoring: false,
   strataPackedScoringEpsilon: 0,
+  strataEdgeRouting: false,
   moduleLayoutMode: "default",
 };
 
@@ -471,6 +472,24 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("parses strataEdgeRouting and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeRouting=1",
+      );
+      expect(on).toMatchObject({ strataEdgeRouting: true });
+      const off = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeRouting=0",
+      );
+      expect(off).toMatchObject({ strataEdgeRouting: false });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(absent!.strataEdgeRouting).toBeUndefined();
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeRouting=maybe",
+        ),
+      ).toBeNull();
+    });
+
     it("omits strataPackedEps when the URL does not carry it", () => {
       const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(params).not.toBeNull();
@@ -701,6 +720,20 @@ describe("terraformDemoUrlParams", () => {
         strataPackedScoring: true,
       });
       expect(on.strataPackedScoring).toBe(true);
+    });
+
+    it("strataEdgeRouting emits truthy-only (like strataPackedScoring)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataEdgeRouting" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataEdgeRouting: true,
+      });
+      expect(on.strataEdgeRouting).toBe(true);
     });
 
     it("strataPackedScoringEpsilon emits truthy-only as strataPackedEps", () => {

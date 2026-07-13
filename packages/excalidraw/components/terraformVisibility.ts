@@ -1064,15 +1064,34 @@ export const repairTerraformEdgeBindings = (
     addBoundEdge(rectA.id, element.id);
     addBoundEdge(rectB.id, element.id);
 
+    // Strata Package C (W9): an obstacle-routed polyline (stamped by
+    // terraformPipelineStrataEdgeRouting.ts) keeps its detour geometry — its
+    // endpoints ARE the centre-clipped chord endpoints, so only the bindings
+    // are (re)anchored and the straight-chord flatten below is skipped.
+    // Unmarked arrows (every scene today with the flag off) are unaffected.
+    const isRoutedPolyline =
+      getCustomData(element).terraformRoutedPolyline === true &&
+      element.points.length > 2;
+
     const patch = {
-      x: startX,
-      y: startY,
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      points: [
-        pointFrom<LocalPoint>(0, 0),
-        pointFrom<LocalPoint>(endX - startX, endY - startY),
-      ],
+      ...(isRoutedPolyline
+        ? {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+            points: element.points,
+          }
+        : {
+            x: startX,
+            y: startY,
+            width: Math.abs(endX - startX),
+            height: Math.abs(endY - startY),
+            points: [
+              pointFrom<LocalPoint>(0, 0),
+              pointFrom<LocalPoint>(endX - startX, endY - startY),
+            ],
+          }),
       startBinding: {
         elementId: rectA.id,
         fixedPoint: startFixed,

@@ -108,6 +108,9 @@ export type TerraformDemoUrlParams = {
   /** W8b: ε-constraint crossings budget for the packed scorer (`strataPackedEps`;
    * 0 = strict rule; 0<ε<1 = relative mode). */
   strataPackedEps?: number;
+  /** Package C spike (W9): post-A7 obstacle-avoiding edge routing
+   * (`strataEdgeRouting=1/0`). Default off. */
+  strataEdgeRouting?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -370,6 +373,10 @@ export const parseTerraformDemoUrlParams = (
     return null;
   }
   // W8b ε budget: nonnegative finite number (fractional = relative mode).
+  const strataEdgeRouting = parseBooleanParam("strataEdgeRouting");
+  if (strataEdgeRouting === null) {
+    return null;
+  }
   const strataPackedEpsRaw = params.get("strataPackedEps");
   let strataPackedEps: number | undefined;
   if (strataPackedEpsRaw != null && strataPackedEpsRaw.trim() !== "") {
@@ -493,6 +500,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataRankSeparate != null ? { strataRankSeparate } : {}),
     ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
+    ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -558,6 +566,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataRankSep", params.strataRankSeparate);
   setBool("strataPackedScoring", params.strataPackedScoring);
   setNum("strataPackedEps", params.strataPackedEps);
+  setBool("strataEdgeRouting", params.strataEdgeRouting);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -615,6 +624,7 @@ export type TerraformDemoSettingsSnapshot = {
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
+  strataEdgeRouting: boolean;
 };
 
 /**
@@ -697,6 +707,8 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataPackedScoringEpsilon
         ? { strataPackedEps: snapshot.strataPackedScoringEpsilon }
         : {}),
+      // Package C spike (W9): default-off — truthy-only, like packed scoring.
+      ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
     };
   }
 

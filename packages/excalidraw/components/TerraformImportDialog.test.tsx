@@ -164,6 +164,7 @@ describe("TerraformImportModal", () => {
       strataRankSeparate: false,
       strataPackedScoring: false,
       strataPackedScoringEpsilon: 0,
+      strataEdgeRouting: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -207,6 +208,7 @@ describe("TerraformImportModal", () => {
       strataRankSeparate: false,
       strataPackedScoring: false,
       strataPackedScoringEpsilon: 0,
+      strataEdgeRouting: false,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -992,6 +994,7 @@ describe("TerraformImportModal", () => {
         strataRankSeparate: false,
         strataPackedScoring: false,
         strataPackedScoringEpsilon: 0,
+        strataEdgeRouting: false,
       }),
     );
   });

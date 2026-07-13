@@ -223,6 +223,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer.
    * Default 0 (strict rule; inert without `strataPackedScoring`). */
   strataPackedScoringEpsilon?: number;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
+   * Default off. */
+  strataEdgeRouting?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -267,6 +270,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataRankSeparate"
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
+  | "strataEdgeRouting"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -297,6 +301,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataRankSeparate: session.strataRankSeparate === true,
   strataPackedScoring: session.strataPackedScoring === true,
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
+  strataEdgeRouting: session.strataEdgeRouting === true,
 });
 
 /**
@@ -336,6 +341,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataRankSeparate"
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
+  | "strataEdgeRouting"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -377,6 +383,7 @@ function buildPipelineFamilyLayoutOptions(
     strataRankSeparate: options.strataRankSeparate === true,
     strataPackedScoring: options.strataPackedScoring === true,
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
+    strataEdgeRouting: options.strataEdgeRouting === true,
   };
 }
 

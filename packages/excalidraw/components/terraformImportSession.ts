@@ -81,6 +81,8 @@ export type TerraformImportSession = {
   strataPackedScoring?: boolean;
   /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
   strataPackedScoringEpsilon?: number;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing. */
+  strataEdgeRouting?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

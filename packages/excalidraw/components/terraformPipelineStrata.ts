@@ -75,6 +75,15 @@ export type TerraformStrataSceneOptions = {
    * no collector ⇒ byte-identical work.
    */
   strataPackedFrontierMeta?: boolean;
+  /**
+   * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
+   * in "penetrating-only" mode — at scene build, TFD arrows whose straight
+   * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
+   * re-emitted as bounded detour polylines
+   * (terraformPipelineStrataEdgeRouting.ts). Placement is untouched; unrouted
+   * arrows are byte-identical; flag-off the routing module never runs.
+   */
+  strataEdgeRouting?: boolean;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -163,6 +172,8 @@ export async function buildTerraformStrataExcalidrawScene(
   // W8b: ε-constraint budget (0 = strict rule) + frontier instrumentation.
   const strataPackedScoringEpsilon = options?.strataPackedScoringEpsilon ?? 0;
   const strataPackedFrontierMeta = options?.strataPackedFrontierMeta === true;
+  // Package C spike (W9): scene-build edge routing, default off.
+  const strataEdgeRouting = options?.strataEdgeRouting === true;
 
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
@@ -177,6 +188,7 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataPackedScoring && strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
       : {}),
+    ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
     strataSweeps,
     strataCoordinateRefine,
     strataGeneration,
@@ -338,6 +350,9 @@ export async function buildTerraformStrataExcalidrawScene(
       placement,
       nodes,
       generation: strataGeneration,
+      // Package C spike (W9): the key rides only when the flag is on so the
+      // flag-off input literal (and the scene build) stay byte-identical.
+      ...(strataEdgeRouting ? { edgeRouting: true } : {}),
     });
 
     // Standing R2 invariant (S0b acceptance): any nonzero count is a failure.
@@ -411,6 +426,14 @@ export async function buildTerraformStrataExcalidrawScene(
               ...(packedFrontierTrials
                 ? { strataPackedScoringFrontierTrials: packedFrontierTrials }
                 : {}),
+            }
+          : {}),
+        // Package C spike (W9) observability — present only when flag-on.
+        ...(scene.edgeRouting
+          ? {
+              strataEdgeRoutingRouted: scene.edgeRouting.routed,
+              strataEdgeRoutingUnroutable: scene.edgeRouting.unroutable,
+              strataEdgeRoutingWaypoints: scene.edgeRouting.waypointsTotal,
             }
           : {}),
         // R2 evidence (all-zero on the success path).

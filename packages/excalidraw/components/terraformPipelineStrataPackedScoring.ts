@@ -241,7 +241,7 @@ function segmentsProperlyCross(
  * and collinear-along-a-side passes do NOT count (strict semantics — same
  * convention as the crossing kernel).
  */
-function segmentIntersectsBoxInterior(
+export function segmentIntersectsStrataBoxInterior(
   ax: number,
   ay: number,
   bx: number,
@@ -382,7 +382,16 @@ export function scoreStrataPlacementGeometry(
         continue; // endpoint's own container/ancestor ⇒ legitimate passage
       }
       if (
-        segmentIntersectsBoxInterior(e.ax, e.ay, e.bx, e.by, x0, y0, x1, y1)
+        segmentIntersectsStrataBoxInterior(
+          e.ax,
+          e.ay,
+          e.bx,
+          e.by,
+          x0,
+          y0,
+          x1,
+          y1,
+        )
       ) {
         penetrations += 1;
       }

@@ -419,7 +419,29 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     dev: {
       implements:
         "strataPackedScoring=true (SDEC-57): placeStrataHullsPackedScored trial-places every packed sweep snapshot (chained unconditionally, no per-sweep gate) and selects the lexicographic (crossings, penetrations, L1 length) winner on real leaf-level geometry; banded hulls unchanged.",
-      refs: ["Förster 2002 — Crossings in Clustered Level Graphs (properness precondition)"],
+      refs: [
+        "Förster 2002 — Crossings in Clustered Level Graphs (properness precondition)",
+      ],
+    },
+  },
+  "strata.edgerouting.off": {
+    title: "Route edges around containers · Off",
+    body: "Every dependency arrow stays a straight centre-to-centre segment, even when it passes through a container box (hull frame or resource card) that is unrelated to both endpoints — W7/W8 measured 65–123 such penetrations per preset.",
+    dev: {
+      implements:
+        "strataEdgeRouting=false: the scene build emits the legacy straight chords; the routing module never runs (byte-identical scenes).",
+    },
+  },
+  "strata.edgerouting.on": {
+    title: "Route edges around containers · On — W9 spike",
+    body: "Arrows whose straight line would tunnel through an unrelated container are re-drawn as short detours around it (endpoint ancestors stay permeable; everything else keeps its straight line). Bounded bends: an edge that cannot be routed cleanly within the cap falls back to its straight chord.",
+    dev: {
+      implements:
+        "strataEdgeRouting=true (Package C / W9): routeStrataSkeletonEdges detours penetrating TFD arrows around clearance-inflated foreign boxes (≤6 waypoints, min added L1, deterministic ties).",
+      refs: [
+        "Wybrow/Marriott/Stuckey 2006 — Incremental Connector Routing",
+        "Bouts & Speckmann 2015 — Clustered Edge Routing",
+      ],
     },
   },
 };

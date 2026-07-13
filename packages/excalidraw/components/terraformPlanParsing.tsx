@@ -187,6 +187,9 @@ export type TerraformPlanParsingOptions = {
   strataPackedScoringEpsilon?: number;
   /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
   strataPackedFrontierMeta?: boolean;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing
+   * ("penetrating-only" scene-build detours). Default off. */
+  strataEdgeRouting?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;

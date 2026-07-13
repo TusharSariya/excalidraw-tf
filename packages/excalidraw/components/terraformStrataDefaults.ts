@@ -18,6 +18,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * scorer. 0 = the strict round-9 rule (bit-identical); REPORT lever only —
    * a nonzero default is an owner adjudication, never a silent pick. */
   strataPackedScoringEpsilon: 0,
+  /** Package C spike (W9): post-A7 obstacle-avoiding edge routing — probe
+   * lever, default off pending its gate battery. */
+  strataEdgeRouting: false,
 } as const;
 
 /**
@@ -34,6 +37,7 @@ export const resolveStrataDemoOptions = (params: {
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
   strataPackedEps?: number;
+  strataEdgeRouting?: boolean;
 }) => ({
   strataNetworkSimplexRank:
     params.strataNsRank ??
@@ -52,4 +56,7 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedScoringEpsilon:
     params.strataPackedEps ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
+  strataEdgeRouting:
+    params.strataEdgeRouting ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
 });

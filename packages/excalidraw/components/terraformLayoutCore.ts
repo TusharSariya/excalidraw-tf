@@ -473,6 +473,9 @@ type LayoutSceneContext = {
   strataPackedScoringEpsilon?: number;
   /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
   strataPackedFrontierMeta?: boolean;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
+   * Default off. */
+  strataEdgeRouting?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
@@ -581,6 +584,7 @@ async function buildPipelineLayoutSceneBody(
         strataPackedScoring: ctx.strataPackedScoring,
         strataPackedScoringEpsilon: ctx.strataPackedScoringEpsilon,
         strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
+        strataEdgeRouting: ctx.strataEdgeRouting,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
       };
@@ -1127,6 +1131,7 @@ export async function layoutTerraformFromSources(
     strataPackedScoring: options?.strataPackedScoring === true,
     strataPackedScoringEpsilon: options?.strataPackedScoringEpsilon ?? 0,
     strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
+    strataEdgeRouting: options?.strataEdgeRouting === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     colorMode: options?.colorMode,

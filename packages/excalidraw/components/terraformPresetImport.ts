@@ -88,6 +88,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer.
    * Default 0 (strict rule). */
   strataPackedScoringEpsilon?: number;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
+   * Default off. */
+  strataEdgeRouting?: boolean;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -124,6 +127,7 @@ export const runTerraformImportWithView = async ({
   strataRankSeparate,
   strataPackedScoring,
   strataPackedScoringEpsilon,
+  strataEdgeRouting,
   importedTfdTexts,
   preset = null,
   signal,
@@ -166,6 +170,7 @@ export const runTerraformImportWithView = async ({
           strataRankSeparate,
           strataPackedScoring,
           strataPackedScoringEpsilon,
+          strataEdgeRouting,
         }
       : {}),
     importedTfdTexts,
@@ -204,6 +209,7 @@ export type RunTerraformPresetImportOptions = {
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
   strataPackedScoringEpsilon?: number;
+  strataEdgeRouting?: boolean;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -265,6 +271,7 @@ export const runTerraformPresetImport = async (
     strataRankSeparate: options.strataRankSeparate,
     strataPackedScoring: options.strataPackedScoring,
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
+    strataEdgeRouting: options.strataEdgeRouting,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,
