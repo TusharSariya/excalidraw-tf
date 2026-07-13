@@ -10,6 +10,7 @@ import {
   checkStrataStructure,
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
+import type { StrataBandCompactPlacementDiagnostics } from "./terraformPipelineStrataPlacement";
 import {
   chooseStrataRefinedPlacement,
   placeStrataHullsPackedScored,
@@ -328,8 +329,13 @@ export async function buildTerraformStrataExcalidrawScene(
     // the A7 stage and echo the snapshot, never the post-A7 object. On the
     // packed-scoring path the chosen placement was still built by
     // placeStrataHulls internally, so the fields are present at runtime.
-    const bandCompactAppliedHullCount = placement.bandCompactAppliedHullCount;
-    const bandCompactReclaimedPx = placement.bandCompactReclaimedPx;
+    // Panel P2 (sol+terra converged): these are `let` because the post-A7
+    // never-worse guard below can discard the scored arm — the echo must
+    // describe the arm the guard actually chose, not a discarded candidate
+    // (packed candidate order changes child-hull heights, which feed the
+    // banded parent's skyline/counterfactual arithmetic).
+    let bandCompactAppliedHullCount = placement.bandCompactAppliedHullCount;
+    let bandCompactReclaimedPx = placement.bandCompactReclaimedPx;
 
     // A7 coordinate refinement (M1b, flag-gated). Transforms the placement in
     // place of nothing when OFF (byte-identical to A0). Every throw it raises
@@ -369,6 +375,15 @@ export async function buildTerraformStrataExcalidrawScene(
         );
         placement = chosen.placement;
         packedScoringFellBack = chosen.fellBack;
+        if (chosen.fellBack) {
+          // Re-snapshot from the legacy PRE-A7 arm the guard selected (also a
+          // placeStrataHulls product, so the diagnostic fields are present).
+          const legacyDiag =
+            packedScored.baselinePlacement as typeof placement &
+              StrataBandCompactPlacementDiagnostics;
+          bandCompactAppliedHullCount = legacyDiag.bandCompactAppliedHullCount;
+          bandCompactReclaimedPx = legacyDiag.bandCompactReclaimedPx;
+        }
       } else {
         placement = refineStrataCoordinates(
           placement,
