@@ -2,6 +2,7 @@
  * Web Worker entry for Terraform layout jobs (semantic AWS / semantic provider).
  * Loaded as a separate chunk via `import.meta.url` (see subset-worker.chunk.ts).
  */
+import { layoutTerraformFromSources } from "./terraformLayoutCore";
 import {
   runSemanticAwsLayoutJob,
   runSemanticProviderLayoutJob,
@@ -35,6 +36,12 @@ if (typeof window === "undefined" && typeof self !== "undefined") {
             job.nodes,
             job.plan,
           );
+          break;
+        case "pipelineFull":
+          result = {
+            type: "pipelineFull" as const,
+            result: await layoutTerraformFromSources(job.sources, job.options),
+          };
           break;
         default:
           throw new Error(`Unknown layout worker job type`);

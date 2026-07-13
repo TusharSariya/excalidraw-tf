@@ -86,6 +86,14 @@ async function runJobOnMainThread(
         job.nodes,
         job.plan,
       );
+    case "pipelineFull":
+      // No-worker / test path (and the pool-failure fallback): run the whole
+      // pipeline/strata build on the main thread. `layoutTerraformFromSources`
+      // is already imported statically at the top of this module.
+      return {
+        type: "pipelineFull",
+        result: await layoutTerraformFromSources(job.sources, job.options),
+      };
     default:
       throw new Error("Unknown layout job");
   }
@@ -156,7 +164,19 @@ export async function layoutTerraformViaWorkers(
     }
 
     if (pipelineLayout) {
-      return runSequential();
+      // W14 lever B: post the whole build as a single `pipelineFull` job so it
+      // leaves the main thread (unblocking, not parallelizing). `runJob` =
+      // `runJobWithFallback`, so a missing worker URL / pool failure transparently
+      // falls back to `runJobOnMainThread`. The outer catch below still re-runs
+      // `runSequential()` on any surfaced error, and AbortError still rethrows —
+      // exactly as before this branch existed.
+      // TODO(onProgress): the single-job request/response protocol carries no
+      // progress channel, so `onProgress` is not wired for pipelineFull yet.
+      const jobResult = await runJob({ type: "pipelineFull", sources, options });
+      if (jobResult.type !== "pipelineFull") {
+        return runSequential();
+      }
+      return toScenePayload(jobResult.result);
     }
 
     return runSequential();
