@@ -15,5 +15,13 @@ v1 of the fixture fixed every resource to a single provider/account/region — a
 ## Files
 
 - `P3_DISTINCTNESS_PROFILE.json` / `.md` — frozen **input-only** distinctness profile: per preset (P1 `staging-extended-localstack-v2`, P2 `staging-localstack`, P3 `staging-heldout-mesh`) module-depth distribution, out-degree distribution, SCC size/count and path-length distribution on **resolved TFD flow endpoints** (the layout substrate), resource-type mix, and resource count. Scale counts as **one** dimension. The JSON also records single-run P3 smoke wall-clocks (compact + full-detail, v2 + strata) that seed the WP3 full-detail timeout budgets — those `buildMs` fields are informational wall-clocks, not frozen numbers.
+- `P3_DISTINCTNESS_PROFILE.v1.{json,md}` — the preserved v1 (single-band) profile (AMENDMENT-1 provenance).
+- `W12_HELDOUT_SCALE_BATTERY.json` — run-A report of the W12 battery (`terraformPipelineStrataW12HeldoutScaleBattery.test.ts`, seed 20260704): transfer block (P1/P2/P3 × A_v2/I/I_RS headline + churn-triple + api-seam tracing cells, mechanical `transferAssessment.blockVerdict: SUPPORT`), full-detail block (F_v2_full vs H2/I2/J2, frozen-VOID extents + timing splits), sanity anchor (green). **REPORT-only, unregistered, NOT frozen** — no manifest pin, no SHA gate; rerunning the battery may legitimately replace it (determinism holds after stripping wall-clock keys).
+- `W12_HELDOUT_SCALE_BATTERY.normalized.json` — the same report with wall-clock keys stripped (the run-twice determinism comparand; run A ≡ run B byte-identical, 2026-07-13).
+- `BROWSER_TRACE_NOTES.md` — WP4 browser felt-cost trace numeric notes (dev build; Appendix A of the W12 doc).
 
-Emitted by `packages/excalidraw/components/terraformPipelineStrataW12HeldoutSmoke.test.ts` (run with `Q12_REPORT_DIR=docs/strata-baselines/q12` to refresh; default output goes to the system tmpdir so CI never rewrites the committed copy).
+Profile files are emitted by `packages/excalidraw/components/terraformPipelineStrataW12HeldoutSmoke.test.ts`, battery reports by `terraformPipelineStrataW12HeldoutScaleBattery.test.ts` (run with `Q12_REPORT_DIR=docs/strata-baselines/q12` to refresh; default output goes to the system tmpdir so CI never rewrites the committed copies).
+
+## Standing status
+
+R8-F4 (no genuinely held-out preset) **remains open** — the battery is preset-parameterized so a real independent plan can re-run it cheaply. Interpretation of every number here is BLOCKED-ON-Q7 (owner labeling, `../q7axis/`).

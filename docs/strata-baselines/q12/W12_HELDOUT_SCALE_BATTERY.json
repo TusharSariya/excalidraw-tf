@@ -1,0 +1,4128 @@
+{
+  "meta": {
+    "reportOnly": true,
+    "seed": 20260704,
+    "presets": {
+      "P1": "staging-extended-localstack-v2",
+      "P2": "staging-localstack",
+      "P3": "staging-heldout-mesh"
+    },
+    "arms": {
+      "A_v2": {
+        "layoutMode": "pipeline",
+        "pipelineLayoutVariant": "v2",
+        "pipelineCompact": true
+      },
+      "I": {
+        "layoutMode": "strata",
+        "pipelineCompact": true,
+        "strataSweeps": 4,
+        "strataCoordinateRefine": true
+      },
+      "I_RS": {
+        "layoutMode": "strata",
+        "pipelineCompact": true,
+        "strataSweeps": 4,
+        "strataCoordinateRefine": true,
+        "strataRankSeparate": true
+      }
+    },
+    "preRegistration": "docs/strata-view-w12-heldout-scale.md — committed BEFORE this battery produced any statistic; every verdict below is its mechanical application",
+    "claimScoping": "P3 (staging-heldout-mesh) is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, seed 20260704): out-of-tuning-distribution transfer evidence, NOT held-out closure — R8-F4 stays formally open",
+    "frozenChurnThresholds": {
+      "source": "rcll-v2-spec-v3.1.md §13 A4 threshold freeze register (frozen 2026-07-05, W3) — REPORT-only reference values, never re-derived/loosened for P3",
+      "m1RelThreshold": 0.08,
+      "m2FlipThreshold": 0.1,
+      "nMin": 20
+    },
+    "tracingEvidenceClass": "api-seam-validation — population matching, NOT task/impact-tracing evidence (W11 caveat)",
+    "sanityAnchorSource": "docs/strata-view-w11-task-tracing.md recorded numbers (NO committed W10B/W11 report JSON artifacts exist — verified in docs/strata-baselines/ + git history); anchor mismatch fails the battery",
+    "determinismProtocol": "run the suite twice (distinct Q12_REPORT_DIR) and deep-equal the two report JSONs after stripping wall-clock keys (buildMs, timing); in-test, every paired cell is recomputed once and compared",
+    "interpretationNote": "interpretation is BLOCKED-ON-Q7 (open W11 exit criterion) — transferAssessment fields are mechanical, not adjudicated"
+  },
+  "fullDetailBlock": {
+    "meta": {
+      "arms": {
+        "F_v2_full_ancillary": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": false,
+          "pipelineIncludeAncillary": true
+        },
+        "H2_strata_k4_full": {
+          "layoutMode": "strata",
+          "pipelineCompact": false,
+          "strataSweeps": 4
+        },
+        "I2_strata_k4_a7_full": {
+          "layoutMode": "strata",
+          "pipelineCompact": false,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "J2_strata_k4_a7_rs_full": {
+          "layoutMode": "strata",
+          "pipelineCompact": false,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true,
+          "strataRankSeparate": true
+        }
+      },
+      "armProvenance": "option objects copied VERBATIM from terraformPipelineStrataExtentGate.test.ts ARM_OPTIONS (F_v2_full_ancillary / H2 / I2 / J2, L110-147); every arm — baseline included — built through the SAME getTerraformImportPresetSourcesFromDb → resolveSourcesWithTfdComposition → layoutTerraformViaWorkers seam (plan D4; no buildV2)",
+      "presets": {
+        "headline": [
+          "P1",
+          "P2"
+        ],
+        "stretch": [
+          "P3"
+        ]
+      },
+      "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+      "voidExpectation": "extent/rt̂ statuses are taken VERBATIM from the frozen pairedBootstrapCi result (voided/status/nUnmatched) — expected to often VOID at full detail (W4 precedent); that is the honest outcome, not a failure",
+      "softBudget": {
+        "budgetMs": 60000,
+        "derivation": "WP1 smoke wall-clocks (docs/strata-baselines/q12/P3_DISTINCTNESS_PROFILE.json p3Smokes: F_v2_full 205.3ms / I2_full 171.07ms on P3) × ~290 headroom ≈ 60s; SOFT — the in-process build cannot be aborted, an overrun is stamped TIMEOUT/INCOMPLETE after the fact and the cell stays in the matrix"
+      },
+      "timingSplit": {
+        "partitionFormula": "wallClockMs = outerPrepMergeParseMs (Σ inclusive ms of spans outside layout.pipeline: prep.cache+merge.plans+parse.nodes+parse.tfd) + layoutPipelineExclNestedPrepMs (ms(layout.pipeline) − ms(pipeline.prep)) + pipelinePrepMs (ms(pipeline.prep), nested inside layout.pipeline — fires ONLY on the rcll variant, expected 0 for the v2/strata builders on this branch) + remainderMs (wallClockMs − Σ top-level spans; seam/metric overhead outside all spans). Inclusive ms used throughout (selfMs is unreliable for nested spans); NO new spans added by W12.",
+        "seamNote": "verified on this branch: vitest has no Worker global and pipeline/strata layout modes take runSequential inside layoutTerraformViaWorkers, so layout runs IN-PROCESS and terraformImportProfiler is reachable through the worker seam; per-cell fired span names are recorded in each arm's timing.timingSplit (pipeline.prep fires only on the rcll variant — expected 0 for v2/strata arms)",
+        "noNewSpans": true
+      },
+      "determinismNote": "the per-arm `timing` object (wallClockMs, budgetStatus, split, fired spans) is wall-clock-derived and stripped by the run-twice normalization alongside buildMs"
+    },
+    "P1": {
+      "preset": "staging-extended-localstack-v2",
+      "arms": {
+        "F_v2_full_ancillary": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "pipeline",
+            "pipelineLayoutVariant": "v2",
+            "pipelineCompact": false,
+            "pipelineIncludeAncillary": true
+          },
+          "buildMs": 17324.79,
+          "elementCount": 7994,
+          "nSliceB": 114,
+          "crossings": 222,
+          "rcllV2Degraded": null,
+          "strataStructural": null,
+          "paths": {
+            "populationTotal": 746,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 16.03,
+            "rtHatP90": 26.31
+          },
+          "cones": {
+            "anchorsEligible": 67,
+            "sampled": 50
+          },
+          "nAllEdges": 145,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 17324.79,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 17324.79,
+              "outerPrepMergeParseMs": 2521.53,
+              "layoutPipelineMs": 14797.62,
+              "layoutPipelineExclNestedPrepMs": 14797.62,
+              "pipelinePrepMs": 0,
+              "remainderMs": 5.64,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 14486.15,
+                  "callCount": 427
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 3706.32,
+                  "callCount": 427
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 2521.46,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 158.38,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 14797.62,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 9.75,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 12857.58,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.07,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "H2_strata_k4_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4
+          },
+          "buildMs": 15658.8,
+          "elementCount": 4845,
+          "nSliceB": 37,
+          "crossings": 172,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 746,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 15.26,
+            "rtHatP90": 24.28
+          },
+          "cones": {
+            "anchorsEligible": 67,
+            "sampled": 50
+          },
+          "nAllEdges": 145,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 15658.8,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 15658.8,
+              "outerPrepMergeParseMs": 2507.49,
+              "layoutPipelineMs": 13146.85,
+              "layoutPipelineExclNestedPrepMs": 13146.85,
+              "pipelinePrepMs": 0,
+              "remainderMs": 4.46,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 12849.99,
+                  "callCount": 123
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 3309.47,
+                  "callCount": 123
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 2507.43,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 155.67,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 13146.85,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 9.34,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 12851.65,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.06,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "I2_strata_k4_a7_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4,
+            "strataCoordinateRefine": true
+          },
+          "buildMs": 15596.45,
+          "elementCount": 4845,
+          "nSliceB": 37,
+          "crossings": 170,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 746,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 15.26,
+            "rtHatP90": 24.28
+          },
+          "cones": {
+            "anchorsEligible": 67,
+            "sampled": 50
+          },
+          "nAllEdges": 145,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 15596.45,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 15596.45,
+              "outerPrepMergeParseMs": 2491.04,
+              "layoutPipelineMs": 13101.08,
+              "layoutPipelineExclNestedPrepMs": 13101.08,
+              "pipelinePrepMs": 0,
+              "remainderMs": 4.33,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 12834.44,
+                  "callCount": 123
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 3301.83,
+                  "callCount": 123
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 2490.95,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 152.86,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 13101.08,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 8.12,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 12835.59,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.09,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "J2_strata_k4_a7_rs_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4,
+            "strataCoordinateRefine": true,
+            "strataRankSeparate": true
+          },
+          "buildMs": 15632.95,
+          "elementCount": 4845,
+          "nSliceB": 37,
+          "crossings": 236,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 746,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 14.95,
+            "rtHatP90": 25.81
+          },
+          "cones": {
+            "anchorsEligible": 67,
+            "sampled": 50
+          },
+          "nAllEdges": 145,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 15632.95,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 15632.95,
+              "outerPrepMergeParseMs": 2502.79,
+              "layoutPipelineMs": 13125.99,
+              "layoutPipelineExclNestedPrepMs": 13125.99,
+              "pipelinePrepMs": 0,
+              "remainderMs": 4.17,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 12863.84,
+                  "callCount": 123
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 3292.4,
+                  "callCount": 123
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 2502.73,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 150.39,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 13125.99,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 7.7,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 12865.01,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.06,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        }
+      },
+      "cells": {
+        "F_v2_full_ancillary__vs__H2_strata_k4_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 37,
+              "nUnmatched": 77,
+              "point": -2411,
+              "lo": -3887,
+              "hi": 276.0708,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 37,
+              "nUnmatched": 77,
+              "point": 6314,
+              "lo": 1938,
+              "hi": 7604,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 0.01,
+              "lo": -0.19,
+              "hi": 0.02,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "NULL",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 1.98,
+              "lo": 1.87,
+              "hi": 2.01,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 81.91,
+              "lo": 69.57,
+              "hi": 115.75,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 2,
+              "lo": 2,
+              "hi": 2,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -161.19,
+              "lo": -394.77,
+              "hi": -69.21,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 77,
+            "baseSliceBReclassifiedInCandidate": 77,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 114,
+            "nSliceBCandidate": 37
+          }
+        },
+        "F_v2_full_ancillary__vs__I2_strata_k4_a7_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 37,
+              "nUnmatched": 77,
+              "point": -2411,
+              "lo": -4059,
+              "hi": 276.0708,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 37,
+              "nUnmatched": 77,
+              "point": 6657,
+              "lo": 2032,
+              "hi": 7604,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 0.02,
+              "lo": -0.02,
+              "hi": 0.04,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "NULL",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 2.2,
+              "lo": 1.99,
+              "hi": 2.64,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 91.95,
+              "lo": 78.57,
+              "hi": 116.16,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 2,
+              "lo": 2,
+              "hi": 2,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -188.69,
+              "lo": -415.58,
+              "hi": -92.63,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 77,
+            "baseSliceBReclassifiedInCandidate": 77,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 114,
+            "nSliceBCandidate": 37
+          }
+        },
+        "F_v2_full_ancillary__vs__J2_strata_k4_a7_rs_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 37,
+              "nUnmatched": 77,
+              "point": -3624.75,
+              "lo": -6198.8236,
+              "hi": -1420.25,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 37,
+              "nUnmatched": 77,
+              "point": 1680.75,
+              "lo": 356.75,
+              "hi": 3478,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -0.16,
+              "lo": -0.79,
+              "hi": 0,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "NULL",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 3.41,
+              "lo": 3.06,
+              "hi": 3.83,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 34.74,
+              "lo": 28.63,
+              "hi": 45.3,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 6,
+              "lo": 5,
+              "hi": 7,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -2567.29,
+              "lo": -3395.28,
+              "hi": -2221.15,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 77,
+            "baseSliceBReclassifiedInCandidate": 77,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 114,
+            "nSliceBCandidate": 37
+          }
+        }
+      }
+    },
+    "P2": {
+      "preset": "staging-localstack",
+      "arms": {
+        "F_v2_full_ancillary": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "pipeline",
+            "pipelineLayoutVariant": "v2",
+            "pipelineCompact": false,
+            "pipelineIncludeAncillary": true
+          },
+          "buildMs": 7768.74,
+          "elementCount": 5539,
+          "nSliceB": 32,
+          "crossings": 55,
+          "rcllV2Degraded": null,
+          "strataStructural": null,
+          "paths": {
+            "populationTotal": 265,
+            "sampled": 265,
+            "edgeCoverage": 1,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 14.68,
+            "rtHatP90": 24.36
+          },
+          "cones": {
+            "anchorsEligible": 36,
+            "sampled": 36
+          },
+          "nAllEdges": 69,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 7768.74,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 7768.74,
+              "outerPrepMergeParseMs": 1113.23,
+              "layoutPipelineMs": 6651.76,
+              "layoutPipelineExclNestedPrepMs": 6651.76,
+              "pipelinePrepMs": 0,
+              "remainderMs": 3.75,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 6486.94,
+                  "callCount": 224
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 1673.8,
+                  "callCount": 224
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 1113.17,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 80.11,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 6651.76,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 4.95,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 6119.04,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.06,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "H2_strata_k4_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4
+          },
+          "buildMs": 7349.44,
+          "elementCount": 3728,
+          "nSliceB": 4,
+          "crossings": 48,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 265,
+            "sampled": 265,
+            "edgeCoverage": 1,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 13.65,
+            "rtHatP90": 24.39
+          },
+          "cones": {
+            "anchorsEligible": 36,
+            "sampled": 36
+          },
+          "nAllEdges": 69,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 7349.44,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 7349.44,
+              "outerPrepMergeParseMs": 1107.73,
+              "layoutPipelineMs": 6238.97,
+              "layoutPipelineExclNestedPrepMs": 6238.97,
+              "pipelinePrepMs": 0,
+              "remainderMs": 2.74,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 6096.63,
+                  "callCount": 70
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 1582.29,
+                  "callCount": 70
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 1107.68,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 80.68,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 6238.97,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 4.23,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 6097.38,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.05,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "I2_strata_k4_a7_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4,
+            "strataCoordinateRefine": true
+          },
+          "buildMs": 7360.5,
+          "elementCount": 3728,
+          "nSliceB": 4,
+          "crossings": 48,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 265,
+            "sampled": 265,
+            "edgeCoverage": 1,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 13.64,
+            "rtHatP90": 24.39
+          },
+          "cones": {
+            "anchorsEligible": 36,
+            "sampled": 36
+          },
+          "nAllEdges": 69,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 7360.5,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 7360.5,
+              "outerPrepMergeParseMs": 1128.3,
+              "layoutPipelineMs": 6229.37,
+              "layoutPipelineExclNestedPrepMs": 6229.37,
+              "pipelinePrepMs": 0,
+              "remainderMs": 2.83,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 6082.63,
+                  "callCount": 70
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 1580.9,
+                  "callCount": 70
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 1128.24,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 79.93,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 6229.37,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 4.35,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 6083.35,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.06,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "J2_strata_k4_a7_rs_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4,
+            "strataCoordinateRefine": true,
+            "strataRankSeparate": true
+          },
+          "buildMs": 7320.71,
+          "elementCount": 3728,
+          "nSliceB": 4,
+          "crossings": 117,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 265,
+            "sampled": 265,
+            "edgeCoverage": 1,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 16.6,
+            "rtHatP90": 26.38
+          },
+          "cones": {
+            "anchorsEligible": 36,
+            "sampled": 36
+          },
+          "nAllEdges": 69,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 7320.71,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 7320.71,
+              "outerPrepMergeParseMs": 1085.33,
+              "layoutPipelineMs": 6232.61,
+              "layoutPipelineExclNestedPrepMs": 6232.61,
+              "pipelinePrepMs": 0,
+              "remainderMs": 2.77,
+              "firedSpans": [
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 6087.23,
+                  "callCount": 70
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 1580.88,
+                  "callCount": 70
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 1085.29,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 80.98,
+                  "callCount": 1
+                },
+                {
+                  "name": "layout.pipeline",
+                  "ms": 6232.61,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 4.32,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 6087.97,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.04,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        }
+      },
+      "cells": {
+        "F_v2_full_ancillary__vs__H2_strata_k4_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 4,
+              "nUnmatched": 28,
+              "point": 6678,
+              "lo": 2794,
+              "hi": 11854,
+              "degenerate": true,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 4,
+              "nUnmatched": 28,
+              "point": 11854,
+              "lo": 3027,
+              "hi": 11854,
+              "degenerate": true,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 0.04,
+              "lo": 0.02,
+              "hi": 0.08,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 2.1,
+              "lo": 1.97,
+              "hi": 2.63,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 116.16,
+              "lo": 50.59,
+              "hi": 116.52,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 2,
+              "lo": 1,
+              "hi": 3,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 366.28,
+              "lo": 162.44,
+              "hi": 551.03,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 28,
+            "baseSliceBReclassifiedInCandidate": 28,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 32,
+            "nSliceBCandidate": 4
+          }
+        },
+        "F_v2_full_ancillary__vs__I2_strata_k4_a7_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 4,
+              "nUnmatched": 28,
+              "point": 6678,
+              "lo": 2794,
+              "hi": 11854,
+              "degenerate": true,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 4,
+              "nUnmatched": 28,
+              "point": 11854,
+              "lo": 3027,
+              "hi": 11854,
+              "degenerate": true,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 0.04,
+              "lo": 0.02,
+              "hi": 0.08,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 2.01,
+              "lo": 1.96,
+              "hi": 2.51,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 115.9,
+              "lo": 44.23,
+              "hi": 116.5,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 2,
+              "lo": 1,
+              "hi": 3,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 366.28,
+              "lo": 162.44,
+              "hi": 551.03,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 28,
+            "baseSliceBReclassifiedInCandidate": 28,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 32,
+            "nSliceBCandidate": 4
+          }
+        },
+        "F_v2_full_ancillary__vs__J2_strata_k4_a7_rs_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 4,
+              "nUnmatched": 28,
+              "point": 4077,
+              "lo": 923,
+              "hi": 8287,
+              "degenerate": true,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 4,
+              "nUnmatched": 28,
+              "point": 8287,
+              "lo": 1156,
+              "hi": 8287,
+              "degenerate": true,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 2.11,
+              "lo": 1.91,
+              "hi": 2.49,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 5.26,
+              "lo": 4.47,
+              "hi": 6.74,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 113.78,
+              "lo": 44.69,
+              "hi": 114.51,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": 9,
+              "lo": 8,
+              "hi": 11,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 265,
+              "nUnmatched": 0,
+              "point": -2183.99,
+              "lo": -2503,
+              "hi": -1284.02,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 28,
+            "baseSliceBReclassifiedInCandidate": 28,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 32,
+            "nSliceBCandidate": 4
+          }
+        }
+      }
+    },
+    "P3": {
+      "preset": "staging-heldout-mesh",
+      "arms": {
+        "F_v2_full_ancillary": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "pipeline",
+            "pipelineLayoutVariant": "v2",
+            "pipelineCompact": false,
+            "pipelineIncludeAncillary": true
+          },
+          "buildMs": 183.9,
+          "elementCount": 4122,
+          "nSliceB": 210,
+          "crossings": 784,
+          "rcllV2Degraded": null,
+          "strataStructural": null,
+          "paths": {
+            "populationTotal": 851,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 17.87,
+            "rtHatP90": 36.58
+          },
+          "cones": {
+            "anchorsEligible": 100,
+            "sampled": 50
+          },
+          "nAllEdges": 210,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 183.9,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 183.9,
+              "outerPrepMergeParseMs": 39.78,
+              "layoutPipelineMs": 142.93,
+              "layoutPipelineExclNestedPrepMs": 142.93,
+              "pipelinePrepMs": 0,
+              "remainderMs": 1.19,
+              "firedSpans": [
+                {
+                  "name": "layout.pipeline",
+                  "ms": 142.93,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 76.96,
+                  "callCount": 301
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 39.72,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 18.09,
+                  "callCount": 301
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 5.36,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 1.06,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 57.16,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.06,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "H2_strata_k4_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4
+          },
+          "buildMs": 159.71,
+          "elementCount": 2291,
+          "nSliceB": 39,
+          "crossings": 715,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 851,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 16.33,
+            "rtHatP90": 27.73
+          },
+          "cones": {
+            "anchorsEligible": 100,
+            "sampled": 50
+          },
+          "nAllEdges": 210,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 159.71,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 159.71,
+              "outerPrepMergeParseMs": 38.77,
+              "layoutPipelineMs": 119.09,
+              "layoutPipelineExclNestedPrepMs": 119.09,
+              "pipelinePrepMs": 0,
+              "remainderMs": 1.85,
+              "firedSpans": [
+                {
+                  "name": "layout.pipeline",
+                  "ms": 119.09,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 58.05,
+                  "callCount": 155
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 38.72,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 14.69,
+                  "callCount": 155
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 5.42,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 1.1,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 58.36,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.05,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "I2_strata_k4_a7_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4,
+            "strataCoordinateRefine": true
+          },
+          "buildMs": 159.46,
+          "elementCount": 2291,
+          "nSliceB": 39,
+          "crossings": 480,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 851,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 12.67,
+            "rtHatP90": 23.21
+          },
+          "cones": {
+            "anchorsEligible": 100,
+            "sampled": 50
+          },
+          "nAllEdges": 210,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 159.46,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 159.46,
+              "outerPrepMergeParseMs": 39.06,
+              "layoutPipelineMs": 119.25,
+              "layoutPipelineExclNestedPrepMs": 119.25,
+              "pipelinePrepMs": 0,
+              "remainderMs": 1.15,
+              "firedSpans": [
+                {
+                  "name": "layout.pipeline",
+                  "ms": 119.25,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 56.39,
+                  "callCount": 155
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 39.01,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 13.76,
+                  "callCount": 155
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 5.23,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 1.21,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 56.66,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.05,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        },
+        "J2_strata_k4_a7_rs_full": {
+          "status": "OK",
+          "options": {
+            "layoutMode": "strata",
+            "pipelineCompact": false,
+            "strataSweeps": 4,
+            "strataCoordinateRefine": true,
+            "strataRankSeparate": true
+          },
+          "buildMs": 162.86,
+          "elementCount": 2291,
+          "nSliceB": 39,
+          "crossings": 480,
+          "rcllV2Degraded": null,
+          "strataStructural": {
+            "nonAncestorOverlaps": 0,
+            "titleCollisions": 0,
+            "contiguityViolations": 0
+          },
+          "paths": {
+            "populationTotal": 851,
+            "sampled": 500,
+            "edgeCoverage": 0.98,
+            "unresolvedPathCount": 0,
+            "rtHatP50": 12.67,
+            "rtHatP90": 23.21
+          },
+          "cones": {
+            "anchorsEligible": 100,
+            "sampled": 50
+          },
+          "nAllEdges": 210,
+          "timing": {
+            "budgetMs": 60000,
+            "wallClockMs": 162.86,
+            "budgetStatus": "OK",
+            "timingSplit": {
+              "status": "ok",
+              "wallClockMs": 162.86,
+              "outerPrepMergeParseMs": 38.39,
+              "layoutPipelineMs": 123.26,
+              "layoutPipelineExclNestedPrepMs": 123.26,
+              "pipelinePrepMs": 0,
+              "remainderMs": 1.21,
+              "firedSpans": [
+                {
+                  "name": "layout.pipeline",
+                  "ms": 123.26,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.resourceRects",
+                  "ms": 57.82,
+                  "callCount": 155
+                },
+                {
+                  "name": "prep.cache",
+                  "ms": 38.33,
+                  "callCount": 1
+                },
+                {
+                  "name": "skeleton.satelliteBundles",
+                  "ms": 13.9,
+                  "callCount": 155
+                },
+                {
+                  "name": "pipeline.prep.satelliteBundles",
+                  "ms": 5.3,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.resourceRects",
+                  "ms": 1.13,
+                  "callCount": 1
+                },
+                {
+                  "name": "pipeline.prep.materialize",
+                  "ms": 58.1,
+                  "callCount": 1
+                },
+                {
+                  "name": "merge.plans",
+                  "ms": 0.06,
+                  "callCount": 1
+                }
+              ],
+              "unclassifiedSpanNames": [
+                "skeleton.resourceRects",
+                "skeleton.satelliteBundles"
+              ]
+            }
+          }
+        }
+      },
+      "cells": {
+        "F_v2_full_ancillary__vs__H2_strata_k4_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 39,
+              "nUnmatched": 171,
+              "point": -4987.056,
+              "lo": -5560,
+              "hi": -4816,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 39,
+              "nUnmatched": 171,
+              "point": 79.3971,
+              "lo": -4683.0962,
+              "hi": 252.8721,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -1.31,
+              "lo": -2.35,
+              "hi": -0.58,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 8.27,
+              "lo": 6.86,
+              "hi": 9.64,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 128.68,
+              "lo": 105.48,
+              "hi": 145.46,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 11,
+              "lo": 10,
+              "hi": 12,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -28283.65,
+              "lo": -35648.32,
+              "hi": -25365.54,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 171,
+            "baseSliceBReclassifiedInCandidate": 171,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 210,
+            "nSliceBCandidate": 39
+          }
+        },
+        "F_v2_full_ancillary__vs__I2_strata_k4_a7_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 39,
+              "nUnmatched": 171,
+              "point": -5194.3557,
+              "lo": -5708.2823,
+              "hi": -4806.8934,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 39,
+              "nUnmatched": 171,
+              "point": -84.3529,
+              "lo": -4242.3392,
+              "hi": 580.7888,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -5.16,
+              "lo": -6.05,
+              "hi": -4.15,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 3.12,
+              "lo": 2.31,
+              "hi": 4.17,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 54.46,
+              "lo": 47.34,
+              "hi": 64.81,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 5,
+              "lo": 4,
+              "hi": 6,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -29140.42,
+              "lo": -35237.71,
+              "hi": -25885.65,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 171,
+            "baseSliceBReclassifiedInCandidate": 171,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 210,
+            "nSliceBCandidate": 39
+          }
+        },
+        "F_v2_full_ancillary__vs__J2_strata_k4_a7_rs_full": {
+          "status": "OK",
+          "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
+          "extent": {
+            "p50": {
+              "statistic": "p50",
+              "n": 39,
+              "nUnmatched": 171,
+              "point": -5194.3557,
+              "lo": -5708.2823,
+              "hi": -4806.8934,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            },
+            "p90": {
+              "statistic": "p90",
+              "n": 39,
+              "nUnmatched": 171,
+              "point": -84.3529,
+              "lo": -4242.3392,
+              "hi": 580.7888,
+              "degenerate": false,
+              "voided": true,
+              "status": "void",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": false,
+              "class": "VOID",
+              "gateEligible": false
+            }
+          },
+          "paths": {
+            "rtHatP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -5.16,
+              "lo": -6.05,
+              "hi": -4.15,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            },
+            "rtHatP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 3.12,
+              "lo": 2.31,
+              "hi": 4.17,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "conP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 54.46,
+              "lo": 47.34,
+              "hi": 64.81,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "crP90": {
+              "statistic": "p90",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": 5,
+              "lo": 4,
+              "hi": 6,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": false,
+              "ciExcludesZeroWorsening": true,
+              "class": "WORSENING",
+              "gateEligible": true
+            },
+            "tllP50": {
+              "statistic": "p50",
+              "n": 500,
+              "nUnmatched": 0,
+              "point": -29140.42,
+              "lo": -35237.71,
+              "hi": -25885.65,
+              "degenerate": false,
+              "voided": false,
+              "status": "ok",
+              "ciExcludesZeroImproving": true,
+              "ciExcludesZeroWorsening": false,
+              "class": "IMPROVING",
+              "gateEligible": true
+            }
+          },
+          "sliceClassificationAsymmetry": {
+            "note": "DIAGNOSTIC only — never determines a cell status (frozen pairedBootstrapCi statuses are verbatim)",
+            "asymmetry": 171,
+            "baseSliceBReclassifiedInCandidate": 171,
+            "baseSliceBAbsentFromCandidate": 0,
+            "candSliceBReclassifiedInBaseline": 0,
+            "candSliceBAbsentFromBaseline": 0,
+            "nSliceBBaseline": 210,
+            "nSliceBCandidate": 39
+          }
+        }
+      }
+    }
+  },
+  "P1": {
+    "preset": "staging-extended-localstack-v2",
+    "sliceB": {
+      "countsByArm": {
+        "A_v2": 37,
+        "I": 37,
+        "I_RS": 37
+      },
+      "emptyEverywhere": false,
+      "note": "slice B non-empty"
+    },
+    "arms": {
+      "A_v2": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": true
+        },
+        "buildMs": 2940.13,
+        "elementCount": 1333,
+        "nSliceB": 37,
+        "crossings": 177,
+        "rcllV2Degraded": null,
+        "strataStructural": null,
+        "paths": {
+          "populationTotal": 746,
+          "sampled": 500,
+          "edgeCoverage": 0.98,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 14.77,
+          "rtHatP90": 22.92
+        },
+        "cones": {
+          "anchorsEligible": 67,
+          "sampled": 50
+        }
+      },
+      "I": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 3723.57,
+        "elementCount": 1333,
+        "nSliceB": 37,
+        "crossings": 123,
+        "rcllV2Degraded": null,
+        "strataStructural": {
+          "nonAncestorOverlaps": 0,
+          "titleCollisions": 0,
+          "contiguityViolations": 0
+        },
+        "paths": {
+          "populationTotal": 746,
+          "sampled": 500,
+          "edgeCoverage": 0.98,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 13.36,
+          "rtHatP90": 21.39
+        },
+        "cones": {
+          "anchorsEligible": 67,
+          "sampled": 50
+        }
+      },
+      "I_RS": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true,
+          "strataRankSeparate": true
+        },
+        "buildMs": 3015.58,
+        "elementCount": 1333,
+        "nSliceB": 37,
+        "crossings": 220,
+        "rcllV2Degraded": null,
+        "strataStructural": {
+          "nonAncestorOverlaps": 0,
+          "titleCollisions": 0,
+          "contiguityViolations": 0
+        },
+        "paths": {
+          "populationTotal": 746,
+          "sampled": 500,
+          "edgeCoverage": 0.98,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 14.21,
+          "rtHatP90": 24.89
+        },
+        "cones": {
+          "anchorsEligible": 67,
+          "sampled": 50
+        }
+      }
+    },
+    "transferCells": {
+      "A_v2__vs__I": {
+        "extent": {
+          "p50": {
+            "statistic": "p50",
+            "n": 37,
+            "nUnmatched": 0,
+            "point": 324.3334,
+            "lo": -301,
+            "hi": 769.8597,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": false,
+            "class": "NULL",
+            "gateEligible": true
+          },
+          "p90": {
+            "statistic": "p90",
+            "n": 37,
+            "nUnmatched": 0,
+            "point": 6726,
+            "lo": 3966,
+            "hi": 7006,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        },
+        "paths": {
+          "rtHatP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": -0.27,
+            "lo": -0.48,
+            "hi": -0.05,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": true,
+            "ciExcludesZeroWorsening": false,
+            "class": "IMPROVING",
+            "gateEligible": true
+          },
+          "rtHatP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 2.07,
+            "lo": 1.78,
+            "hi": 2.22,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "conP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 86.91,
+            "lo": 73.37,
+            "hi": 101.4,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "crP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 2,
+            "lo": 1,
+            "hi": 2,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "tllP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 652.86,
+            "lo": 322.24,
+            "hi": 965.03,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        }
+      },
+      "A_v2__vs__I_RS": {
+        "extent": {
+          "p50": {
+            "statistic": "p50",
+            "n": 37,
+            "nUnmatched": 0,
+            "point": 336.5,
+            "lo": -388.6988,
+            "hi": 796.088,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": false,
+            "class": "NULL",
+            "gateEligible": true
+          },
+          "p90": {
+            "statistic": "p90",
+            "n": 37,
+            "nUnmatched": 0,
+            "point": 3160.75,
+            "lo": 1252.1113,
+            "hi": 3659.25,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        },
+        "paths": {
+          "rtHatP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 0.25,
+            "lo": 0.06,
+            "hi": 0.64,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "rtHatP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 4.61,
+            "lo": 4.26,
+            "hi": 4.97,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "conP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 58.32,
+            "lo": 47.76,
+            "hi": 83.69,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "crP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 7,
+            "lo": 6,
+            "hi": 8,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "tllP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 1386.64,
+            "lo": 962.92,
+            "hi": 1810.17,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        }
+      }
+    },
+    "churn": {
+      "A_v2": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api12_compute -> api14_gateway\" into a 2-target fanout in tfd[0]",
+          "uSize": 122,
+          "uGatable": true,
+          "m1Rel": 0.1638,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 371,
+          "m3Disp": {
+            "median": 3550,
+            "p95": 8231
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": false,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"east_igw -> platform_dashboard\" before line 233 of tfd[0]",
+          "uSize": 121,
+          "uGatable": true,
+          "m1Rel": 0.0131,
+          "m2Flip": 0.0069,
+          "m2FlipInversions": 3,
+          "m2FlipComparedPairs": 436,
+          "m3Disp": {
+            "median": 0,
+            "p95": 865
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"aws_cloudwatch_dashboard.extended\" -> \"aws_cloudwatch_dashboard.extended_moved\" (bind platform_dashboard; 4 plan object(s) updated)",
+          "uSize": 123,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 450,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      },
+      "I": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api12_compute -> api14_gateway\" into a 2-target fanout in tfd[0]",
+          "uSize": 122,
+          "uGatable": true,
+          "m1Rel": 0.0194,
+          "m2Flip": 0.0065,
+          "m2FlipInversions": 4,
+          "m2FlipComparedPairs": 616,
+          "m3Disp": {
+            "median": 0,
+            "p95": 1961
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"east_igw -> platform_dashboard\" before line 233 of tfd[0]",
+          "uSize": 121,
+          "uGatable": true,
+          "m1Rel": 0.0121,
+          "m2Flip": 0.005,
+          "m2FlipInversions": 3,
+          "m2FlipComparedPairs": 602,
+          "m3Disp": {
+            "median": 0,
+            "p95": 1208
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"aws_cloudwatch_dashboard.extended\" -> \"aws_cloudwatch_dashboard.extended_moved\" (bind platform_dashboard; 4 plan object(s) updated)",
+          "uSize": 123,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 626,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      },
+      "I_RS": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api12_compute -> api14_gateway\" into a 2-target fanout in tfd[0]",
+          "uSize": 122,
+          "uGatable": true,
+          "m1Rel": 0.0982,
+          "m2Flip": 0.0086,
+          "m2FlipInversions": 2,
+          "m2FlipComparedPairs": 232,
+          "m3Disp": {
+            "median": 496,
+            "p95": 2990.1935
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": false,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"east_igw -> platform_dashboard\" before line 233 of tfd[0]",
+          "uSize": 121,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 315,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"aws_cloudwatch_dashboard.extended\" -> \"aws_cloudwatch_dashboard.extended_moved\" (bind platform_dashboard; 4 plan object(s) updated)",
+          "uSize": 123,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 320,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      }
+    },
+    "churnMutations": {
+      "addOneResource": {
+        "note": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api12_compute -> api14_gateway\" into a 2-target fanout in tfd[0]"
+      },
+      "addOneEdge": {
+        "note": "inserted \"east_igw -> platform_dashboard\" before line 233 of tfd[0]"
+      },
+      "movedRename": {
+        "note": "renamed \"aws_cloudwatch_dashboard.extended\" -> \"aws_cloudwatch_dashboard.extended_moved\" (bind platform_dashboard; 4 plan object(s) updated)"
+      }
+    },
+    "tracing": {
+      "evidenceClass": "api-seam-validation",
+      "note": "population matching (production traversal vs true declared-dependency reachability), NOT task/impact-tracing evidence — W11 caveat; arm I scene",
+      "arm": "I",
+      "productionCallValidation": {
+        "mode": {
+          "call": "getTerraformRelationshipFocus(elements, anchor, undefined, { direction: \"dependencies\", maxHops: Infinity })",
+          "direction": "dependencies",
+          "maxHops": "all",
+          "note": "the REAL production call on the full unfiltered element array (W11 decision 9)"
+        },
+        "anchorsRequested": 50,
+        "anchorsMappable": 50,
+        "unmappableAnchors": [],
+        "aggregate": {
+          "meanPrecision": 1,
+          "meanRecall": 1,
+          "minPrecision": 1,
+          "minRecall": 1,
+          "perfectPrecisionShare": 1,
+          "perfectRecallShare": 1,
+          "totalFocusOnlyNodes": 0,
+          "totalConeOnlyNodes": 0
+        }
+      },
+      "taskMismatchShippedDefault": {
+        "mode": {
+          "call": "getTerraformRelationshipFocus(elements, anchor)",
+          "direction": "both",
+          "maxHops": 3,
+          "note": "shipped default — expected recall<1 (hop cap) and precision<1 (undirected pollution)"
+        },
+        "anchorsRequested": 50,
+        "anchorsMappable": 50,
+        "unmappableAnchors": [],
+        "aggregate": {
+          "meanPrecision": 0.4641,
+          "meanRecall": 0.6824,
+          "minPrecision": 0.075,
+          "minRecall": 0.0467,
+          "perfectPrecisionShare": 0,
+          "perfectRecallShare": 0.42,
+          "totalFocusOnlyNodes": 615,
+          "totalConeOnlyNodes": 1023
+        }
+      }
+    }
+  },
+  "P2": {
+    "preset": "staging-localstack",
+    "sliceB": {
+      "countsByArm": {
+        "A_v2": 4,
+        "I": 4,
+        "I_RS": 4
+      },
+      "emptyEverywhere": false,
+      "note": "slice B non-empty"
+    },
+    "arms": {
+      "A_v2": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": true
+        },
+        "buildMs": 1230.24,
+        "elementCount": 735,
+        "nSliceB": 4,
+        "crossings": 33,
+        "rcllV2Degraded": null,
+        "strataStructural": null,
+        "paths": {
+          "populationTotal": 265,
+          "sampled": 265,
+          "edgeCoverage": 1,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 11.5,
+          "rtHatP90": 19.32
+        },
+        "cones": {
+          "anchorsEligible": 36,
+          "sampled": 36
+        }
+      },
+      "I": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 1217.83,
+        "elementCount": 735,
+        "nSliceB": 4,
+        "crossings": 39,
+        "rcllV2Degraded": null,
+        "strataStructural": {
+          "nonAncestorOverlaps": 0,
+          "titleCollisions": 0,
+          "contiguityViolations": 0
+        },
+        "paths": {
+          "populationTotal": 265,
+          "sampled": 265,
+          "edgeCoverage": 1,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 12.58,
+          "rtHatP90": 21.78
+        },
+        "cones": {
+          "anchorsEligible": 36,
+          "sampled": 36
+        }
+      },
+      "I_RS": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true,
+          "strataRankSeparate": true
+        },
+        "buildMs": 1325.23,
+        "elementCount": 735,
+        "nSliceB": 4,
+        "crossings": 104,
+        "rcllV2Degraded": null,
+        "strataStructural": {
+          "nonAncestorOverlaps": 0,
+          "titleCollisions": 0,
+          "contiguityViolations": 0
+        },
+        "paths": {
+          "populationTotal": 265,
+          "sampled": 265,
+          "edgeCoverage": 1,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 15.08,
+          "rtHatP90": 23.76
+        },
+        "cones": {
+          "anchorsEligible": 36,
+          "sampled": 36
+        }
+      }
+    },
+    "transferCells": {
+      "A_v2__vs__I": {
+        "extent": {
+          "p50": {
+            "statistic": "p50",
+            "n": 4,
+            "nUnmatched": 0,
+            "point": 4786,
+            "lo": 2268.4299,
+            "hi": 5532,
+            "degenerate": true,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": false
+          },
+          "p90": {
+            "statistic": "p90",
+            "n": 4,
+            "nUnmatched": 0,
+            "point": 5532,
+            "lo": 2268.4299,
+            "hi": 5532,
+            "degenerate": true,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": false
+          }
+        },
+        "paths": {
+          "rtHatP50": {
+            "statistic": "p50",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 0.98,
+            "lo": 0.56,
+            "hi": 1.25,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "rtHatP90": {
+            "statistic": "p90",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 3.15,
+            "lo": 2.79,
+            "hi": 3.56,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "conP90": {
+            "statistic": "p90",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 111.06,
+            "lo": 87.84,
+            "hi": 118.73,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "crP90": {
+            "statistic": "p90",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 3,
+            "lo": 3,
+            "hi": 4,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "tllP50": {
+            "statistic": "p50",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 1792.22,
+            "lo": 1600.34,
+            "hi": 1979.41,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        }
+      },
+      "A_v2__vs__I_RS": {
+        "extent": {
+          "p50": {
+            "statistic": "p50",
+            "n": 4,
+            "nUnmatched": 0,
+            "point": 1844.5,
+            "lo": 1178.4299,
+            "hi": 3796,
+            "degenerate": true,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": false
+          },
+          "p90": {
+            "statistic": "p90",
+            "n": 4,
+            "nUnmatched": 0,
+            "point": 3796,
+            "lo": 1178.4299,
+            "hi": 3796,
+            "degenerate": true,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": false
+          }
+        },
+        "paths": {
+          "rtHatP50": {
+            "statistic": "p50",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 2.64,
+            "lo": 2.06,
+            "hi": 3.1,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "rtHatP90": {
+            "statistic": "p90",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 7.58,
+            "lo": 7.05,
+            "hi": 8.02,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "conP90": {
+            "statistic": "p90",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 106.82,
+            "lo": 82.42,
+            "hi": 111.29,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "crP90": {
+            "statistic": "p90",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 11,
+            "lo": 10,
+            "hi": 11,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "tllP50": {
+            "statistic": "p50",
+            "n": 265,
+            "nUnmatched": 0,
+            "point": 832.51,
+            "lo": 727.76,
+            "hi": 1018.07,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        }
+      }
+    },
+    "churn": {
+      "A_v2": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api5_gateway -> api5_compute\" into a 2-target fanout in tfd[0]",
+          "uSize": 69,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 185,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"east_igw -> api16_gateway\" before line 128 of tfd[0]",
+          "uSize": 68,
+          "uGatable": true,
+          "m1Rel": 0.2072,
+          "m2Flip": 0.1514,
+          "m2FlipInversions": 28,
+          "m2FlipComparedPairs": 185,
+          "m3Disp": {
+            "median": 0,
+            "p95": 2421
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": false,
+          "m2FlipWithinFrozen": false
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"module.api16_rds.aws_db_instance.this\" -> \"module.api16_rds.aws_db_instance.this_moved\" (bind api16_store; 3 plan object(s) updated)",
+          "uSize": 70,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 190,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      },
+      "I": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api5_gateway -> api5_compute\" into a 2-target fanout in tfd[0]",
+          "uSize": 69,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 245,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"east_igw -> api16_gateway\" before line 128 of tfd[0]",
+          "uSize": 68,
+          "uGatable": true,
+          "m1Rel": 0.0246,
+          "m2Flip": 0.0544,
+          "m2FlipInversions": 13,
+          "m2FlipComparedPairs": 239,
+          "m3Disp": {
+            "median": 0,
+            "p95": 1724
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"module.api16_rds.aws_db_instance.this\" -> \"module.api16_rds.aws_db_instance.this_moved\" (bind api16_store; 3 plan object(s) updated)",
+          "uSize": 70,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 250,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      },
+      "I_RS": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api5_gateway -> api5_compute\" into a 2-target fanout in tfd[0]",
+          "uSize": 69,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 181,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"east_igw -> api16_gateway\" before line 128 of tfd[0]",
+          "uSize": 68,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 183,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"module.api16_rds.aws_db_instance.this\" -> \"module.api16_rds.aws_db_instance.this_moved\" (bind api16_store; 3 plan object(s) updated)",
+          "uSize": 70,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 186,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      }
+    },
+    "churnMutations": {
+      "addOneResource": {
+        "note": "duplicated resource \"aws_lb.ecs\" -> \"aws_lb.ecs_a4new\" (new bind ecs_alb_a4new); attached via widening \"api5_gateway -> api5_compute\" into a 2-target fanout in tfd[0]"
+      },
+      "addOneEdge": {
+        "note": "inserted \"east_igw -> api16_gateway\" before line 128 of tfd[0]"
+      },
+      "movedRename": {
+        "note": "renamed \"module.api16_rds.aws_db_instance.this\" -> \"module.api16_rds.aws_db_instance.this_moved\" (bind api16_store; 3 plan object(s) updated)"
+      }
+    },
+    "tracing": {
+      "evidenceClass": "api-seam-validation",
+      "note": "population matching (production traversal vs true declared-dependency reachability), NOT task/impact-tracing evidence — W11 caveat; arm I scene",
+      "arm": "I",
+      "productionCallValidation": {
+        "mode": {
+          "call": "getTerraformRelationshipFocus(elements, anchor, undefined, { direction: \"dependencies\", maxHops: Infinity })",
+          "direction": "dependencies",
+          "maxHops": "all",
+          "note": "the REAL production call on the full unfiltered element array (W11 decision 9)"
+        },
+        "anchorsRequested": 36,
+        "anchorsMappable": 36,
+        "unmappableAnchors": [],
+        "aggregate": {
+          "meanPrecision": 1,
+          "meanRecall": 1,
+          "minPrecision": 1,
+          "minRecall": 1,
+          "perfectPrecisionShare": 1,
+          "perfectRecallShare": 1,
+          "totalFocusOnlyNodes": 0,
+          "totalConeOnlyNodes": 0
+        }
+      },
+      "taskMismatchShippedDefault": {
+        "mode": {
+          "call": "getTerraformRelationshipFocus(elements, anchor)",
+          "direction": "both",
+          "maxHops": 3,
+          "note": "shipped default — expected recall<1 (hop cap) and precision<1 (undirected pollution)"
+        },
+        "anchorsRequested": 36,
+        "anchorsMappable": 36,
+        "unmappableAnchors": [],
+        "aggregate": {
+          "meanPrecision": 0.4832,
+          "meanRecall": 0.7389,
+          "minPrecision": 0.2105,
+          "minRecall": 0.0571,
+          "perfectPrecisionShare": 0.0278,
+          "perfectRecallShare": 0.5278,
+          "totalFocusOnlyNodes": 257,
+          "totalConeOnlyNodes": 385
+        }
+      }
+    }
+  },
+  "sanityAnchor": {
+    "source": "docs/strata-view-w11-task-tracing.md (see meta)",
+    "anchors": {
+      "P1": {
+        "anchorsMappable": 50,
+        "mismatchMeanPrecision3dp": 0.464,
+        "mismatchMeanRecall3dp": 0.682,
+        "rtHat2dp": {
+          "A_v2": {
+            "p50": 14.77,
+            "p90": 22.92
+          },
+          "I": {
+            "p50": 13.36,
+            "p90": 21.39
+          },
+          "I_RS": {
+            "p50": 14.21,
+            "p90": 24.89
+          }
+        }
+      },
+      "P2": {
+        "anchorsMappable": 36,
+        "mismatchMeanPrecision3dp": 0.483,
+        "mismatchMeanRecall3dp": 0.739,
+        "rtHat2dp": {
+          "A_v2": {
+            "p50": 11.5,
+            "p90": 19.32
+          },
+          "I": {
+            "p50": 12.58,
+            "p90": 21.78
+          },
+          "I_RS": {
+            "p50": 15.08,
+            "p90": 23.76
+          }
+        }
+      }
+    },
+    "pairedRtHatP50P1": {
+      "lo": -0.48,
+      "hi": -0.05
+    },
+    "green": true
+  },
+  "P3": {
+    "preset": "staging-heldout-mesh",
+    "sliceB": {
+      "countsByArm": {
+        "A_v2": 39,
+        "I": 39,
+        "I_RS": 39
+      },
+      "emptyEverywhere": false,
+      "note": "slice B non-empty"
+    },
+    "arms": {
+      "A_v2": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": true
+        },
+        "buildMs": 83.18,
+        "elementCount": 1619,
+        "nSliceB": 39,
+        "crossings": 375,
+        "rcllV2Degraded": null,
+        "strataStructural": null,
+        "paths": {
+          "populationTotal": 851,
+          "sampled": 500,
+          "edgeCoverage": 0.98,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 9.8,
+          "rtHatP90": 24.21
+        },
+        "cones": {
+          "anchorsEligible": 100,
+          "sampled": 50
+        }
+      },
+      "I": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 95.32,
+        "elementCount": 1619,
+        "nSliceB": 39,
+        "crossings": 474,
+        "rcllV2Degraded": null,
+        "strataStructural": {
+          "nonAncestorOverlaps": 0,
+          "titleCollisions": 0,
+          "contiguityViolations": 0
+        },
+        "paths": {
+          "populationTotal": 851,
+          "sampled": 500,
+          "edgeCoverage": 0.98,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 12.82,
+          "rtHatP90": 22.62
+        },
+        "cones": {
+          "anchorsEligible": 100,
+          "sampled": 50
+        }
+      },
+      "I_RS": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true,
+          "strataRankSeparate": true
+        },
+        "buildMs": 97.5,
+        "elementCount": 1619,
+        "nSliceB": 39,
+        "crossings": 474,
+        "rcllV2Degraded": null,
+        "strataStructural": {
+          "nonAncestorOverlaps": 0,
+          "titleCollisions": 0,
+          "contiguityViolations": 0
+        },
+        "paths": {
+          "populationTotal": 851,
+          "sampled": 500,
+          "edgeCoverage": 0.98,
+          "unresolvedPathCount": 0,
+          "rtHatP50": 12.82,
+          "rtHatP90": 22.62
+        },
+        "cones": {
+          "anchorsEligible": 100,
+          "sampled": 50
+        }
+      }
+    },
+    "transferCells": {
+      "A_v2__vs__I": {
+        "extent": {
+          "p50": {
+            "statistic": "p50",
+            "n": 39,
+            "nUnmatched": 0,
+            "point": 1260.243,
+            "lo": 900.7275,
+            "hi": 1620.9794,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "p90": {
+            "statistic": "p90",
+            "n": 39,
+            "nUnmatched": 0,
+            "point": 2408.2806,
+            "lo": 1874.2243,
+            "hi": 2460.9292,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        },
+        "paths": {
+          "rtHatP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 1.45,
+            "lo": 1.08,
+            "hi": 1.82,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "rtHatP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 8.2,
+            "lo": 7.37,
+            "hi": 9.87,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "conP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 83.92,
+            "lo": 75.91,
+            "hi": 97.85,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "crP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 12,
+            "lo": 11,
+            "hi": 13,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "tllP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": -30784.98,
+            "lo": -38149.74,
+            "hi": -27772.14,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": true,
+            "ciExcludesZeroWorsening": false,
+            "class": "IMPROVING",
+            "gateEligible": true
+          }
+        }
+      },
+      "A_v2__vs__I_RS": {
+        "extent": {
+          "p50": {
+            "statistic": "p50",
+            "n": 39,
+            "nUnmatched": 0,
+            "point": 1260.243,
+            "lo": 900.7275,
+            "hi": 1620.9794,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "p90": {
+            "statistic": "p90",
+            "n": 39,
+            "nUnmatched": 0,
+            "point": 2408.2806,
+            "lo": 1874.2243,
+            "hi": 2460.9292,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          }
+        },
+        "paths": {
+          "rtHatP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 1.45,
+            "lo": 1.08,
+            "hi": 1.82,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "rtHatP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 8.2,
+            "lo": 7.37,
+            "hi": 9.87,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "conP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 83.92,
+            "lo": 75.91,
+            "hi": 97.85,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "crP90": {
+            "statistic": "p90",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": 12,
+            "lo": 11,
+            "hi": 13,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": false,
+            "ciExcludesZeroWorsening": true,
+            "class": "WORSENING",
+            "gateEligible": true
+          },
+          "tllP50": {
+            "statistic": "p50",
+            "n": 500,
+            "nUnmatched": 0,
+            "point": -30784.98,
+            "lo": -38149.74,
+            "hi": -27772.14,
+            "degenerate": false,
+            "voided": false,
+            "status": "ok",
+            "ciExcludesZeroImproving": true,
+            "ciExcludesZeroWorsening": false,
+            "class": "IMPROVING",
+            "gateEligible": true
+          }
+        }
+      }
+    },
+    "churn": {
+      "A_v2": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"module.mesh_core.aws_cloudwatch_event_bus.mesh\" -> \"module.mesh_core.aws_cloudwatch_event_bus.mesh_a4new\" (new bind mesh_bus_a4new); attached via widening \"c13_work -> c13_handler\" into a 2-target fanout in tfd[0]",
+          "uSize": 154,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 84,
+          "m3Disp": {
+            "median": 0,
+            "p95": 542
+          },
+          "m4Status": "inconclusive",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"c01_ingress -> sg_rule_a_to_b\" before line 316 of tfd[0]",
+          "uSize": 153,
+          "uGatable": true,
+          "m1Rel": 0.0081,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 80,
+          "m3Disp": {
+            "median": 0,
+            "p95": 542
+          },
+          "m4Status": "inconclusive",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts\" -> \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts_moved\" (bind c16_trace; 2 plan object(s) updated)",
+          "uSize": 155,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 84,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "inconclusive",
+          "m5Status": "ok",
+          "thresholdsApplicable": false,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      },
+      "I": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"module.mesh_core.aws_cloudwatch_event_bus.mesh\" -> \"module.mesh_core.aws_cloudwatch_event_bus.mesh_a4new\" (new bind mesh_bus_a4new); attached via widening \"c13_work -> c13_handler\" into a 2-target fanout in tfd[0]",
+          "uSize": 154,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 513,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"c01_ingress -> sg_rule_a_to_b\" before line 316 of tfd[0]",
+          "uSize": 153,
+          "uGatable": true,
+          "m1Rel": 0.0398,
+          "m2Flip": 0.0039,
+          "m2FlipInversions": 2,
+          "m2FlipComparedPairs": 509,
+          "m3Disp": {
+            "median": 0,
+            "p95": 336.875
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts\" -> \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts_moved\" (bind c16_trace; 2 plan object(s) updated)",
+          "uSize": 155,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 517,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      },
+      "I_RS": {
+        "addOneResource": {
+          "status": "OK",
+          "mutationNote": "duplicated resource \"module.mesh_core.aws_cloudwatch_event_bus.mesh\" -> \"module.mesh_core.aws_cloudwatch_event_bus.mesh_a4new\" (new bind mesh_bus_a4new); attached via widening \"c13_work -> c13_handler\" into a 2-target fanout in tfd[0]",
+          "uSize": 154,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 513,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "addOneEdge": {
+          "status": "OK",
+          "mutationNote": "inserted \"c01_ingress -> sg_rule_a_to_b\" before line 316 of tfd[0]",
+          "uSize": 153,
+          "uGatable": true,
+          "m1Rel": 0.0398,
+          "m2Flip": 0.0039,
+          "m2FlipInversions": 2,
+          "m2FlipComparedPairs": 509,
+          "m3Disp": {
+            "median": 0,
+            "p95": 336.875
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        },
+        "movedRename": {
+          "status": "OK",
+          "mutationNote": "renamed \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts\" -> \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts_moved\" (bind c16_trace; 2 plan object(s) updated)",
+          "uSize": 155,
+          "uGatable": true,
+          "m1Rel": 0,
+          "m2Flip": 0,
+          "m2FlipInversions": 0,
+          "m2FlipComparedPairs": 517,
+          "m3Disp": {
+            "median": 0,
+            "p95": 0
+          },
+          "m4Status": "ok",
+          "m5Status": "ok",
+          "thresholdsApplicable": true,
+          "m1RelWithinFrozen": true,
+          "m2FlipWithinFrozen": true
+        }
+      }
+    },
+    "churnMutations": {
+      "addOneResource": {
+        "note": "duplicated resource \"module.mesh_core.aws_cloudwatch_event_bus.mesh\" -> \"module.mesh_core.aws_cloudwatch_event_bus.mesh_a4new\" (new bind mesh_bus_a4new); attached via widening \"c13_work -> c13_handler\" into a 2-target fanout in tfd[0]"
+      },
+      "addOneEdge": {
+        "note": "inserted \"c01_ingress -> sg_rule_a_to_b\" before line 316 of tfd[0]"
+      },
+      "movedRename": {
+        "note": "renamed \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts\" -> \"module.cell_16.module.service.module.runtime.module.telemetry.module.tracing.aws_sns_topic.trace_alerts_moved\" (bind c16_trace; 2 plan object(s) updated)"
+      }
+    },
+    "tracing": {
+      "evidenceClass": "api-seam-validation",
+      "note": "population matching (production traversal vs true declared-dependency reachability), NOT task/impact-tracing evidence — W11 caveat; arm I scene",
+      "arm": "I",
+      "productionCallValidation": {
+        "mode": {
+          "call": "getTerraformRelationshipFocus(elements, anchor, undefined, { direction: \"dependencies\", maxHops: Infinity })",
+          "direction": "dependencies",
+          "maxHops": "all",
+          "note": "the REAL production call on the full unfiltered element array (W11 decision 9)"
+        },
+        "anchorsRequested": 50,
+        "anchorsMappable": 50,
+        "unmappableAnchors": [],
+        "aggregate": {
+          "meanPrecision": 1,
+          "meanRecall": 1,
+          "minPrecision": 1,
+          "minRecall": 1,
+          "perfectPrecisionShare": 1,
+          "perfectRecallShare": 1,
+          "totalFocusOnlyNodes": 0,
+          "totalConeOnlyNodes": 0
+        }
+      },
+      "taskMismatchShippedDefault": {
+        "mode": {
+          "call": "getTerraformRelationshipFocus(elements, anchor)",
+          "direction": "both",
+          "maxHops": 3,
+          "note": "shipped default — expected recall<1 (hop cap) and precision<1 (undirected pollution)"
+        },
+        "anchorsRequested": 50,
+        "anchorsMappable": 50,
+        "unmappableAnchors": [],
+        "aggregate": {
+          "meanPrecision": 0.2941,
+          "meanRecall": 0.6729,
+          "minPrecision": 0.0448,
+          "minRecall": 0.2051,
+          "perfectPrecisionShare": 0.04,
+          "perfectRecallShare": 0.28,
+          "totalFocusOnlyNodes": 1552,
+          "totalConeOnlyNodes": 536
+        }
+      }
+    }
+  },
+  "transferAssessment": {
+    "note": "MECHANICAL application of the pre-registered record (docs/strata-view-w12-heldout-scale.md §4-§6) — adjudication stays with the owner (WP4)",
+    "headlineVerdicts": {
+      "A_v2__vs__I": {
+        "extentP50": {
+          "classes": {
+            "P1": "NULL",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        },
+        "extentP90": {
+          "classes": {
+            "P1": "WORSENING",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        },
+        "rtHatP50": {
+          "classes": {
+            "P1": "IMPROVING",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        },
+        "rtHatP90": {
+          "classes": {
+            "P1": "WORSENING",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        }
+      },
+      "A_v2__vs__I_RS": {
+        "extentP50": {
+          "classes": {
+            "P1": "NULL",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        },
+        "extentP90": {
+          "classes": {
+            "P1": "WORSENING",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        },
+        "rtHatP50": {
+          "classes": {
+            "P1": "WORSENING",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        },
+        "rtHatP90": {
+          "classes": {
+            "P1": "WORSENING",
+            "P2": "WORSENING",
+            "P3": "WORSENING"
+          },
+          "verdict": "SUPPORT"
+        }
+      }
+    },
+    "p3Churn": {
+      "allWithinFrozenThresholds": true,
+      "thresholdExceeded": false,
+      "incompleteOrBelowNMin": false
+    },
+    "p3StructuralClean": true,
+    "p3LayoutThrows": [],
+    "blockVerdict": "SUPPORT"
+  },
+  "softFailures": []
+}
