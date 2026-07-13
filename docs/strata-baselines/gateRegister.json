@@ -322,6 +322,31 @@
       "claimedStatus": "REPORT",
       "adjudication": "recorded-from-W7",
       "evidence": "strata-view-w7-packed-scoring-battery.md Per-arm scalars (P2 sharpShare 0.95→0.71, still worse than v2's 0.48). M-ANG battery-scalar probe seeded REPORT, not an accepted gate."
+    },
+    {
+      "id": "P1-compact/batteryCrossings/I_RS_BC",
+      "kind": "report-observation",
+      "metric": "batteryCrossings",
+      "preset": "P1-compact",
+      "configuration": "strata K4+A7+rankSeparate+bandCompact, P1 compact, W10b I_RS_BC arm",
+      "value": 260,
+      "baselineRef": "P1-compact/batteryCrossings/I",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W10b",
+      "evidence": "strata-view-w10b-band-compact-battery.md 'Crossings, structure zeros, chords' (P1 I 123 -> I_RS_BC 260). M-TCR battery-scalar probe seeded REPORT, not an accepted gate. SDEC-64; raw run: scratchpad w10b/W10B_BAND_COMPACT_BATTERY.json (P1.arms.I_RS_BC.crossings)."
+    },
+    {
+      "id": "P2-compact/batteryCrossings/I_RS_BC",
+      "kind": "report-observation",
+      "metric": "batteryCrossings",
+      "preset": "P2-compact",
+      "configuration": "strata K4+A7+rankSeparate+bandCompact, P2 compact, W10b I_RS_BC arm",
+      "value": 91,
+      "baselineRef": "P2-compact/batteryCrossings/I",
+      "claimedStatus": "REPORT",
+      "adjudication": "recorded-from-W10b",
+      "evidence": "strata-view-w10b-band-compact-battery.md 'Crossings, structure zeros, chords' (P2 I 39 -> I_RS_BC 91). M-TCR battery-scalar probe seeded REPORT, not an accepted gate. SDEC-64; raw run: scratchpad w10b/W10B_BAND_COMPACT_BATTERY.json (P2.arms.I_RS_BC.crossings)."
     }
-  ]
+  ],
+  "_w10bComment": "W10b (SDEC-64) added two batteryCrossings report-observation cells above (I_RS_BC vs I, both presets) using the pre-existing ScalarMetricId schema. Canvas-height reclaim and add-churn M1_rel are NOT represented as scalarCells here: terraformPipelineStrataGateRegister.ts's ScalarMetricId union is closed to hullPenetrationsProbe | batteryCrossings | sharpShare, and this doc/register pass is scoped to docs + gate-register JSON only (no engine/UI .ts edits) — adding new metric ids would require a source change out of that scope. Both figures are recorded and cited instead in docs/strata-view-w10b-band-compact-battery.md and SDEC-64, with the raw values traceable to W10B_BAND_COMPACT_BATTERY.json."
 }
