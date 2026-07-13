@@ -16,6 +16,8 @@ import type {
 } from "./terraformImportDialogUtils";
 import type { ModulePackingMode } from "./terraformModuleLayoutOptions";
 import type { TerraformLodPreset } from "./terraformLod";
+import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
+
 import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
 
 /** Edge-layer visibility pins (mirrors `AppState["terraformEdgeLayerPins"]`). */
@@ -487,23 +489,32 @@ export const parseTerraformDemoUrlParams = (
   // must round-trip it). Negative values (the `-1` sentinel included) never
   // appear in URLs and reject. The legacy default (3 hops) is represented by
   // omission only.
+  //
+  // W13 F4 — LEXICAL form is validated first: the only accepted spellings are
+  // the literal `all` or a canonical ASCII decimal integer
+  // (`/^(0|[1-9][0-9]*)$/`). Numeric aliases that `Number()` would happily
+  // coerce — `-0`, leading zeros (`007`), hex (`0x10`), signs (`+1`),
+  // exponents (`1e2`), decimals (`2.0`) — all reject the whole URL. This
+  // REVERSES the W13 WP1 decimal-spelling pin ("accept iff Number() yields an
+  // integer"): one lexical form per value, so URLs stay canonical and
+  // round-trip byte-stable. The parsed value must then also pass the shared
+  // domain validator (non-negative safe integer).
   const focusHopsRaw = params.get("focushops");
   let focusMaxHops: number | undefined;
   if (focusHopsRaw != null && focusHopsRaw.trim() !== "") {
     const normalized = focusHopsRaw.trim().toLowerCase();
     if (normalized === "all") {
       focusMaxHops = Infinity;
-    } else {
+    } else if (/^(0|[1-9][0-9]*)$/.test(normalized)) {
       const parsedHops = Number(normalized);
-      if (
-        Number.isInteger(parsedHops) &&
-        parsedHops >= 0 &&
-        parsedHops <= Number.MAX_SAFE_INTEGER
-      ) {
+      if (isValidTerraformFocusHopCount(parsedHops)) {
         focusMaxHops = parsedHops;
       } else {
+        // Canonical digits but beyond Number.MAX_SAFE_INTEGER — reject.
         return null;
       }
+    } else {
+      return null;
     }
   }
 

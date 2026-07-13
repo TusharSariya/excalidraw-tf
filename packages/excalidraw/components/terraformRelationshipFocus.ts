@@ -215,6 +215,21 @@ export type TerraformFocusOptions = {
 };
 
 /**
+ * W13 F3 — THE hop-cap domain validator, shared by every boundary that
+ * consumes or emits a finite hop cap (AppState ingress in
+ * `useTerraformRelationshipFocusEffect`, the menu radio derivation in
+ * `DefaultItems.TerraformFocusControls`, the share-URL emit in
+ * `terraformCanvasShareUrl`, and the URL parse in `terraformDemoUrlParams`).
+ * A finite hop cap is valid iff it is a non-negative SAFE integer —
+ * `Number.isInteger` alone admits values like `1e21` that survive no JSON /
+ * URL round-trip faithfully. The `-1` "unlimited" sentinel and `Infinity`
+ * are handled separately at each boundary and are deliberately NOT part of
+ * this predicate.
+ */
+export const isValidTerraformFocusHopCount = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 0;
+
+/**
  * Builds the wash + opacity + customData patch for one focus update step. Returns
  * `null` when nothing would change so the caller can keep the original reference.
  *

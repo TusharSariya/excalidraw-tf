@@ -1,10 +1,12 @@
 /**
  * W13 hop-depth × direction sweep battery (WP5 of the W13 vertical slice).
  * Pre-registered analysis record: docs/strata-view-w13-hop-sweep.md
- * (commit 0519453b5 + AMENDMENT-1 naming/definition pins) — committed BEFORE
- * this file produced any statistic; this battery implements exactly that
- * record. Any divergence is a defect in THIS file, never a license to edit
- * the record.
+ * (commit 0519453b5; its AMENDMENT-1 naming/definition pins are reclassified
+ * post-hoc/exploratory — see the record's provenance note, W13 codex F5);
+ * this battery implements exactly that record. Any divergence is a defect in
+ * THIS file, never a license to edit the record. (The report meta's
+ * preRegistration string predates that reclassification and is kept verbatim
+ * for artifact byte-stability; the record is normative.)
  *
  * Report-emitting, W11/W12-style: this file owns NO layout behavior, changes
  * NO product geometry, and NEVER asserts metric values — hard asserts exist
@@ -432,7 +434,9 @@ function buildPresetFragment(
     }
     maxFiniteByDirection.set(direction, maxFinite);
   }
-  const gridMaxK = Math.max(...DIRECTIONS.map((d) => maxFiniteByDirection.get(d)!));
+  const gridMaxK = Math.max(
+    ...DIRECTIONS.map((d) => maxFiniteByDirection.get(d)!),
+  );
 
   const directions = {} as Record<TerraformFocusDirection, DirectionFragment>;
   const ruleInputs: RuleInputs = new Map();
@@ -513,11 +517,7 @@ function buildPresetFragment(
         recallsFull.push(r);
         precisions4.push(round4(p));
         recalls4.push(round4(r));
-        if (
-          k !== "inf" &&
-          k >= 2 &&
-          sliceSizeOf(dist, k - 2) === dist.size
-        ) {
+        if (k !== "inf" && k >= 2 && sliceSizeOf(dist, k - 2) === dist.size) {
           saturated += 1;
         }
       }
@@ -541,7 +541,9 @@ function buildPresetFragment(
         prevRecallFull = Math.max(prevRecallFull, macroRecallFull);
       }
       const coneShare =
-        universe.size > 0 ? predictedTotal / mappable.length / universe.size : 0;
+        universe.size > 0
+          ? predictedTotal / mappable.length / universe.size
+          : 0;
       const cell: SweepCell = {
         k,
         status,
@@ -622,7 +624,7 @@ function reportFindingNote(findings: string[], msg: string): void {
   }
 }
 
-// ── §6 sanity anchors (hard-asserted BEFORE P3 is built or the §7 rule read) ─
+// ── §6 sanity anchors (hard-asserted BEFORE any sweep cell is built) ─────────
 
 const SANITY_ANCHORS: Record<
   "P1" | "P2",
@@ -632,13 +634,126 @@ const SANITY_ANCHORS: Record<
     both3MeanRecall: number;
   }
 > = {
-  P1: { anchorsRequested: 50, both3MeanPrecision: 0.4641, both3MeanRecall: 0.6824 },
-  P2: { anchorsRequested: 36, both3MeanPrecision: 0.4832, both3MeanRecall: 0.7389 },
+  P1: {
+    anchorsRequested: 50,
+    both3MeanPrecision: 0.4641,
+    both3MeanRecall: 0.6824,
+  },
+  P2: {
+    anchorsRequested: 36,
+    both3MeanPrecision: 0.4832,
+    both3MeanRecall: 0.7389,
+  },
 };
+
+/**
+ * W13 codex F1 — phase-1 anchor-reproduction cells, computed on the built
+ * scene BEFORE any sweep cell exists (record §6: "the orchestrator is ordered
+ * so sweep cells are not built until the anchor is green"). Reproduces ONLY
+ * the two pinned W12 tracing cells plus the anchor populations, with the
+ * exact §5 estimator conventions (anchor self-inclusion, forward-closure
+ * truth, W11/W12 round4-per-anchor-then-round4-mean). Phase 2 cross-checks
+ * that the full sweep grid's corresponding cells equal these values.
+ */
+type AnchorReproduction = {
+  anchorsRequested: number;
+  anchorsMappable: number;
+  unmappableAnchors: string[];
+  both3: { meanPrecision: number; meanRecall: number };
+  depsInf: {
+    minPrecision: number;
+    minRecall: number;
+    meanPrecision: number;
+    meanRecall: number;
+    perfectPrecisionShare: number;
+    perfectRecallShare: number;
+  };
+};
+
+function computeAnchorReproduction(arm: ArmData): AnchorReproduction {
+  const elements = arm.elements;
+  const tfdArrows = tfdArrowsOf(elements);
+  const anchors = arm.cones.rows.map((r) => r.anchor);
+  const mappableSet = elementGraphAddresses(elements);
+  const mappable: string[] = [];
+  const unmappable: string[] = [];
+  for (const anchor of anchors) {
+    (mappableSet.has(anchor) ? mappable : unmappable).push(anchor);
+  }
+  const bothP4: number[] = [];
+  const bothR4: number[] = [];
+  const depP4: number[] = [];
+  const depR4: number[] = [];
+  for (const anchor of mappable) {
+    // Truth = FORWARD closure for BOTH pinned cells (record §4: the "both"
+    // cell is judged vs the forward closure — the deliberate W11 asymmetry).
+    const truth = trueReachFrom(tfdArrows, anchor);
+    // (both, K=3): threshold of one uncapped undirected traversal at 3 —
+    // the same derivation the sweep grid uses (record §3).
+    const bothDist = getTerraformRelationshipFocus(
+      elements,
+      anchor,
+      undefined,
+      { direction: "both", maxHops: Infinity },
+    ).nodeDistance;
+    let predicted = 0;
+    let matched = 0;
+    for (const [node, d] of bothDist) {
+      if (d <= 3) {
+        predicted += 1;
+        if (truth.has(node)) {
+          matched += 1;
+        }
+      }
+    }
+    bothP4.push(round4(predicted > 0 ? matched / predicted : 0));
+    bothR4.push(round4(truth.size > 0 ? matched / truth.size : 0));
+    // (dependencies, ∞): the directed production call, uncapped.
+    const depDist = getTerraformRelationshipFocus(elements, anchor, undefined, {
+      direction: "dependencies",
+      maxHops: Infinity,
+    }).nodeDistance;
+    let depPredicted = 0;
+    let depMatched = 0;
+    for (const node of depDist.keys()) {
+      depPredicted += 1;
+      if (truth.has(node)) {
+        depMatched += 1;
+      }
+    }
+    depP4.push(round4(depPredicted > 0 ? depMatched / depPredicted : 0));
+    depR4.push(round4(truth.size > 0 ? depMatched / truth.size : 0));
+  }
+  return {
+    anchorsRequested: anchors.length,
+    anchorsMappable: mappable.length,
+    unmappableAnchors: unmappable,
+    both3: {
+      meanPrecision: round4(mean(bothP4)),
+      meanRecall: round4(mean(bothR4)),
+    },
+    depsInf: {
+      minPrecision: round4(Math.min(...depP4, 1)),
+      minRecall: round4(Math.min(...depR4, 1)),
+      meanPrecision: round4(mean(depP4)),
+      meanRecall: round4(mean(depR4)),
+      perfectPrecisionShare: round4(
+        depP4.length > 0
+          ? depP4.filter((p) => p === 1).length / depP4.length
+          : 0,
+      ),
+      perfectRecallShare: round4(
+        depR4.length > 0
+          ? depR4.filter((r) => r === 1).length / depR4.length
+          : 0,
+      ),
+    },
+  };
+}
 
 function checkSanityAnchors(
   presetLabel: "P1" | "P2",
-  fragment: PresetFragment,
+  repro: AnchorReproduction,
   anchorFailures: string[],
 ): void {
   const preset = PRESETS[presetLabel];
@@ -647,59 +762,84 @@ function checkSanityAnchors(
     anchorFailures.push(`${preset}: SANITY ANCHOR FAILED — ${msg}`);
 
   // Anchor populations: requested == mappable, zero unmappable (record §6).
-  if (fragment.anchorsRequested !== pin.anchorsRequested) {
+  if (repro.anchorsRequested !== pin.anchorsRequested) {
     fail(
-      `anchorsRequested ${fragment.anchorsRequested} != ${pin.anchorsRequested}`,
+      `anchorsRequested ${repro.anchorsRequested} != ${pin.anchorsRequested}`,
     );
   }
-  if (fragment.anchorsMappable !== pin.anchorsRequested) {
-    fail(
-      `anchorsMappable ${fragment.anchorsMappable} != ${pin.anchorsRequested}`,
-    );
+  if (repro.anchorsMappable !== pin.anchorsRequested) {
+    fail(`anchorsMappable ${repro.anchorsMappable} != ${pin.anchorsRequested}`);
   }
-  if (fragment.unmappableAnchors.length !== 0) {
+  if (repro.unmappableAnchors.length !== 0) {
     fail(
-      `unmappableAnchors not empty: ${JSON.stringify(
-        fragment.unmappableAnchors,
-      )}`,
+      `unmappableAnchors not empty: ${JSON.stringify(repro.unmappableAnchors)}`,
     );
   }
   // (both, K=3) must equal the committed W12 shipped-3hop mismatch cell.
-  const both3 = fragment.directions.both.cells.K3;
-  if (!both3) {
-    fail("grid has no (both, K=3) cell");
-  } else {
-    if (both3.meanPrecision !== pin.both3MeanPrecision) {
-      fail(
-        `(both,K=3) meanPrecision ${both3.meanPrecision} != ${pin.both3MeanPrecision}`,
-      );
-    }
-    if (both3.meanRecall !== pin.both3MeanRecall) {
-      fail(
-        `(both,K=3) meanRecall ${both3.meanRecall} != ${pin.both3MeanRecall}`,
-      );
-    }
+  if (repro.both3.meanPrecision !== pin.both3MeanPrecision) {
+    fail(
+      `(both,K=3) meanPrecision ${repro.both3.meanPrecision} != ${pin.both3MeanPrecision}`,
+    );
+  }
+  if (repro.both3.meanRecall !== pin.both3MeanRecall) {
+    fail(
+      `(both,K=3) meanRecall ${repro.both3.meanRecall} != ${pin.both3MeanRecall}`,
+    );
   }
   // (dependencies, ∞) must equal the directed production call: per-anchor
   // minima 1/1 (hence mean 1/1, perfect shares 1).
-  const depsInf = fragment.directions.dependencies.cells.inf;
-  if (!depsInf) {
-    fail("grid has no (dependencies, ∞) cell");
-  } else if (
-    depsInf.minPrecision !== 1 ||
-    depsInf.minRecall !== 1 ||
-    depsInf.meanPrecision !== 1 ||
-    depsInf.meanRecall !== 1 ||
-    depsInf.perfectPrecisionShare !== 1 ||
-    depsInf.perfectRecallShare !== 1
+  if (
+    repro.depsInf.minPrecision !== 1 ||
+    repro.depsInf.minRecall !== 1 ||
+    repro.depsInf.meanPrecision !== 1 ||
+    repro.depsInf.meanRecall !== 1 ||
+    repro.depsInf.perfectPrecisionShare !== 1 ||
+    repro.depsInf.perfectRecallShare !== 1
   ) {
     fail(
       `(dependencies,∞) not 1/1 on every anchor: ${JSON.stringify({
-        minPrecision: depsInf.minPrecision,
-        minRecall: depsInf.minRecall,
-        meanPrecision: depsInf.meanPrecision,
-        meanRecall: depsInf.meanRecall,
+        minPrecision: repro.depsInf.minPrecision,
+        minRecall: repro.depsInf.minRecall,
+        meanPrecision: repro.depsInf.meanPrecision,
+        meanRecall: repro.depsInf.meanRecall,
       })}`,
+    );
+  }
+}
+
+/**
+ * Phase-2 consistency guard: the sweep grid's (both,K=3) and (dependencies,∞)
+ * cells must equal the phase-1 anchor reproduction (same scene, same
+ * estimator — any divergence is a defect in one of the two derivations).
+ */
+function crossCheckAnchorReproduction(
+  preset: string,
+  repro: AnchorReproduction,
+  fragment: PresetFragment,
+  failures: string[],
+): void {
+  const both3 = fragment.directions.both.cells.K3;
+  if (
+    !both3 ||
+    both3.meanPrecision !== repro.both3.meanPrecision ||
+    both3.meanRecall !== repro.both3.meanRecall
+  ) {
+    failures.push(
+      `${preset}: sweep (both,K=3) cell != phase-1 anchor reproduction`,
+    );
+  }
+  const depsInf = fragment.directions.dependencies.cells.inf;
+  if (
+    !depsInf ||
+    depsInf.minPrecision !== repro.depsInf.minPrecision ||
+    depsInf.minRecall !== repro.depsInf.minRecall ||
+    depsInf.meanPrecision !== repro.depsInf.meanPrecision ||
+    depsInf.meanRecall !== repro.depsInf.meanRecall ||
+    depsInf.perfectPrecisionShare !== repro.depsInf.perfectPrecisionShare ||
+    depsInf.perfectRecallShare !== repro.depsInf.perfectRecallShare
+  ) {
+    failures.push(
+      `${preset}: sweep (dependencies,∞) cell != phase-1 anchor reproduction`,
     );
   }
 }
@@ -723,8 +863,7 @@ function computeRecommendation(
       for (const presetLabel of SELECTION_PRESETS) {
         // A K beyond a preset's own grid max equals its uncapped cell.
         const inputs = ruleInputsByPreset.get(presetLabel)!.get(direction)!;
-        const eff =
-          inputs.get(k) ?? inputs.get(Infinity)!; // beyond-grid ⇒ ∞ values
+        const eff = inputs.get(k) ?? inputs.get(Infinity)!; // beyond-grid ⇒ ∞ values
         const ok =
           eff.precision >= RULE_PRECISION_MIN && eff.recall >= RULE_RECALL_MIN;
         per[presetLabel] = {
@@ -833,7 +972,9 @@ describe("W13 hop-sweep battery (report-emitting; REPORT-only cells; never asser
             "AMENDMENT-1(3); REPORT-only, never selects",
           determinismNote:
             "each preset's full fragment is built twice (2 scene builds + 2 sweep computations) " +
-            `and deep-equaled after stripping wall-clock keys (${[...TIMING_KEYS].join(", ")}); ` +
+            `and deep-equaled after stripping wall-clock keys (${[
+              ...TIMING_KEYS,
+            ].join(", ")}); ` +
             "additionally FOCUS_HOP_SWEEP.normalized.json is the external run-twice byte comparand",
           registersNote:
             "REPORT-only: no gateRegister.json interaction, no V32 manifest pin, no frozen row",
@@ -844,143 +985,233 @@ describe("W13 hop-sweep battery (report-emitting; REPORT-only cells; never asser
       const ruleInputsByPreset = new Map<"P1" | "P2", RuleInputs>();
       const gridMaxKByPreset = new Map<"P1" | "P2", number>();
 
-      const processPreset = async (
+      // Shared by the failure path (report written FIRST, then the
+      // hard-assert fires — the W12 F2 discipline, extended to P1/P2 by W13
+      // codex F2) and the green path.
+      const writeReport = (): void => {
+        const json = JSON.stringify(
+          { ...report, reportFindings, softFailures },
+          null,
+          2,
+        );
+        mkdirSync(REPORT_DIR, { recursive: true });
+        writeFileSync(`${REPORT_DIR}/FOCUS_HOP_SWEEP.json`, json);
+        writeFileSync(
+          `${REPORT_DIR}/FOCUS_HOP_SWEEP.normalized.json`,
+          JSON.stringify(stripTimings(JSON.parse(json)), null, 2),
+        );
+        // eslint-disable-next-line no-console -- probe output IS the deliverable
+        console.log(
+          `FOCUS_HOP_SWEEP.json written to ${REPORT_DIR} (${json.length} bytes)`,
+        );
+      };
+
+      const resolvePresetSources = (
         presetLabel: PresetLabel,
-      ): Promise<void> => {
+      ): TerraformImportPresetSources => {
         const preset = PRESETS[presetLabel];
         const raw = getTerraformImportPresetSourcesFromDb(preset);
         expect(raw, `preset ${preset} exists`).toBeTruthy();
-        const sources = resolveSourcesWithTfdComposition(
+        return resolveSourcesWithTfdComposition(
           raw! as TerraformImportPresetSources,
         );
+      };
 
-        const buildFragment = async (
-          pass: string,
-          failures: string[],
-        ): Promise<ReturnType<typeof buildPresetFragment>> => {
-          const arm = await buildArmI(sources);
-          const context = `${preset}/${pass}`;
-          if (arm.elements.length === 0) {
-            failures.push(`${context}: scene EMPTY`);
-          }
-          if (arm.cones.sampled === 0) {
-            failures.push(`${context}: cone anchor population EMPTY`);
-          }
-          if (arm.rcllV2Degraded !== undefined && arm.rcllV2Degraded !== false) {
-            failures.push(
-              `${context}: rcllV2Degraded=${JSON.stringify(arm.rcllV2Degraded)}`,
-            );
-          }
-          const st = arm.strataStructural as {
-            nonAncestorOverlaps?: number;
-            titleCollisions?: number;
-            contiguityViolations?: number;
-          } | null;
-          if (
-            st &&
-            ((st.nonAncestorOverlaps ?? 0) > 0 ||
-              (st.titleCollisions ?? 0) > 0 ||
-              (st.contiguityViolations ?? 0) > 0)
-          ) {
-            failures.push(
-              `${context}: R2 structural nonzero ${JSON.stringify(st)}`,
-            );
-          }
-          return buildPresetFragment(
-            preset,
-            arm,
-            failures,
-            reportFindings,
-            context,
-          );
-        };
-
-        const passA = await buildFragment("passA", softFailures);
-        // Run-twice determinism (record §8): rebuild the scene, recompute the
-        // FULL fragment, deep-equal after stripping wall-clock keys.
-        const passBFailures: string[] = [];
-        const passB = await buildFragment("passB", passBFailures);
-        softFailures.push(...passBFailures);
-        const normA = JSON.stringify(stripTimings(passA.fragment));
-        const normB = JSON.stringify(stripTimings(passB.fragment));
-        const deterministic = normA === normB;
-        if (!deterministic) {
-          softFailures.push(
-            `${preset}: run-twice fragment NOT deterministic (normalized sans timings)`,
+      const buildCheckedArm = async (
+        presetLabel: PresetLabel,
+        sources: TerraformImportPresetSources,
+        pass: string,
+        failures: string[],
+      ): Promise<ArmData> => {
+        const arm = await buildArmI(sources);
+        const context = `${PRESETS[presetLabel]}/${pass}`;
+        if (arm.elements.length === 0) {
+          failures.push(`${context}: scene EMPTY`);
+        }
+        if (arm.cones.sampled === 0) {
+          failures.push(`${context}: cone anchor population EMPTY`);
+        }
+        if (arm.rcllV2Degraded !== undefined && arm.rcllV2Degraded !== false) {
+          failures.push(
+            `${context}: rcllV2Degraded=${JSON.stringify(arm.rcllV2Degraded)}`,
           );
         }
-
-        // Zero-unmappable is a HARD precondition on the selection presets
-        // (record §5); on P3 a nonzero count is reported + flagged and voids
-        // affected cells (stamped below).
+        const st = arm.strataStructural as {
+          nonAncestorOverlaps?: number;
+          titleCollisions?: number;
+          contiguityViolations?: number;
+        } | null;
         if (
-          presetLabel !== "P3" &&
-          passA.fragment.unmappableAnchors.length > 0
+          st &&
+          ((st.nonAncestorOverlaps ?? 0) > 0 ||
+            (st.titleCollisions ?? 0) > 0 ||
+            (st.contiguityViolations ?? 0) > 0)
         ) {
-          softFailures.push(
-            `${preset}: unmappable anchors on a SELECTION preset: ${JSON.stringify(
-              passA.fragment.unmappableAnchors,
+          failures.push(
+            `${context}: R2 structural nonzero ${JSON.stringify(st)}`,
+          );
+        }
+        return arm;
+      };
+
+      /** VOID stamp for a preset whose load/layout threw (W13 codex F2 —
+       * mirrors the W12 F2 pattern; the report is ALWAYS still written). */
+      const throwStamp = (
+        presetLabel: PresetLabel,
+        err: unknown,
+        note: string,
+      ): Record<string, unknown> => ({
+        preset: PRESETS[presetLabel],
+        status: "VOID",
+        error: String(err instanceof Error ? err.message : err),
+        note,
+      });
+
+      // ── PHASE 1 (W13 codex F1) — selection-preset scene builds + ONLY the
+      // §6 anchor-reproduction cells. NO sweep cell exists until these are
+      // hard-asserted green (record §6 ordering — the W12 F3 discipline). A
+      // P1/P2 throw is caught, stamped, and the report still written; the
+      // anchor hard-assert then fails AFTER the report write (codex F2).
+      const armsByPreset = new Map<
+        "P1" | "P2",
+        { passA: ArmData; passB: ArmData }
+      >();
+      const anchorReproByPreset = new Map<"P1" | "P2", AnchorReproduction>();
+      const anchorFailures: string[] = [];
+
+      for (const presetLabel of SELECTION_PRESETS) {
+        const preset = PRESETS[presetLabel];
+        try {
+          const sources = resolvePresetSources(presetLabel);
+          const passA = await buildCheckedArm(
+            presetLabel,
+            sources,
+            "passA",
+            softFailures,
+          );
+          const passB = await buildCheckedArm(
+            presetLabel,
+            sources,
+            "passB",
+            softFailures,
+          );
+          armsByPreset.set(presetLabel, { passA, passB });
+          const repro = computeAnchorReproduction(passA);
+          anchorReproByPreset.set(presetLabel, repro);
+          checkSanityAnchors(presetLabel, repro, anchorFailures);
+        } catch (err) {
+          report[presetLabel] = throwStamp(
+            presetLabel,
+            err,
+            "SELECTION preset load/layout THROW — stamped per the pre-registered protocol " +
+              "(W13 codex F2, the W12 F2 discipline); the report is still written, then the " +
+              "§6 sanity-anchor hard-assert fails the battery loudly",
+          );
+          anchorFailures.push(
+            `${preset}: SANITY ANCHOR FAILED — preset THREW before anchor verification: ${String(
+              err instanceof Error ? err.message : err,
             )}`,
           );
         }
-        if (
-          presetLabel === "P3" &&
-          passA.fragment.unmappableAnchors.length > 0
-        ) {
-          for (const dir of DIRECTIONS) {
-            for (const cell of Object.values(
-              passA.fragment.directions[dir].cells,
-            )) {
-              cell.status = "VOID";
-            }
-          }
-        }
+      }
 
-        fragmentsByPreset.set(presetLabel, passA.fragment);
-        if (presetLabel !== "P3") {
+      if (anchorFailures.length > 0) {
+        // Anchors NOT green: no sweep cell is ever built, P3 is NOT built,
+        // the §7 rule is NOT read — but the report (meta + stamps + anchor
+        // verdict) is written BEFORE the hard-assert fires (codex F2).
+        report.sanityAnchor = {
+          source:
+            "docs/strata-baselines/q12/W12_HELDOUT_SCALE_BATTERY.normalized.json tracing cells " +
+            "(record §6): (both,K=3) == shipped 3-hop mismatch cell; (dependencies,∞) == directed " +
+            "production call; anchor populations exact",
+          pins: SANITY_ANCHORS,
+          green: false,
+        };
+        writeReport();
+        expect(
+          anchorFailures,
+          `SANITY ANCHOR failures (NO sweep cell built, P3 NOT built, rule NOT read; ` +
+            `report written first):\n${anchorFailures.join("\n")}`,
+        ).toEqual([]);
+      }
+
+      // ── PHASE 2 — sweep cells, built ONLY under green anchors ─────────────
+      for (const presetLabel of SELECTION_PRESETS) {
+        const preset = PRESETS[presetLabel];
+        try {
+          const arms = armsByPreset.get(presetLabel)!;
+          const passA = buildPresetFragment(
+            preset,
+            arms.passA,
+            softFailures,
+            reportFindings,
+            `${preset}/passA`,
+          );
+          // Run-twice determinism (record §8): the phase-1 rebuilt scene,
+          // recompute the FULL fragment, deep-equal after stripping
+          // wall-clock keys.
+          const passB = buildPresetFragment(
+            preset,
+            arms.passB,
+            softFailures,
+            reportFindings,
+            `${preset}/passB`,
+          );
+          const normA = JSON.stringify(stripTimings(passA.fragment));
+          const normB = JSON.stringify(stripTimings(passB.fragment));
+          const deterministic = normA === normB;
+          if (!deterministic) {
+            softFailures.push(
+              `${preset}: run-twice fragment NOT deterministic (normalized sans timings)`,
+            );
+          }
+
+          // Zero-unmappable is a HARD precondition on the selection presets
+          // (record §5).
+          if (passA.fragment.unmappableAnchors.length > 0) {
+            softFailures.push(
+              `${preset}: unmappable anchors on a SELECTION preset: ${JSON.stringify(
+                passA.fragment.unmappableAnchors,
+              )}`,
+            );
+          }
+
+          // Phase-1/phase-2 consistency: the grid's anchor cells must equal
+          // the already-asserted phase-1 reproduction.
+          crossCheckAnchorReproduction(
+            preset,
+            anchorReproByPreset.get(presetLabel)!,
+            passA.fragment,
+            softFailures,
+          );
+
+          fragmentsByPreset.set(presetLabel, passA.fragment);
           ruleInputsByPreset.set(presetLabel, passA.ruleInputs);
           gridMaxKByPreset.set(presetLabel, passA.fragment.gridMaxK);
+          report[presetLabel] = {
+            ...passA.fragment,
+            determinism: {
+              passes: 2,
+              strippedKeys: [...TIMING_KEYS],
+              deterministic,
+            },
+          };
+        } catch (err) {
+          report[presetLabel] = throwStamp(
+            presetLabel,
+            err,
+            "SELECTION preset sweep-fragment computation THREW after green anchors — " +
+              "stamped (W13 codex F2); the report is still written, then the harness-health " +
+              "assert fails the battery loudly",
+          );
+          softFailures.push(
+            `${preset}: sweep-fragment computation THREW: ${String(
+              err instanceof Error ? err.message : err,
+            )}`,
+          );
         }
-        report[presetLabel] = {
-          ...passA.fragment,
-          ...(presetLabel === "P3"
-            ? {
-                confirmatoryOnly:
-                  "P3 cells are reported alongside and CANNOT select or veto the §7 " +
-                  "recommendation (record §1); self-authored out-of-tuning-distribution " +
-                  "material — W12 claim scoping, R8-F4 stays open",
-                ...(passA.fragment.unmappableAnchors.length > 0
-                  ? {
-                      unmappableFlag:
-                        "nonzero unmappable anchors on P3 — reported + flagged; affected " +
-                        "cells stamped VOID (record §5)",
-                    }
-                  : {}),
-              }
-            : {}),
-          determinism: {
-            passes: 2,
-            strippedKeys: [...TIMING_KEYS],
-            deterministic,
-          },
-        };
-      };
-
-      // Selection presets FIRST; sanity anchors asserted BEFORE P3 is built
-      // and BEFORE the §7 rule output is computed/read (record §6 ordering —
-      // the W12 F3 discipline).
-      for (const presetLabel of SELECTION_PRESETS) {
-        await processPreset(presetLabel);
       }
 
-      const anchorFailures: string[] = [];
-      for (const presetLabel of SELECTION_PRESETS) {
-        checkSanityAnchors(
-          presetLabel,
-          fragmentsByPreset.get(presetLabel)!,
-          anchorFailures,
-        );
-      }
       report.sanityAnchor = {
         source:
           "docs/strata-baselines/q12/W12_HELDOUT_SCALE_BATTERY.normalized.json tracing cells " +
@@ -989,54 +1220,107 @@ describe("W13 hop-sweep battery (report-emitting; REPORT-only cells; never asser
         pins: SANITY_ANCHORS,
         green: anchorFailures.length === 0,
       };
-      expect(
-        anchorFailures,
-        `SANITY ANCHOR failures (P3 NOT built, rule NOT read):\n${anchorFailures.join(
-          "\n",
-        )}`,
-      ).toEqual([]);
 
       // P3 — confirmatory-only, built only under a green anchor. A P3
       // load/layout throw is stamped and the report still written (record §8
       // VOID clause / the W12 F2 discipline).
       try {
-        await processPreset("P3");
-      } catch (err) {
+        const sources = resolvePresetSources("P3");
+        const passAArm = await buildCheckedArm(
+          "P3",
+          sources,
+          "passA",
+          softFailures,
+        );
+        const passBArm = await buildCheckedArm(
+          "P3",
+          sources,
+          "passB",
+          softFailures,
+        );
+        const passA = buildPresetFragment(
+          PRESETS.P3,
+          passAArm,
+          softFailures,
+          reportFindings,
+          `${PRESETS.P3}/passA`,
+        );
+        const passB = buildPresetFragment(
+          PRESETS.P3,
+          passBArm,
+          softFailures,
+          reportFindings,
+          `${PRESETS.P3}/passB`,
+        );
+        const normA = JSON.stringify(stripTimings(passA.fragment));
+        const normB = JSON.stringify(stripTimings(passB.fragment));
+        const deterministic = normA === normB;
+        if (!deterministic) {
+          softFailures.push(
+            `${PRESETS.P3}: run-twice fragment NOT deterministic (normalized sans timings)`,
+          );
+        }
+        // On P3 a nonzero unmappable count is reported + flagged and voids
+        // affected cells (record §5).
+        if (passA.fragment.unmappableAnchors.length > 0) {
+          for (const dir of DIRECTIONS) {
+            for (const cell of Object.values(
+              passA.fragment.directions[dir].cells,
+            )) {
+              cell.status = "VOID";
+            }
+          }
+        }
+        fragmentsByPreset.set("P3", passA.fragment);
         report.P3 = {
-          preset: PRESETS.P3,
-          status: "VOID",
-          error: String(err instanceof Error ? err.message : err),
-          note:
-            "P3 load/layout THROW — confirmatory cells not computable; stamped per the " +
+          ...passA.fragment,
+          confirmatoryOnly:
+            "P3 cells are reported alongside and CANNOT select or veto the §7 " +
+            "recommendation (record §1); self-authored out-of-tuning-distribution " +
+            "material — W12 claim scoping, R8-F4 stays open",
+          ...(passA.fragment.unmappableAnchors.length > 0
+            ? {
+                unmappableFlag:
+                  "nonzero unmappable anchors on P3 — reported + flagged; affected " +
+                  "cells stamped VOID (record §5)",
+              }
+            : {}),
+          determinism: {
+            passes: 2,
+            strippedKeys: [...TIMING_KEYS],
+            deterministic,
+          },
+        };
+      } catch (err) {
+        report.P3 = throwStamp(
+          "P3",
+          err,
+          "P3 load/layout THROW — confirmatory cells not computable; stamped per the " +
             "pre-registered VOID clause (record §8), never patched/retuned; the report " +
             "is still written (P3 cannot veto the P1/P2 selection)",
-        };
+        );
       }
 
       // §7 rule — mechanical, computed from P1/P2 full-precision macros ONLY,
-      // after the anchors are green.
-      report.recommendation = computeRecommendation(
-        ruleInputsByPreset,
-        gridMaxKByPreset,
-      );
+      // after the anchors are green (VOID-stamped if a selection preset
+      // failed to produce sweep inputs — codex F2 keeps the report writable).
+      report.recommendation =
+        ruleInputsByPreset.size === SELECTION_PRESETS.length
+          ? computeRecommendation(ruleInputsByPreset, gridMaxKByPreset)
+          : {
+              status: "VOID",
+              note:
+                "not computed — a selection preset failed to produce sweep inputs " +
+                "(see softFailures); the §7 rule requires BOTH P1 AND P2",
+            };
 
       // ── write report (+ normalized comparand) ─────────────────────────────
-      const json = JSON.stringify(
-        { ...report, reportFindings, softFailures },
-        null,
-        2,
-      );
-      mkdirSync(REPORT_DIR, { recursive: true });
-      writeFileSync(`${REPORT_DIR}/FOCUS_HOP_SWEEP.json`, json);
-      writeFileSync(
-        `${REPORT_DIR}/FOCUS_HOP_SWEEP.normalized.json`,
-        JSON.stringify(stripTimings(JSON.parse(json)), null, 2),
-      );
-      // eslint-disable-next-line no-console -- probe output IS the deliverable
-      console.log(
-        `FOCUS_HOP_SWEEP.json written to ${REPORT_DIR} (${json.length} bytes)`,
-      );
+      writeReport();
 
+      expect(
+        anchorFailures,
+        `SANITY ANCHOR failures:\n${anchorFailures.join("\n")}`,
+      ).toEqual([]);
       expect(
         softFailures,
         `harness health failures:\n${softFailures.join("\n")}`,

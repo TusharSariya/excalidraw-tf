@@ -1007,6 +1007,29 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("rejects non-canonical numeric spellings — lexical form first (W13 F4)", () => {
+      // Only `all` or /^(0|[1-9][0-9]*)$/ are accepted; every alias that
+      // Number() would coerce rejects the whole URL. (Reverses the W13 WP1
+      // "accept iff Number() yields an integer" decimal pin.)
+      for (const alias of ["-0", "007", "0x10", "%2B1", "1e2", "2.0"]) {
+        expect(
+          parseTerraformDemoUrlParams(`?preset=demo&focushops=${alias}`),
+          `focushops=${alias} must reject`,
+        ).toBeNull();
+      }
+      // Canonical spellings still accept.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0"),
+      ).toMatchObject({ focusMaxHops: 0 });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=100"),
+      ).toMatchObject({ focusMaxHops: 100 });
+      // Canonical digits beyond Number.MAX_SAFE_INTEGER still reject.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=9007199254740992"),
+      ).toBeNull();
+    });
+
     it("round-trips focusdir + focushops=all through build/parse", () => {
       const full: TerraformDemoUrlParams = {
         presetId: "demo",

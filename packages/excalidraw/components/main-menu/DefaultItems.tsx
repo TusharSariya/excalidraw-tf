@@ -87,6 +87,8 @@ import { buildTerraformCanvasShareUrl } from "../terraformCanvasShareUrl";
 import { getTerraformRuntimePerformanceSnapshot } from "../terraformRuntimePerformance";
 import { copyTextToSystemClipboard } from "../../clipboard";
 
+import { isValidTerraformFocusHopCount } from "../terraformRelationshipFocus";
+
 import type { TerraformFocusDirection } from "../terraformRelationshipFocus";
 
 import "./DefaultItems.scss";
@@ -320,12 +322,19 @@ export const TerraformFocusControls = () => {
   //               "3" and "all" so the control never lies about state.
   //               RadioGroup is stateless (pure map keyed by String(value)),
   //               so a changing choices array is safe.
+  //   junk      → default derivation ("3") — W13 F3: only values passing
+  //               `isValidTerraformFocusHopCount` (non-negative SAFE integer)
+  //               may become a checked dynamic choice; anything else (e.g.
+  //               `1e21`, NaN, 2.5) is what the ingress guard ignores, so the
+  //               control shows the effective default instead of echoing junk.
   const hopsValue =
     maxHops == null
       ? "3"
       : maxHops === -1 || maxHops === Infinity
       ? "all"
-      : String(maxHops);
+      : isValidTerraformFocusHopCount(maxHops)
+      ? String(maxHops)
+      : "3";
   const hopsChoices: {
     value: string;
     label: string;

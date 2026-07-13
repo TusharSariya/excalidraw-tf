@@ -98,13 +98,13 @@ These classes describe **measurement health**, not layout quality — W13 has no
 
 ## Amendments
 
-**AMENDMENT-1 (2026-07-13, recorded BEFORE the WP5 battery produced or read any statistic — definition/naming pins only, no threshold or estimator change):**
+**AMENDMENT-1 (2026-07-13 — definition/naming pins only, no threshold or estimator change; provenance: POST-HOC/EXPLORATORY, see the dated note below):**
 
 1. **Report filenames.** The record's output convention (§ Output convention) names no file. Pinned per the WP5 task order: the battery writes **`FOCUS_HOP_SWEEP.json`** plus **`FOCUS_HOP_SWEEP.normalized.json`** (wall-clock keys stripped — the run-twice byte-compare comparand). This supersedes the anticipated `W13_HOP_SWEEP_BATTERY.json` names in [`strata-baselines/hopsweep/README.md`](./strata-baselines/hopsweep/README.md) (that README predates WP5 and is a directory-convention note, not part of the pre-registered record).
 2. **Cone-size-share denominator.** §7's "scene node count" is pinned as the **traversal node universe**: the set of distinct graph addresses appearing as an endpoint of any focus-traversal edge (relationship endpoints + `directions[]` hints on `isTerraformLayerEdge` elements) ∪ the anchor set — i.e. exactly the population an unbounded flood could highlight. Recorded verbatim in the report meta.
 3. **≥2-tier wash-saturation share.** §7's prose is pinned to this operationalization: for cell (preset, direction, K with K ≥ 2), the share of mappable anchors whose (K−2)-slice already equals their full uncapped reach for that direction (`|slice(K−2)| == |slice(∞)|` — the anchor has been fully saturated for ≥ 2 histogram tiers by K). K ∈ {0, 1} ⇒ 0 by definition; the ∞ cell carries `null` (not applicable). REPORT-only; never selects.
 
-These pins were committed to the battery implementation before any run; no sweep number existed when they were made.
+**Provenance note (2026-07-13, W13 codex diff-review F5):** this amendment, the battery implementation, the run artifacts, and the results section all first appear in the SAME commit, so git history cannot establish that these pins were recorded before the battery produced its statistics — intra-commit ordering is unprovable. The three AMENDMENT-1 definitions (the report filenames, the cone-size-share denominator pinning, and the wash-saturation operationalization) are therefore reclassified as **post-hoc/exploratory** secondary-metric definitions, NOT pre-registered pins; any claim resting on them carries exploratory weight only. The PRIMARY pre-registered machinery — the §7 rule, the §5 estimator, the §6 sanity anchors, and the §3 grid — is unaffected: all of it is in commit `0519453b5`, which verifiably predates the battery and its artifacts.
 
 ## Results
 

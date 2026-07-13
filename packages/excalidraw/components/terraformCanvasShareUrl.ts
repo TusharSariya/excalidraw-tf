@@ -22,6 +22,8 @@ import {
 import type { TerraformImportSession } from "./terraformImportSession";
 import type { TerraformLodPreset } from "./terraformLod";
 import type { TerraformView } from "./terraformImportDialogUtils";
+import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
+
 import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
 
 /** The live runtime view settings the share URL captures alongside the session's layout. */
@@ -140,10 +142,15 @@ export const buildTerraformCanvasShareUrl = (
     // (API misuse, tolerated at the traversal boundary) shares identically.
     // Finite non-null caps (W11 F5) are emitted verbatim so API-set caps
     // survive the share round-trip instead of silently reverting to 3.
+    // W13 F3: only validator-passing caps (`isValidTerraformFocusHopCount` —
+    // non-negative SAFE integer) or the unlimited sentinel are emitted; junk
+    // AppState values (e.g. `1e21`, NaN) are omitted, matching the ingress
+    // guard's fallback to the default (URL omission = default 3).
     ...(view.terraformFocusMaxHops === -1 ||
     view.terraformFocusMaxHops === Infinity
       ? { focusMaxHops: Infinity }
-      : view.terraformFocusMaxHops != null
+      : view.terraformFocusMaxHops != null &&
+        isValidTerraformFocusHopCount(view.terraformFocusMaxHops)
       ? { focusMaxHops: view.terraformFocusMaxHops }
       : {}),
   };

@@ -5,6 +5,7 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import {
   applyTerraformRelationshipFocus,
   getTerraformRelationshipFocus,
+  isValidTerraformFocusHopCount,
 } from "./terraformRelationshipFocus";
 import { terraformVpceSgLayoutElementId } from "./terraformTopologySgLinks";
 import { washHexColor } from "./terraformColorWash";
@@ -1051,9 +1052,14 @@ describe("terraform relationship focus", () => {
     it("maxHops 0 focuses the anchor only — empty neighborhood, no edges (W13 WP1 contract)", () => {
       // Documents the EXISTING engine behavior at a 0 hop cap (the BFS loop
       // body never runs): only the anchor is in the cone, nothing else lights.
-      const focus = getTerraformRelationshipFocus(diamondCycleElements(), "a", 3, {
-        maxHops: 0,
-      });
+      const focus = getTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        3,
+        {
+          maxHops: 0,
+        },
+      );
 
       expect(focus.relatedNodePaths.size).toBe(0);
       expect(focus.nearEdgeIds.size).toBe(0);
@@ -1255,9 +1261,10 @@ describe("terraform relationship focus", () => {
       const levels = strokeLevelByDistance(result.elements);
       const levelForStroke = new Map<string, number>([
         ["#000000", 100],
-        ...[85, 55, 42, 34, 25].map(
-          (level): [string, number] => [expectedWashedStroke(level), level],
-        ),
+        ...[85, 55, 42, 34, 25].map((level): [string, number] => [
+          expectedWashedStroke(level),
+          level,
+        ]),
       ]);
       const numericLevels = CHAIN.map((_, distance) =>
         levelForStroke.get(levels.get(distance)!),
@@ -1283,5 +1290,27 @@ describe("terraform relationship focus", () => {
       expect(byId.get("node:d")?.isDeleted).toBe(true);
       expect(byId.get("node:f")?.isDeleted).toBe(true);
     });
+  });
+});
+
+describe("isValidTerraformFocusHopCount (W13 F3 — the shared hop-cap domain validator)", () => {
+  it("accepts non-negative safe integers only", () => {
+    expect(isValidTerraformFocusHopCount(0)).toBe(true);
+    expect(isValidTerraformFocusHopCount(3)).toBe(true);
+    expect(isValidTerraformFocusHopCount(100)).toBe(true);
+    expect(isValidTerraformFocusHopCount(Number.MAX_SAFE_INTEGER)).toBe(true);
+  });
+
+  it("rejects negatives, non-integers, non-finites, and unsafe integers", () => {
+    expect(isValidTerraformFocusHopCount(-1)).toBe(false); // sentinel: NOT this predicate's job
+    expect(isValidTerraformFocusHopCount(-2)).toBe(false);
+    expect(isValidTerraformFocusHopCount(2.5)).toBe(false);
+    expect(isValidTerraformFocusHopCount(NaN)).toBe(false);
+    expect(isValidTerraformFocusHopCount(Infinity)).toBe(false);
+    // Passes Number.isInteger but NOT Number.isSafeInteger — the F3 bug class.
+    expect(isValidTerraformFocusHopCount(1e21)).toBe(false);
+    expect(isValidTerraformFocusHopCount(Number.MAX_SAFE_INTEGER + 1)).toBe(
+      false,
+    );
   });
 });

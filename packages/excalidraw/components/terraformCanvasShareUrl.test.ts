@@ -258,19 +258,38 @@ describe("terraformCanvasShareUrl", () => {
       });
     });
 
-    it("accepts hand-edited decimal spellings iff they normalize to an integer", () => {
-      // The share builder never emits these; this pins the parse decision for
-      // hand-edited URLs: `Number("0.0") === 0` is an integer → accepted as 0,
-      // while a true fractional value still rejects the whole URL.
+    it("rejects hand-edited decimal spellings — canonical lexical form only (W13 F4)", () => {
+      // REVERSAL of the W13 WP1 pin ("accept iff Number() yields an
+      // integer"): per codex F4, the parser validates the LEXICAL form first
+      // (`all` or /^(0|[1-9][0-9]*)$/), so `0.0` / `2.0` now reject the whole
+      // URL alongside every other non-canonical alias. One spelling per
+      // value keeps URLs canonical and round-trip byte-stable.
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=0.0"),
-      ).toMatchObject({ focusMaxHops: 0 });
+      ).toBeNull();
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=2.0"),
-      ).toMatchObject({ focusMaxHops: 2 });
+      ).toBeNull();
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=0.5"),
       ).toBeNull();
+    });
+
+    it("omits validator-failing hop caps from the share URL (W13 F3)", () => {
+      // 1e21 passes Number.isInteger but not Number.isSafeInteger; junk
+      // AppState values must never be emitted — the URL omits focushops
+      // (omission = the default 3), matching the ingress guard's fallback.
+      for (const junk of [1e21, 2.5, NaN, -2]) {
+        const view: TerraformCanvasViewSettings = {
+          ...defaultView,
+          terraformFocusMaxHops: junk,
+        };
+        const url = buildTerraformCanvasShareUrl(
+          makeSession({ layoutMode: "rcll" }),
+          view,
+        );
+        expect(url).not.toContain("focushops");
+      }
     });
   });
 });

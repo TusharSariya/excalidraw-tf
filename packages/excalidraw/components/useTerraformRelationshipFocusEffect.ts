@@ -6,7 +6,10 @@ import {
   getTerraformGraphAddressForElement,
   isTerraformResourceElement,
 } from "./terraformElementMetadata";
-import { applyTerraformRelationshipFocus } from "./terraformRelationshipFocus";
+import {
+  applyTerraformRelationshipFocus,
+  isValidTerraformFocusHopCount,
+} from "./terraformRelationshipFocus";
 import {
   getTerraformElementForSelection,
   terraformEdgesVisibilitySig,
@@ -61,8 +64,9 @@ export const buildTerraformRuntimeFocusUpdate = ({
   //   undefined ⇒ legacy default (3 hops); `Infinity` (API misuse) ⇒ tolerated
   //   as Infinity here but never re-stored — storage-side Infinity degrades
   //   safely to `null` through JSON.stringify (accepted); any other
-  //   non-finite/NaN/<0 / non-integer value ⇒ ignored (legacy default);
-  //   0 = focused node only (W13 WP1).
+  //   non-finite/NaN/<0 / non-integer / unsafe-integer value ⇒ ignored
+  //   (legacy default; W13 F3 — `isValidTerraformFocusHopCount`, so e.g.
+  //   `1e21` no longer passes); 0 = focused node only (W13 WP1).
   const normalizedFocusDirection: AppState["terraformFocusDirection"] =
     focusDirection === "dependencies" || focusDirection === "dependents"
       ? focusDirection
@@ -72,9 +76,7 @@ export const buildTerraformRuntimeFocusUpdate = ({
       ? null
       : focusMaxHops === -1 || focusMaxHops === Infinity
       ? Infinity
-      : Number.isFinite(focusMaxHops) &&
-        Number.isInteger(focusMaxHops) &&
-        focusMaxHops >= 0
+      : isValidTerraformFocusHopCount(focusMaxHops)
       ? focusMaxHops
       : null;
 

@@ -147,9 +147,12 @@ describe("buildTerraformRuntimeFocusUpdate — W11 F4 AppState ingress normaliza
     expect(strip(junk.elements)).toEqual(strip(defaults.elements));
   });
 
-  it("ignores non-finite / negative / non-integer hop caps (legacy default path)", () => {
+  it("ignores non-finite / negative / non-integer / unsafe-integer hop caps (legacy default path)", () => {
     const defaults = runUpdate({});
-    for (const bad of [-2, -Infinity, 0.5, 2.5]) {
+    // 1e21 passes Number.isInteger but NOT Number.isSafeInteger — the W13 F3
+    // shared validator (isValidTerraformFocusHopCount) must reject it at the
+    // AppState ingress so it falls back to the legacy default.
+    for (const bad of [-2, -Infinity, 0.5, 2.5, 1e21, Number.MAX_VALUE]) {
       const update = runUpdate({ focusMaxHops: bad });
       expect(update.focusInputsSig).toBe(defaults.focusInputsSig);
       expect(strip(update.elements)).toEqual(strip(defaults.elements));

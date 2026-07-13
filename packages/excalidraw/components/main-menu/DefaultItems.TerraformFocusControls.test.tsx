@@ -110,6 +110,20 @@ describe("TerraformFocusControls hops radio (W13 WP2)", () => {
       const { container } = renderFocusControls();
       expect(hopsRadios(container)).toHaveLength(5);
     });
+
+    it.each([1e21, 2.5, NaN])(
+      "unsafe/junk value %s falls back to the default derivation (W13 F3)",
+      (junk) => {
+        // 1e21 passes Number.isInteger but NOT Number.isSafeInteger; the
+        // shared validator (isValidTerraformFocusHopCount) gates the dynamic
+        // choice, so junk must never render as a checked uncurated radio —
+        // the control shows the effective default ("3") instead.
+        hoisted.appState.terraformFocusMaxHops = junk;
+        const { container } = renderFocusControls();
+        expect(hopsRadios(container)).toHaveLength(5);
+        expect(checkedHopsTestId(container)).toBe("terraform-focus-hops-3");
+      },
+    );
   });
 
   describe("write-back mapping", () => {
