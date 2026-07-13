@@ -69,27 +69,79 @@ Before any browser re-trace is treated as meaningful, the following must be gree
 
 ## 5. Results
 
-_(pending WP1-4)_
+**Commit map:** WP0 (pre-registration) `1b824d728` → WP1 (index scope over skeleton element materialization) `a75b60d3c` → WP3 (`pipelineFull` worker job) `5565aee76` → WP2 (index scope over parsing + topology link resolution, scan-fallback counter) `b7b0328af` → fixes (`5ba3b2cad`, codex diff-review F1-F6). WP1/WP2/WP3 land out of their §1 letter order for dependency reasons (the worker job needed to exist before the widened index's async-scope teardown hazard, §4, could be verified end to end); this is a build-sequencing note, not a scope change.
 
-### 5.1 Index-scope extension outcome (pending WP1)
+### 5.1 Index-scope extension outcome (lever A)
 
-_(pending WP1)_
+Lever (A) shipped **always-on**, no toggle, per the owner decision recorded in §1/Provenance. `withTerraformPlanNodeKeyIndex` now wraps `pipeline.prep.materialize` in `preparePipelineLayout` (WP1, `a75b60d3c`) — this covers `skeleton.resourceRects` for both v2 and strata, the call path the W12 Appendix A trace attributed most of the ≈8.8 s address/key-resolution bucket to. WP2 (`b7b0328af`) then widened the scope over plan parsing and the TFD-overlay region. `buildExistingEdges` and `mergeRawTerraformStateIntoNodes` were **deliberately excluded** from the widened scope — both are key-mutating regions (index-stripping, module-prefix rewriting happen downstream of edge construction inside them per the §4 `buildExistingEdges` hazard), so indexing them pre-mutation would silently miss lookups post-mutation. On a full P2 parse this leaves **9,842 unscoped scans**, entirely attributable to the two excluded regions — reported honestly, not netted out. `knownStackIds` was confirmed subsumed by the widened index (no separate scoping needed).
 
-### 5.2 Worker offload outcome (pending WP2)
+### 5.2 Worker offload outcome (lever B)
 
-_(pending WP2)_
+Lever (B) shipped as a `pipelineFull` worker job on the existing WorkerPool/`layoutTerraformViaWorkers` seam (WP3, `5565aee76`), with `runSequential` fallback preserved and the `VITE_TERRAFORM_LAYOUT_WORKERS=false` kill-switch intact. **As landed in WP3, the worker predicate only routed `layoutMode === "pipeline" || "rcll"`** — `view=strata` fell through to `runSequential()` unconditionally, so lever B never engaged for the view this milestone measures. This gap was caught independently two ways: by the WP4 browser trace (zero `DedicatedWorker` activity in every pre-fix trace, both arms statistically indistinguishable) and by codex's diff review (F1, below). The fix commit (`5ba3b2cad`) adds `layoutMode === "strata"` to the predicate in `layoutTerraformViaWorkers` (`terraformLayoutWorkerClient.ts`), after which strata imports dispatch a `pipelineFull` job through `runJobWithFallback`.
 
-### 5.3 Verification obligations disposition (pending WP3)
+### 5.3 Codex diff-review dispositions (F1-F6)
 
-_(pending WP3)_
+Codex (gpt-5.6-sol, medium effort) reviewed the WP1-WP3 diff and returned 4 P1 + 2 P2 findings, all folded into `5ba3b2cad` before the final trace:
 
-### 5.4 Re-traced browser felt-cost (pending WP4)
+- **F1 (P1, strata missing from the worker predicate)** — CONFIRMED, independently detected by the browser trace (zero worker activity pre-fix). Fixed: `layoutMode === "strata"` added to the `pipelineFull` dispatch predicate.
+- **F2 (P1, parity-test rigor)** — fixed by exercising the worker-chunk handler directly via the exported `runTerraformLayoutWorkerRequest`, with a `structuredClone` round-trip test. A raw byte-compare approach was rebutted: element ids/nonces/seed are randomized per build, so the honest check is a normalized compare plus raw element-count parity, not byte equality.
+- **F3 (P1, differential scope)** — fixed: the indexed-vs-scan differential equivalence test extended from one preset to **all 6 committed presets**.
+- **F4 (P1, fallback counter granularity)** — fixed: worker-fallback counter now reports `disabled` / `poolFailure` / `cloneError` / `workerError` as separate cells rather than one aggregate.
+- **F5 (P2, `ok:false` double-execution)** — fixed: validation failures now throw once; only genuine infra errors (pool failure, clone error, worker error) fall back to `runSequential`, closing a path where a validation failure could execute the job twice.
+- **F6 (P2, scan counters always live)** — fixed: the scan-fallback counters are DEV-gated, matching the rest of this milestone's REPORT-only, no-prod-overhead posture.
 
-_(pending WP4)_
+### 5.4 Verification obligations disposition
 
-### 5.5 Interpretation
+Per the L2 sweep (haiku): `yarn test:typecheck` clean; `gateRegister.json` 10/10 with zero churn; the W13 hop-sweep and W12 held-out batteries reproduce their exact sanity anchors; the worktree is byte-identical (only `buildMs`-class fields move, as required by §3); zero NUL bytes across the changed files. The §3 differential indexed-vs-scan equivalence test passes over all 6 committed presets' node maps (post-F3). The `buildExistingEdges`/`mergeRawTerraformStateIntoNodes` exclusion (§5.1) is the source of the 9,842 residual unscoped scans on a full P2 parse — reported, not silently absorbed, per the §3 fallback-scan-counter obligation.
 
-_(pending WP4)_
+### 5.5 Re-traced browser felt-cost
+
+Re-run of the §2 measurement plan (chrome-devtools-mcp performance traces, dev build, `staging-extended-localstack-v2`, `view=strata&compact=0&strataSweeps=4&strataCoordRefine=1`). Full raw numbers and method notes: WP4 trace results (scratch record, this session).
+
+**Pre-fix arms (before `5ba3b2cad`; lever B not yet wired for strata — both arms statistically indistinguishable):**
+
+| Metric | Frozen baseline (W12 App. A) | Arm (i) index-only (mean of 2 runs) | Arm (ii) index+worker (mean of 2 runs, pre-fix — worker not engaged) |
+| --- | --- | --- | --- |
+| Felt import settle | ≈ 15.1 s | ≈ 7.48 s | ≈ 6.88 s |
+| Longest main-thread task | 13,412 ms | 5,618.6 ms | 5,381.9 ms |
+| Six-function leaf-frame sum | ≈ 8,839 ms (~65% of busy time) | 3,594.4 ms | 3,555.8 ms |
+| DedicatedWorker activity | None | None | None (= the F1 bug) |
+
+Arms (i) and (ii) differ by only ≈600 ms felt / ≈237 ms longest-task — within each arm's own run-to-run spread (≈186-211 ms) — consistent with lever B not engaging pre-fix.
+
+**Post-fix arm (ii) re-run (commit `5ba3b2cad`, workers default-on, no env override, 3 independent full-reload runs):**
+
+| Run | Longest main-thread task (Long Task API, >50 ms) | Worker-enabled flag | `fallbackStats` |
+| --- | --- | --- | --- |
+| 1 | **0 tasks recorded** | `true` | `{disabled:0, poolFailure:0, cloneError:0, workerError:1}` |
+| 2 | **0 tasks recorded** | `true` | `{disabled:0, poolFailure:0, cloneError:0, workerError:1}` |
+| 3 (verification) | **0 tasks recorded** | (not re-queried) | (not re-queried) |
+
+**Headline: the pre-fix ≈5.3-5.7 s single blocking main-thread task is gone.** All 3 post-fix full-reload runs recorded zero Long Task API entries (>50 ms threshold) anywhere in document load and import — a categorical change, not a marginal one.
+
+**Named residual:** `terraformModulePrefixForAddress` stayed ≈2.1 s essentially unchanged across every arm (pre-fix index-only, pre-fix index+worker, and — by construction, since lever A didn't touch this resolver's call sites — expected to persist post-fix too), while the other five of the six leaf-frame functions dropped sharply. Its call sites sit outside the scopes lever A widened. **Open follow-up lever**, not addressed this milestone.
+
+**Full-detail v2 arm:** the §2 plan called for reproducing W12's `F_v2_full_ancillary` arm as a browser trace for a strata-vs-v2 comparison point. Checked against `strata-view-w12-heldout-scale.md`: W12 never actually browser-traced that arm — its numbers are a Vitest/node timing-split measurement, not a chrome-devtools-mcp trace. There is no v2 full-detail browser-trace URL on record to reproduce, so this arm is recorded as **not-reproducible-as-specified and skipped** — no arm was invented in its place.
+
+### 5.6 Lever verdicts (descriptive, not gated)
+
+- **Lever A (index-scope extension):** six-function leaf-frame resolution sum dropped from ≈8.8 s to ≈3.6 s (**−59%**), and the longest main-thread task dropped from 13.4 s to ≈5.3-5.7 s pre-fix — felt import roughly halved by the index alone, before the worker fix landed. One exception: `terraformModulePrefixForAddress` (≈2.1 s, unchanged).
+- **Lever B (worker offload):** pre-fix, inert for `view=strata` (F1). Post-fix (`5ba3b2cad`), main-thread blocking is eliminated for this view — 0 long tasks across all 3 post-fix runs, versus a consistent single ≈5.3-5.7 s task in every pre-fix trace. Combined effect vs the original frozen baseline: felt import moved from ≈15.1 s (one 13.4 s blocking task) to ≈6.9 s pre-fix-equivalent workload with **zero** blocking long tasks post-fix.
+
+### 5.7 Caveats (verbatim from the trace record)
+
+- **Direct DedicatedWorker-thread confirmation was NOT obtained.** The chrome-devtools-mcp tooling in this session had no worker-target listing, and raw-trace-file save was blocked by a workspace-root path restriction on `performance_stop_trace`'s `filePath`. The "0 long tasks post-fix" result is **indirect evidence**: `isTerraformLayoutWorkersEnabled()` returned `true` every run, no `terraform-layout-worker.chunk` network request was visible from the main page (expected for a worker-scope fetch, per the investigation), no console errors referenced worker/DataCloneError failures, and no renewed main-thread blocking appeared. This is consistent with the fix working but is not a positive identification of a `DedicatedWorker` thread inside the raw trace.
+- **`fallbackStats` showed `workerError:1` per run**, identically in runs 1 and 2, uncorrelated with any main-thread blocking (0 long tasks in the same runs). The counter is a pure integer increment with no logging by design, so its root cause could not be identified from the console within this session. **Open follow-up** — not resolved this milestone, and not believed (on the evidence gathered) to affect the headline blocking-task result.
+- Dev build (unminified, React dev), tracing overhead, single machine, background load not controlled — carried forward from W12 Appendix A.
+- 2 runs per pre-fix arm (4 traces) + 3 post-fix runs, not a statistical battery — consistent with this milestone's REPORT-only status; no pass/fail language is used anywhere in this section.
+
+### 5.8 Process note
+
+WP0's pre-registration commit was made after a repo-wide `yarn prettier --write` was run in error, transiently reformatting the frozen v3.2 baselines. This was caught, verified formatting-only (no content diff), and the baselines were restored byte-exact from `HEAD` before WP0 landed. Going forward the rule is `npx prettier --write <file>` with explicit file arguments, never the repo-wide invocation.
+
+### 5.9 Interpretation
+
+Both registered levers land net-positive on the metrics this milestone measures, with the worker-offload fix (F1) doing the larger share of the final win: pre-fix, the index alone (lever A) cuts the resolution bucket ≈59% and roughly halves felt import time, but the import still runs as one blocking main-thread task (≈5.3-5.7 s) because lever B never engaged for `view=strata`. Post-fix, that blocking task is gone entirely (0/3 long tasks), which is the more consequential result for the user-facing "frozen canvas" symptom §1 opened with — a `≈5.5 s` blocking task and a `0`-blocking-task workload with equivalent-or-lower total resolution cost are qualitatively different user experiences, not just a smaller number. Two residuals are left open and explicitly not resolved by this milestone: `terraformModulePrefixForAddress` (≈2.1 s, untouched by lever A's widened scopes) and the unexplained `workerError:1` fallback (silent, uncorrelated with blocking, cause unidentified). Both are named as follow-up levers, not closed here. M3 ancillary port remains out of scope and owner/Q7-gated, as registered in §1/Provenance — nothing in this milestone touches that decision.
 
 ## Provenance
 
