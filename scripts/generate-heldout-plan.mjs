@@ -23,6 +23,25 @@
  *   - module depth 4-5 (cell -> service -> runtime -> telemetry [-> tracing]);
  *   - ~400 resource_changes, real AWS resource types only.
  *
+ * FIXTURE v2 (AMENDMENT-1, docs/strata-view-w12-heldout-scale.md): v1 fixed
+ * every resource to ONE provider/account/region, so the scene had a single
+ * band and ZERO slice-B (cross-band) edges — a generator artifact that froze
+ * every extent headline cell VOID and left extent transfer unexercised. v2
+ * introduces genuine multi-band structure the same way P1/P2 get it (distinct
+ * account/region per resource via `after.arn` + `after.region`, the values
+ * resolveAccountRegion/extractRegionalTopologyPrimaries band on):
+ *   - band 1 (primary):       account 000000000000 / us-east-1 — mesh core,
+ *     network, cells 01-12;
+ *   - band 2 (west replica):  account 000000000000 / us-west-2 — cells 13-14;
+ *   - band 3 (observability): account 210987654321 / us-east-1 — cells 15-16
+ *     + module.observability audit/alert sinks.
+ *   Cross-band TFD flows: hub fan-out to cells 13-16, the i->i+4 cascade
+ *   lanes into cells 13-16, and two mesh-wide fan-ins into the observability
+ *   account (sfn -> audit_stream, dlq_alarm -> ops_alerts) — >= 31 distinct
+ *   cross-band declared edges so the frozen p90 floor (v3.1 §12, n >= 31) is
+ *   reachable. Depth-5 modules, the hub out-degree and all three cycles are
+ *   UNCHANGED from v1; band structure is the ONLY topology-affecting change.
+ *
  * DETERMINISM: mulberry32 PRNG seeded 20260704 (frozen v3.1 §12 seed).
  * NO Date.now / Math.random anywhere; timestamp is a fixed literal.
  * Rerunning the generator reproduces the committed files byte-for-byte.
@@ -45,6 +64,39 @@ const ACCOUNT = "000000000000";
 const FIXED_TIMESTAMP = "2026-07-04T00:00:00Z";
 const CELL_COUNT = 16;
 const HUB_ADDRESS = "module.mesh_core.aws_cloudwatch_event_bus.mesh";
+
+// ── v2 multi-band structure (AMENDMENT-1) ────────────────────────────────────
+// Deterministic module-address → (account, region) band map. Bands surface in
+// `resource_changes[].change.after.{arn,region}` — the exact values the
+// pipeline's resolveAccountRegion / extractRegionalTopologyPrimaries read to
+// build provider/account/region hulls (the slice-B "cross-band" seam).
+const BANDS = {
+  primary: { key: "primary", account: ACCOUNT, region: REGION },
+  westReplica: { key: "westReplica", account: ACCOUNT, region: "us-west-2" },
+  observability: {
+    key: "observability",
+    account: "210987654321",
+    region: REGION,
+  },
+};
+
+function bandForModule(moduleAddress) {
+  const m = /^module\.cell_(\d{2})\b/.exec(moduleAddress ?? "");
+  if (m) {
+    const i = Number(m[1]);
+    if (i === 13 || i === 14) {
+      return BANDS.westReplica;
+    }
+    if (i >= 15) {
+      return BANDS.observability;
+    }
+    return BANDS.primary;
+  }
+  if ((moduleAddress ?? "").startsWith("module.observability")) {
+    return BANDS.observability;
+  }
+  return BANDS.primary;
+}
 
 /** mulberry32 — same construction as terraformPipelineBootstrapCi. */
 function mulberry32(seed) {
@@ -75,6 +127,7 @@ function addResource(moduleAddress, type, name, values = {}, deps = []) {
   resources.set(address, {
     address,
     module: moduleAddress,
+    band: bandForModule(moduleAddress),
     type,
     name,
     values,
@@ -83,9 +136,9 @@ function addResource(moduleAddress, type, name, values = {}, deps = []) {
   return address;
 }
 
-const arnFor = (type, name) => {
+const arnFor = (type, name, band) => {
   const service = type.replace(/^aws_/, "").split("_")[0];
-  return `arn:aws:${service}:${REGION}:${ACCOUNT}:${name}`;
+  return `arn:aws:${service}:${band.region}:${band.account}:${name}`;
 };
 
 const TAGS = {
@@ -96,9 +149,14 @@ const TAGS = {
 
 // ── mesh core (depth 1-2) ────────────────────────────────────────────────────
 
-const busAddr = addResource("module.mesh_core", "aws_cloudwatch_event_bus", "mesh", {
-  name: "heldout-mesh-bus",
-});
+const busAddr = addResource(
+  "module.mesh_core",
+  "aws_cloudwatch_event_bus",
+  "mesh",
+  {
+    name: "heldout-mesh-bus",
+  },
+);
 const meshKms = addResource("module.mesh_core", "aws_kms_key", "mesh", {
   description: "heldout mesh envelope key",
 });
@@ -166,6 +224,28 @@ addResource(
   "b_egress",
   { type: "egress", from_port: 0, to_port: 0, protocol: "-1" },
   [sgB],
+);
+
+// ── observability sinks (band 3 — the cross-band fan-in targets, v2) ─────────
+
+const auditStream = addResource(
+  "module.observability",
+  "aws_sns_topic",
+  "audit_stream",
+  { name: "heldout-mesh-audit-stream" },
+);
+const opsAlerts = addResource(
+  "module.observability",
+  "aws_sns_topic",
+  "ops_alerts",
+  { name: "heldout-mesh-ops-alerts" },
+);
+addResource(
+  "module.observability",
+  "aws_cloudwatch_log_group",
+  "audit",
+  { name: "/heldout/mesh/audit", retention_in_days: 30 },
+  [auditStream],
 );
 
 // ── cells (depth 1..5) ───────────────────────────────────────────────────────
@@ -322,17 +402,25 @@ for (let i = 1; i <= CELL_COUNT; i++) {
     telemetryMod,
     "aws_cloudwatch_event_rule",
     "heartbeat",
-    { name: `heldout-cell-${id}-heartbeat`, schedule_expression: "rate(5 minutes)" },
+    {
+      name: `heldout-cell-${id}-heartbeat`,
+      schedule_expression: "rate(5 minutes)",
+    },
     [],
   );
 
   // tracing level (module depth 5, every 4th cell)
   let traceAlerts = null;
   if (deep) {
-    const traceLog = addResource(tracingMod, "aws_cloudwatch_log_group", "trace", {
-      name: `/heldout/cell-${id}/trace`,
-      retention_in_days: 3,
-    });
+    const traceLog = addResource(
+      tracingMod,
+      "aws_cloudwatch_log_group",
+      "trace",
+      {
+        name: `/heldout/cell-${id}/trace`,
+        retention_in_days: 3,
+      },
+    );
     addResource(
       tracingMod,
       "aws_cloudwatch_metric_alarm",
@@ -381,9 +469,12 @@ for (let i = 1; i <= CELL_COUNT; i++) {
 // ── plan.json ────────────────────────────────────────────────────────────────
 
 function resourceChangeFor(r) {
+  // v2 (AMENDMENT-1): `arn` + `region` in `after` carry the band — the same
+  // per-resource signals real multi-account plans (P1) band on.
   const after = {
     ...r.values,
-    region: REGION,
+    arn: arnFor(r.type, r.name, r.band),
+    region: r.band.region,
     tags: {},
     tags_all: TAGS,
   };
@@ -398,7 +489,7 @@ function resourceChangeFor(r) {
       actions: ["create"],
       before: null,
       after,
-      after_unknown: { id: true, arn: true },
+      after_unknown: { id: true },
       before_sensitive: false,
       after_sensitive: { tags: {}, tags_all: {} },
     },
@@ -438,8 +529,8 @@ function buildPlannedValues() {
       schema_version: 0,
       values: {
         ...r.values,
-        arn: arnFor(r.type, r.name),
-        region: REGION,
+        arn: arnFor(r.type, r.name, r.band),
+        region: r.band.region,
         tags: {},
         tags_all: TAGS,
       },
@@ -478,7 +569,11 @@ const plan = {
 // ── graph.dot (terraform graph shape: dependent -> dependency) ──────────────
 
 function buildGraphDot() {
-  const lines = ["digraph G {", '  rankdir = "RL";', '  node [shape = rect, fontname = "sans-serif"];'];
+  const lines = [
+    "digraph G {",
+    '  rankdir = "RL";',
+    '  node [shape = rect, fontname = "sans-serif"];',
+  ];
   const addrs = [...resources.keys()].sort();
   for (const addr of addrs) {
     lines.push(`  "${addr}" [label="${addr}"];`);
@@ -501,22 +596,50 @@ function buildTfd() {
   const q = (addr) => `${STACK_ID}::${addr}`;
   const out = [];
   out.push("tfd 2");
-  out.push(`# Declared dataflow for ${STACK_ID} (W12 P3 synthetic held-out mesh).`);
-  out.push("# SELF-AUTHORED synthetic fixture generated by scripts/generate-heldout-plan.mjs");
-  out.push(`# (mulberry32 seed ${SEED}); out-of-tuning-distribution transfer probe, NOT an`);
+  out.push(
+    `# Declared dataflow for ${STACK_ID} (W12 P3 synthetic held-out mesh).`,
+  );
+  out.push(
+    "# SELF-AUTHORED synthetic fixture generated by scripts/generate-heldout-plan.mjs",
+  );
+  out.push(
+    `# (mulberry32 seed ${SEED}); out-of-tuning-distribution transfer probe, NOT an`,
+  );
   out.push("# independently sampled held-out plan (R8-F4 stays open).");
   out.push("#");
-  out.push("# Topology: EventBridge hub (out-degree 16) -> 16 SNS/SQS/Lambda/SFN cells,");
-  out.push("# cross-cell cascade chains, and THREE reference cycles on resolved endpoints:");
-  out.push("#   C1 cell_01 handler <-> cell_02 handler   (mutual service calls, 2-cycle)");
-  out.push("#   C2 cell_03 sfn -> retry -> handler -> sfn (redrive loop, 3-cycle)");
-  out.push("#   C3 sg rule a_to_b <-> b_to_a              (mutual security-group rules, 2-cycle)");
+  out.push(
+    "# v2 (AMENDMENT-1): three account/region bands (000000000000/us-east-1,",
+  );
+  out.push(
+    "# 000000000000/us-west-2 cells 13-14, 210987654321/us-east-1 cells 15-16 +",
+  );
+  out.push(
+    "# observability sinks) with cross-band audit/alert fan-ins — slice-B edges.",
+  );
+  out.push(
+    "# Topology: EventBridge hub (out-degree 16) -> 16 SNS/SQS/Lambda/SFN cells,",
+  );
+  out.push(
+    "# cross-cell cascade chains, and THREE reference cycles on resolved endpoints:",
+  );
+  out.push(
+    "#   C1 cell_01 handler <-> cell_02 handler   (mutual service calls, 2-cycle)",
+  );
+  out.push(
+    "#   C2 cell_03 sfn -> retry -> handler -> sfn (redrive loop, 3-cycle)",
+  );
+  out.push(
+    "#   C3 sg rule a_to_b <-> b_to_a              (mutual security-group rules, 2-cycle)",
+  );
   out.push("");
   out.push("# Hub + network binds");
   out.push(`bind mesh_bus        = ${q(HUB_ADDRESS)}`);
   out.push(`bind registry_table  = ${q(registryTable)}`);
   out.push(`bind sg_rule_a_to_b  = ${q(sgRuleAB)}`);
   out.push(`bind sg_rule_b_to_a  = ${q(sgRuleBA)}`);
+  out.push("# v2 (AMENDMENT-1): band-3 observability sinks");
+  out.push(`bind audit_stream    = ${q(auditStream)}`);
+  out.push(`bind ops_alerts      = ${q(opsAlerts)}`);
   out.push("");
   for (const c of cells) {
     out.push(`# cell_${c.id} binds`);
@@ -539,9 +662,7 @@ function buildTfd() {
   }
 
   out.push("# Hub fan-out: the high-fanout hub (out-degree 16 >= 12)");
-  out.push(
-    `mesh_bus -> ${cells.map((c) => `c${c.id}_ingress`).join(", ")}`,
-  );
+  out.push(`mesh_bus -> ${cells.map((c) => `c${c.id}_ingress`).join(", ")}`);
   out.push("");
   out.push("# Per-cell processing chains");
   for (const c of cells) {
@@ -563,11 +684,28 @@ function buildTfd() {
   }
   out.push("");
   out.push("# Cross-cell cascade: long east-west chains through the mesh");
-  out.push("# (i -> i+4 lanes give 4 parallel deep chains; paths up to ~13 hops)");
+  out.push(
+    "# (i -> i+4 lanes give 4 parallel deep chains; paths up to ~13 hops)",
+  );
   for (let i = 1; i + 4 <= CELL_COUNT; i++) {
     const a = cells[i - 1];
     const b = cells[i + 3];
     out.push(`c${a.id}_sfn -> c${b.id}_ingress`);
+  }
+  out.push("");
+  out.push(
+    "# v2 (AMENDMENT-1) cross-band fan-ins into the observability account",
+  );
+  out.push("# (slice-B edge material — every band-1/band-2 cell crosses into");
+  out.push("# band 3 here).");
+  out.push("# Mesh-wide audit fan-in (sfn -> audit stream)");
+  for (const c of cells) {
+    out.push(`c${c.id}_sfn -> audit_stream`);
+  }
+  out.push("");
+  out.push("# Mesh-wide ops alerting (dlq alarms -> ops alerts topic)");
+  for (const c of cells) {
+    out.push(`c${c.id}_dlq_alarm -> ops_alerts`);
   }
   out.push("");
   out.push("# Deep-cell tracing alert fan-in");
@@ -581,7 +719,9 @@ function buildTfd() {
   out.push("c01_handler -> c02_handler");
   out.push("c02_handler -> c01_handler");
   out.push("");
-  out.push("# C2 — redrive loop in cell_03 (3-cycle: sfn -> retry -> handler -> sfn)");
+  out.push(
+    "# C2 — redrive loop in cell_03 (3-cycle: sfn -> retry -> handler -> sfn)",
+  );
   out.push("c03_sfn -> c03_retry");
   out.push("c03_retry -> c03_handler");
   out.push("c03_handler -> c03_sfn");
@@ -611,3 +751,11 @@ for (const addr of resources.keys()) {
 }
 console.log(`  module-depth histogram: ${JSON.stringify(depths)}`);
 console.log(`  hub: ${HUB_ADDRESS} (TFD out-degree ${CELL_COUNT})`);
+const bandHistogram = {};
+for (const r of resources.values()) {
+  const key = `${r.band.account}/${r.band.region}`;
+  bandHistogram[key] = (bandHistogram[key] ?? 0) + 1;
+}
+console.log(
+  `  v2 bands (account/region histogram): ${JSON.stringify(bandHistogram)}`,
+);

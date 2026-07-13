@@ -26,6 +26,16 @@
  * out-of-tuning-distribution transfer material, NOT an independently sampled
  * held-out plan. R8-F4 stays formally open.
  *
+ * FIXTURE v2 (AMENDMENT-1, docs/strata-view-w12-heldout-scale.md): v1's
+ * single provider/account/region band was a generator artifact (zero slice-B
+ * edges — extent transfer unexercised, cells frozen-VOID). v2 adds 3
+ * account/region bands + cross-band audit/alert fan-ins; this file
+ * additionally asserts the v2 band structure (>= 2 bands, >= 31 distinct
+ * cross-band declared edges) and reports an input-only `bands` block per
+ * preset. The v1 profile is preserved at
+ * docs/strata-baselines/q12/P3_DISTINCTNESS_PROFILE.v1.{json,md}. All
+ * thresholds/metrics/definitions are UNCHANGED from v1.
+ *
  * Run (writes P3_DISTINCTNESS_PROFILE.{json,md} to $Q12_REPORT_DIR, default
  * tmpdir; the committed copy lives at docs/strata-baselines/q12/):
  *   Q12_REPORT_DIR=docs/strata-baselines/q12 yarn vitest run \
@@ -239,6 +249,17 @@ type PresetProfile = {
     max: number;
     meanX100: number;
   };
+  /** v2 (AMENDMENT-1): input-only band structure — account/region derived
+   * from `change.after.arn` (the signal resolveAccountRegion bands on) and
+   * cross-band RESOLVED declared edges (slice-B material). Informational for
+   * P1/P2 (real plans may resolve bands through richer signals); asserted
+   * only on P3. */
+  bands: {
+    distinct: number;
+    histogram: Record<string, number>;
+    crossBandResolvedEdges: number;
+    unbandedEndpoints: number;
+  };
   resourceTypes: {
     distinct: number;
     top: Array<{ type: string; count: number }>;
@@ -256,13 +277,40 @@ function computePresetProfile(
   presetId: string,
   sources: TerraformImportPresetSources,
 ): PresetProfile {
-  const resourceChanges: Array<{ address?: string; type?: string }> = [];
+  const resourceChanges: Array<{
+    address?: string;
+    type?: string;
+    change?: { after?: { arn?: unknown } | null };
+  }> = [];
   for (const bundle of sources.planDotBundles) {
-    const rc = (bundle.plan as { resource_changes?: unknown })
-      .resource_changes;
+    const rc = (bundle.plan as { resource_changes?: unknown }).resource_changes;
     if (Array.isArray(rc)) {
       resourceChanges.push(...(rc as Array<{ address?: string }>));
     }
+  }
+
+  // v2 (AMENDMENT-1): input-only band map from `change.after.arn`
+  // (arn:aws:service:REGION:ACCOUNT:… — parseAwsArnLocation's convention).
+  const bandByAddress = new Map<string, string>();
+  for (const rc of resourceChanges) {
+    const address = typeof rc.address === "string" ? rc.address : "";
+    const arn = rc.change?.after?.arn;
+    if (!address || typeof arn !== "string") {
+      continue;
+    }
+    const parts = arn.split(":");
+    const region = parts[3] ?? "";
+    const account = parts[4] ?? "";
+    if (region && /^\d{12}$/.test(account)) {
+      bandByAddress.set(address, `${account}/${region}`);
+    }
+  }
+  const bandHistogram: Record<string, number> = {};
+  for (const rc of resourceChanges) {
+    const band =
+      bandByAddress.get(typeof rc.address === "string" ? rc.address : "") ??
+      "unbanded";
+    bandHistogram[band] = (bandHistogram[band] ?? 0) + 1;
   }
 
   const depthHistogram: Record<string, number> = {};
@@ -300,6 +348,25 @@ function computePresetProfile(
     .sort((a, b) => a - b);
   const pathLengths = pathLengthDistribution(graph, endpointSet);
 
+  // v2 (AMENDMENT-1): cross-band RESOLVED declared edges (distinct
+  // source→target pairs whose endpoints land in different bands).
+  const bandOfEndpoint = (endpoint: string): string | null =>
+    bandByAddress.get(endpoint.replace(/^[^:]*::/, "")) ?? null;
+  const crossBandKeys = new Set<string>();
+  let unbandedEndpoints = 0;
+  for (const endpoint of endpointSet) {
+    if (bandOfEndpoint(endpoint) == null) {
+      unbandedEndpoints += 1;
+    }
+  }
+  for (const { source, target } of edges) {
+    const a = bandOfEndpoint(source);
+    const b = bandOfEndpoint(target);
+    if (a != null && b != null && a !== b) {
+      crossBandKeys.add(`${source}\0${target}`);
+    }
+  }
+
   return {
     preset: presetId,
     resourceCount: resourceChanges.length,
@@ -309,6 +376,13 @@ function computePresetProfile(
       meanX100: Math.round(
         (depthSum / Math.max(1, resourceChanges.length)) * 100,
       ),
+    },
+    bands: {
+      distinct: Object.keys(bandHistogram).filter((k) => k !== "unbanded")
+        .length,
+      histogram: bandHistogram,
+      crossBandResolvedEdges: crossBandKeys.size,
+      unbandedEndpoints,
     },
     resourceTypes: {
       distinct: typeCounts.size,
@@ -386,7 +460,12 @@ function profileMarkdown(
   const row = (label: string, fn: (p: PresetProfile) => string | number) =>
     `| ${label} | ${cols.map((c) => fn(profiles[c]!)).join(" | ")} |`;
   return [
-    "# P3 distinctness profile (input-only, frozen in W12 WP1)",
+    "# P3 distinctness profile (input-only, frozen in W12 WP1; v2 re-emitted under AMENDMENT-1)",
+    "",
+    "FIXTURE v2 (AMENDMENT-1, strata-view-w12-heldout-scale.md): v1 had a single",
+    "provider/account/region band (generator artifact, zero slice-B edges); v2 adds",
+    "3 account/region bands + cross-band fan-ins. v1 profile preserved at",
+    "P3_DISTINCTNESS_PROFILE.v1.{json,md}. Thresholds/metrics/definitions unchanged.",
     "",
     "REPORT-only, unregistered. P3 (`staging-heldout-mesh`) is SELF-AUTHORED",
     "(scripts/generate-heldout-plan.mjs, seed 20260704): out-of-tuning-distribution",
@@ -394,7 +473,9 @@ function profileMarkdown(
     "Scale counts as ONE dimension. Cycles/degrees/paths are measured on RESOLVED",
     "TFD flow endpoints (the layout substrate), not raw tfd text.",
     "",
-    `| axis | ${cols.map((c) => `${c} (${profiles[c]!.preset})`).join(" | ")} |`,
+    `| axis | ${cols
+      .map((c) => `${c} (${profiles[c]!.preset})`)
+      .join(" | ")} |`,
     "|---|---|---|---|",
     row("resource_changes (scale — ONE dimension)", (p) => p.resourceCount),
     row("module depth max", (p) => p.moduleDepth.max),
@@ -413,6 +494,13 @@ function profileMarkdown(
       "path length p50/p90/max",
       (p) =>
         `${p.tfdFlow.pathLengths.p50}/${p.tfdFlow.pathLengths.p90}/${p.tfdFlow.pathLengths.max}`,
+    ),
+    row("bands (account/region, from after.arn)", (p) =>
+      JSON.stringify(p.bands.histogram),
+    ),
+    row(
+      "cross-band resolved edges (v2 slice-B material)",
+      (p) => p.bands.crossBandResolvedEdges,
     ),
     row("distinct resource types", (p) => p.resourceTypes.distinct),
     row("top types", (p) =>
@@ -475,6 +563,19 @@ describe("W12 WP1 — staging-heldout-mesh smoke + frozen distinctness profile",
         "reference cycles on resolved TFD flow",
       ).toBeGreaterThanOrEqual(2);
       expect(p3.moduleDepth.max, "module depth").toBeGreaterThanOrEqual(4);
+      // v2 (AMENDMENT-1): the fixture must carry genuine multi-band structure
+      // (v1's single provider/account/region was a generator artifact that
+      // left every extent headline cell frozen-VOID). Input-only: >= 2
+      // distinct account/region bands and >= 31 distinct cross-band declared
+      // edges (the frozen v3.1 §12 p90 floor, n >= 31, is reachable).
+      expect(
+        p3.bands.distinct,
+        "P3 v2 distinct account/region bands",
+      ).toBeGreaterThanOrEqual(2);
+      expect(
+        p3.bands.crossBandResolvedEdges,
+        "P3 v2 cross-band resolved declared edges",
+      ).toBeGreaterThanOrEqual(31);
 
       // Non-scale distinctness axes: P3 must differ from BOTH P1 and P2.
       const axes: Record<
@@ -564,6 +665,13 @@ describe("W12 WP1 — staging-heldout-mesh smoke + frozen distinctness profile",
             "staging-heldout-mesh is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, " +
             "mulberry32 seed 20260704): out-of-tuning-distribution transfer material, " +
             "NOT an independently sampled held-out plan — R8-F4 stays formally open.",
+          fixtureV2Amendment:
+            "AMENDMENT-1 (docs/strata-view-w12-heldout-scale.md): v1 fixed a single " +
+            "provider/account/region band (generator artifact — zero slice-B edges, extent " +
+            "transfer unexercised, extent cells frozen-VOID); v2 introduces 3 account/region " +
+            "bands + cross-band audit/alert fan-ins. Band structure is the ONLY change; all " +
+            "thresholds/metrics/definitions unchanged. v1 profile preserved at " +
+            "P3_DISTINCTNESS_PROFILE.v1.{json,md}.",
           scaleNote: "resourceCount is ONE distinctness dimension (scale)",
           resolvedFlowNote:
             "degree/SCC/path metrics measured on RESOLVED TFD flow endpoints " +

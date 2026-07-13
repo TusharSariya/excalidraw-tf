@@ -100,6 +100,19 @@ Any mismatch on these P1/P2 anchor fields **fails the battery loudly** (harness-
 - The suite is **run twice**; the two report JSONs must deep-equal after stripping wall-clock keys (`buildMs`, `applyMs` family) — W11's normalization approach. The result of the run-twice comparison is recorded with the results.
 - The report carries a placeholder `fullDetailBlock: null` for WP3 (additive; same report file, no new report).
 
+## Amendments
+
+### AMENDMENT-1 — 2026-07-13 — P3 fixture versioned to v2 (band structure only)
+
+Labeled amendment per the header rule (post-hoc changes are a new, labeled amendment, never a silent rewrite). Trigger: the first battery run (v1 fixture) + the codex diff review (finding 5) established that **v1 of `staging-heldout-mesh` had ZERO slice-B (cross-band) edges** — the generator fixed every resource to a single provider/account/region (one AWS provider block, one region constant, no per-resource account/region signal), so the scene had a single band. This was a **generator artifact, not a finding about strata**: with `n = 0`, all four P3 extent headline cells carried the frozen `VOID` status and **extent transfer was never exercised**.
+
+What this amendment records:
+
+1. **v1 outcome stands as run:** the v1 extent cells were frozen-VOID (`n = 0`), correctly classified by the pre-registered §4 rule; nothing about the v1 run is reinterpreted.
+2. **Fixture versioned to v2 for band structure ONLY** — an **input-structural change made after observing the VOID but before reading any v2 extent numbers**. v2 (generator `scripts/generate-heldout-plan.mjs`, same mulberry32 seed 20260704, rerun byte-identical) introduces 3 account/region bands (000000000000/us-east-1; 000000000000/us-west-2 hosting cells 13-14; 210987654321/us-east-1 hosting cells 15-16 + observability sinks) with cross-band TFD fan-ins (hub fan-out into cells 13-16, cascade lanes, mesh-wide `sfn -> audit_stream` and `dlq_alarm -> ops_alerts`), the same way P1/P2 get bands (per-resource `after.arn`/`after.region`). Module depth 4-5, the out-degree-16 hub, all three reference cycles and determinism are unchanged.
+3. **All thresholds, metrics, statistics and verdict definitions above are UNCHANGED** — no threshold, floor, seed, pairing key, void rule or classification was touched.
+4. **Provenance:** the v1 frozen profile is preserved at [`strata-baselines/q12/P3_DISTINCTNESS_PROFILE.v1.{json,md}`](./strata-baselines/q12/); the v2 profile is re-emitted (same input-only axes plus an informational `bands` block) at the original path, and the committed preset DB is regenerated with the other presets' rows byte-identical (DB-DIFF-VERIFY in the commit body).
+
 ## Results
 
 _BLOCKED — this section intentionally empty at pre-registration. Battery numbers land in WP4 (with the WP3 full-detail block), quoted against the definitions above without post-hoc discretion._

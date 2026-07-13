@@ -4,7 +4,6 @@
     "unregistered": true,
     "scope": "W12 WP1 frozen INPUT-ONLY distinctness profile + P3 smoke wall-clocks (WP3 budget seed)",
     "syntheticP3Disclosure": "staging-heldout-mesh is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, mulberry32 seed 20260704): out-of-tuning-distribution transfer material, NOT an independently sampled held-out plan — R8-F4 stays formally open.",
-    "fixtureV2Amendment": "AMENDMENT-1 (docs/strata-view-w12-heldout-scale.md): v1 fixed a single provider/account/region band (generator artifact — zero slice-B edges, extent transfer unexercised, extent cells frozen-VOID); v2 introduces 3 account/region bands + cross-band audit/alert fan-ins. Band structure is the ONLY change; all thresholds/metrics/definitions unchanged. v1 profile preserved at P3_DISTINCTNESS_PROFILE.v1.{json,md}.",
     "scaleNote": "resourceCount is ONE distinctness dimension (scale)",
     "resolvedFlowNote": "degree/SCC/path metrics measured on RESOLVED TFD flow endpoints (DECLARED_DATAFLOW_ORDERED_KEY after applyTfdOverlayToNodes)",
     "presets": {
@@ -26,23 +25,6 @@
         },
         "max": 3,
         "meanX100": 127
-      },
-      "bands": {
-        "distinct": 9,
-        "histogram": {
-          "unbanded": 623,
-          "000000000004/us-east-1": 14,
-          "000000000003/us-east-1": 72,
-          "000000000002/us-east-1": 167,
-          "000000000003/us-west-2": 33,
-          "000000000002/us-east-2": 63,
-          "000000000002/us-west-2": 88,
-          "000000000002/us-west-1": 54,
-          "000000000003/us-east-2": 34,
-          "000000000003/us-west-1": 27
-        },
-        "crossBandResolvedEdges": 3,
-        "unbandedEndpoints": 43
       },
       "resourceTypes": {
         "distinct": 98,
@@ -122,18 +104,6 @@
         "max": 3,
         "meanX100": 139
       },
-      "bands": {
-        "distinct": 4,
-        "histogram": {
-          "unbanded": 420,
-          "000000000000/us-east-1": 159,
-          "000000000000/us-east-2": 66,
-          "000000000000/us-west-2": 91,
-          "000000000000/us-west-1": 56
-        },
-        "crossBandResolvedEdges": 0,
-        "unbandedEndpoints": 19
-      },
       "resourceTypes": {
         "distinct": 68,
         "top": [
@@ -201,34 +171,24 @@
     },
     "P3": {
       "preset": "staging-heldout-mesh",
-      "resourceCount": 399,
+      "resourceCount": 396,
       "moduleDepth": {
         "histogram": {
-          "1": 160,
+          "1": 157,
           "2": 51,
           "3": 112,
           "4": 64,
           "5": 12
         },
         "max": 5,
-        "meanX100": 229
-      },
-      "bands": {
-        "distinct": 3,
-        "histogram": {
-          "000000000000/us-east-1": 309,
-          "210987654321/us-east-1": 48,
-          "000000000000/us-west-2": 42
-        },
-        "crossBandResolvedEdges": 39,
-        "unbandedEndpoints": 0
+        "meanX100": 230
       },
       "resourceTypes": {
         "distinct": 19,
         "top": [
           {
             "type": "aws_cloudwatch_log_group",
-            "count": 54
+            "count": 53
           },
           {
             "type": "aws_cloudwatch_metric_alarm",
@@ -256,7 +216,7 @@
           },
           {
             "type": "aws_sns_topic",
-            "count": 22
+            "count": 20
           },
           {
             "type": "aws_cloudwatch_event_target",
@@ -269,11 +229,11 @@
         ]
       },
       "tfdFlow": {
-        "resolvedEdges": 210,
-        "endpoints": 155,
+        "resolvedEdges": 178,
+        "endpoints": 153,
         "outDegree": {
           "p50": 1,
-          "p90": 3,
+          "p90": 2,
           "max": 16
         },
         "scc": {
@@ -285,7 +245,7 @@
           ]
         },
         "pathLengths": {
-          "samples": 152,
+          "samples": 150,
           "p50": 4,
           "p90": 5,
           "max": 6
@@ -344,8 +304,8 @@
           "pipelineLayoutVariant": "v2",
           "pipelineCompact": true
         },
-        "buildMs": 131.45,
-        "elementCount": 1619
+        "buildMs": 125.73,
+        "elementCount": 1582
       },
       "I": {
         "options": {
@@ -354,8 +314,8 @@
           "strataSweeps": 4,
           "strataCoordinateRefine": true
         },
-        "buildMs": 124.98,
-        "elementCount": 1619
+        "buildMs": 119.51,
+        "elementCount": 1582
       },
       "F_v2_full_ancillary": {
         "options": {
@@ -364,8 +324,8 @@
           "pipelineCompact": false,
           "pipelineIncludeAncillary": true
         },
-        "buildMs": 205.3,
-        "elementCount": 4122
+        "buildMs": 195.25,
+        "elementCount": 4071
       },
       "I2_strata_k4_a7_full": {
         "options": {
@@ -374,8 +334,8 @@
           "strataSweeps": 4,
           "strataCoordinateRefine": true
         },
-        "buildMs": 171.07,
-        "elementCount": 2291
+        "buildMs": 165.29,
+        "elementCount": 2254
       }
     }
   }
