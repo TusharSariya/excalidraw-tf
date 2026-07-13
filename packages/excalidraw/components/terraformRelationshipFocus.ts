@@ -29,6 +29,18 @@ const TERRAFORM_FOCUS_NODE_LEVEL = 100;
 const TERRAFORM_RELATED_LEVEL = 85;
 /** Multi-hop focus: nodes two-plus hops out along the dataflow path. */
 const TERRAFORM_RELATED_FAR_LEVEL = 55;
+/**
+ * Extended falloff (only when the effective hop cap exceeds the legacy
+ * {@link TERRAFORM_FOCUS_MAX_HOPS}): nodes 3–4 hops out. At hop caps ≤ 3 the
+ * far level above stays the terminal tier so legacy output is byte-identical.
+ */
+const TERRAFORM_RELATED_DEEP_LEVEL = 42;
+/**
+ * Extended falloff: nodes 5+ hops out. Deliberately above
+ * {@link TERRAFORM_DIM_NODE_LEVEL} (25) so in-cone nodes always read brighter
+ * than unrelated ones (figure-ground), no matter how deep the cone goes.
+ */
+const TERRAFORM_RELATED_VERY_DEEP_LEVEL = 34;
 const TERRAFORM_CONTAINER_LEVEL = 60;
 const TERRAFORM_DIM_NODE_LEVEL = 25;
 const TERRAFORM_DIM_EDGE_LEVEL = 15;
@@ -454,6 +466,12 @@ export const applyTerraformRelationshipFocus = (
     TERRAFORM_FOCUS_MAX_HOPS,
     options,
   );
+  // Mirror of the traversal's hop cap (`options.maxHops` over the legacy
+  // default). The extended dim falloff below gates on this VALUE only — never
+  // on whether options were passed — so an explicit `{ maxHops: 3 }` and the
+  // no-options legacy path produce byte-identical output.
+  const effectiveMaxHops = options?.maxHops ?? TERRAFORM_FOCUS_MAX_HOPS;
+  const useExtendedDimFalloff = effectiveMaxHops > TERRAFORM_FOCUS_MAX_HOPS;
   const elementById = new Map(allElements.map((e) => [e.id, e]));
   const duplicateHighlightCanonical = (() => {
     if (!focusNodePath) {
@@ -627,10 +645,17 @@ export const applyTerraformRelationshipFocus = (
       const isRelatedNode = Boolean(nodePath && relatedNodePaths.has(nodePath));
       // Degree-of-interest falloff: 1 hop reads as related, 2+ hops are dimmer
       // but still legible, so a multi-hop path stays traceable without flooding.
+      // With an extended hop cap (> 3), distance keeps attenuating past 2 hops
+      // (3–4 → deep, 5+ → very deep) so at K=∞ the cone doesn't flatten into a
+      // single tier; at caps ≤ 3 the legacy two-tier wash is untouched.
       const hopDistance = nodePath ? nodeDistance.get(nodePath) : undefined;
       const relatedLevel =
         hopDistance != null && hopDistance >= 2
-          ? TERRAFORM_RELATED_FAR_LEVEL
+          ? useExtendedDimFalloff && hopDistance >= 5
+            ? TERRAFORM_RELATED_VERY_DEEP_LEVEL
+            : useExtendedDimFalloff && hopDistance >= 3
+            ? TERRAFORM_RELATED_DEEP_LEVEL
+            : TERRAFORM_RELATED_FAR_LEVEL
           : TERRAFORM_RELATED_LEVEL;
       const cardLevel = isFocusNode
         ? TERRAFORM_FOCUS_NODE_LEVEL

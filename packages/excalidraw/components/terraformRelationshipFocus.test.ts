@@ -1114,4 +1114,174 @@ describe("terraform relationship focus", () => {
       );
     });
   });
+
+  describe("extended dim falloff beyond 3 hops (W13 WP4)", () => {
+    /** Chain a → b → c → d → e → f → g (undirected traversal reaches g at d6). */
+    const CHAIN = ["a", "b", "c", "d", "e", "f", "g"];
+    const chainElements = () => [
+      ...CHAIN.map((p) => resource(p)),
+      ...CHAIN.slice(0, -1).map((p, i) =>
+        edge(`edge:${p}-${CHAIN[i + 1]}`, "dependency", p, CHAIN[i + 1]),
+      ),
+    ];
+
+    const strokeLevelByDistance = (
+      elements: readonly ExcalidrawElement[],
+    ): Map<number, string> => {
+      const byId = new Map(elements.map((e) => [e.id, e]));
+      return new Map(
+        CHAIN.map((p, distance) => [
+          distance,
+          byId.get(`node:${p}`)!.strokeColor,
+        ]),
+      );
+    };
+
+    const stripNondeterministic = (elements: readonly ExcalidrawElement[]) =>
+      elements.map(({ versionNonce, updated, ...rest }) => rest);
+
+    it("byte-identity: options omitted, explicit maxHops 3, and maxHops 2 keep the legacy two-tier wash (no 42/34 anywhere)", () => {
+      const omitted = applyTerraformRelationshipFocus(
+        chainElements(),
+        "a",
+        VIEW_BG,
+      );
+      const explicitThree = applyTerraformRelationshipFocus(
+        chainElements(),
+        "a",
+        VIEW_BG,
+        { maxHops: 3 },
+      );
+      const explicitTwo = applyTerraformRelationshipFocus(
+        chainElements(),
+        "a",
+        VIEW_BG,
+        { maxHops: 2 },
+      );
+
+      // Options omitted and an explicit { maxHops: 3 } are byte-identical:
+      // the gate keys off the effective hop VALUE, never "options present".
+      expect(stripNondeterministic(explicitThree.elements)).toEqual(
+        stripNondeterministic(omitted.elements),
+      );
+
+      // Lock the pre-change behavior itself: d1 → 85, d≥2 in-cone → 55,
+      // out-of-cone → 25. The new deep tiers never fire at caps ≤ 3.
+      const omittedLevels = strokeLevelByDistance(omitted.elements);
+      expect(omittedLevels.get(0)).toBe("#000000");
+      expect(omittedLevels.get(1)).toBe(expectedWashedStroke(85));
+      expect(omittedLevels.get(2)).toBe(expectedWashedStroke(55));
+      expect(omittedLevels.get(3)).toBe(expectedWashedStroke(55));
+      expect(omittedLevels.get(4)).toBe(expectedWashedStroke(25));
+      expect(omittedLevels.get(5)).toBe(expectedWashedStroke(25));
+      expect(omittedLevels.get(6)).toBe(expectedWashedStroke(25));
+
+      const twoLevels = strokeLevelByDistance(explicitTwo.elements);
+      expect(twoLevels.get(1)).toBe(expectedWashedStroke(85));
+      expect(twoLevels.get(2)).toBe(expectedWashedStroke(55));
+      expect(twoLevels.get(3)).toBe(expectedWashedStroke(25));
+
+      for (const result of [omitted, explicitThree, explicitTwo]) {
+        for (const element of result.elements) {
+          expect(element.strokeColor).not.toBe(expectedWashedStroke(42));
+          expect(element.strokeColor).not.toBe(expectedWashedStroke(34));
+        }
+      }
+    });
+
+    it.each([
+      ["Infinity", Infinity],
+      ["5", 5],
+    ])(
+      "maxHops %s: extended tiers d1=85, d2=55, d3-4=42, d5+=34, all in-cone brighter than unrelated 25",
+      (_label, maxHops) => {
+        const result = applyTerraformRelationshipFocus(
+          chainElements(),
+          "a",
+          VIEW_BG,
+          { maxHops },
+        );
+        const levels = strokeLevelByDistance(result.elements);
+
+        expect(levels.get(0)).toBe("#000000");
+        expect(levels.get(1)).toBe(expectedWashedStroke(85));
+        expect(levels.get(2)).toBe(expectedWashedStroke(55));
+        expect(levels.get(3)).toBe(expectedWashedStroke(42));
+        expect(levels.get(4)).toBe(expectedWashedStroke(42));
+        expect(levels.get(5)).toBe(expectedWashedStroke(34));
+        if (maxHops === Infinity) {
+          expect(levels.get(6)).toBe(expectedWashedStroke(34));
+        } else {
+          // d6 falls outside the 5-hop cone → unrelated dim.
+          expect(levels.get(6)).toBe(expectedWashedStroke(25));
+        }
+
+        // Figure-ground floor: every in-cone wash sits strictly above the
+        // unrelated 25 level (34 > 25 → strictly less washed stroke).
+        const inConeDepth = maxHops === Infinity ? 6 : 5;
+        for (let d = 0; d <= inConeDepth; d++) {
+          expect(levels.get(d)).not.toBe(expectedWashedStroke(25));
+        }
+      },
+    );
+
+    it("maxHops 4: d3-4 get the deep tier, nothing washes at 34 (no d>=5 within the cap)", () => {
+      const result = applyTerraformRelationshipFocus(
+        chainElements(),
+        "a",
+        VIEW_BG,
+        { maxHops: 4 },
+      );
+      const levels = strokeLevelByDistance(result.elements);
+
+      expect(levels.get(1)).toBe(expectedWashedStroke(85));
+      expect(levels.get(2)).toBe(expectedWashedStroke(55));
+      expect(levels.get(3)).toBe(expectedWashedStroke(42));
+      expect(levels.get(4)).toBe(expectedWashedStroke(42));
+      expect(levels.get(5)).toBe(expectedWashedStroke(25));
+      expect(levels.get(6)).toBe(expectedWashedStroke(25));
+      for (const element of result.elements) {
+        expect(element.strokeColor).not.toBe(expectedWashedStroke(34));
+      }
+    });
+
+    it("levels are monotonically non-increasing with distance (opacity/ordering sanity)", () => {
+      const result = applyTerraformRelationshipFocus(
+        chainElements(),
+        "a",
+        VIEW_BG,
+        { maxHops: Infinity },
+      );
+      const levels = strokeLevelByDistance(result.elements);
+      const levelForStroke = new Map<string, number>([
+        ["#000000", 100],
+        ...[85, 55, 42, 34, 25].map(
+          (level): [string, number] => [expectedWashedStroke(level), level],
+        ),
+      ]);
+      const numericLevels = CHAIN.map((_, distance) =>
+        levelForStroke.get(levels.get(distance)!),
+      );
+
+      expect(numericLevels).toEqual([100, 85, 55, 42, 42, 34, 34]);
+      for (let i = 1; i < numericLevels.length; i++) {
+        expect(numericLevels[i]!).toBeLessThanOrEqual(numericLevels[i - 1]!);
+      }
+    });
+
+    it("extended tiers never reveal soft-deleted deep elements (reveal gating stays <=1 hop)", () => {
+      const elements = chainElements().map((element) =>
+        element.id === "node:d" || element.id === "node:f"
+          ? { ...element, isDeleted: true }
+          : element,
+      );
+      const result = applyTerraformRelationshipFocus(elements, "a", VIEW_BG, {
+        maxHops: Infinity,
+      });
+      const byId = new Map(result.elements.map((e) => [e.id, e]));
+
+      expect(byId.get("node:d")?.isDeleted).toBe(true);
+      expect(byId.get("node:f")?.isDeleted).toBe(true);
+    });
+  });
 });
