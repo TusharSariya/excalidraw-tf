@@ -98,27 +98,70 @@ These classes describe **measurement health**, not layout quality — W13 has no
 
 ## Amendments
 
-_None. (Dated, labeled amendments only, per the header rule — an amendment touching a definition must land before the numbers it affects are read.)_
+**AMENDMENT-1 (2026-07-13, recorded BEFORE the WP5 battery produced or read any statistic — definition/naming pins only, no threshold or estimator change):**
+
+1. **Report filenames.** The record's output convention (§ Output convention) names no file. Pinned per the WP5 task order: the battery writes **`FOCUS_HOP_SWEEP.json`** plus **`FOCUS_HOP_SWEEP.normalized.json`** (wall-clock keys stripped — the run-twice byte-compare comparand). This supersedes the anticipated `W13_HOP_SWEEP_BATTERY.json` names in [`strata-baselines/hopsweep/README.md`](./strata-baselines/hopsweep/README.md) (that README predates WP5 and is a directory-convention note, not part of the pre-registered record).
+2. **Cone-size-share denominator.** §7's "scene node count" is pinned as the **traversal node universe**: the set of distinct graph addresses appearing as an endpoint of any focus-traversal edge (relationship endpoints + `directions[]` hints on `isTerraformLayerEdge` elements) ∪ the anchor set — i.e. exactly the population an unbounded flood could highlight. Recorded verbatim in the report meta.
+3. **≥2-tier wash-saturation share.** §7's prose is pinned to this operationalization: for cell (preset, direction, K with K ≥ 2), the share of mappable anchors whose (K−2)-slice already equals their full uncapped reach for that direction (`|slice(K−2)| == |slice(∞)|` — the anchor has been fully saturated for ≥ 2 histogram tiers by K). K ∈ {0, 1} ⇒ 0 by definition; the ∞ cell carries `null` (not applicable). REPORT-only; never selects.
+
+These pins were committed to the battery implementation before any run; no sweep number existed when they were made.
 
 ## Results
 
-**PENDING — battery not yet run.** This section is intentionally empty at pre-registration; the WP5 battery appends here without editing the record above.
+**Battery run 2026-07-13** (WP5, `packages/excalidraw/components/terraformPipelineStrataHopSweepBattery.test.ts`, arm I `{layoutMode:"strata", pipelineCompact:true, strataSweeps:4, strataCoordinateRefine:true}`, seed 20260704). Full cells: [`strata-baselines/hopsweep/FOCUS_HOP_SWEEP.json`](./strata-baselines/hopsweep/FOCUS_HOP_SWEEP.json) (+ `.normalized.json`, the run-twice comparand — AMENDMENT-1 filenames). All cells SUPPORT (no VOID, no INCONCLUSIVE, `reportFindings: []`, `softFailures: []`); zero unmappable anchors on all three presets (P1 50/50, P2 36/36, P3 50/50). Numbers below are full-precision macros rounded to 4dp for presentation (§5 — the rule ran unrounded).
 
 ### Sweep cells (P1/P2 selection, P3 confirmatory)
 
-PENDING — battery not yet run.
+**`dependencies`** (truth = forward closure; macro precision = **1.0000 at every K on every preset** — the directed slice is a subset of the true cone by construction, so the K axis trades recall/wash only). Macro recall by K:
+
+| K | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | **9** | 10 | 11 | 12 | 13 | ∞ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | .1218 | .3408 | .5336 | .6671 | .7746 | .8420 | .8892 | .9195 | .9431 | **.9599** | .9766 | .9884 | .9966 | 1.0 | 1.0 |
+| P2 | .1644 | .4495 | .6464 | .7389 | .8146 | .8638 | .9058 | .9352 | .9562 | **.9710** | .9824 | .9920 | .9968 | 1.0 | 1.0 |
+| P3 | .1263 | .2957 | .4587 | .5451 | .6255 | .6900 | .7422 | .7859 | .8197 | .8488 | .8764 | .9031 | .9259 | .9451 | 1.0 (K=21) |
+
+Cone-size share at the qualifying K=9: P1 0.1797, P2 0.1783 (vs 0.2097/0.2016 uncapped). Max observed finite distance: 13/13/21.
+
+**`dependents`** (truth = REVERSE closure; macro precision likewise **1.0000 everywhere**). Macro recall by K:
+
+| K | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | **10** | 11 | 12 | ∞ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | .2335 | .3555 | .4678 | .5720 | .6717 | .7516 | .8084 | .8568 | .9050 | .9467 | **.9756** | .9933 | 1.0 | 1.0 |
+| P2 | .1632 | .2986 | .4201 | .5324 | .6377 | .7374 | .8094 | .8615 | .9067 | .9457 | **.9736** | .9915 | 1.0 | 1.0 |
+| P3 | .1421 | .2940 | .4144 | .5190 | .5997 | .6721 | .7260 | .7717 | .8095 | .8400 | .8674 | .8918 | .9147 | 1.0 (K=20) |
+
+Cone-size share at the qualifying K=10: P1 0.0778, P2 0.0943. Max observed finite distance: 12/12/20.
+
+**`both`** (judged vs FORWARD closure — the W11 task-mismatch cell across the K axis, deliberately asymmetric per §4). Precision decays monotonically from 1.0 at K=0 and is already below the 0.90 bar at K=1 (P1 0.7457, P2 0.7338, P3 0.7190), reaching the uncapped floor 0.2455/0.2476/0.1766; recall crosses 0.95 only around K=8 where precision is ~0.29 — **no K satisfies the conjunction on either selection preset**. The undirected wash is also the flooding mode: uncapped cone-size share 0.8542 (P1) / 0.8140 (P2) / 0.9243 (P3) vs 0.2097/0.2016/0.1319 for `dependencies` uncapped.
+
+**Wash saturation (AMENDMENT-1(3) definition, reported alongside):** directed modes saturate gradually (e.g. `dependencies` P1: 0.28 at K=4, 0.72 at K=8, 1.0 at K=15); `both` stays 0 through K=10 on P1/P2 then jumps (P1 0.16 at K=12 → 0.90 at K=17) — the undirected slice keeps growing across nearly the whole grid.
+
+**P3 (confirmatory-only, never selects):** the same curve shapes reproduce, but the self-authored mesh is deeper (maxDist 21/20 directed) and recall rises more slowly — the P1/P2-selected K=9/K=10 reach only ~0.85/0.84 recall on P3 (P3 would need K≈14 for 0.95). This disagreement is a **reported finding for the owner**, not a re-selection (§1); W12 claim scoping applies, R8-F4 stays open. `both` on P3 floods hardest (cone share 0.9243 uncapped, wash-saturated from K=10).
 
 ### Sanity anchor reproduction (§6)
 
-PENDING — battery not yet run.
+**GREEN** (hard-asserted before P3 was built and before the §7 rule was computed):
 
-### Recommendation under the §7 rule
+- (both, K=3) == the committed W12 shipped-3hop mismatch cell: P1 meanPrecision **0.4641** / meanRecall **0.6824**; P2 **0.4832** / **0.7389** — exact, W11/W12 round4 convention.
+- Anchor populations: P1 **50/50**, P2 **36/36**, `unmappableAnchors` **[]** on both.
+- (dependencies, ∞) == the directed production call: min/mean precision & recall **1/1**, perfect shares 1, on both P1 and P2.
+- Forward-truth cross-check vs `computeStrataConeMetrics(...).rows[].coneNodes`: exact match for every mappable anchor on all three presets (zero soft failures).
 
-PENDING — battery not yet run.
+### Recommendation under the §7 rule (mechanical; owner decides any default flip)
+
+| Direction | RECOMMENDED K | Basis |
+| --- | --- | --- |
+| `dependencies` | **9** | smallest K with macro precision ≥ 0.90 AND recall ≥ 0.95 on BOTH P1 (1.0/.9599) and P2 (1.0/.9710); K=8 fails on P1 recall .9431 |
+| `dependents` | **10** | qualifies on both (1.0/.9756 P1, 1.0/.9736 P2); K=9 fails on P1 recall .9467 and P2 .9457 |
+| `both` | **keep 3** (fallback) | NO K qualifies — precision < 0.90 for every K ≥ 1 on both selection presets; the failure to qualify is itself the finding |
+
+Tie-break: not applicable (the smallest qualifying K is unique by construction; cone-size share reported per cell). P3 confirmatory cells included; they cannot veto (see above).
 
 ### Determinism (§8 run-twice)
 
-PENDING — battery not yet run.
+- **In-test:** each preset's fragment built twice (2 scene builds + 2 sweep computations per preset) and deep-equaled after stripping `buildMs` — deterministic on P1, P2, and P3.
+- **External run-twice:** the suite was run twice with `HOPSWEEP_REPORT_DIR=docs/strata-baselines/hopsweep`; the two `FOCUS_HOP_SWEEP.normalized.json` outputs are **byte-identical** (`cmp` clean).
+- **Tmpdir default verified:** a run without `HOPSWEEP_REPORT_DIR` wrote only to the system tmpdir; `git status --porcelain docs/` was unchanged by that run.
 
 ## Interpretation
 
