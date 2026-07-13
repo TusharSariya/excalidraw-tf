@@ -306,11 +306,74 @@ const TerraformLayerItem = ({
  * "dependents" only — no "downstream/upstream/dataflow" claims until Q7-AXIS
  * establishes what the axis reads as on canvas.
  */
-const TerraformFocusControls = () => {
+export const TerraformFocusControls = () => {
   const app = useApp();
   const setAppState = useExcalidrawSetAppState();
   const direction = app.state.terraformFocusDirection ?? "both";
   const maxHops = app.state.terraformFocusMaxHops;
+
+  // Radio value derived from terraformFocusMaxHops:
+  //   null      → "3"   (legacy default; stored as null, never literal 3)
+  //   -1 / ∞    → "all" (JSON-safe unlimited sentinel)
+  //   0|1|2|3   → curated numeric choices
+  //   other N   → dynamic uncurated choice (URL/API-set) inserted between
+  //               "3" and "all" so the control never lies about state.
+  //               RadioGroup is stateless (pure map keyed by String(value)),
+  //               so a changing choices array is safe.
+  const hopsValue =
+    maxHops == null
+      ? "3"
+      : maxHops === -1 || maxHops === Infinity
+      ? "all"
+      : String(maxHops);
+  const hopsChoices: {
+    value: string;
+    label: string;
+    ariaLabel: string;
+    testId: string;
+  }[] = [
+    {
+      value: "0",
+      label: "0",
+      ariaLabel: "Focus hops: focused node only",
+      testId: "terraform-focus-hops-0",
+    },
+    {
+      value: "1",
+      label: "1",
+      ariaLabel: "Focus hops: 1",
+      testId: "terraform-focus-hops-1",
+    },
+    {
+      value: "2",
+      label: "2",
+      ariaLabel: "Focus hops: 2",
+      testId: "terraform-focus-hops-2",
+    },
+    {
+      value: "3",
+      label: "3",
+      ariaLabel: "Focus hops: 3 (default)",
+      testId: "terraform-focus-hops-3",
+    },
+    {
+      value: "all",
+      label: "∞",
+      ariaLabel: "Focus hops: unlimited",
+      testId: "terraform-focus-hops-unlimited",
+    },
+  ];
+  if (
+    hopsValue !== "all" &&
+    !hopsChoices.some((choice) => choice.value === hopsValue)
+  ) {
+    hopsChoices.splice(hopsChoices.length - 1, 0, {
+      value: hopsValue,
+      label: hopsValue,
+      ariaLabel: `Focus hops: ${hopsValue}`,
+      testId: `terraform-focus-hops-${hopsValue}`,
+    });
+  }
 
   return (
     <>
@@ -345,31 +408,21 @@ const TerraformFocusControls = () => {
       >
         Focus direction
       </DropdownMenuItemContentRadio>
-      <DropdownMenuItemContentRadio<"3" | "all">
+      <DropdownMenuItemContentRadio<string>
         name="terraform-focus-hops"
         icon={ExportImageIcon}
-        value={maxHops === -1 || maxHops === Infinity ? "all" : "3"}
+        value={hopsValue}
         onChange={(value) => {
           setAppState({
             // -1 = JSON-safe "unlimited" sentinel (Infinity would not survive
-            // localStorage/export JSON round-trips).
-            terraformFocusMaxHops: value === "all" ? -1 : null,
+            // localStorage/export JSON round-trips). "3" stores null (legacy
+            // default) — never literal 3 — to preserve the byte-identical
+            // default path and URL omission.
+            terraformFocusMaxHops:
+              value === "all" ? -1 : value === "3" ? null : Number(value),
           });
         }}
-        choices={[
-          {
-            value: "3",
-            label: "3",
-            ariaLabel: "Focus hops: 3",
-            testId: "terraform-focus-hops-3",
-          },
-          {
-            value: "all",
-            label: "Unlimited",
-            ariaLabel: "Focus hops: unlimited",
-            testId: "terraform-focus-hops-unlimited",
-          },
-        ]}
+        choices={hopsChoices}
       >
         Focus hops
       </DropdownMenuItemContentRadio>
