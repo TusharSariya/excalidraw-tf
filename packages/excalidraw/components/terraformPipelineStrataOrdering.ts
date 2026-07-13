@@ -441,6 +441,92 @@ export function strataPackedCandidateSequences(
     chain = applyStrataSweep(chain, adjacency, keyOf, direction);
     snapshots.push(toUnits(chain));
   }
+
+  // Round-9 remedy, sifting clause: barycenter sweeps cannot express every
+  // useful move (the owner's SQS case — a loose leaf hopping OVER a sibling
+  // hull — never appears in any snapshot). Append deterministic single-leaf
+  // insertion candidates: each edge-incident LEAF unit tried at every boundary
+  // of the initial and final snapshots. Dedupe by id-join so the candidate
+  // list stays index-stable and duplicate-free; selection stays the caller's
+  // whole-layout scorer.
+  const seen = new Set(snapshots.map((s) => s.map(strataUnitId).join("\u0001")));
+  const pushSift = (base: readonly string[]): void => {
+    for (const leafId of base) {
+      const unit = unitById.get(leafId)!;
+      if (unit.kind !== "leaf" || !adjacency.has(leafId)) {
+        continue;
+      }
+      const rest = base.filter((id) => id !== leafId);
+      for (let p = 0; p <= rest.length; p++) {
+        const seq = [...rest.slice(0, p), leafId, ...rest.slice(p)];
+        const key = seq.join("\u0001");
+        if (!seen.has(key)) {
+          seen.add(key);
+          snapshots.push(toUnits(seq));
+        }
+      }
+    }
+  };
+  pushSift(initialIds);
+  pushSift(chain);
+
+  // Round-9 remedy, GROUP-sift clause: a solo leaf move can trade one
+  // tunneling for another when the leaf has a satellite (the owner's SQS case
+  // — its DynamoDB companion's only edge points at the SQS, so moving the SQS
+  // alone stretches that edge over the hull instead). For each edge-incident
+  // anchor leaf, grow its satellite set to fixpoint — leaves whose EVERY
+  // lifted edge lands inside the group (a leaf with any external edge never
+  // joins) — capped at 4 members, then try the whole group contiguously
+  // (intra-group base order preserved) at every boundary of the remaining
+  // sequence. Same dedupe set; deterministic base-order iteration.
+  const pushGroupSift = (base: readonly string[]): void => {
+    for (const anchorId of base) {
+      const anchor = unitById.get(anchorId)!;
+      if (anchor.kind !== "leaf" || !adjacency.has(anchorId)) {
+        continue;
+      }
+      const group = new Set([anchorId]);
+      let grew = true;
+      while (grew && group.size < 4) {
+        grew = false;
+        for (const id of base) {
+          if (group.size >= 4) {
+            break;
+          }
+          if (group.has(id)) {
+            continue;
+          }
+          const unit = unitById.get(id)!;
+          if (unit.kind !== "leaf") {
+            continue;
+          }
+          const incs = adjacency.get(id);
+          if (!incs || incs.length === 0) {
+            continue;
+          }
+          if (incs.every((inc) => group.has(inc.other))) {
+            group.add(id);
+            grew = true;
+          }
+        }
+      }
+      if (group.size < 2) {
+        continue;
+      }
+      const members = base.filter((id) => group.has(id));
+      const rest = base.filter((id) => !group.has(id));
+      for (let p = 0; p <= rest.length; p++) {
+        const seq = [...rest.slice(0, p), ...members, ...rest.slice(p)];
+        const key = seq.join("\u0001");
+        if (!seen.has(key)) {
+          seen.add(key);
+          snapshots.push(toUnits(seq));
+        }
+      }
+    }
+  };
+  pushGroupSift(initialIds);
+  pushGroupSift(chain);
   return snapshots;
 }
 

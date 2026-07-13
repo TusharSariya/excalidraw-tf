@@ -135,13 +135,22 @@ export function placeStrataHulls(
   rank: StrataRankResult,
   options: StrataEngineOptions,
   /**
-   * ADDITIVE-OPTIONAL (round 9, `strataPackedScoring`): when set, every PACKED
-   * hull uses its unconditional sweep-chain snapshot at this index (clamped to
-   * the hull's own candidate count) instead of the v2.0 acceptance-chain order
-   * — the whole-layout scorer trial-places each index and picks the winner.
+   * ADDITIVE-OPTIONAL (round 9, `strataPackedScoring`): when set, PACKED hulls
+   * use their unconditional sweep-chain snapshot instead of the v2.0
+   * acceptance-chain order — the whole-layout scorer trial-places candidates
+   * and picks the winner. A plain number applies that snapshot index to every
+   * packed hull (clamped per hull); a map selects PER HULL by `hull.id`, and a
+   * packed hull absent from the map keeps the legacy acceptance-chain order.
    * Banded hulls are unaffected. `undefined` ⇒ byte-identical legacy behavior.
    */
-  packedCandidateIndex?: number,
+  packedCandidateIndex?: number | ReadonlyMap<string, number>,
+  /**
+   * ADDITIVE-OPTIONAL: when provided, reports each packed hull's candidate
+   * count (snapshots + sifting variants) so the whole-layout descent can
+   * iterate exact per-hull candidate ranges. Costs one extra candidate
+   * generation per packed hull on the reporting run only.
+   */
+  onPackedCandidateCount?: (hullId: string, count: number) => void,
 ): StrataPlacementResult {
   const rankOf = (clusterId: string): number => {
     const r = rank.rank.get(clusterId);
@@ -275,9 +284,21 @@ export function placeStrataHulls(
         infoByUnitId.get(id)?.colSpan ?? [0, 0],
     };
     let ordered: readonly StrataUnit[];
-    if (packedCandidateIndex !== undefined && hull.policy === "packed") {
+    const packedIndexForHull =
+      packedCandidateIndex === undefined
+        ? undefined
+        : typeof packedCandidateIndex === "number"
+          ? packedCandidateIndex
+          : packedCandidateIndex.get(hull.id);
+    if (hull.policy === "packed" && onPackedCandidateCount) {
+      onPackedCandidateCount(
+        hull.id,
+        strataPackedCandidateSequences(orderParams).length,
+      );
+    }
+    if (packedIndexForHull !== undefined && hull.policy === "packed") {
       const cands = strataPackedCandidateSequences(orderParams);
-      ordered = cands[Math.min(packedCandidateIndex, cands.length - 1)]!;
+      ordered = cands[Math.min(packedIndexForHull, cands.length - 1)]!;
     } else {
       ordered = orderStrataUnits(orderParams);
     }

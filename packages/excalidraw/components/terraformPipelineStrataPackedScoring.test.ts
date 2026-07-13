@@ -25,12 +25,18 @@
 import { describe, expect, it } from "vitest";
 
 import { buildStrataModel } from "./terraformPipelineStrataModel";
-import { liftStrataEdgesToUnits } from "./terraformPipelineStrataOrdering";
+import {
+  liftStrataEdgesToUnits,
+  strataPackedCandidateSequences,
+  strataUnitId,
+  type StrataOrderParams,
+} from "./terraformPipelineStrataOrdering";
 import {
   checkStrataStructure,
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
 import {
+  chooseStrataRefinedPlacement,
   placeStrataHullsPackedScored,
   scoreStrataPlacementGeometry,
   strataPackedScoreLess,
@@ -51,6 +57,7 @@ import type {
   StrataPlacementResult,
   StrataPrimeEdge,
   StrataRankResult,
+  StrataUnit,
 } from "./terraformPipelineStrataTypes";
 
 const OPTS_K4: StrataEngineOptions = {
@@ -237,15 +244,29 @@ describe("round-9 blind spot — packed scoring vs legacy acceptance", () => {
     expect(legacyScore.penetrations).toBeGreaterThanOrEqual(1);
 
     const scored = placeStrataHullsPackedScored(model, edges, rank, OPTS_K4);
-    const winnerScore = scored.candidateScores[scored.winnerIndex]!;
-    // A sweep candidate (not the initial order) wins with strictly fewer
-    // leaf-level crossings and no tunneling.
-    expect(scored.winnerIndex).toBeGreaterThanOrEqual(1);
-    expect(winnerScore.crossings).toBe(0);
-    expect(winnerScore.penetrations).toBe(0);
-    expect(winnerScore.crossings).toBeLessThan(legacyScore.crossings);
-    // The initial candidate's score equals the legacy score (same geometry).
-    expect(scored.candidateScores[0]).toEqual(legacyScore);
+    // The descent baseline IS the legacy placement/score.
+    expect(scored.baselineScore).toEqual(legacyScore);
+    // A per-hull snapshot selection wins with strictly fewer leaf-level
+    // crossings and no tunneling; the never-worse invariant holds.
+    expect(scored.selections.size).toBeGreaterThanOrEqual(1);
+    expect(scored.score.crossings).toBe(0);
+    expect(scored.score.penetrations).toBe(0);
+    expect(scored.score.crossings).toBeLessThan(legacyScore.crossings);
+    expect(strataPackedScoreLess(scored.baselineScore, scored.score)).toBe(
+      false,
+    );
+    // Replaying the winning selection through placeStrataHulls reproduces the
+    // winner exactly (the per-hull map is the real contract, not a side path).
+    const replay = placeStrataHulls(
+      model,
+      edges,
+      rank,
+      OPTS_K4,
+      scored.selections,
+    );
+    expect(placementFingerprint(replay)).toBe(
+      placementFingerprint(scored.placement),
+    );
 
     // R2 stays zero on the winner.
     const structure = checkStrataStructure(scored.placement, model);
@@ -255,9 +276,11 @@ describe("round-9 blind spot — packed scoring vs legacy acceptance", () => {
       contiguityViolations: 0,
     });
 
-    // Deterministic: double-compute is placement-identical.
+    // Deterministic: double-compute is selection- and placement-identical.
     const again = placeStrataHullsPackedScored(model, edges, rank, OPTS_K4);
-    expect(again.winnerIndex).toBe(scored.winnerIndex);
+    expect([...again.selections.entries()]).toEqual([
+      ...scored.selections.entries(),
+    ]);
     expect(placementFingerprint(again.placement)).toBe(
       placementFingerprint(scored.placement),
     );
@@ -268,11 +291,126 @@ describe("round-9 blind spot — packed scoring vs legacy acceptance", () => {
     const optsK0: StrataEngineOptions = { ...OPTS_K4, sweeps: 0 };
     const legacy = placeStrataHulls(model, edges, rank, optsK0);
     const scored = placeStrataHullsPackedScored(model, edges, rank, optsK0);
-    expect(scored.winnerIndex).toBe(0);
-    expect(scored.candidateScores).toHaveLength(1);
+    expect(scored.selections.size).toBe(0);
+    expect(scored.trialCount).toBe(1);
+    expect(scored.placement).toBe(scored.baselinePlacement);
     expect(placementFingerprint(scored.placement)).toBe(
       placementFingerprint(legacy),
     );
+  });
+
+  it("a packed hull absent from the selection map keeps the legacy order", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    const legacy = placeStrataHulls(model, edges, rank, OPTS_K4);
+    const empty = placeStrataHulls(
+      model,
+      edges,
+      rank,
+      OPTS_K4,
+      new Map<string, number>(),
+    );
+    expect(placementFingerprint(empty)).toBe(placementFingerprint(legacy));
+  });
+});
+
+describe("strataPackedCandidateSequences — group sift (satellite moves)", () => {
+  const unitL = (clusterId: string): StrataUnit => ({
+    kind: "leaf",
+    clusterId,
+  });
+  const unitH = (hullId: string): StrataUnit => ({ kind: "hull", hullId });
+  const KEYS: Record<string, string> = {
+    "L:q": "a",
+    "L:dyn": "b",
+    "H:h1": "c",
+    "H:h2": "d",
+  };
+  const params = (
+    liftedEdges: { from: string; to: string }[],
+  ): StrataOrderParams => ({
+    units: [unitL("q"), unitL("dyn"), unitH("h1"), unitH("h2")],
+    contentKeyOf: (u) => KEYS[strataUnitId(u)]!,
+    liftedEdges: liftedEdges.map((e, i) => ({ ...e, key: `e${i}` })),
+    unitHeightOf: () => 100,
+    policy: "packed" as const,
+    sweeps: 1,
+    unitXSpanOf: () => [0, 100] as const,
+    unitColSpanOf: () => [0, 0] as const,
+  });
+  const idsOf = (seqs: readonly (readonly StrataUnit[])[]): string[] =>
+    seqs.map((s) => s.map(strataUnitId).join(","));
+
+  it("a satellite pair (only-edges-into-group) moves together", () => {
+    // dyn's ONLY lifted edge points at q ⇒ dyn is q's satellite.
+    const cands = idsOf(
+      strataPackedCandidateSequences(
+        params([
+          { from: "L:q", to: "H:h2" },
+          { from: "L:q", to: "L:dyn" },
+        ]),
+      ),
+    );
+    // Group {q, dyn} inserted past both hulls, contiguously, order preserved.
+    expect(cands).toContain("H:h1,H:h2,L:q,L:dyn");
+    // Single-leaf sift of q alone still exists too.
+    expect(cands).toContain("L:dyn,H:h1,H:h2,L:q");
+  });
+
+  it("a leaf with an external edge is NOT treated as a satellite", () => {
+    // dyn now ALSO has an edge to H:h1 (outside any q-group) ⇒ never joins.
+    const cands = idsOf(
+      strataPackedCandidateSequences(
+        params([
+          { from: "L:q", to: "H:h2" },
+          { from: "L:q", to: "L:dyn" },
+          { from: "L:dyn", to: "H:h1" },
+        ]),
+      ),
+    );
+    expect(cands).not.toContain("H:h1,H:h2,L:q,L:dyn");
+  });
+});
+
+describe("chooseStrataRefinedPlacement — post-A7 never-worse guard", () => {
+  it("falls back to legacy when the scored arm is worse on final geometry", () => {
+    const root = leafHull("root", "root", ["a", "b", "c", "d"]);
+    const model = syntheticModel(root);
+    const edges = primeEdges([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+    // Scored final: X arrangement ⇒ 1 crossing. Legacy final: parallel ⇒ 0.
+    const scoredFinal = syntheticPlacement(
+      { a: box(0, 0), b: box(100, 100), c: box(100, 0), d: box(0, 100) },
+      {},
+    );
+    const legacyFinal = syntheticPlacement(
+      { a: box(0, 0), b: box(100, 0), c: box(0, 100), d: box(100, 100) },
+      {},
+    );
+    const chosen = chooseStrataRefinedPlacement(
+      scoredFinal,
+      legacyFinal,
+      model,
+      edges,
+    );
+    expect(chosen.fellBack).toBe(true);
+    expect(chosen.placement).toBe(legacyFinal);
+  });
+
+  it("keeps the scored arm on wins AND on exact ties (no churn)", () => {
+    const root = leafHull("root", "root", ["a", "b"]);
+    const model = syntheticModel(root);
+    const edges = primeEdges([["a", "b"]]);
+    const p1 = syntheticPlacement({ a: box(0, 0), b: box(100, 0) }, {});
+    const p2 = syntheticPlacement({ a: box(0, 0), b: box(100, 0) }, {});
+    const tie = chooseStrataRefinedPlacement(p1, p2, model, edges);
+    expect(tie.fellBack).toBe(false);
+    expect(tie.placement).toBe(p1);
+    const shorter = syntheticPlacement({ a: box(0, 0), b: box(50, 0) }, {});
+    const win = chooseStrataRefinedPlacement(shorter, p2, model, edges);
+    expect(win.fellBack).toBe(false);
+    expect(win.placement).toBe(shorter);
   });
 });
 

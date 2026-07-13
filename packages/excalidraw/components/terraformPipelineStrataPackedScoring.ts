@@ -55,10 +55,23 @@ export type StrataPackedScore = {
 
 export type StrataPackedScoredPlacement = {
   placement: StrataPlacementResult;
-  /** Index of the winning candidate (0 = initial order). */
-  winnerIndex: number;
-  /** Per-candidate scores in generation order (diagnostics/battery surface). */
-  candidateScores: readonly StrataPackedScore[];
+  /**
+   * The untouched legacy (acceptance-chain) placement — the descent baseline.
+   * Same object as `placement` when no hull selection improved on legacy.
+   */
+  baselinePlacement: StrataPlacementResult;
+  /** Score of the legacy baseline (pre-A7 geometry). */
+  baselineScore: StrataPackedScore;
+  /** Score of the winning selection (pre-A7 geometry). ≤ baseline always. */
+  score: StrataPackedScore;
+  /**
+   * Winning per-hull snapshot selection (hull id → candidate index). A packed
+   * hull absent here kept the legacy acceptance-chain order. Empty ⇒ legacy
+   * won outright.
+   */
+  selections: ReadonlyMap<string, number>;
+  /** Full trial placements evaluated (cost observability). */
+  trialCount: number;
 };
 
 /** `a` strictly precedes `b` lexicographically (crossings, penetrations, L1). */
@@ -258,12 +271,71 @@ export function scoreStrataPlacementGeometry(
 }
 
 /**
- * A0 placement under whole-layout packed candidate scoring. Runs the FULL
- * placement once per packed snapshot index (K+1 runs at sweep budget K; a
- * single run when K≤0 — identical geometry to the legacy path there, since
- * every packed hull's only snapshot is the initial order and banded hulls are
- * untouched in all runs), scores each, and returns the lexicographic winner
- * (earliest index on exact ties).
+ * Post-A7 never-worse guard (round-9 iteration 2). The descent's never-worse
+ * guarantee is on pre-A7 geometry; A7 can invert the ranking. Given both arms
+ * refined to FINAL geometry, keep the scored arm only if it is
+ * lexicographically no worse — otherwise fall back to legacy entirely. Ties
+ * keep the scored arm (it already won pre-A7; falling back on a tie would
+ * churn geometry for no metric gain).
+ */
+export function chooseStrataRefinedPlacement(
+  scoredFinal: StrataPlacementResult,
+  legacyFinal: StrataPlacementResult,
+  model: StrataModel,
+  edgesPrime: readonly StrataPrimeEdge[],
+): { placement: StrataPlacementResult; fellBack: boolean } {
+  const scoredScore = scoreStrataPlacementGeometry(
+    scoredFinal,
+    model,
+    edgesPrime,
+  );
+  const legacyScore = scoreStrataPlacementGeometry(
+    legacyFinal,
+    model,
+    edgesPrime,
+  );
+  return strataPackedScoreLess(legacyScore, scoredScore)
+    ? { placement: legacyFinal, fellBack: true }
+    : { placement: scoredFinal, fellBack: false };
+}
+
+/** Pre-order list of packed hulls that can actually reorder (≥2 units). */
+function reorderablePackedHullIds(root: StrataHullNode): readonly string[] {
+  const out: string[] = [];
+  const walk = (hull: StrataHullNode): void => {
+    if (
+      hull.policy === "packed" &&
+      hull.children.length + hull.leafClusterIds.length >= 2
+    ) {
+      out.push(hull.id);
+    }
+    for (const child of hull.children) {
+      walk(child);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/**
+ * A0 placement under whole-layout packed candidate scoring — per-hull
+ * coordinate descent (round-9 remedy, iteration 2).
+ *
+ * Baseline = the legacy acceptance-chain placement (every packed hull absent
+ * from the selection map). Then packed hulls with ≥2 units are visited in
+ * stable pre-order; for each, every unconditional sweep snapshot {0..K} is
+ * trial-placed as a FULL layout with all other hulls held at their current
+ * selection, and a snapshot is adopted only when the whole-layout score
+ * strictly improves (exact ties keep the incumbent, so legacy wins ties —
+ * diff stability). A second pass runs only if the first changed anything; on
+ * that pass each hull also retries LEGACY plus the other snapshots, so a
+ * pass-1 adoption invalidated by a later hull's move can be undone. Capped at
+ * two passes (deterministic, bounded cost).
+ *
+ * Guarantees: the returned selection's PRE-A7 score is never worse than
+ * legacy's (the incumbent only ever improves). K≤0 skips the descent — the
+ * candidate set degenerates to the initial order, which IS the legacy order
+ * at K=0.
  */
 export function placeStrataHullsPackedScored(
   model: StrataModel,
@@ -271,20 +343,99 @@ export function placeStrataHullsPackedScored(
   rank: StrataRankResult,
   options: StrataEngineOptions,
 ): StrataPackedScoredPlacement {
-  const runs = options.sweeps > 0 ? options.sweeps + 1 : 1;
-  let winner: StrataPlacementResult | undefined;
-  let winnerScore: StrataPackedScore | undefined;
-  let winnerIndex = 0;
-  const candidateScores: StrataPackedScore[] = [];
-  for (let c = 0; c < runs; c++) {
-    const placement = placeStrataHulls(model, edgesPrime, rank, options, c);
-    const score = scoreStrataPlacementGeometry(placement, model, edgesPrime);
-    candidateScores.push(score);
-    if (winnerScore === undefined || strataPackedScoreLess(score, winnerScore)) {
-      winner = placement;
-      winnerScore = score;
-      winnerIndex = c;
+  const candidateCounts = new Map<string, number>();
+  const baselinePlacement = placeStrataHulls(
+    model,
+    edgesPrime,
+    rank,
+    options,
+    new Map<string, number>(),
+    (hullId, count) => candidateCounts.set(hullId, count),
+  );
+  const baselineScore = scoreStrataPlacementGeometry(
+    baselinePlacement,
+    model,
+    edgesPrime,
+  );
+  let trialCount = 1;
+
+  let bestPlacement = baselinePlacement;
+  let bestScore = baselineScore;
+  const selection = new Map<string, number>();
+
+  if (options.sweeps > 0) {
+    const hullIds = reorderablePackedHullIds(model.hullRoot);
+    const LEGACY = -1;
+    for (let pass = 0; pass < 2; pass++) {
+      let changed = false;
+      for (const hullId of hullIds) {
+        const current = selection.get(hullId) ?? LEGACY;
+        const count = candidateCounts.get(hullId) ?? options.sweeps + 1;
+        for (let c = 0; c < count; c++) {
+          // Pass 1 incumbents are all LEGACY; pass 2 also retries LEGACY via
+          // the c === current skip below only excluding the incumbent value.
+          if (c === current) {
+            continue;
+          }
+          const trial = new Map(selection);
+          trial.set(hullId, c);
+          const placement = placeStrataHulls(
+            model,
+            edgesPrime,
+            rank,
+            options,
+            trial,
+          );
+          trialCount += 1;
+          const score = scoreStrataPlacementGeometry(
+            placement,
+            model,
+            edgesPrime,
+          );
+          if (strataPackedScoreLess(score, bestScore)) {
+            bestPlacement = placement;
+            bestScore = score;
+            selection.set(hullId, c);
+            changed = true;
+          }
+        }
+        // Pass 2: also retry dropping this hull back to legacy.
+        if (pass > 0 && selection.has(hullId)) {
+          const trial = new Map(selection);
+          trial.delete(hullId);
+          const placement = placeStrataHulls(
+            model,
+            edgesPrime,
+            rank,
+            options,
+            trial,
+          );
+          trialCount += 1;
+          const score = scoreStrataPlacementGeometry(
+            placement,
+            model,
+            edgesPrime,
+          );
+          if (strataPackedScoreLess(score, bestScore)) {
+            bestPlacement = placement;
+            bestScore = score;
+            selection.delete(hullId);
+            changed = true;
+          }
+        }
+      }
+      if (!changed) {
+        break;
+      }
     }
   }
-  return { placement: winner!, winnerIndex, candidateScores };
+
+  return {
+    placement: bestPlacement,
+    baselinePlacement,
+    baselineScore,
+    score: bestScore,
+    selections: selection,
+    trialCount,
+  };
 }

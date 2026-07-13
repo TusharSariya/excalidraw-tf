@@ -10,7 +10,10 @@ import {
   checkStrataStructure,
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
-import { placeStrataHullsPackedScored } from "./terraformPipelineStrataPackedScoring";
+import {
+  chooseStrataRefinedPlacement,
+  placeStrataHullsPackedScored,
+} from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
@@ -254,8 +257,40 @@ export async function buildTerraformStrataExcalidrawScene(
     // R2 dev-assert inside the pass makes a re-anchor violation degrade honestly.
     stage = "a7";
     gate("a7");
+    // Round-9 iteration 2: post-A7 never-worse guard. The descent's guarantee
+    // is on PRE-A7 geometry; A7 (order-preserving Y refinement) can invert the
+    // ranking. When the scored selection actually moved a hull, refine BOTH
+    // arms and keep the scored one only if it is lexicographically no worse on
+    // FINAL geometry — otherwise fall back to legacy entirely (structural
+    // no-regress on the scorer's metric, any preset).
+    let packedScoringFellBack = false;
     if (engineOptions.coordinateRefine) {
-      placement = refineStrataCoordinates(placement, model, repair.edgesPrime);
+      if (packedScored && packedScored.selections.size > 0) {
+        const scoredFinal = refineStrataCoordinates(
+          placement,
+          model,
+          repair.edgesPrime,
+        );
+        const legacyFinal = refineStrataCoordinates(
+          packedScored.baselinePlacement,
+          model,
+          repair.edgesPrime,
+        );
+        const chosen = chooseStrataRefinedPlacement(
+          scoredFinal,
+          legacyFinal,
+          model,
+          repair.edgesPrime,
+        );
+        placement = chosen.placement;
+        packedScoringFellBack = chosen.fellBack;
+      } else {
+        placement = refineStrataCoordinates(
+          placement,
+          model,
+          repair.edgesPrime,
+        );
+      }
     }
 
     stage = "scene-build";
@@ -326,8 +361,13 @@ export async function buildTerraformStrataExcalidrawScene(
         // Round-9 packed-scoring observability — present only when flag-on.
         ...(packedScored
           ? {
-              strataPackedScoringWinner: packedScored.winnerIndex,
-              strataPackedScoringScores: packedScored.candidateScores,
+              strataPackedScoringSelections: Object.fromEntries(
+                packedScored.selections,
+              ),
+              strataPackedScoringBaselineScore: packedScored.baselineScore,
+              strataPackedScoringScore: packedScored.score,
+              strataPackedScoringTrials: packedScored.trialCount,
+              strataPackedScoringFellBack: packedScoringFellBack,
             }
           : {}),
         // R2 evidence (all-zero on the success path).
