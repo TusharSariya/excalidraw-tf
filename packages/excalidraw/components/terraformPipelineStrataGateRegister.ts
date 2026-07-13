@@ -178,9 +178,11 @@ export type GateRegisterScalarCell = {
 export type GateRegister = {
   schemaVersion: 1;
   cells: GateRegisterCell[];
-  /** Round-9 scalar claim cells (M-H / M-TCR / M-ANG). Optional so older
-   * registers stay valid; when present the test enforces the same label
-   * discipline as the paired cells. */
+  /** Round-9 scalar probe cells (hullPenetrationsProbe / batteryCrossings /
+   * sharpShare) — report-observations, not accepted M-H/M-TCR/M-ANG gates
+   * (the normative M-H exact-zero vector remains outstanding). Optional so
+   * older registers stay valid; when present the test enforces the same
+   * label discipline as the paired cells. */
   scalarCells?: GateRegisterScalarCell[];
 };
 

@@ -613,8 +613,10 @@ function armSummary(data: ArmData, rows: readonly PathMetricsRow[]) {
  * two fields that legitimately differ across otherwise-equivalent builds — the
  * wall-clock `buildMs`, and `metaEcho.strataToggleSuppressions` (populated on
  * ALL, empty on P_RS, yet the two produce identical geometry once NS is
- * suppressed). Comparing this payload proves "effective geometry and comparison
- * cells identical", not literal byte-for-byte equality of the raw summary.
+ * suppressed). Comparing this payload proves the normalized AGGREGATE summary
+ * (scalar counters, owner-case fields, cell values) is identical — it does not
+ * compare emitted elements, slice maps, or full path rows, so it is a
+ * summary-level determinism check, not a full-geometry proof.
  */
 function armSummaryNormalized(data: ArmData, rows: readonly PathMetricsRow[]) {
   const { buildMs: _buildMs, metaEcho, ...rest } = armSummary(data, rows);
