@@ -120,3 +120,17 @@ _BLOCKED — this section intentionally empty at pre-registration. Battery numbe
 ## Interpretation
 
 _BLOCKED-ON-Q7 — the task-direction reading of any W12 number waits on the owner's Q7-AXIS labeling (open W11 exit criterion, `docs/strata-baselines/q7axis/`). Until Q7 labels land, the pre-registered reading above is a prediction protocol, not a result._
+
+## Appendix A — browser felt-cost trace (WP4, best-effort; REPORT-only)
+
+One chrome-devtools-mcp performance trace of the real dev app (2026-07-13): `yarn start` (vite, `localhost:3002`), URL `/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&strataSweeps=4&strataCoordRefine=1` — P1, strata view, **full detail**, K=4 + A7 (the I2 full arm's option shape). First navigation warmed vite + ran the import once; the traced run was a reload with the trace recording. Numeric detail: [`strata-baselines/q12/BROWSER_TRACE_NOTES.md`](./strata-baselines/q12/BROWSER_TRACE_NOTES.md).
+
+**Felt wall-clock:** initial shell LCP 887 ms (CLS 0.00), then the import runs as **one blocking main-thread long task of 13,412 ms** starting t+1.23 s, followed by two apply/render tasks (227 ms @ t+14.66 s, 154 ms @ t+14.96 s) — the imported scene settles ≈ **t+15.1 s**. During the long task the page is frozen (the previous scene renders from localStorage, so the user stares at a stale, unresponsive canvas).
+
+**Main-thread attribution (event buckets, whole trace):** scripting 14,273 ms · paint 246 ms · compositing/render 36 ms · DOM layout 36 ms — the felt cost is JS compute, not render/paint.
+
+**Sampled CPU attribution (leaf frames):** address/key resolution dominates — `resolveTerraformPlanNodeKey` 2,487 ms, index-stripping RegExp 2,374 ms, `terraformModulePrefixForAddress` 2,064 ms, `parseStackAddress` 1,874 ms, `collectKnownStackIdsFromNodes` 1,057 ms, `stripTerraformAddressIndexes` 983 ms (≈ 8.8 s, ~65% of busy); topology link resolvers (IAM/SG/API-GW/S3) ≈ 1.5 s; DOT peg parse ≈ 0.4 s; strata geometry solvers ≈ 26 ms (negligible). These leaves fire from both plan parsing and skeleton element building (`skeleton.resourceRects`), so this is attribution by function, not by stage.
+
+**Seam observation:** no DedicatedWorker thread activity — layout ran on the renderer main thread (`runSequential` inside `layoutTerraformViaWorkers`), same in-process path the battery's timing split measured. Shape cross-check vs WP3's split for I2_full on P1 (wall 15,596 ms = outer 2,491 + `layout.pipeline` 13,101 + remainder ≈ 4): the browser's 13.4 s task + ≈ 1.7 s surrounding work matches.
+
+**Caveats:** dev build (unminified, React dev) + tracing overhead; single trace, one preset, one arm; no strata-vs-v2 browser A/B. Attribution shape — not absolute milliseconds — is the evidence. Proof-API timing emit stays deferred (plan D7).
