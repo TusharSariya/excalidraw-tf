@@ -85,6 +85,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
    * Default off. */
   strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer.
+   * Default 0 (strict rule). */
+  strataPackedScoringEpsilon?: number;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -120,6 +123,7 @@ export const runTerraformImportWithView = async ({
   strataCoordinateRefine,
   strataRankSeparate,
   strataPackedScoring,
+  strataPackedScoringEpsilon,
   importedTfdTexts,
   preset = null,
   signal,
@@ -161,6 +165,7 @@ export const runTerraformImportWithView = async ({
           strataCoordinateRefine,
           strataRankSeparate,
           strataPackedScoring,
+          strataPackedScoringEpsilon,
         }
       : {}),
     importedTfdTexts,
@@ -198,6 +203,7 @@ export type RunTerraformPresetImportOptions = {
   strataCoordinateRefine?: boolean;
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
+  strataPackedScoringEpsilon?: number;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -258,6 +264,7 @@ export const runTerraformPresetImport = async (
     strataCoordinateRefine: options.strataCoordinateRefine,
     strataRankSeparate: options.strataRankSeparate,
     strataPackedScoring: options.strataPackedScoring,
+    strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

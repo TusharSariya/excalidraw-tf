@@ -16,6 +16,7 @@ describe("resolveStrataDemoOptions", () => {
       strataCoordinateRefine: true,
       strataRankSeparate: false,
       strataPackedScoring: false,
+      strataPackedScoringEpsilon: 0,
     });
   });
 
@@ -55,6 +56,7 @@ describe("resolveStrataDemoOptions", () => {
       strataCoordinateRefine: true,
       strataRankSeparate: true,
       strataPackedScoring: false,
+      strataPackedScoringEpsilon: 0,
     });
   });
 
@@ -67,5 +69,22 @@ describe("resolveStrataDemoOptions", () => {
       "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1",
     );
     expect(resolveStrataDemoOptions(on!).strataPackedScoring).toBe(true);
+  });
+
+  it("resolves strataPackedScoringEpsilon: default 0, explicit strataPackedEps wins (incl. relative)", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    expect(resolveStrataDemoOptions(bare!).strataPackedScoringEpsilon).toBe(0);
+    const abs = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1&strataPackedEps=2",
+    );
+    expect(resolveStrataDemoOptions(abs!).strataPackedScoringEpsilon).toBe(2);
+    const rel = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1&strataPackedEps=0.01",
+    );
+    expect(resolveStrataDemoOptions(rel!).strataPackedScoringEpsilon).toBe(
+      0.01,
+    );
   });
 });

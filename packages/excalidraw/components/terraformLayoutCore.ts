@@ -468,6 +468,11 @@ type LayoutSceneContext = {
   /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
    * Default off. */
   strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer.
+   * Default 0 (strict rule; inert without `strataPackedScoring`). */
+  strataPackedScoringEpsilon?: number;
+  /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
+  strataPackedFrontierMeta?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
@@ -574,6 +579,8 @@ async function buildPipelineLayoutSceneBody(
         strataRankSeparate: ctx.strataRankSeparate,
         strataJointNsRank: ctx.strataJointNsRank,
         strataPackedScoring: ctx.strataPackedScoring,
+        strataPackedScoringEpsilon: ctx.strataPackedScoringEpsilon,
+        strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
       };
@@ -1118,6 +1125,8 @@ export async function layoutTerraformFromSources(
     strataRankSeparate: options?.strataRankSeparate === true,
     strataJointNsRank: options?.strataJointNsRank === true,
     strataPackedScoring: options?.strataPackedScoring === true,
+    strataPackedScoringEpsilon: options?.strataPackedScoringEpsilon ?? 0,
+    strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     colorMode: options?.colorMode,

@@ -183,6 +183,10 @@ export type TerraformPlanParsingOptions = {
    * ordering (real-skyline trials; lexicographic crossings → penetrations →
    * length). Default off. */
   strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
+  strataPackedScoringEpsilon?: number;
+  /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
+  strataPackedFrontierMeta?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;

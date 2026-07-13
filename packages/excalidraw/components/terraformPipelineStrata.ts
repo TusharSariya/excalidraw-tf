@@ -17,6 +17,7 @@ import {
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
+import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
 import type { StrataDegradedMeta } from "./terraformPipelineStrataTypes";
 import type { TerraformPlanNodesMap } from "./terraformPlanParsing";
 import type { TerraformImportWarning } from "./terraformImportMerge";
@@ -57,6 +58,23 @@ export type TerraformStrataSceneOptions = {
    * `placeStrataHullsPackedScored`.
    */
   strataPackedScoring?: boolean;
+  /**
+   * W8b (SDEC-59 follow-up, default 0 = the round-9 strict rule, bit-for-bit):
+   * ε-constraint crossings budget for the packed-scoring descent AND its
+   * post-A7 never-worse guard. delta = epsilon when >= 1 (absolute integer
+   * crossings), else ceil(epsilon × baseline crossings) when 0 < epsilon < 1
+   * (relative mode); the budget is GLOBAL vs the legacy baseline
+   * (anti-ratchet). Inert unless `strataPackedScoring` is on.
+   */
+  strataPackedScoringEpsilon?: number;
+  /**
+   * W8b frontier instrumentation (report-only dev seam, harness-only — no UI/
+   * session/URL surface): when on WITH `strataPackedScoring`, every descent
+   * trial's {hullId, candidateIndex, pass, score, adopted} is echoed in scene
+   * meta as `strataPackedScoringFrontierTrials`. Zero behavior change; off ⇒
+   * no collector ⇒ byte-identical work.
+   */
+  strataPackedFrontierMeta?: boolean;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -142,6 +160,9 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataJointNsRank = options?.strataJointNsRank === true;
   // Round 9 (SDEC-57): packed candidate-set scoring, default off.
   const strataPackedScoring = options?.strataPackedScoring === true;
+  // W8b: ε-constraint budget (0 = strict rule) + frontier instrumentation.
+  const strataPackedScoringEpsilon = options?.strataPackedScoringEpsilon ?? 0;
+  const strataPackedFrontierMeta = options?.strataPackedFrontierMeta === true;
 
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
@@ -153,6 +174,9 @@ export async function buildTerraformStrataExcalidrawScene(
     strataRankSeparate,
     ...(strataJointNsRank ? { strataJointNsRank } : {}),
     ...(strataPackedScoring ? { strataPackedScoring } : {}),
+    ...(strataPackedScoring && strataPackedScoringEpsilon !== 0
+      ? { strataPackedScoringEpsilon }
+      : {}),
     strataSweeps,
     strataCoordinateRefine,
     strataGeneration,
@@ -176,6 +200,11 @@ export async function buildTerraformStrataExcalidrawScene(
     sweeps: strataSweeps,
     coordinateRefine: strataCoordinateRefine,
     ...(strataPackedScoring ? { packedScoring: true } : {}),
+    // W8b: epsilon rides only when the scorer is on AND nonzero, so existing
+    // option literals (and epsilon-0 callers) stay byte-identical.
+    ...(strataPackedScoring && strataPackedScoringEpsilon !== 0
+      ? { packedScoringEpsilon: strataPackedScoringEpsilon }
+      : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -226,6 +255,9 @@ export async function buildTerraformStrataExcalidrawScene(
     let packedScored:
       | ReturnType<typeof placeStrataHullsPackedScored>
       | undefined;
+    // W8b frontier trials (report-only; collected only when the seam is on).
+    const packedFrontierTrials: StrataPackedTrialRecord[] | undefined =
+      strataPackedScoring && strataPackedFrontierMeta ? [] : undefined;
     try {
       if (strataPackedScoring) {
         packedScored = placeStrataHullsPackedScored(
@@ -233,6 +265,9 @@ export async function buildTerraformStrataExcalidrawScene(
           repair.edgesPrime,
           rank,
           engineOptions,
+          packedFrontierTrials
+            ? (record) => packedFrontierTrials.push(record)
+            : undefined,
         );
         placement = packedScored.placement;
       } else {
@@ -281,6 +316,8 @@ export async function buildTerraformStrataExcalidrawScene(
           legacyFinal,
           model,
           repair.edgesPrime,
+          // W8b: the guard shares the descent's resolved δ-band (0 = today).
+          packedScored.effectiveDelta,
         );
         placement = chosen.placement;
         packedScoringFellBack = chosen.fellBack;
@@ -368,6 +405,12 @@ export async function buildTerraformStrataExcalidrawScene(
               strataPackedScoringScore: packedScored.score,
               strataPackedScoringTrials: packedScored.trialCount,
               strataPackedScoringFellBack: packedScoringFellBack,
+              // W8b ε-constraint echoes (0/0 = strict rule, today's behavior).
+              strataPackedScoringEpsilon: packedScored.epsilon,
+              strataPackedScoringEffectiveDelta: packedScored.effectiveDelta,
+              ...(packedFrontierTrials
+                ? { strataPackedScoringFrontierTrials: packedFrontierTrials }
+                : {}),
             }
           : {}),
         // R2 evidence (all-zero on the success path).

@@ -141,6 +141,12 @@ export const useTerraformImportDialog = ({
   const [strataPackedScoring, setStrataPackedScoring] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring as boolean,
   );
+  // Strata W8b (strata-only): ε-constraint crossings budget for the packed
+  // scorer. Default 0 = the strict round-9 rule; REPORT lever — a nonzero
+  // default is an owner adjudication, never a silent pick.
+  const [strataPackedScoringEpsilon, setStrataPackedScoringEpsilon] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon as number,
+  );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -440,6 +446,7 @@ export const useTerraformImportDialog = ({
         strataCoordinateRefine,
         strataRankSeparate,
         strataPackedScoring,
+        strataPackedScoringEpsilon,
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -581,6 +588,7 @@ export const useTerraformImportDialog = ({
           strataCoordinateRefine,
           strataRankSeparate,
           strataPackedScoring,
+          strataPackedScoringEpsilon,
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -688,6 +696,7 @@ export const useTerraformImportDialog = ({
         strataCoordinateRefine,
         strataRankSeparate,
         strataPackedScoring,
+        strataPackedScoringEpsilon,
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -909,6 +918,7 @@ export const useTerraformImportDialog = ({
         strataCoordinateRefine,
         strataRankSeparate,
         strataPackedScoring,
+        strataPackedScoringEpsilon,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -937,6 +947,7 @@ export const useTerraformImportDialog = ({
     strataCoordinateRefine,
     strataRankSeparate,
     strataPackedScoring,
+    strataPackedScoringEpsilon,
     moduleLayoutOptions.mode,
   ]);
 
@@ -966,6 +977,7 @@ export const useTerraformImportDialog = ({
     strataCoordinateRefine,
     strataRankSeparate,
     strataPackedScoring,
+    strataPackedScoringEpsilon,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1017,6 +1029,7 @@ export const useTerraformImportDialog = ({
     setStrataCoordinateRefine,
     setStrataRankSeparate,
     setStrataPackedScoring,
+    setStrataPackedScoringEpsilon,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

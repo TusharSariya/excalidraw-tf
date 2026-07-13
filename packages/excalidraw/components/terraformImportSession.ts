@@ -79,6 +79,8 @@ export type TerraformImportSession = {
   strataRankSeparate?: boolean;
   /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring. */
   strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
+  strataPackedScoringEpsilon?: number;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

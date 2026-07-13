@@ -14,6 +14,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** Round 9 (SDEC-57): packed-hull whole-layout candidate scoring — probe
    * lever, default off pending its gate battery. */
   strataPackedScoring: false,
+  /** W8b (SDEC-59 follow-up): ε-constraint crossings budget for the packed
+   * scorer. 0 = the strict round-9 rule (bit-identical); REPORT lever only —
+   * a nonzero default is an owner adjudication, never a silent pick. */
+  strataPackedScoringEpsilon: 0,
 } as const;
 
 /**
@@ -29,6 +33,7 @@ export const resolveStrataDemoOptions = (params: {
   strataCoordRefine?: boolean;
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
+  strataPackedEps?: number;
 }) => ({
   strataNetworkSimplexRank:
     params.strataNsRank ??
@@ -44,4 +49,7 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedScoring:
     params.strataPackedScoring ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring,
+  strataPackedScoringEpsilon:
+    params.strataPackedEps ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
 });

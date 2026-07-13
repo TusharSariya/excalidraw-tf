@@ -47,6 +47,17 @@ export type StrataEngineOptions = {
    * option literals (flag-OFF byte-identity) are unaffected.
    */
   packedScoring?: boolean;
+  /**
+   * W8b (SDEC-59 follow-up, default 0 = strict rule, bit-identical to round
+   * 9): epsilon-constraint crossings budget for the packed-scoring descent. A
+   * trial within `baseline crossings + delta` may also be adopted when it
+   * strictly improves (penetrations, lengthL1); delta = epsilon when >= 1,
+   * else ceil(epsilon * baseline crossings) (relative mode). Anti-ratchet:
+   * the budget is global vs the LEGACY baseline, never the rolling incumbent.
+   * Consumed only when `packedScoring` is on. Optional so existing option
+   * literals (flag-OFF byte-identity) are unaffected.
+   */
+  packedScoringEpsilon?: number;
 };
 
 /**

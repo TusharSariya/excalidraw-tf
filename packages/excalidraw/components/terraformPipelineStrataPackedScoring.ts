@@ -25,9 +25,43 @@
  * Strictly lower earlier term wins; exact ties keep the EARLIEST candidate
  * (diff-stability, matching every other Strata tiebreak).
  *
+ * W8b ε-constraint selection (`strataPackedScoringEpsilon`, default 0):
+ * W8 (docs/strata-view-w8-rank-scorer-factorial.md, SDEC-59) showed the strict
+ * crossings-first rule is an INFINITE exchange rate — under the rankSeparate
+ * substrate it trades the owner's SQS/Dynamo pair locality for a global
+ * crossings win. The literature prices a crossing finitely (Ware et al. 2002,
+ * corpus doc doi-10-1057-palgrave-ivs-9500013: each crossing costs a bounded
+ * response-time increment, comparable to ~38° of path bendiness — a bounded,
+ * not lexicographically infinite, priority), and ε-constraint selection is the
+ * standard way to bound one objective while optimizing the rest without
+ * committing to weighted-sum trade weights (multi-objective drawing framings:
+ * corpus docs s2-10-4230-lipics-gd-2025-53, arxiv-2112-01571v1; readability
+ * metrics: s2-10-1147-jrd-2015-2411412). Semantics (anti-ratchet, mandatory):
+ * a trial may ALSO be adopted when its crossings are within the GLOBAL budget
+ * `baselineScore.crossings + delta` (baseline = the legacy acceptance-chain
+ * placement, NOT the rolling incumbent — an incumbent-relative budget would
+ * re-extend on every adoption and let crossings drift upward across hull
+ * visits) AND it strictly improves (penetrations, lengthL1) lexicographically
+ * over the incumbent best. delta = epsilon when epsilon >= 1, or
+ * ceil(epsilon * baselineScore.crossings) when 0 < epsilon < 1 (relative
+ * mode). epsilon <= 0 disables the band entirely — bit-identical to the
+ * strict rule. Ties still keep the EARLIEST candidate.
+ *
+ * Termination: the descent is structurally bounded (≤2 passes × fixed hull
+ * list × fixed per-hull candidate count), so it terminates unconditionally.
+ * Additionally every adoption strictly decreases a well-founded quantity —
+ * strict-lexicographic wins decrease the full (crossings, penetrations,
+ * lengthL1) triple, and ε-band wins strictly decrease the (penetrations,
+ * lengthL1) pair over nonnegative integers while crossings stay inside the
+ * bounded set [0, baseline + delta] — so no adoption cycle is possible and
+ * the pass-2 legacy-retry cannot oscillate.
+ *
  * Determinism: pure integer arithmetic on the doubled-coordinate system, no
  * RNG/clock, stable iteration orders (edgesPrime is C4′-sorted upstream; the
- * hull tree is content-addressed). No module-level consts derived from
+ * hull tree is content-addressed). The ONE non-integer step is the relative-
+ * mode `Math.ceil(epsilon * baselineCrossings)` (exact for the shipped 0.01
+ * granularity; a caller-supplied epsilon >= 1 is used as-is and is expected
+ * to be an integer). No module-level consts derived from
  * terraformPipelineLayoutShared (SDEC NaN import-cycle rule) — this module
  * reads no LayoutShared bindings at all.
  */
@@ -53,6 +87,22 @@ export type StrataPackedScore = {
   lengthL1: number;
 };
 
+/**
+ * One recorded descent trial (frontier instrumentation, W8b — report-only).
+ * The synthetic hullId "__baseline__" tags the legacy baseline placement
+ * (candidateIndex −1, pass 0, adopted true); candidateIndex −1 on a real hull
+ * tags the pass-2 legacy-retry trial (drop the hull back to legacy order).
+ */
+export type StrataPackedTrialRecord = {
+  hullId: string;
+  candidateIndex: number;
+  pass: number;
+  score: StrataPackedScore;
+  adopted: boolean;
+  /** How the trial was adopted: strict lexicographic win vs ε-band admission. */
+  adoptedVia?: "strict" | "epsilon";
+};
+
 export type StrataPackedScoredPlacement = {
   placement: StrataPlacementResult;
   /**
@@ -62,8 +112,17 @@ export type StrataPackedScoredPlacement = {
   baselinePlacement: StrataPlacementResult;
   /** Score of the legacy baseline (pre-A7 geometry). */
   baselineScore: StrataPackedScore;
-  /** Score of the winning selection (pre-A7 geometry). ≤ baseline always. */
+  /**
+   * Score of the winning selection (pre-A7 geometry). With epsilon 0 it is
+   * never worse than baseline; with epsilon > 0 its crossings may exceed
+   * baseline by at most `effectiveDelta` (bought only with a strict
+   * (penetrations, lengthL1) improvement).
+   */
   score: StrataPackedScore;
+  /** The requested ε (echo; 0 = strict rule, today's behavior). */
+  epsilon: number;
+  /** The resolved crossings budget above baseline (see resolve helper). */
+  effectiveDelta: number;
   /**
    * Winning per-hull snapshot selection (hull id → candidate index). A packed
    * hull absent here kept the legacy acceptance-chain order. Empty ⇒ legacy
@@ -86,6 +145,62 @@ export function strataPackedScoreLess(
     return a.penetrations < b.penetrations;
   }
   return a.lengthL1 < b.lengthL1;
+}
+
+/** `a` strictly precedes `b` on the (penetrations, lengthL1) suffix only. */
+function strataPenLengthLess(
+  a: StrataPackedScore,
+  b: StrataPackedScore,
+): boolean {
+  if (a.penetrations !== b.penetrations) {
+    return a.penetrations < b.penetrations;
+  }
+  return a.lengthL1 < b.lengthL1;
+}
+
+/**
+ * Resolve the ε-constraint crossings budget above the LEGACY BASELINE.
+ * epsilon <= 0 ⇒ 0 (strict rule); epsilon >= 1 ⇒ epsilon (absolute integer
+ * crossings); 0 < epsilon < 1 ⇒ ceil(epsilon * baselineCrossings) (relative
+ * mode — the single non-integer step in the selector, see module header).
+ */
+export function resolveStrataPackedEpsilonDelta(
+  epsilon: number,
+  baselineCrossings: number,
+): number {
+  if (!Number.isFinite(epsilon) || epsilon <= 0) {
+    return 0;
+  }
+  return epsilon >= 1 ? epsilon : Math.ceil(epsilon * baselineCrossings);
+}
+
+/**
+ * ε-constraint adoption rule (W8b). A trial is adopted iff EITHER
+ *  (a) it wins under the strict lexicographic rule vs the incumbent
+ *      (unchanged, `strataPackedScoreLess`), OR
+ *  (b) delta > 0 AND `trial.crossings <= baselineCrossings + delta` (the
+ *      GLOBAL anti-ratchet budget — vs the legacy baseline, never the rolling
+ *      incumbent) AND the trial strictly improves (penetrations, lengthL1)
+ *      lexicographically over the incumbent.
+ * delta = 0 makes (b) unreachable ⇒ bit-identical to the strict rule.
+ */
+export function strataPackedScoreAdoptable(
+  trial: StrataPackedScore,
+  incumbent: StrataPackedScore,
+  baselineCrossings: number,
+  delta: number,
+): false | "strict" | "epsilon" {
+  if (strataPackedScoreLess(trial, incumbent)) {
+    return "strict";
+  }
+  if (
+    delta > 0 &&
+    trial.crossings <= baselineCrossings + delta &&
+    strataPenLengthLess(trial, incumbent)
+  ) {
+    return "epsilon";
+  }
+  return false;
 }
 
 /** Orientation sign of (a, b, c): +1 CCW, −1 CW, 0 collinear. Exact integers. */
@@ -210,7 +325,14 @@ export function scoreStrataPlacementGeometry(
     }
     const [ax, ay] = doubledCentre(sBox);
     const [bx, by] = doubledCentre(tBox);
-    edges.push({ source: pe.edge.source, target: pe.edge.target, ax, ay, bx, by });
+    edges.push({
+      source: pe.edge.source,
+      target: pe.edge.target,
+      ax,
+      ay,
+      bx,
+      by,
+    });
     lengthL1 += Math.abs(ax - bx) + Math.abs(ay - by);
   }
 
@@ -277,12 +399,21 @@ export function scoreStrataPlacementGeometry(
  * lexicographically no worse — otherwise fall back to legacy entirely. Ties
  * keep the scored arm (it already won pre-A7; falling back on a tie would
  * churn geometry for no metric gain).
+ *
+ * W8b δ-band (`delta`, default 0 = exactly the rule above): the guard uses the
+ * SAME ε-constraint semantics as the descent — the scored arm is ALSO kept
+ * when its final crossings are within `legacy final crossings + delta` AND its
+ * (penetrations, lengthL1) suffix is not worse than legacy's. `delta` is the
+ * descent's resolved `effectiveDelta` (one budget for the whole pipeline).
+ * With delta = 0 the band clause is a subset of the no-worse rule, so the
+ * default is bit-identical to the pre-W8b guard.
  */
 export function chooseStrataRefinedPlacement(
   scoredFinal: StrataPlacementResult,
   legacyFinal: StrataPlacementResult,
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
+  delta = 0,
 ): { placement: StrataPlacementResult; fellBack: boolean } {
   const scoredScore = scoreStrataPlacementGeometry(
     scoredFinal,
@@ -294,9 +425,14 @@ export function chooseStrataRefinedPlacement(
     model,
     edgesPrime,
   );
-  return strataPackedScoreLess(legacyScore, scoredScore)
-    ? { placement: legacyFinal, fellBack: true }
-    : { placement: scoredFinal, fellBack: false };
+  const keepScored =
+    !strataPackedScoreLess(legacyScore, scoredScore) ||
+    (delta > 0 &&
+      scoredScore.crossings <= legacyScore.crossings + delta &&
+      !strataPenLengthLess(legacyScore, scoredScore));
+  return keepScored
+    ? { placement: scoredFinal, fellBack: false }
+    : { placement: legacyFinal, fellBack: true };
 }
 
 /** Pre-order list of packed hulls that can actually reorder (≥2 units). */
@@ -332,16 +468,29 @@ function reorderablePackedHullIds(root: StrataHullNode): readonly string[] {
  * pass-1 adoption invalidated by a later hull's move can be undone. Capped at
  * two passes (deterministic, bounded cost).
  *
- * Guarantees: the returned selection's PRE-A7 score is never worse than
- * legacy's (the incumbent only ever improves). K≤0 skips the descent — the
- * candidate set degenerates to the initial order, which IS the legacy order
- * at K=0.
+ * Adoption uses `strataPackedScoreAdoptable`: the strict lexicographic rule,
+ * plus (when `options.packedScoringEpsilon` > 0) the ε-band admission against
+ * the GLOBAL baseline crossings budget (module header). Ties keep the
+ * incumbent, so legacy wins ties — diff stability.
+ *
+ * Guarantees: with epsilon 0 the returned selection's PRE-A7 score is never
+ * worse than legacy's (the incumbent only ever improves). With epsilon > 0
+ * crossings may exceed baseline by at most the resolved delta, bought only
+ * with a strict (penetrations, lengthL1) improvement. K≤0 skips the descent —
+ * the candidate set degenerates to the initial order, which IS the legacy
+ * order at K=0.
  */
 export function placeStrataHullsPackedScored(
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
   rank: StrataRankResult,
   options: StrataEngineOptions,
+  /**
+   * ADDITIVE-OPTIONAL (W8b frontier instrumentation, report-only): invoked
+   * once for the legacy baseline (hullId "__baseline__") and once per descent
+   * trial. Absent ⇒ zero extra work — the flag-off path is byte-identical.
+   */
+  onPackedTrial?: (record: StrataPackedTrialRecord) => void,
 ): StrataPackedScoredPlacement {
   const candidateCounts = new Map<string, number>();
   const baselinePlacement = placeStrataHulls(
@@ -358,6 +507,21 @@ export function placeStrataHullsPackedScored(
     edgesPrime,
   );
   let trialCount = 1;
+  onPackedTrial?.({
+    hullId: "__baseline__",
+    candidateIndex: -1,
+    pass: 0,
+    score: baselineScore,
+    adopted: true,
+  });
+
+  // W8b ε-constraint budget — resolved ONCE against the legacy baseline
+  // (anti-ratchet: never re-derived from the rolling incumbent).
+  const epsilon = options.packedScoringEpsilon ?? 0;
+  const effectiveDelta = resolveStrataPackedEpsilonDelta(
+    epsilon,
+    baselineScore.crossings,
+  );
 
   let bestPlacement = baselinePlacement;
   let bestScore = baselineScore;
@@ -392,7 +556,21 @@ export function placeStrataHullsPackedScored(
             model,
             edgesPrime,
           );
-          if (strataPackedScoreLess(score, bestScore)) {
+          const adoptedVia = strataPackedScoreAdoptable(
+            score,
+            bestScore,
+            baselineScore.crossings,
+            effectiveDelta,
+          );
+          onPackedTrial?.({
+            hullId,
+            candidateIndex: c,
+            pass,
+            score,
+            adopted: adoptedVia !== false,
+            ...(adoptedVia !== false ? { adoptedVia } : {}),
+          });
+          if (adoptedVia !== false) {
             bestPlacement = placement;
             bestScore = score;
             selection.set(hullId, c);
@@ -416,7 +594,21 @@ export function placeStrataHullsPackedScored(
             model,
             edgesPrime,
           );
-          if (strataPackedScoreLess(score, bestScore)) {
+          const adoptedVia = strataPackedScoreAdoptable(
+            score,
+            bestScore,
+            baselineScore.crossings,
+            effectiveDelta,
+          );
+          onPackedTrial?.({
+            hullId,
+            candidateIndex: LEGACY,
+            pass,
+            score,
+            adopted: adoptedVia !== false,
+            ...(adoptedVia !== false ? { adoptedVia } : {}),
+          });
+          if (adoptedVia !== false) {
             bestPlacement = placement;
             bestScore = score;
             selection.delete(hullId);
@@ -435,6 +627,8 @@ export function placeStrataHullsPackedScored(
     baselinePlacement,
     baselineScore,
     score: bestScore,
+    epsilon,
+    effectiveDelta,
     selections: selection,
     trialCount,
   };

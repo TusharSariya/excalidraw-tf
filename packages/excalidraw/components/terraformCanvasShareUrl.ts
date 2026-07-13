@@ -82,6 +82,7 @@ const sessionToDemoSnapshot = (
   strataCoordinateRefine: session.strataCoordinateRefine ?? false,
   strataRankSeparate: session.strataRankSeparate ?? false,
   strataPackedScoring: session.strataPackedScoring ?? false,
+  strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

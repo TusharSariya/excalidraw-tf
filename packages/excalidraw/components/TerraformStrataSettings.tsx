@@ -35,19 +35,23 @@ export const TerraformStrataSettings = ({
   strataCoordinateRefine,
   strataRankSeparate,
   strataPackedScoring,
+  strataPackedScoringEpsilon,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
   setStrataPackedScoring,
+  setStrataPackedScoringEpsilon,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
+  strataPackedScoringEpsilon: number;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
+  setStrataPackedScoringEpsilon: (epsilon: number) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -168,6 +172,35 @@ export const TerraformStrataSettings = ({
               )}
             </div>
           </div>
+          {strataPackedScoring && (
+            <div role="group" aria-label="Strata packed crossing budget">
+              <span className="TerraformImportModal__controlLabel">
+                Crossing budget (ε){" "}
+                <span>
+                  extra crossings the packed scorer may accept for shorter,
+                  cleaner edges (W8b ε-constraint; 0 = strict)
+                </span>
+              </span>
+              <select
+                className="TerraformImportModal__select"
+                aria-label="Packed scoring crossing budget epsilon"
+                value={String(strataPackedScoringEpsilon)}
+                onChange={(event) =>
+                  setStrataPackedScoringEpsilon(Number(event.target.value))
+                }
+              >
+                <option value="0">0 (strict)</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                {/* URL-set custom value (e.g. relative 0.01) stays visible. */}
+                {![0, 1, 2].includes(strataPackedScoringEpsilon) && (
+                  <option value={String(strataPackedScoringEpsilon)}>
+                    {strataPackedScoringEpsilon} (custom)
+                  </option>
+                )}
+              </select>
+            </div>
+          )}
           {strataRankSeparate && strataPackedScoring && (
             <div className="TerraformImportModal__controlNote">
               Measured to conflict (W8): rank separation rebuilds the column

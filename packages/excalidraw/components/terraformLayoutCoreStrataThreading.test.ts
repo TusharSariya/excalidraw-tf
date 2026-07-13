@@ -119,6 +119,55 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataPackedScoringEpsilon end-to-end (sceneContext literal -> engine -> meta echo + effective delta)",
+    async () => {
+      // Epsilon rides only with the scorer; the URL/dialog path sends both.
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 1,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataPackedScoring).toBe(true);
+      // Both the flag echo and the packed-scoring block carry the epsilon.
+      expect(on.meta.strataPackedScoringEpsilon).toBe(1);
+      expect(on.meta.strataPackedScoringEffectiveDelta).toBe(1);
+
+      // Epsilon 0 (or absent) keeps the strict rule: echo present with 0
+      // inside the packed block, and no frontier meta without the dev seam.
+      const strict = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataPackedScoring: true,
+      });
+      expect(strict.meta.strataPackedScoringEpsilon).toBe(0);
+      expect(strict.meta.strataPackedScoringEffectiveDelta).toBe(0);
+      expect(strict.meta.strataPackedScoringFrontierTrials).toBeUndefined();
+
+      // The W8b frontier dev seam echoes per-trial records when requested.
+      const frontier = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataPackedScoring: true,
+        strataPackedFrontierMeta: true,
+      });
+      const trials = frontier.meta.strataPackedScoringFrontierTrials as Array<{
+        hullId: string;
+        candidateIndex: number;
+        pass: number;
+        score: { crossings: number; penetrations: number; lengthL1: number };
+        adopted: boolean;
+      }>;
+      expect(Array.isArray(trials)).toBe(true);
+      expect(trials.length).toBe(frontier.meta.strataPackedScoringTrials);
+      expect(trials[0]!.hullId).toBe("__baseline__");
+      expect(trials[0]!.adopted).toBe(true);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
     "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
     async () => {
       const strataOff = await buildStrata();

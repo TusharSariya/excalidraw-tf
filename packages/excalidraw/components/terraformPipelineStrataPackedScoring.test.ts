@@ -38,9 +38,12 @@ import {
 import {
   chooseStrataRefinedPlacement,
   placeStrataHullsPackedScored,
+  resolveStrataPackedEpsilonDelta,
   scoreStrataPlacementGeometry,
+  strataPackedScoreAdoptable,
   strataPackedScoreLess,
   type StrataPackedScore,
+  type StrataPackedTrialRecord,
 } from "./terraformPipelineStrataPackedScoring";
 
 import type {
@@ -95,7 +98,14 @@ function frameCluster(
     height: frameH,
     clusterFrameId: frameId,
   } as unknown as PipelineCluster["build"];
-  return { id, primaryAddress, firstSequence: 0, depth: 0, placement: p, build };
+  return {
+    id,
+    primaryAddress,
+    firstSequence: 0,
+    depth: 0,
+    placement: p,
+    build,
+  };
 }
 
 function prep(
@@ -222,8 +232,17 @@ describe("round-9 blind spot — packed scoring vs legacy acceptance", () => {
     // acceptance can never count a crossing against it (R9-F1 blindness).
     expect(lifted).toHaveLength(2);
     expect(
-      lifted.some((e) => e.from === "L:sqs" && e.to === `H:${region.children.find((c) => c.leafClusterIds.includes("rds") || c.children.length > 0)?.id}`) ||
-        lifted.some((e) => e.from === "L:sqs"),
+      lifted.some(
+        (e) =>
+          e.from === "L:sqs" &&
+          e.to ===
+            `H:${
+              region.children.find(
+                (c) =>
+                  c.leafClusterIds.includes("rds") || c.children.length > 0,
+              )?.id
+            }`,
+      ) || lifted.some((e) => e.from === "L:sqs"),
     ).toBe(true);
   });
 
@@ -532,6 +551,246 @@ describe("scoreStrataPlacementGeometry — kernel", () => {
       primeEdges([["a", "inside"]]),
     );
     expect(score.penetrations).toBe(0);
+  });
+});
+
+// ── W8b ε-constraint selector ────────────────────────────────────────────────
+
+describe("W8b epsilon selector — resolveStrataPackedEpsilonDelta", () => {
+  it("epsilon <= 0 (or non-finite) resolves to 0 (strict rule)", () => {
+    expect(resolveStrataPackedEpsilonDelta(0, 123)).toBe(0);
+    expect(resolveStrataPackedEpsilonDelta(-1, 123)).toBe(0);
+    expect(resolveStrataPackedEpsilonDelta(Number.NaN, 123)).toBe(0);
+  });
+
+  it("epsilon >= 1 is an absolute integer crossings budget", () => {
+    expect(resolveStrataPackedEpsilonDelta(1, 123)).toBe(1);
+    expect(resolveStrataPackedEpsilonDelta(2, 0)).toBe(2);
+  });
+
+  it("0 < epsilon < 1 is relative: ceil(epsilon * baseline crossings)", () => {
+    expect(resolveStrataPackedEpsilonDelta(0.01, 123)).toBe(2); // ceil(1.23)
+    expect(resolveStrataPackedEpsilonDelta(0.01, 100)).toBe(1);
+    expect(resolveStrataPackedEpsilonDelta(0.5, 4)).toBe(2);
+    // Zero-crossing baseline: relative mode yields a 0 budget (strict).
+    expect(resolveStrataPackedEpsilonDelta(0.01, 0)).toBe(0);
+  });
+});
+
+describe("W8b epsilon selector — strataPackedScoreAdoptable", () => {
+  const s = (
+    crossings: number,
+    penetrations: number,
+    lengthL1: number,
+  ): StrataPackedScore => ({ crossings, penetrations, lengthL1 });
+
+  it("delta 0 is exactly the strict lexicographic rule", () => {
+    expect(strataPackedScoreAdoptable(s(4, 9, 9), s(5, 0, 0), 5, 0)).toBe(
+      "strict",
+    );
+    expect(strataPackedScoreAdoptable(s(5, 0, 1), s(5, 0, 0), 5, 0)).toBe(
+      false,
+    );
+    expect(strataPackedScoreAdoptable(s(6, 0, 0), s(5, 9, 9), 5, 0)).toBe(
+      false,
+    );
+  });
+
+  it("epsilon band admits within baseline+delta ONLY with a strict (pen,L1) improvement", () => {
+    // baseline 5 crossings, delta 1: 6 crossings + better (pen,L1) ⇒ epsilon.
+    expect(strataPackedScoreAdoptable(s(6, 0, 10), s(5, 1, 10), 5, 1)).toBe(
+      "epsilon",
+    );
+    // equal (pen,L1) ⇒ NOT adopted (ties keep the earliest/incumbent).
+    expect(strataPackedScoreAdoptable(s(6, 1, 10), s(5, 1, 10), 5, 1)).toBe(
+      false,
+    );
+    // beyond the budget ⇒ NOT adopted regardless of (pen,L1).
+    expect(strataPackedScoreAdoptable(s(7, 0, 0), s(5, 1, 10), 5, 1)).toBe(
+      false,
+    );
+  });
+
+  it("anti-ratchet: the budget is vs the LEGACY BASELINE, not the incumbent", () => {
+    // Incumbent already sits at baseline+1 (adopted via the band). A trial at
+    // baseline+2 is within incumbent+1 but OUTSIDE baseline+1 ⇒ rejected.
+    const baselineCrossings = 5;
+    const incumbent = s(6, 1, 10); // prior epsilon adoption
+    const trial = s(7, 0, 1); // better (pen,L1), crossings = baseline+2
+    expect(
+      strataPackedScoreAdoptable(trial, incumbent, baselineCrossings, 1),
+    ).toBe(false);
+    // The same trial IS admissible when the caller granted delta 2.
+    expect(
+      strataPackedScoreAdoptable(trial, incumbent, baselineCrossings, 2),
+    ).toBe("epsilon");
+  });
+});
+
+describe("W8b epsilon selector — descent integration + frontier collector", () => {
+  it("epsilon 0 (and absent) is bit-identical to today on the blind-spot fixture", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    const strict = placeStrataHullsPackedScored(model, edges, rank, OPTS_K4);
+    const epsZero = placeStrataHullsPackedScored(model, edges, rank, {
+      ...OPTS_K4,
+      packedScoringEpsilon: 0,
+    });
+    expect(epsZero.effectiveDelta).toBe(0);
+    expect(epsZero.epsilon).toBe(0);
+    expect([...epsZero.selections.entries()]).toEqual([
+      ...strict.selections.entries(),
+    ]);
+    expect(epsZero.score).toEqual(strict.score);
+    expect(epsZero.trialCount).toBe(strict.trialCount);
+    expect(placementFingerprint(epsZero.placement)).toBe(
+      placementFingerprint(strict.placement),
+    );
+  });
+
+  it("epsilon > 0 keeps crossings within baseline+delta and never worsens (pen,L1) for band adoptions", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    const scored = placeStrataHullsPackedScored(model, edges, rank, {
+      ...OPTS_K4,
+      packedScoringEpsilon: 1,
+    });
+    expect(scored.epsilon).toBe(1);
+    expect(scored.effectiveDelta).toBe(1);
+    expect(scored.score.crossings).toBeLessThanOrEqual(
+      scored.baselineScore.crossings + 1,
+    );
+    // Deterministic double-compute.
+    const again = placeStrataHullsPackedScored(model, edges, rank, {
+      ...OPTS_K4,
+      packedScoringEpsilon: 1,
+    });
+    expect([...again.selections.entries()]).toEqual([
+      ...scored.selections.entries(),
+    ]);
+    expect(placementFingerprint(again.placement)).toBe(
+      placementFingerprint(scored.placement),
+    );
+  });
+
+  it("relative mode resolves the delta from the baseline crossings", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    const scored = placeStrataHullsPackedScored(model, edges, rank, {
+      ...OPTS_K4,
+      packedScoringEpsilon: 0.9,
+    });
+    // Blind-spot baseline has 1 crossing ⇒ ceil(0.9 × 1) = 1.
+    expect(scored.baselineScore.crossings).toBe(1);
+    expect(scored.effectiveDelta).toBe(1);
+  });
+
+  it("frontier collector records baseline + every trial; absence changes nothing", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    const records: StrataPackedTrialRecord[] = [];
+    const collected = placeStrataHullsPackedScored(
+      model,
+      edges,
+      rank,
+      OPTS_K4,
+      (r) => records.push(r),
+    );
+    expect(records.length).toBe(collected.trialCount);
+    expect(records[0]).toEqual({
+      hullId: "__baseline__",
+      candidateIndex: -1,
+      pass: 0,
+      score: collected.baselineScore,
+      adopted: true,
+    });
+    // Every adopted record carries an adoption channel; with epsilon 0 the
+    // channel is always "strict".
+    for (const r of records.slice(1)) {
+      expect(r.adopted).toBe(r.adoptedVia !== undefined);
+      if (r.adoptedVia) {
+        expect(r.adoptedVia).toBe("strict");
+      }
+    }
+    // The winning selection's hull appears among the adopted records.
+    for (const [hullId, candidateIndex] of collected.selections) {
+      expect(
+        records.some(
+          (r) =>
+            r.hullId === hullId &&
+            r.candidateIndex === candidateIndex &&
+            r.adopted,
+        ),
+      ).toBe(true);
+    }
+    // No-collector run is selection- and placement-identical.
+    const plain = placeStrataHullsPackedScored(model, edges, rank, OPTS_K4);
+    expect([...plain.selections.entries()]).toEqual([
+      ...collected.selections.entries(),
+    ]);
+    expect(placementFingerprint(plain.placement)).toBe(
+      placementFingerprint(collected.placement),
+    );
+  });
+});
+
+describe("W8b epsilon selector — post-A7 guard delta band", () => {
+  it("delta keeps a scored arm within crossings budget when (pen,L1) is not worse", () => {
+    const root = leafHull("root", "root", ["a", "b", "c", "d"]);
+    const model = syntheticModel(root);
+    const edges = primeEdges([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+    // Scored final: 1 crossing but SHORTER edges (L1 800 vs 1200), pen 0=0.
+    // Legacy final: 0 crossings, long parallel edges.
+    const scoredFinal = syntheticPlacement(
+      { a: box(0, 0), b: box(100, 100), c: box(100, 0), d: box(0, 100) },
+      {},
+    );
+    const legacyFinal = syntheticPlacement(
+      { a: box(0, 0), b: box(300, 0), c: box(0, 100), d: box(300, 100) },
+      {},
+    );
+    // delta 0: falls back (crossings regressed) — the pre-W8b behavior.
+    const strict = chooseStrataRefinedPlacement(
+      scoredFinal,
+      legacyFinal,
+      model,
+      edges,
+    );
+    expect(strict.fellBack).toBe(true);
+    // delta 1: within the crossings band, equal pen, strictly lower L1 ⇒ kept.
+    const banded = chooseStrataRefinedPlacement(
+      scoredFinal,
+      legacyFinal,
+      model,
+      edges,
+      1,
+    );
+    expect(banded.fellBack).toBe(false);
+    expect(banded.placement).toBe(scoredFinal);
+  });
+
+  it("delta never excuses a (pen,L1) regression or an over-budget crossing", () => {
+    const h1 = leafHull("h1", "vpc", ["inside"]);
+    const root = leafHull("root", "root", ["a", "b"], [h1]);
+    const model = syntheticModel(root);
+    const edges = primeEdges([["a", "b"]]);
+    // Scored final tunnels h1 (pen 1); legacy does not (pen 0). Crossings 0/0.
+    const scoredFinal = syntheticPlacement(
+      { a: box(0, 45), b: box(200, 45), inside: box(100, 40) },
+      { h1: box(80, 0, 60, 100) },
+    );
+    const legacyFinal = syntheticPlacement(
+      { a: box(0, 145), b: box(200, 145), inside: box(100, 40) },
+      { h1: box(80, 0, 60, 100) },
+    );
+    const chosen = chooseStrataRefinedPlacement(
+      scoredFinal,
+      legacyFinal,
+      model,
+      edges,
+      2,
+    );
+    expect(chosen.fellBack).toBe(true);
+    expect(chosen.placement).toBe(legacyFinal);
   });
 });
 

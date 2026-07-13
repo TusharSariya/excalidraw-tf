@@ -105,6 +105,9 @@ export type TerraformDemoUrlParams = {
   strataRankSeparate?: boolean;
   /** Round 9 (SDEC-57): packed-hull whole-layout candidate scoring. */
   strataPackedScoring?: boolean;
+  /** W8b: ε-constraint crossings budget for the packed scorer (`strataPackedEps`;
+   * 0 = strict rule; 0<ε<1 = relative mode). */
+  strataPackedEps?: number;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -366,6 +369,16 @@ export const parseTerraformDemoUrlParams = (
   if (strataPackedScoring === null) {
     return null;
   }
+  // W8b ε budget: nonnegative finite number (fractional = relative mode).
+  const strataPackedEpsRaw = params.get("strataPackedEps");
+  let strataPackedEps: number | undefined;
+  if (strataPackedEpsRaw != null && strataPackedEpsRaw.trim() !== "") {
+    const parsed = Number(strataPackedEpsRaw.trim());
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    strataPackedEps = parsed;
+  }
 
   // ─── Runtime canvas view settings ───
   const lodEnabled = parseBooleanParam("lodEnabled");
@@ -479,6 +492,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataCoordRefine != null ? { strataCoordRefine } : {}),
     ...(strataRankSeparate != null ? { strataRankSeparate } : {}),
     ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
+    ...(strataPackedEps != null ? { strataPackedEps } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -543,6 +557,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataCoordRefine", params.strataCoordRefine);
   setBool("strataRankSep", params.strataRankSeparate);
   setBool("strataPackedScoring", params.strataPackedScoring);
+  setNum("strataPackedEps", params.strataPackedEps);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -599,6 +614,7 @@ export type TerraformDemoSettingsSnapshot = {
   strataCoordinateRefine: boolean;
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
+  strataPackedScoringEpsilon: number;
 };
 
 /**
@@ -677,6 +693,10 @@ export const collectTerraformDemoParams = (
       strataRankSeparate: snapshot.strataRankSeparate,
       // Round 9: default-off, no dialog default flip — truthy-only like NS.
       ...(snapshot.strataPackedScoring ? { strataPackedScoring: true } : {}),
+      // W8b: default-0 — truthy-only (a 0 budget is the absent-param default).
+      ...(snapshot.strataPackedScoringEpsilon
+        ? { strataPackedEps: snapshot.strataPackedScoringEpsilon }
+        : {}),
     };
   }
 
