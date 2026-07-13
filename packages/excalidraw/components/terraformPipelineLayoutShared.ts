@@ -1592,56 +1592,69 @@ export function preparePipelineLayout(
   const depthResult = computeDepths(collapsedEdges, clusterIds);
 
   let clusterBuilderCalls = 0;
+  // W14 WP1 (always-on, byte-identical): the skeleton materialization phase
+  // (`skeleton.resourceRects` — the dominant W12 timing-split leaf) re-pays O(N)
+  // `Object.keys(nodes)` address resolution per cluster builder. Wrap the whole
+  // synchronous `.map` in the scoped plan-node-key index so every
+  // `resolveTerraformPlanNodeKey` call underneath takes the O(1) indexed path.
+  // Ref-equality holds: the cluster builders thread this exact `nodes` object
+  // straight through to the resolvers. Shared by both the v2 and strata paths
+  // (both reach here via `preparePipelineLayout`). This region is fully
+  // synchronous (no await), and the earlier `withTerraformPlanNodeKeyIndex`
+  // scope at the top of this function has already exited, so this is a
+  // sequential — not nested — scope over the same `nodes`.
   const clusters: PipelineCluster[] = terraformImportProfilerMeasure(
     "pipeline.prep.materialize",
     () =>
-      clusterIds.map((address) => {
-        const placement = placementByAddress.get(address) ?? {
-          providerFamily: providerFamilyForType(
-            resourceTypeFor(nodes, address),
-          ),
-          accountId: "unknown-account",
-          region: "unknown-region",
-          vpcId: null,
-        };
-        const clusterPlacement = {
-          accountId: placement.accountId,
-          region: placement.region,
-          vpcId: placement.vpcId,
-          subnetTier: placement.subnetTier,
-          subnetSignature: placement.subnetSignature,
-        };
-        clusterBuilderCalls += 1;
-        let build = compact
-          ? buildCompactPipelinePrimaryCluster(
-              address,
-              nodes,
-              plan,
-              clusterPlacement,
-            )
-          : buildTopologyPrimaryClusterSkeletonForPipeline(
-              address,
-              nodes,
-              plan,
-              clusterPlacement,
-            );
-        if (
-          build.skeleton.length === 0 ||
-          build.width <= 0 ||
-          build.height <= 0
-        ) {
+      withTerraformPlanNodeKeyIndex(nodes, () =>
+        clusterIds.map((address) => {
+          const placement = placementByAddress.get(address) ?? {
+            providerFamily: providerFamilyForType(
+              resourceTypeFor(nodes, address),
+            ),
+            accountId: "unknown-account",
+            region: "unknown-region",
+            vpcId: null,
+          };
+          const clusterPlacement = {
+            accountId: placement.accountId,
+            region: placement.region,
+            vpcId: placement.vpcId,
+            subnetTier: placement.subnetTier,
+            subnetSignature: placement.subnetSignature,
+          };
           clusterBuilderCalls += 1;
-          build = buildFallbackCluster(address, nodes, plan, placement);
-        }
-        return {
-          id: address,
-          primaryAddress: address,
-          firstSequence: firstSequence.get(address) ?? 0,
-          depth: depthResult.depths.get(address) ?? 0,
-          placement,
-          build,
-        };
-      }),
+          let build = compact
+            ? buildCompactPipelinePrimaryCluster(
+                address,
+                nodes,
+                plan,
+                clusterPlacement,
+              )
+            : buildTopologyPrimaryClusterSkeletonForPipeline(
+                address,
+                nodes,
+                plan,
+                clusterPlacement,
+              );
+          if (
+            build.skeleton.length === 0 ||
+            build.width <= 0 ||
+            build.height <= 0
+          ) {
+            clusterBuilderCalls += 1;
+            build = buildFallbackCluster(address, nodes, plan, placement);
+          }
+          return {
+            id: address,
+            primaryAddress: address,
+            firstSequence: firstSequence.get(address) ?? 0,
+            depth: depthResult.depths.get(address) ?? 0,
+            placement,
+            build,
+          };
+        }),
+      ),
   );
 
   // Depth-floor swap slot. Two mutually-exclusive arms rewrite the longest-path
