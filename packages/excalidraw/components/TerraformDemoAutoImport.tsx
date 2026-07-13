@@ -65,7 +65,11 @@ const applyCanvasViewSettings = (
       ? { terraformFocusDirection: params.focusDirection }
       : {}),
     ...(params.focusMaxHops !== undefined
-      ? { terraformFocusMaxHops: params.focusMaxHops }
+      ? {
+          // AppState stores the JSON-safe -1 sentinel, never Infinity.
+          terraformFocusMaxHops:
+            params.focusMaxHops === Infinity ? -1 : params.focusMaxHops,
+        }
       : {}),
   };
   if (Object.keys(appStatePatch).length > 0) {

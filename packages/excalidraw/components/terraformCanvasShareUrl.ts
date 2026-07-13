@@ -136,7 +136,8 @@ export const buildTerraformCanvasShareUrl = (
     ...(view.terraformFocusDirection !== "both"
       ? { focusDirection: view.terraformFocusDirection }
       : {}),
-    ...(view.terraformFocusMaxHops === Infinity
+    ...(view.terraformFocusMaxHops === -1 ||
+    view.terraformFocusMaxHops === Infinity
       ? { focusMaxHops: Infinity }
       : {}),
   };

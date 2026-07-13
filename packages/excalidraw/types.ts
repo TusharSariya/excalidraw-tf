@@ -507,7 +507,10 @@ export interface AppState {
   terraformFocusDirection: import("./components/terraformRelationshipFocus").TerraformFocusDirection;
   /**
    * Relationship-focus hop cap override. `null` = legacy default (3 hops).
-   * `Infinity` = uncapped (menu "Unlimited"; serialized as `"all"` in URLs/sigs).
+   * `-1` = uncapped (menu "Unlimited") — a JSON-safe sentinel: `Infinity`
+   * must never be STORED here (localStorage/export JSON turns it into null,
+   * silently reverting the setting). It is mapped to `Infinity` only at the
+   * traversal boundary; URLs/sigs encode it as `"all"`.
    */
   terraformFocusMaxHops: number | null;
   /** Zoom-based LOD for Terraform imports (hide labels/satellites when zoomed out). */

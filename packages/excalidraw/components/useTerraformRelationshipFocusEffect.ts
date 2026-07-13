@@ -78,12 +78,16 @@ export const buildTerraformRuntimeFocusUpdate = ({
 
   // Options are omitted entirely at the default ("both" + no hop override) so
   // `applyTerraformRelationshipFocus` takes its byte-identical legacy path.
+  // AppState stores the JSON-safe sentinel `-1` for "unlimited" (a stored
+  // Infinity would degrade to null through localStorage/export JSON); it is
+  // mapped to Infinity only here, at the traversal boundary.
+  const effectiveMaxHops = focusMaxHops === -1 ? Infinity : focusMaxHops;
   const focusOptions =
-    focusDirection === "both" && focusMaxHops === null
+    focusDirection === "both" && effectiveMaxHops == null
       ? undefined
       : {
           ...(focusDirection !== "both" ? { direction: focusDirection } : {}),
-          ...(focusMaxHops != null ? { maxHops: focusMaxHops } : {}),
+          ...(effectiveMaxHops != null ? { maxHops: effectiveMaxHops } : {}),
         };
 
   const result = applyTerraformRelationshipFocus(

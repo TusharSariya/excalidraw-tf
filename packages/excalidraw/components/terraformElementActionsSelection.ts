@@ -59,7 +59,8 @@ export const terraformFocusInputsSig = (
   if (direction === "both" && maxHops === null) {
     return base;
   }
-  const maxHopsToken = maxHops === Infinity ? "all" : String(maxHops);
+  const maxHopsToken =
+    maxHops === Infinity || maxHops === -1 ? "all" : String(maxHops);
   return `${base}|${direction}|${maxHopsToken}`;
 };
 

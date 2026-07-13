@@ -348,10 +348,12 @@ const TerraformFocusControls = () => {
       <DropdownMenuItemContentRadio<"3" | "all">
         name="terraform-focus-hops"
         icon={ExportImageIcon}
-        value={maxHops === Infinity ? "all" : "3"}
+        value={maxHops === -1 || maxHops === Infinity ? "all" : "3"}
         onChange={(value) => {
           setAppState({
-            terraformFocusMaxHops: value === "all" ? Infinity : null,
+            // -1 = JSON-safe "unlimited" sentinel (Infinity would not survive
+            // localStorage/export JSON round-trips).
+            terraformFocusMaxHops: value === "all" ? -1 : null,
           });
         }}
         choices={[
