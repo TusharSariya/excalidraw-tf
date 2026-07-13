@@ -36,6 +36,8 @@ const defaultView: TerraformCanvasViewSettings = {
   terraformMinimapEnabled: false,
   terraformEdgeLayerPins: null,
   runtimePerformance: { ...TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS },
+  terraformFocusDirection: "both",
+  terraformFocusMaxHops: null,
 };
 
 const queryOf = (url: string): string => url.slice(url.indexOf("?"));
@@ -94,6 +96,8 @@ describe("terraformCanvasShareUrl", () => {
         hideAwsIconGlyphsBelowZoom: true,
         lowZoomThreshold: 0.4,
       },
+      terraformFocusDirection: "both",
+      terraformFocusMaxHops: null,
     };
     const url = buildTerraformCanvasShareUrl(session, view, {
       origin: "https://tfdraw.dev",
@@ -157,5 +161,34 @@ describe("terraformCanvasShareUrl", () => {
     // LOD + minimap are always emitted so the URL is self-describing.
     expect(url).toContain("lodEnabled=1");
     expect(url).toContain("minimap=0");
+  });
+
+  describe("W11 WP1 — relationship-focus view settings", () => {
+    it("omits focusdir/focushops at defaults, mirroring edgeLayerPins omission", () => {
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "rcll" }),
+        defaultView,
+      );
+      expect(url).not.toContain("focusdir");
+      expect(url).not.toContain("focushops");
+    });
+
+    it("emits focusdir + focushops=all when set to non-default", () => {
+      const view: TerraformCanvasViewSettings = {
+        ...defaultView,
+        terraformFocusDirection: "dependents",
+        terraformFocusMaxHops: Infinity,
+      };
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "rcll" }),
+        view,
+        { origin: "https://tfdraw.dev" },
+      );
+      const parsed = parseTerraformDemoUrlParams(queryOf(url!));
+      expect(parsed).toMatchObject({
+        focusDirection: "dependents",
+        focusMaxHops: Infinity,
+      });
+    });
   });
 });

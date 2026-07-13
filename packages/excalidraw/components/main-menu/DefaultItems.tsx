@@ -87,6 +87,8 @@ import { buildTerraformCanvasShareUrl } from "../terraformCanvasShareUrl";
 import { getTerraformRuntimePerformanceSnapshot } from "../terraformRuntimePerformance";
 import { copyTextToSystemClipboard } from "../../clipboard";
 
+import type { TerraformFocusDirection } from "../terraformRelationshipFocus";
+
 import "./DefaultItems.scss";
 
 type TerraformEdgeLayer =
@@ -298,6 +300,82 @@ const TerraformLayerItem = ({
   );
 };
 
+/**
+ * Relationship-focus direction + hop-cap controls (W11 WP1) — colocated with the
+ * edge-layer pins per owner decision. Copy deliberately says "dependencies" /
+ * "dependents" only — no "downstream/upstream/dataflow" claims until Q7-AXIS
+ * establishes what the axis reads as on canvas.
+ */
+const TerraformFocusControls = () => {
+  const app = useApp();
+  const setAppState = useExcalidrawSetAppState();
+  const direction = app.state.terraformFocusDirection ?? "both";
+  const maxHops = app.state.terraformFocusMaxHops;
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItemContentRadio<TerraformFocusDirection>
+        name="terraform-focus-direction"
+        icon={ExportImageIcon}
+        value={direction}
+        onChange={(value) => {
+          setAppState({ terraformFocusDirection: value });
+        }}
+        choices={[
+          {
+            value: "both",
+            label: "Both",
+            ariaLabel: "Focus direction: both",
+            testId: "terraform-focus-direction-both",
+          },
+          {
+            value: "dependencies",
+            label: "Dependencies",
+            ariaLabel: "Focus direction: dependencies",
+            testId: "terraform-focus-direction-dependencies",
+          },
+          {
+            value: "dependents",
+            label: "Dependents",
+            ariaLabel: "Focus direction: dependents",
+            testId: "terraform-focus-direction-dependents",
+          },
+        ]}
+      >
+        Focus direction
+      </DropdownMenuItemContentRadio>
+      <DropdownMenuItemContentRadio<"3" | "all">
+        name="terraform-focus-hops"
+        icon={ExportImageIcon}
+        value={maxHops === Infinity ? "all" : "3"}
+        onChange={(value) => {
+          setAppState({
+            terraformFocusMaxHops: value === "all" ? Infinity : null,
+          });
+        }}
+        choices={[
+          {
+            value: "3",
+            label: "3",
+            ariaLabel: "Focus hops: 3",
+            testId: "terraform-focus-hops-3",
+          },
+          {
+            value: "all",
+            label: "Unlimited",
+            ariaLabel: "Focus hops: unlimited",
+            testId: "terraform-focus-hops-unlimited",
+          },
+        ]}
+      >
+        Focus hops
+      </DropdownMenuItemContentRadio>
+    </>
+  );
+};
+TerraformFocusControls.displayName = "TerraformFocusControls";
+
 export const TerraformLayers = () => {
   const app = useApp();
   const hasTerraformLayers = app.scene
@@ -329,6 +407,7 @@ export const TerraformLayers = () => {
         <TerraformLayerItem layer="topologyFrameFlow">
           Topology box edges
         </TerraformLayerItem>
+        <TerraformFocusControls />
       </DropdownMenuSub.Content>
     </DropdownMenuSub>
   );
@@ -471,6 +550,8 @@ export const TerraformCopyCanvasUrl = () => {
         terraformLodPreset: app.state.terraformLodPreset,
         terraformMinimapEnabled: app.state.terraformMinimapEnabled,
         terraformEdgeLayerPins: app.state.terraformEdgeLayerPins,
+        terraformFocusDirection: app.state.terraformFocusDirection,
+        terraformFocusMaxHops: app.state.terraformFocusMaxHops,
         runtimePerformance: getTerraformRuntimePerformanceSnapshot().value,
       },
       // Absolute URL so the copied link is shareable as-is (not a bare `/demo?…` path).

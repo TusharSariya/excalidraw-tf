@@ -106,10 +106,15 @@ export const applyTerraformExcalidrawScene = (
       repairBindings: true,
     },
   );
+  // W11 WP1: 4th-arg options are behavior-neutral here — `focusNodePath` is
+  // null, so `getTerraformRelationshipFocus` short-circuits before any
+  // direction/hop-cap branch is reached. Explicit `undefined` kept for call-site
+  // signature consistency with the runtime-effect callers.
   const focus = applyTerraformRelationshipFocus(
     elements,
     null,
     app.state.viewBackgroundColor ?? "#ffffff",
+    undefined,
   );
   const pinReconcile = buildTerraformReconcileOptionsForAppState(
     terraformEdgeLayerPins,

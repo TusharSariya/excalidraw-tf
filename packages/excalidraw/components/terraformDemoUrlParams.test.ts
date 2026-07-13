@@ -930,6 +930,71 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("parses focusdir (W11 WP1) and omits it when absent", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&focusdir=deps"),
+      ).toMatchObject({ focusDirection: "dependencies" });
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=rcll&focusdir=dependents",
+        ),
+      ).toMatchObject({ focusDirection: "dependents" });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=rcll");
+      expect(absent).not.toBeNull();
+      expect(absent!.focusDirection).toBeUndefined();
+    });
+
+    it("rejects an unknown focusdir code (including the default 'both')", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focusdir=both"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focusdir=downstream"),
+      ).toBeNull();
+    });
+
+    it("parses focushops=all (W11 WP1) as Infinity and omits it when absent", () => {
+      const all = parseTerraformDemoUrlParams(
+        "?preset=demo&view=rcll&focushops=all",
+      );
+      expect(all).not.toBeNull();
+      expect(all!.focusMaxHops).toBe(Infinity);
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=rcll");
+      expect(absent).not.toBeNull();
+      expect(absent!.focusMaxHops).toBeUndefined();
+    });
+
+    it("rejects a non-'all' focushops value", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=3"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=unlimited"),
+      ).toBeNull();
+    });
+
+    it("round-trips focusdir + focushops=all through build/parse", () => {
+      const full: TerraformDemoUrlParams = {
+        presetId: "demo",
+        view: "rcll",
+        focusDirection: "dependents",
+        focusMaxHops: Infinity,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
+      ).toEqual(full);
+    });
+
+    it("never emits focusdir=both or a focushops param for a finite hop cap", () => {
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        focusDirection: "both",
+        focusMaxHops: 3,
+      });
+      expect(url).not.toContain("focusdir");
+      expect(url).not.toContain("focushops");
+    });
+
     it("round-trips a full runtime-settings params object", () => {
       const full: TerraformDemoUrlParams = {
         presetId: "demo",

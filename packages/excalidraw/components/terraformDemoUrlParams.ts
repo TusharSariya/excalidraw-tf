@@ -16,6 +16,7 @@ import type {
 } from "./terraformImportDialogUtils";
 import type { ModulePackingMode } from "./terraformModuleLayoutOptions";
 import type { TerraformLodPreset } from "./terraformLod";
+import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
 
 /** Edge-layer visibility pins (mirrors `AppState["terraformEdgeLayerPins"]`). */
 export type TerraformEdgeLayerPins = {
@@ -127,6 +128,18 @@ export type TerraformDemoUrlParams = {
   edgeLayerPins?: TerraformEdgeLayerPins;
   /** Dev canvas-performance experiments (`canvasPerf=…` + `canvasPerfZoom=…`). */
   runtimePerformance?: TerraformRuntimePerformanceSettings;
+  /**
+   * Relationship-focus traversal direction (W11 WP1). `focusdir=deps|dependents`;
+   * omitted (or `"both"`) is the legacy undirected default and is never emitted.
+   */
+  focusDirection?: TerraformFocusDirection;
+  /**
+   * Relationship-focus hop-cap override. Only `Infinity` is meaningful
+   * (`focushops=all`, menu "Unlimited"); omitted = legacy default (3 hops).
+   * `JSON.stringify(Infinity) === null`, so this never round-trips through JSON —
+   * only through this URL param and the in-memory options object.
+   */
+  focusMaxHops?: number;
 };
 
 const VALID_COLUMN_PACKING = new Set<"spread" | "none" | "compact" | "shorten">(
@@ -450,6 +463,33 @@ export const parseTerraformDemoUrlParams = (
     }
   }
 
+  // `focusdir=deps|dependents` (W11 WP1). "both" is the default and is never an
+  // accepted explicit code — it is represented by omission only.
+  const focusDirRaw = params.get("focusdir");
+  let focusDirection: TerraformFocusDirection | undefined;
+  if (focusDirRaw != null && focusDirRaw.trim() !== "") {
+    const normalized = focusDirRaw.trim().toLowerCase();
+    if (normalized === "deps") {
+      focusDirection = "dependencies";
+    } else if (normalized === "dependents") {
+      focusDirection = "dependents";
+    } else {
+      return null;
+    }
+  }
+
+  // `focushops=all` (W11 WP1) — the only meaningful explicit value ("Unlimited");
+  // the legacy default (3 hops) is represented by omission only.
+  const focusHopsRaw = params.get("focushops");
+  let focusMaxHops: number | undefined;
+  if (focusHopsRaw != null && focusHopsRaw.trim() !== "") {
+    if (focusHopsRaw.trim().toLowerCase() === "all") {
+      focusMaxHops = Infinity;
+    } else {
+      return null;
+    }
+  }
+
   // `canvasPerf=hideicons,…` (or `none`) + `canvasPerfZoom=0.2|0.3|0.4` → full perf settings.
   const canvasPerfRaw = params.get("canvasPerf");
   const canvasPerfZoomRaw = params.get("canvasPerfZoom");
@@ -521,6 +561,8 @@ export const parseTerraformDemoUrlParams = (
     ...(minimap != null ? { minimap } : {}),
     ...(edgeLayerPins != null ? { edgeLayerPins } : {}),
     ...(runtimePerformance != null ? { runtimePerformance } : {}),
+    ...(focusDirection != null ? { focusDirection } : {}),
+    ...(focusMaxHops != null ? { focusMaxHops } : {}),
   };
 };
 
@@ -603,6 +645,17 @@ export const buildTerraformDemoUrl = (
       "canvasPerfZoom",
       String(params.runtimePerformance.lowZoomThreshold),
     );
+  }
+  // `"both"` is the default and is never emitted — only the two non-default
+  // codes round-trip through the URL.
+  if (params.focusDirection === "dependencies") {
+    sp.set("focusdir", "deps");
+  } else if (params.focusDirection === "dependents") {
+    sp.set("focusdir", "dependents");
+  }
+  // `Infinity` never hits JSON — encoded as the string "all" here.
+  if (params.focusMaxHops === Infinity) {
+    sp.set("focushops", "all");
   }
 
   const pathname = options?.pathname ?? "/demo";

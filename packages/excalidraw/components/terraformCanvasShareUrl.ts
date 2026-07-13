@@ -22,6 +22,7 @@ import {
 import type { TerraformImportSession } from "./terraformImportSession";
 import type { TerraformLodPreset } from "./terraformLod";
 import type { TerraformView } from "./terraformImportDialogUtils";
+import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
 
 /** The live runtime view settings the share URL captures alongside the session's layout. */
 export type TerraformCanvasViewSettings = {
@@ -30,6 +31,10 @@ export type TerraformCanvasViewSettings = {
   terraformMinimapEnabled: boolean;
   terraformEdgeLayerPins: TerraformEdgeLayerPins | null;
   runtimePerformance: TerraformRuntimePerformanceSettings;
+  /** W11 WP1 — mirrors `AppState["terraformFocusDirection"]`. */
+  terraformFocusDirection: TerraformFocusDirection;
+  /** W11 WP1 — mirrors `AppState["terraformFocusMaxHops"]`. */
+  terraformFocusMaxHops: number | null;
 };
 
 /**
@@ -127,6 +132,13 @@ export const buildTerraformCanvasShareUrl = (
     ...(runtimePerformanceIsDefault(view.runtimePerformance)
       ? {}
       : { runtimePerformance: view.runtimePerformance }),
+    // W11 WP1 — omitted at default ("both" / null), mirroring edgeLayerPins.
+    ...(view.terraformFocusDirection !== "both"
+      ? { focusDirection: view.terraformFocusDirection }
+      : {}),
+    ...(view.terraformFocusMaxHops === Infinity
+      ? { focusMaxHops: Infinity }
+      : {}),
   };
 
   return buildTerraformDemoUrl(params, options);

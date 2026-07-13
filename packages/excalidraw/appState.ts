@@ -130,6 +130,8 @@ export const getDefaultAppState = (): Omit<
     boxSelectionMode: "contain",
     terraformEdgeLayerPins: null,
     terraformEdgeHoverPeekKey: null,
+    terraformFocusDirection: "both",
+    terraformFocusMaxHops: null,
     terraformLodEnabled: true,
     terraformLodPreset: "balanced",
     terraformMinimapEnabled: false,
@@ -261,6 +263,9 @@ const APP_STATE_STORAGE_CONF = (<
   bindMode: { browser: true, export: false, server: false },
   terraformEdgeLayerPins: { browser: true, export: true, server: true },
   terraformEdgeHoverPeekKey: { browser: false, export: false, server: false },
+  // Same persistence class as `terraformEdgeLayerPins` (W11 WP1 decision 2).
+  terraformFocusDirection: { browser: true, export: true, server: true },
+  terraformFocusMaxHops: { browser: true, export: true, server: true },
   terraformLodEnabled: { browser: true, export: false, server: false },
   terraformLodPreset: { browser: true, export: false, server: false },
   terraformMinimapEnabled: { browser: true, export: false, server: false },

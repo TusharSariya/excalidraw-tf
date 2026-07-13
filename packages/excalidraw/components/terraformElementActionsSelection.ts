@@ -43,13 +43,25 @@ export const terraformFocusInputsSig = (
   selectedElementIds: Readonly<{ [id: string]: true }>,
   pins: AppState["terraformEdgeLayerPins"],
   viewBackgroundColor: string,
-) =>
-  [
+  direction: AppState["terraformFocusDirection"] = "both",
+  maxHops: AppState["terraformFocusMaxHops"] = null,
+) => {
+  const base = [
     activeFocusNodePath ?? "",
     Object.keys(selectedElementIds).sort().join(","),
     pins ? JSON.stringify(pins) : "",
     viewBackgroundColor,
   ].join("|");
+  // Suffix emitted ONLY when non-default (W11 WP1 decision 5), so the default
+  // signature stays byte-identical to the pre-W11 output (golden test lock).
+  // `Infinity` never reaches this string directly — encoded as "all"
+  // (`JSON.stringify(Infinity) === null`, decision 4).
+  if (direction === "both" && maxHops === null) {
+    return base;
+  }
+  const maxHopsToken = maxHops === Infinity ? "all" : String(maxHops);
+  return `${base}|${direction}|${maxHopsToken}`;
+};
 
 export const getTerraformElementForSelection = (
   elements: readonly NonDeletedExcalidrawElement[],

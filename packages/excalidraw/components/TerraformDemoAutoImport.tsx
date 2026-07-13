@@ -60,6 +60,13 @@ const applyCanvasViewSettings = (
     ...(params.edgeLayerPins
       ? { terraformEdgeLayerPins: params.edgeLayerPins }
       : {}),
+    // W11 WP1 — omitted params leave the (already-default) AppState fields alone.
+    ...(params.focusDirection !== undefined
+      ? { terraformFocusDirection: params.focusDirection }
+      : {}),
+    ...(params.focusMaxHops !== undefined
+      ? { terraformFocusMaxHops: params.focusMaxHops }
+      : {}),
   };
   if (Object.keys(appStatePatch).length > 0) {
     setAppState(appStatePatch as Pick<AppState, keyof typeof appStatePatch>);
