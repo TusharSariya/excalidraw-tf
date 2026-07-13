@@ -5,7 +5,10 @@ import {
   deriveViewFromSession,
   type TerraformCanvasViewSettings,
 } from "./terraformCanvasShareUrl";
-import { parseTerraformDemoUrlParams } from "./terraformDemoUrlParams";
+import {
+  parseTerraformDemoUrlParams,
+  resolveTerraformFocusSettingsFromDemoParams,
+} from "./terraformDemoUrlParams";
 import { DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS } from "./terraformModuleLayoutOptions";
 import { TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS } from "./terraformRuntimePerformance";
 
@@ -216,6 +219,58 @@ describe("terraformCanvasShareUrl", () => {
       expect(url).toContain("focushops=2");
       const parsed = parseTerraformDemoUrlParams(queryOf(url!));
       expect(parsed).toMatchObject({ focusMaxHops: 2 });
+    });
+
+    it("round-trips a 0 hop cap — focused node only (W13 WP1)", () => {
+      const view: TerraformCanvasViewSettings = {
+        ...defaultView,
+        terraformFocusMaxHops: 0,
+      };
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "rcll" }),
+        view,
+      );
+      // 0 must survive the emit (null-check, not truthiness) and the parse.
+      expect(url).toContain("focushops=0");
+      const parsed = parseTerraformDemoUrlParams(queryOf(url!));
+      expect(parsed).toMatchObject({ focusMaxHops: 0 });
+      expect(resolveTerraformFocusSettingsFromDemoParams(parsed!)).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: 0,
+      });
+    });
+
+    it("round-trips a >99 hop cap (previously a whole-URL reject — W13 WP1)", () => {
+      const view: TerraformCanvasViewSettings = {
+        ...defaultView,
+        terraformFocusMaxHops: 100,
+      };
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "rcll" }),
+        view,
+      );
+      expect(url).toContain("focushops=100");
+      const parsed = parseTerraformDemoUrlParams(queryOf(url!));
+      expect(parsed).toMatchObject({ focusMaxHops: 100 });
+      expect(resolveTerraformFocusSettingsFromDemoParams(parsed!)).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: 100,
+      });
+    });
+
+    it("accepts hand-edited decimal spellings iff they normalize to an integer", () => {
+      // The share builder never emits these; this pins the parse decision for
+      // hand-edited URLs: `Number("0.0") === 0` is an integer → accepted as 0,
+      // while a true fractional value still rejects the whole URL.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0.0"),
+      ).toMatchObject({ focusMaxHops: 0 });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=2.0"),
+      ).toMatchObject({ focusMaxHops: 2 });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0.5"),
+      ).toBeNull();
     });
   });
 });

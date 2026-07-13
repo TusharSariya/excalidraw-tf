@@ -1048,6 +1048,22 @@ describe("terraform relationship focus", () => {
       expect(dependentsOfWeb.focusedEdgeIds.has("edge:coalesced")).toBe(true);
     });
 
+    it("maxHops 0 focuses the anchor only — empty neighborhood, no edges (W13 WP1 contract)", () => {
+      // Documents the EXISTING engine behavior at a 0 hop cap (the BFS loop
+      // body never runs): only the anchor is in the cone, nothing else lights.
+      const focus = getTerraformRelationshipFocus(diamondCycleElements(), "a", 3, {
+        maxHops: 0,
+      });
+
+      expect(focus.relatedNodePaths.size).toBe(0);
+      expect(focus.nearEdgeIds.size).toBe(0);
+      expect(focus.focusedEdgeIds.size).toBe(0);
+      expect(focus.nodeDistance.size).toBe(1);
+      expect(focus.nodeDistance.get("a")).toBe(0);
+      expect(focus.focusedNodePaths.size).toBe(1);
+      expect(focus.focusedNodePaths.has("a")).toBe(true);
+    });
+
     it("threads options.maxHops through applyTerraformRelationshipFocus", () => {
       const elements = () => [
         resource("aws_instance.web"),

@@ -147,12 +147,34 @@ describe("buildTerraformRuntimeFocusUpdate — W11 F4 AppState ingress normaliza
     expect(strip(junk.elements)).toEqual(strip(defaults.elements));
   });
 
-  it("ignores non-finite / negative / sub-1 hop caps (legacy default path)", () => {
+  it("ignores non-finite / negative / non-integer hop caps (legacy default path)", () => {
     const defaults = runUpdate({});
-    for (const bad of [0, -2, -Infinity, 0.5]) {
+    for (const bad of [-2, -Infinity, 0.5, 2.5]) {
       const update = runUpdate({ focusMaxHops: bad });
       expect(update.focusInputsSig).toBe(defaults.focusInputsSig);
       expect(strip(update.elements)).toEqual(strip(defaults.elements));
     }
+  });
+
+  it("passes a 0 hop cap through to the traversal (focused node only — W13 WP1)", () => {
+    const update = runUpdate({ focusMaxHops: 0 });
+    // Reference: the same scene pushed straight through the traversal with an
+    // explicit 0 cap. Byte-identical output proves 0 survived normalization
+    // and reached applyTerraformRelationshipFocus's options.
+    const reference = applyTerraformRelationshipFocus(
+      chainElements(),
+      "a",
+      VIEW_BG,
+      { maxHops: 0 },
+    );
+    expect(strip(update.elements)).toEqual(strip(reference.elements));
+
+    // And it differs from the default cap: `b` (1 hop) is inside the default
+    // 3-hop cone but outside the hop-0 cone.
+    const defaults = runUpdate({});
+    expect(update.focusInputsSig).not.toBe(defaults.focusInputsSig);
+    const hop0B = update.elements.find((el) => el.id === "node:b");
+    const defaultB = defaults.elements.find((el) => el.id === "node:b");
+    expect(hop0B?.strokeColor).not.toBe(defaultB?.strokeColor);
   });
 });

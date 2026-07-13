@@ -135,8 +135,9 @@ export type TerraformDemoUrlParams = {
   focusDirection?: TerraformFocusDirection;
   /**
    * Relationship-focus hop-cap override. `Infinity` (`focushops=all`, menu
-   * "Unlimited") or a finite integer cap 1..99 (`focushops=2` — W11 F5:
-   * API-set finite caps must survive sharing); omitted = legacy default
+   * "Unlimited") or a finite non-negative safe-integer cap (`focushops=2`;
+   * 0 = focused node only — W13 WP1; W11 F5: API-set finite caps must
+   * survive sharing); omitted = legacy default
    * (3 hops). `JSON.stringify(Infinity) === null`, so Infinity never
    * round-trips through JSON — only through this URL param and the in-memory
    * options object (AppState stores the `-1` sentinel instead).
@@ -481,9 +482,11 @@ export const parseTerraformDemoUrlParams = (
   }
 
   // `focushops=all` (W11 WP1, "Unlimited" → Infinity) or an explicit finite
-  // cap `focushops=1..99` (W11 F5 — AppState accepts any finite cap via the
-  // API, so shares must round-trip it). The legacy default (3 hops) is
-  // represented by omission only.
+  // non-negative safe-integer cap (`focushops=0` = focused node only — W13
+  // WP1; W11 F5 — AppState accepts any finite cap via the API, so shares
+  // must round-trip it). Negative values (the `-1` sentinel included) never
+  // appear in URLs and reject. The legacy default (3 hops) is represented by
+  // omission only.
   const focusHopsRaw = params.get("focushops");
   let focusMaxHops: number | undefined;
   if (focusHopsRaw != null && focusHopsRaw.trim() !== "") {
@@ -492,7 +495,11 @@ export const parseTerraformDemoUrlParams = (
       focusMaxHops = Infinity;
     } else {
       const parsedHops = Number(normalized);
-      if (Number.isInteger(parsedHops) && parsedHops >= 1 && parsedHops <= 99) {
+      if (
+        Number.isInteger(parsedHops) &&
+        parsedHops >= 0 &&
+        parsedHops <= Number.MAX_SAFE_INTEGER
+      ) {
         focusMaxHops = parsedHops;
       } else {
         return null;

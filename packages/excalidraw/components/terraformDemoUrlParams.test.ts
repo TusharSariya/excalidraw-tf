@@ -965,27 +965,42 @@ describe("terraformDemoUrlParams", () => {
       expect(absent!.focusMaxHops).toBeUndefined();
     });
 
-    it("parses a finite focushops cap 1..99 (W11 F5)", () => {
+    it("parses finite non-negative focushops caps, including 0 and >99 (W13 WP1)", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=2"),
       ).toMatchObject({ focusMaxHops: 2 });
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=99"),
       ).toMatchObject({ focusMaxHops: 99 });
+      // 0 = focused node only (W13 WP1); previously this rejected the URL.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0"),
+      ).toMatchObject({ focusMaxHops: 0 });
+      // Boundary: 100 was previously a whole-URL reject (the 1..99 cap).
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=100"),
+      ).toMatchObject({ focusMaxHops: 100 });
     });
 
-    it("rejects focushops values outside 'all' / integer 1..99", () => {
+    it("focushops=0 resolves to terraformFocusMaxHops: 0 (W13 WP1)", () => {
+      const parsed = parseTerraformDemoUrlParams("?preset=demo&focushops=0");
+      expect(parsed).not.toBeNull();
+      expect(resolveTerraformFocusSettingsFromDemoParams(parsed!)).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: 0,
+      });
+    });
+
+    it("rejects focushops values outside 'all' / non-negative safe integers", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=unlimited"),
       ).toBeNull();
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&focushops=0"),
-      ).toBeNull();
+      // Negatives (the -1 stored sentinel included) never appear in URLs.
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=-1"),
       ).toBeNull();
       expect(
-        parseTerraformDemoUrlParams("?preset=demo&focushops=100"),
+        parseTerraformDemoUrlParams("?preset=demo&focushops=-2"),
       ).toBeNull();
       expect(
         parseTerraformDemoUrlParams("?preset=demo&focushops=2.5"),

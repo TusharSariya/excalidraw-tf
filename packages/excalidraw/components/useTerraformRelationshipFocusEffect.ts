@@ -61,7 +61,8 @@ export const buildTerraformRuntimeFocusUpdate = ({
   //   undefined ⇒ legacy default (3 hops); `Infinity` (API misuse) ⇒ tolerated
   //   as Infinity here but never re-stored — storage-side Infinity degrades
   //   safely to `null` through JSON.stringify (accepted); any other
-  //   non-finite/NaN/<1 value ⇒ ignored (legacy default).
+  //   non-finite/NaN/<0 / non-integer value ⇒ ignored (legacy default);
+  //   0 = focused node only (W13 WP1).
   const normalizedFocusDirection: AppState["terraformFocusDirection"] =
     focusDirection === "dependencies" || focusDirection === "dependents"
       ? focusDirection
@@ -71,7 +72,9 @@ export const buildTerraformRuntimeFocusUpdate = ({
       ? null
       : focusMaxHops === -1 || focusMaxHops === Infinity
       ? Infinity
-      : Number.isFinite(focusMaxHops) && focusMaxHops >= 1
+      : Number.isFinite(focusMaxHops) &&
+        Number.isInteger(focusMaxHops) &&
+        focusMaxHops >= 0
       ? focusMaxHops
       : null;
 
