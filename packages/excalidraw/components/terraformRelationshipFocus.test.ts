@@ -709,4 +709,361 @@ describe("terraform relationship focus", () => {
       expect(byId.get("group:a")?.strokeColor).toBe(expectedWashedStroke(68));
     });
   });
+
+  describe("directed traversal (declared-dependency direction)", () => {
+    /**
+     * Diamond + cycle + upstream-referrer fixture over declared-dependency
+     * edges (`relationship.source` references `relationship.target`):
+     *
+     *   z → a                     (z declares a dependency on a)
+     *   a → b, a → c, b → d, c → d   (diamond)
+     *   d → e, e → f, f → d          (cycle; f is 4 hops from a)
+     *   iso1 → iso2                  (disconnected from a entirely)
+     */
+    const diamondCycleElements = () => [
+      resource("a"),
+      resource("b"),
+      resource("c"),
+      resource("d"),
+      resource("e"),
+      resource("f"),
+      resource("z"),
+      resource("iso1"),
+      resource("iso2"),
+      edge("edge:z-a", "dependency", "z", "a"),
+      edge("edge:a-b", "dependency", "a", "b"),
+      edge("edge:a-c", "dependency", "a", "c"),
+      edge("edge:b-d", "dependency", "b", "d"),
+      edge("edge:c-d", "dependency", "c", "d"),
+      edge("edge:d-e", "dependency", "d", "e"),
+      edge("edge:e-f", "dependency", "e", "f"),
+      edge("edge:f-d", "dependency", "f", "d"),
+      edge("edge:iso", "dependency", "iso1", "iso2"),
+    ];
+    const NODE_PATHS = ["a", "b", "c", "d", "e", "f", "z", "iso1", "iso2"];
+
+    const stripNondeterministic = (elements: readonly ExcalidrawElement[]) =>
+      elements.map(({ versionNonce, updated, ...rest }) => rest);
+
+    it("golden: options omitted, empty options, and direction 'both' are deep-equal (get)", () => {
+      const elements = diamondCycleElements();
+      const legacy = getTerraformRelationshipFocus(elements, "a");
+      const emptyOptions = getTerraformRelationshipFocus(elements, "a", 3, {});
+      const explicitBoth = getTerraformRelationshipFocus(elements, "a", 3, {
+        direction: "both",
+      });
+
+      expect(emptyOptions).toEqual(legacy);
+      expect(explicitBoth).toEqual(legacy);
+
+      // Lock the legacy behavior itself: undirected, 3-hop cap. From `a`,
+      // the undirected 3-hop ball is {a, z, b, c, d, e, f-via-f→d(3 hops)}.
+      expect(legacy.nodeDistance.get("a")).toBe(0);
+      expect(legacy.nodeDistance.get("z")).toBe(1);
+      expect(legacy.nodeDistance.get("b")).toBe(1);
+      expect(legacy.nodeDistance.get("c")).toBe(1);
+      expect(legacy.nodeDistance.get("d")).toBe(2);
+      expect(legacy.nodeDistance.get("e")).toBe(3);
+      expect(legacy.nodeDistance.get("f")).toBe(3);
+      expect(legacy.nodeDistance.has("iso1")).toBe(false);
+      expect(legacy.nodeDistance.has("iso2")).toBe(false);
+    });
+
+    it("golden: apply with options omitted / empty / 'both' produces deep-equal elements", () => {
+      const legacy = applyTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        VIEW_BG,
+      );
+      const emptyOptions = applyTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        VIEW_BG,
+        {},
+      );
+      const explicitDefaults = applyTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        VIEW_BG,
+        { direction: "both", maxHops: 3 },
+      );
+
+      expect(legacy.didChange).toBe(true);
+      expect(emptyOptions.didChange).toBe(true);
+      expect(explicitDefaults.didChange).toBe(true);
+      // versionNonce/updated are freshly generated per newElementWith call, so
+      // strip them; everything visible (colors, opacity, isDeleted, customData)
+      // must be byte-identical.
+      expect(stripNondeterministic(emptyOptions.elements)).toEqual(
+        stripNondeterministic(legacy.elements),
+      );
+      expect(stripNondeterministic(explicitDefaults.elements)).toEqual(
+        stripNondeterministic(legacy.elements),
+      );
+    });
+
+    it("dependencies mode with maxHops Infinity reaches the full forward cone and terminates on cycles", () => {
+      const focus = getTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        3,
+        { direction: "dependencies", maxHops: Infinity },
+      );
+
+      // Forward cone of `a` along declared source→target: diamond + cycle.
+      expect(focus.nodeDistance.get("a")).toBe(0);
+      expect(focus.nodeDistance.get("b")).toBe(1);
+      expect(focus.nodeDistance.get("c")).toBe(1);
+      expect(focus.nodeDistance.get("d")).toBe(2);
+      expect(focus.nodeDistance.get("e")).toBe(3);
+      expect(focus.nodeDistance.get("f")).toBe(4);
+      // NOT in the forward cone: the referrer `z` and the disconnected pair.
+      expect(focus.nodeDistance.has("z")).toBe(false);
+      expect(focus.nodeDistance.has("iso1")).toBe(false);
+      expect(focus.nodeDistance.has("iso2")).toBe(false);
+      expect(focus.focusedEdgeIds.has("edge:z-a")).toBe(false);
+      expect(focus.focusedEdgeIds.has("edge:iso")).toBe(false);
+      // Every edge inside the cone lights, including the cycle back edge.
+      for (const id of [
+        "edge:a-b",
+        "edge:a-c",
+        "edge:b-d",
+        "edge:c-d",
+        "edge:d-e",
+        "edge:e-f",
+        "edge:f-d",
+      ]) {
+        expect(focus.focusedEdgeIds.has(id)).toBe(true);
+      }
+    });
+
+    it("options.maxHops wins over the positional maxHops param", () => {
+      const focus = getTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        1,
+        { direction: "dependencies", maxHops: 2 },
+      );
+      expect(focus.nodeDistance.get("d")).toBe(2);
+      expect(focus.nodeDistance.has("e")).toBe(false);
+    });
+
+    it("dependents mode is the exact reverse of dependencies mode on the same fixture", () => {
+      const elements = diamondCycleElements();
+      const dependenciesCone = new Map(
+        NODE_PATHS.map((anchor) => [
+          anchor,
+          getTerraformRelationshipFocus(elements, anchor, 3, {
+            direction: "dependencies",
+            maxHops: Infinity,
+          }).nodeDistance,
+        ]),
+      );
+      const dependentsCone = new Map(
+        NODE_PATHS.map((anchor) => [
+          anchor,
+          getTerraformRelationshipFocus(elements, anchor, 3, {
+            direction: "dependents",
+            maxHops: Infinity,
+          }).nodeDistance,
+        ]),
+      );
+
+      // y is reachable from x along declared dependencies iff x is reachable
+      // from y along dependents — with the same hop distance.
+      for (const x of NODE_PATHS) {
+        for (const y of NODE_PATHS) {
+          expect(dependentsCone.get(y)!.get(x)).toBe(
+            dependenciesCone.get(x)!.get(y),
+          );
+        }
+      }
+      // Spot-check: `z` declares a dependency on `a`, so dependents of `a`
+      // include `z`, and nothing from the diamond/cycle below `a`.
+      const dependentsOfA = dependentsCone.get("a")!;
+      expect(dependentsOfA.get("z")).toBe(1);
+      expect(dependentsOfA.has("b")).toBe(false);
+      expect(dependentsOfA.has("d")).toBe(false);
+    });
+
+    it("reveal gating stays <=1 hop even with Infinity hops (nearEdgeIds invariant)", () => {
+      const focus = getTerraformRelationshipFocus(
+        diamondCycleElements(),
+        "a",
+        3,
+        { direction: "dependencies", maxHops: Infinity },
+      );
+
+      // Only edges whose BOTH endpoints are within 1 hop may gate reveal of
+      // soft-deleted elements (collapsed-overview visibility reconciler).
+      expect([...focus.nearEdgeIds].sort()).toEqual(["edge:a-b", "edge:a-c"]);
+      for (const id of focus.nearEdgeIds) {
+        expect(focus.focusedEdgeIds.has(id)).toBe(true);
+      }
+      // Deeper cone edges light but never enter nearEdgeIds.
+      expect(focus.nearEdgeIds.has("edge:b-d")).toBe(false);
+      expect(focus.nearEdgeIds.has("edge:d-e")).toBe(false);
+      expect(focus.nearEdgeIds.has("edge:f-d")).toBe(false);
+    });
+
+    it("apply with Infinity hops dims the far cone but never reveals soft-deleted deep elements", () => {
+      const elements = [
+        resource("a"),
+        resource("b", { isDeleted: true }),
+        resource("d", { isDeleted: true }),
+        edge("edge:a-b", "dependency", "a", "b", { isDeleted: true }),
+        edge("edge:b-d", "dependency", "b", "d", { isDeleted: true }),
+      ];
+      const result = applyTerraformRelationshipFocus(elements, "a", VIEW_BG, {
+        direction: "dependencies",
+        maxHops: Infinity,
+      });
+      const byId = new Map(result.elements.map((e) => [e.id, e]));
+
+      // 1-hop neighbor + its edge reveal.
+      expect(byId.get("node:b")?.isDeleted).toBe(false);
+      expect(byId.get("edge:a-b")?.isDeleted).toBe(false);
+      // 2-hop node/edge are in the dim cone but stay soft-deleted.
+      expect(byId.get("node:d")?.isDeleted).toBe(true);
+      expect(byId.get("edge:b-d")?.isDeleted).toBe(true);
+    });
+
+    it("follows relationship.source/target on reversed strata back-edge arrows (C10' — no un-reversal)", () => {
+      // Strata's C10' back-edge reversal is rank-only: the drawn arrow may point
+      // "up" the layout, but customData.relationship keeps the TRUE declared
+      // dependency direction. The directed cone must follow the relationship
+      // fields verbatim, regardless of any strata reversal marker.
+      const elements = [
+        resource("aws_lambda_function.app"),
+        resource("aws_sqs_queue.q"),
+        edge(
+          "edge:back",
+          "dependency",
+          "aws_lambda_function.app",
+          "aws_sqs_queue.q",
+          {},
+          { strataRankReversed: true },
+        ),
+      ];
+
+      const deps = getTerraformRelationshipFocus(
+        elements,
+        "aws_lambda_function.app",
+        3,
+        { direction: "dependencies", maxHops: Infinity },
+      );
+      expect(deps.nodeDistance.get("aws_sqs_queue.q")).toBe(1);
+      expect(deps.focusedEdgeIds.has("edge:back")).toBe(true);
+
+      const dependents = getTerraformRelationshipFocus(
+        elements,
+        "aws_lambda_function.app",
+        3,
+        { direction: "dependents", maxHops: Infinity },
+      );
+      expect(dependents.nodeDistance.has("aws_sqs_queue.q")).toBe(false);
+      expect(dependents.focusedEdgeIds.has("edge:back")).toBe(false);
+    });
+
+    it("traverses coalesced hint edges (relationship.directions[]) directionally in both modes", () => {
+      // Coalesced module edge whose own endpoints are module paths; the hint
+      // says sg references web (declared dependency sg → web).
+      const elements = [
+        resource("aws_instance.web"),
+        resource("aws_security_group.sg"),
+        edge(
+          "edge:coalesced",
+          "dependency",
+          "module.network",
+          "module.compute",
+          {},
+          {
+            directions: [
+              { source: "aws_security_group.sg", target: "aws_instance.web" },
+            ],
+          },
+        ),
+      ];
+
+      // dependencies from sg follows the hint source→target.
+      const depsFromSg = getTerraformRelationshipFocus(
+        elements,
+        "aws_security_group.sg",
+        3,
+        { direction: "dependencies", maxHops: Infinity },
+      );
+      expect(depsFromSg.nodeDistance.get("aws_instance.web")).toBe(1);
+      expect(depsFromSg.focusedEdgeIds.has("edge:coalesced")).toBe(true);
+
+      // dependencies from web must NOT walk the hint backwards.
+      const depsFromWeb = getTerraformRelationshipFocus(
+        elements,
+        "aws_instance.web",
+        3,
+        { direction: "dependencies", maxHops: Infinity },
+      );
+      expect(depsFromWeb.nodeDistance.has("aws_security_group.sg")).toBe(false);
+      expect(depsFromWeb.focusedEdgeIds.has("edge:coalesced")).toBe(false);
+
+      // dependents from web walks the hint in reverse.
+      const dependentsOfWeb = getTerraformRelationshipFocus(
+        elements,
+        "aws_instance.web",
+        3,
+        { direction: "dependents", maxHops: Infinity },
+      );
+      expect(dependentsOfWeb.nodeDistance.get("aws_security_group.sg")).toBe(1);
+      expect(dependentsOfWeb.focusedEdgeIds.has("edge:coalesced")).toBe(true);
+    });
+
+    it("threads options.maxHops through applyTerraformRelationshipFocus", () => {
+      const elements = () => [
+        resource("aws_instance.web"),
+        resource("aws_security_group.sg"),
+        resource("aws_vpc.main"),
+        edge(
+          "edge:web-sg",
+          "dependency",
+          "aws_instance.web",
+          "aws_security_group.sg",
+        ),
+        edge(
+          "edge:sg-vpc",
+          "dependency",
+          "aws_security_group.sg",
+          "aws_vpc.main",
+        ),
+      ];
+
+      // Default (3 hops): vpc is 2 hops out → far-related level (55).
+      const defaultHops = applyTerraformRelationshipFocus(
+        elements(),
+        "aws_instance.web",
+        VIEW_BG,
+      );
+      const defaultById = new Map(defaultHops.elements.map((e) => [e.id, e]));
+      expect(defaultById.get("node:aws_vpc.main")?.strokeColor).toBe(
+        expectedWashedStroke(55),
+      );
+      expect(defaultById.get("edge:sg-vpc")?.strokeColor).toBe(
+        expectedWashedStroke(85),
+      );
+
+      // maxHops: 1 threaded through: vpc drops out of the cone → dim level
+      // (25), and the sg→vpc edge no longer lights (dim-edge level 15).
+      const oneHop = applyTerraformRelationshipFocus(
+        elements(),
+        "aws_instance.web",
+        VIEW_BG,
+        { maxHops: 1 },
+      );
+      const oneHopById = new Map(oneHop.elements.map((e) => [e.id, e]));
+      expect(oneHopById.get("node:aws_vpc.main")?.strokeColor).toBe(
+        expectedWashedStroke(25),
+      );
+      expect(oneHopById.get("edge:sg-vpc")?.strokeColor).toBe(
+        expectedWashedStroke(15),
+      );
+    });
+  });
 });

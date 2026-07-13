@@ -161,6 +161,28 @@ const isParentGroupOfFocusedNode = (
 type PreviewAction = "set" | "clear" | "leave";
 
 /**
+ * Traversal direction over the declared-dependency edge graph
+ * (`customData.relationship.source → target` is the declared dependency:
+ * source *references* target).
+ *
+ * - `"both"`         — undirected (legacy behavior; the default).
+ * - `"dependencies"` — follow `relationship.source → target` from the anchor:
+ *                      what the anchor declares a dependency on (transitively).
+ * - `"dependents"`   — follow the reverse (`target → source`): what declares a
+ *                      dependency on the anchor (transitively).
+ *
+ * These names deliberately describe the declared-dependency direction only.
+ * Whether readers perceive that axis as "flow" (and in which direction) is the
+ * open Q7-AXIS question — no flow semantics are claimed here.
+ */
+export type TerraformFocusDirection = "both" | "dependencies" | "dependents";
+
+export type TerraformFocusOptions = {
+  direction?: TerraformFocusDirection;
+  maxHops?: number;
+};
+
+/**
  * Builds the wash + opacity + customData patch for one focus update step. Returns
  * `null` when nothing would change so the caller can keep the original reference.
  *
@@ -240,7 +262,13 @@ export const getTerraformRelationshipFocus = (
   allElements: readonly ExcalidrawElement[],
   focusNodePath: string | null,
   maxHops: number = TERRAFORM_FOCUS_MAX_HOPS,
+  options?: TerraformFocusOptions,
 ) => {
+  const direction: TerraformFocusDirection = options?.direction ?? "both";
+  // `options.maxHops` wins over the legacy positional param when both are given.
+  // `Infinity` means uncapped: the BFS below still terminates because visited
+  // nodes (`nodeDistance`) are never re-entered, so cycles cannot loop.
+  const effectiveMaxHops = options?.maxHops ?? maxHops;
   const focusedNodePaths = new Set<string>();
   const relatedNodePaths = new Set<string>();
   const focusedEdgeIds = new Set<string>();
@@ -260,22 +288,52 @@ export const getTerraformRelationshipFocus = (
     };
   }
 
-  // Undirected adjacency from layer edges (follow flow both up and downstream).
   const adjacency = new Map<string, Set<string>>();
-  const link = (a: string, b: string) => {
-    (adjacency.get(a) ?? adjacency.set(a, new Set()).get(a)!).add(b);
-    (adjacency.get(b) ?? adjacency.set(b, new Set()).get(b)!).add(a);
-  };
-  for (const element of allElements) {
-    if (!isTerraformLayerEdge(element)) {
-      continue;
+  if (direction === "both") {
+    // Undirected adjacency from layer edges (follow flow both up and downstream).
+    // This branch is taken BEFORE any directed adjacency exists so the default
+    // ("both" / options omitted) path is byte-identical to the legacy behavior.
+    const link = (a: string, b: string) => {
+      (adjacency.get(a) ?? adjacency.set(a, new Set()).get(a)!).add(b);
+      (adjacency.get(b) ?? adjacency.set(b, new Set()).get(b)!).add(a);
+    };
+    for (const element of allElements) {
+      if (!isTerraformLayerEdge(element)) {
+        continue;
+      }
+      const endpoints = getRelationshipEndpoints(element);
+      if (endpoints) {
+        link(endpoints.source, endpoints.target);
+      }
+      for (const hint of getDirectionEndpointHints(element)) {
+        link(hint.source, hint.target);
+      }
     }
-    const endpoints = getRelationshipEndpoints(element);
-    if (endpoints) {
-      link(endpoints.source, endpoints.target);
-    }
-    for (const direction of getDirectionEndpointHints(element)) {
-      link(direction.source, direction.target);
+  } else {
+    // Directed adjacency over the declared-dependency direction
+    // (`relationship.source → target`; source references target). "dependencies"
+    // walks source→target from the anchor; "dependents" walks the reverse.
+    // Coalesced hint edges (`relationship.directions[]`) carry the same
+    // declared-dependency orientation and get identical treatment. What this
+    // axis semantically reads as on canvas is owned by Q7-AXIS — no claim here.
+    const linkDirected = (source: string, target: string) => {
+      const [from, to] =
+        direction === "dependencies" ? [source, target] : [target, source];
+      (adjacency.get(from) ?? adjacency.set(from, new Set()).get(from)!).add(
+        to,
+      );
+    };
+    for (const element of allElements) {
+      if (!isTerraformLayerEdge(element)) {
+        continue;
+      }
+      const endpoints = getRelationshipEndpoints(element);
+      if (endpoints) {
+        linkDirected(endpoints.source, endpoints.target);
+      }
+      for (const hint of getDirectionEndpointHints(element)) {
+        linkDirected(hint.source, hint.target);
+      }
     }
   }
 
@@ -283,7 +341,7 @@ export const getTerraformRelationshipFocus = (
   nodeDistance.set(focusNodePath, 0);
   focusedNodePaths.add(focusNodePath);
   let frontier = [focusNodePath];
-  for (let hop = 1; hop <= maxHops && frontier.length > 0; hop++) {
+  for (let hop = 1; hop <= effectiveMaxHops && frontier.length > 0; hop++) {
     const next: string[] = [];
     for (const node of frontier) {
       for (const neighbor of adjacency.get(node) ?? []) {
@@ -300,6 +358,12 @@ export const getTerraformRelationshipFocus = (
   }
 
   // Light every edge whose endpoints are both inside the focused neighborhood.
+  // This keys off `nodeDistance`, so in directed modes it lights exactly the
+  // edges within the directed cone — no direction-specific change needed here.
+  // `nearEdgeIds` (≤1-hop) stays capped regardless of direction/maxHops: only
+  // near edges may reveal soft-deleted elements, because unbounded reveal
+  // fights the collapsed-overview visibility reconciler (see the nearEdgeIds
+  // comment above) and never settles.
   for (const element of allElements) {
     if (!isTerraformLayerEdge(element)) {
       continue;
@@ -345,6 +409,7 @@ export const applyTerraformRelationshipFocus = (
   allElements: readonly ExcalidrawElement[],
   focusNodePath: string | null,
   viewBackgroundColor: string = DEFAULT_VIEW_BACKGROUND_COLOR,
+  options?: TerraformFocusOptions,
 ) => {
   const {
     focusedNodePaths,
@@ -352,7 +417,12 @@ export const applyTerraformRelationshipFocus = (
     focusedEdgeIds,
     nearEdgeIds,
     nodeDistance,
-  } = getTerraformRelationshipFocus(allElements, focusNodePath);
+  } = getTerraformRelationshipFocus(
+    allElements,
+    focusNodePath,
+    TERRAFORM_FOCUS_MAX_HOPS,
+    options,
+  );
   const elementById = new Map(allElements.map((e) => [e.id, e]));
   const duplicateHighlightCanonical = (() => {
     if (!focusNodePath) {
