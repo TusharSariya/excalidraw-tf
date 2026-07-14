@@ -92,6 +92,7 @@ As-built register (what shipped): [`strata-view-decision-log.md`](./strata-view-
 | [`strata-view-w12-heldout-scale.md`](./strata-view-w12-heldout-scale.md) | Battery | Current (interpretation BLOCKED-ON-Q7; R8-F4 open) | Out-of-tuning-distribution transfer + full-detail scale battery — synthetic P3 (`staging-heldout-mesh`, claim-scoped: NOT held-out closure); mechanical transfer blockVerdict SUPPORT (in-sample direction reproduces, against the strata arms); full-detail extent frozen-VOID by construction (M3 port = the pairing unlock); browser felt-cost trace appendix |
 | [`strata-view-w13-hop-sweep.md`](./strata-view-w13-hop-sweep.md) | Battery | Current (BUILT+RUN; interpretation BLOCKED-ON-Q7) | Hop-depth K × direction sweep for relationship focus — frozen recommendation rule (smallest K w/ macro precision ≥0.90 AND recall ≥0.95 on BOTH P1/P2, else keep default 3) KEEPS default 3 (`dependencies` needs K=9, `dependents` K=10, `both` never qualifies; P3 confirmatory disagrees, reported not re-selected); per-direction truth builders, W12-artifact sanity anchors exact-green; population-match evidence only, NOT task evidence — SDEC-67 |
 | [`strata-view-w14-browser-felt-cost.md`](./strata-view-w14-browser-felt-cost.md) | Battery | BUILT+RUN | Browser felt-cost milestone — always-on `withTerraformPlanNodeKeyIndex` scope extension (parsing + skeleton materialization + topology resolvers) + `pipelineFull` worker offload (codex F1 fix: strata was missing from the worker dispatch predicate, now fixed); felt import 15.1s→≈6.9-7.5s pre-fix, single blocking main-thread task ELIMINATED post-fix (0/3 long tasks); `terraformModulePrefixForAddress` (~2.1s) and `workerError:1` fallback (uncorrelated w/ blocking) named open follow-ups; REPORT-only, no gate/threshold |
+| [`strata-view-w15-band-depth-slider.md`](./strata-view-w15-band-depth-slider.md) | Companion | BUILT+RUN | `banded`/`packed` role map + the default-off `strataBandCompact` boolean generalized into one monotone cut `strataBandDepth` (root..subnetZone, default `"account"`, byte-identical to prior output), fully-generic resolved-policy model (every consumer — A0/A7/A2/packed-scoring/slice-metrics — reads one `hull.policy`), real range slider UI; owner flags: legacy `strataBandCompact=true` output changes (aliases to root cut, provider/account become packed-eligible) and the bandCompact battery's slice-B metric empties for `_BC`/root-cut arms — both interact with the open W10b adjudication |
 | [`strata-baselines/README.md`](./strata-baselines/README.md) | Battery | Current (frozen) | S0b baseline JSON pins |
 | [`rcll-reading-list.md`](./rcll-reading-list.md) | Aux | Living | Literature reading list |
 | [`rcll-papers-reference-chart.md`](./rcll-papers-reference-chart.md) | Aux | Living | Built vs rejected papers |
@@ -149,6 +150,7 @@ flowchart TB
     W12[w12-heldout-scale]
     W13[w13-hop-sweep]
     W14[w14-browser-felt-cost]
+    W15[w15-band-depth-slider]
     Base[strata-baselines]
   end
 
@@ -216,6 +218,8 @@ flowchart TB
   W12 --- W13
   W12 --> W14
   W13 --- W14
+  W10b --> W15
+  V32 --> W15
   V32 --> Base
 
   ArchDec --> ReadList
