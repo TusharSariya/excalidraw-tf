@@ -19,7 +19,7 @@
  *
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataCoordRefine.test.ts
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import graphlibDot from "@dagrejs/graphlib-dot";
 
@@ -30,6 +30,11 @@ import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraf
 
 import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
 import { buildStrataModel } from "./terraformPipelineStrataModel";
+// Namespace import used ONLY to `vi.spyOn` the real `buildStrataModel` export
+// so the "cut default" test below can observe the literal `engineOptions`
+// object terraformPipelineStrata.ts hands it — see that test for why the
+// named import above can't be spied directly.
+import * as terraformPipelineStrataModelModule from "./terraformPipelineStrataModel";
 import {
   checkStrataStructure,
   placeStrataHulls,
@@ -805,6 +810,86 @@ describe("band-depth cut — legacy strataBandCompact alias + meta echo", () => 
       ).toEqual([]);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  // codex P2 (WP2, on 4694b8ea2): the "cut default" test above only compares
+  // absent/off/account to EACH OTHER, and all three resolve
+  // `strataBandDepth` to `"account"` before engineOptions is even built — so
+  // it is circular. If the load-bearing `strataBandDepth !== "account"` guard
+  // in terraformPipelineStrata.ts regressed to a `&&`-truthy check, "account"
+  // (a non-empty string) is truthy, so the guard would wrongly spread
+  // `{ strataBandDepth: "account" }` into engineOptions on every default run
+  // — and the test above would still pass, because `buildStrataModel`'s sole
+  // consumer (`options.strataBandDepth ?? "account"`) resolves an EXPLICIT
+  // "account" the same way it resolves an ABSENT key, so scene output stays
+  // byte-identical either way. The only thing a truthy-guard regression
+  // actually changes is the literal SHAPE of the engineOptions object handed
+  // to buildStrataModel — which no scene-output assertion can see. Pin the
+  // guard at its only observable seam instead: spy on the real
+  // `buildStrataModel` export and assert the object it receives carries NO
+  // `strataBandDepth` own-key at the default cut (any spelling), and DOES
+  // carry one at a non-default cut (the discriminating control).
+  it(
+    'cut default: buildStrataModel receives engineOptions with NO strataBandDepth key (pins the `!== "account"` guard)',
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+      const spy = vi.spyOn(
+        terraformPipelineStrataModelModule,
+        "buildStrataModel",
+      );
+      const lastEngineOptions = (): Record<string, unknown> => {
+        const call = spy.mock.calls.at(-1);
+        expect(call).toBeDefined();
+        return call![1] as Record<string, unknown>;
+      };
+      try {
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+        });
+        const absentOpts = lastEngineOptions();
+
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+          strataBandCompact: false,
+        });
+        const compactFalseOpts = lastEngineOptions();
+
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+          strataBandDepth: "account",
+        });
+        const explicitAccountOpts = lastEngineOptions();
+
+        for (const opts of [
+          absentOpts,
+          compactFalseOpts,
+          explicitAccountOpts,
+        ]) {
+          expect(
+            Object.prototype.hasOwnProperty.call(opts, "strataBandDepth"),
+          ).toBe(false);
+        }
+
+        // Discriminating control — a non-default cut DOES carry the key, so
+        // the assertions above are not vacuously always-false.
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+          strataBandDepth: "root",
+        });
+        const rootOpts = lastEngineOptions();
+        expect(
+          Object.prototype.hasOwnProperty.call(rootOpts, "strataBandDepth"),
+        ).toBe(true);
+        expect(rootOpts.strataBandDepth).toBe("root");
+      } finally {
+        spy.mockRestore();
+      }
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 16,
   );
 
   it(
