@@ -7,6 +7,11 @@
 // Plain literals only — this module must not import from any layout module
 // (planParsing→layoutCore import-cycle rule).
 export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
+  /** Band-depth slider (v3.2): the deepest role still banded; deeper roles are
+   * packed. `"account"` reproduces today's fixed role→policy map
+   * byte-identically. Plain string literal (not `StrataHullRole`) per the
+   * no-layout-import rule above. */
+  strataBandDepth: "account",
   strataNetworkSimplexRank: false,
   strataSweeps: 4,
   strataCoordinateRefine: true,
@@ -42,6 +47,15 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedEps?: number;
   strataEdgeRouting?: boolean;
   strataBandCompact?: boolean;
+  /** Plain string union (not `StrataHullRole`) per the no-layout-import rule
+   * above — mirrors the engine's `StrataHullRole` domain exactly. */
+  strataBandDepth?:
+    | "root"
+    | "provider"
+    | "account"
+    | "region"
+    | "vpc"
+    | "subnetZone";
 }) => ({
   strataNetworkSimplexRank:
     params.strataNsRank ??
@@ -66,4 +80,13 @@ export const resolveStrataDemoOptions = (params: {
   strataBandCompact:
     params.strataBandCompact ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,
+  // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
+  // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
+  // absent (same precedence as the `terraformPipelineStrata.ts` app-layer
+  // fold-in — encoded once here, once there).
+  strataBandDepth:
+    params.strataBandDepth ??
+    (params.strataBandCompact
+      ? "root"
+      : TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth),
 });

@@ -21,6 +21,7 @@ describe("resolveStrataDemoOptions", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
+      strataBandDepth: "account",
     });
   });
 
@@ -61,6 +62,7 @@ describe("resolveStrataDemoOptions", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
+      strataBandDepth: "account",
     });
   });
 
@@ -95,6 +97,39 @@ describe("resolveStrataDemoOptions", () => {
       "?preset=staging-multi-state-expanded&view=strata&strataBandCompact=1",
     );
     expect(resolveStrataDemoOptions(on!).strataBandCompact).toBe(true);
+  });
+
+  it("resolves strataBandDepth: default 'account', explicit URL param wins", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    expect(resolveStrataDemoOptions(bare!).strataBandDepth).toBe("account");
+    const on = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataBandDepth=region",
+    );
+    expect(resolveStrataDemoOptions(on!).strataBandDepth).toBe("region");
+  });
+
+  it("legacy strataBandCompact=1 aliases to strataBandDepth:'root' when strataBandDepth is absent", () => {
+    const legacy = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataBandCompact=1",
+    );
+    expect(resolveStrataDemoOptions(legacy!).strataBandDepth).toBe("root");
+    expect(resolveStrataDemoOptions(legacy!).strataBandCompact).toBe(true);
+  });
+
+  it("explicit strataBandDepth always wins over the legacy strataBandCompact alias", () => {
+    const both = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataBandDepth=region&strataBandCompact=1",
+    );
+    expect(resolveStrataDemoOptions(both!).strataBandDepth).toBe("region");
+  });
+
+  it("strataBandCompact=0 (explicit false) does not alias to root — resolves the plain default", () => {
+    const off = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataBandCompact=0",
+    );
+    expect(resolveStrataDemoOptions(off!).strataBandDepth).toBe("account");
   });
 
   it("resolves strataPackedScoringEpsilon: default 0, explicit strataPackedEps wins (incl. relative)", () => {

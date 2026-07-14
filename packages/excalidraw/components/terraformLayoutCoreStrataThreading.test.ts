@@ -248,6 +248,59 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataBandDepth through the sceneContext + builderOptions literals to a frame customData echo (silent-drop guard)",
+    async () => {
+      // Both literals in terraformLayoutCore.ts (LayoutSceneContext +
+      // buildPipelineLayoutSceneBody's builderOptions) are exercised by this
+      // end-to-end call — an option missing from either is silently dropped
+      // on the real app path (engine-level unit tests bypass this seam
+      // entirely). The engine itself does NOT echo the resolved cut in
+      // `meta` (deliberately — see terraformPipelineStrata.ts's comment next
+      // to `strataBandCompactRequested`), so the only app-observable proof
+      // of survival is the conditional `terraformHullPolicy` frame stamp
+      // (terraformPipelineStrataSceneBuild.ts): it fires ONLY when a hull's
+      // resolved policy diverges from the static role→policy map, which only
+      // happens under a non-default cut.
+      const hasPolicyStamp = (scene: Scene) =>
+        scene.elements.some(
+          (el) =>
+            el.type === "frame" &&
+            (el.customData as Record<string, unknown> | undefined)
+              ?.terraformHullPolicy !== undefined,
+        );
+
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default cut ("account", absent ⇒ same thing): every hull matches the
+      // static map, so the stamp never fires — byte-identical to pre-change.
+      expect(hasPolicyStamp(off)).toBe(false);
+
+      const explicitAccount = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "account",
+      });
+      expect(explicitAccount.meta.rcllV2Degraded).toBeUndefined();
+      expect(hasPolicyStamp(explicitAccount)).toBe(false);
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "root",
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // "root" packs every deeper role — provider/account hulls (banded under
+      // the static map) now resolve "packed" and get stamped, proving the
+      // option reached the engine through both literals.
+      expect(hasPolicyStamp(on)).toBe(true);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
     "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
     async () => {
       const strataOff = await buildStrata();

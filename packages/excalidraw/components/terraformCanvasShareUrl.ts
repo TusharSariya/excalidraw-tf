@@ -92,6 +92,7 @@ const sessionToDemoSnapshot = (
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting ?? false,
   strataBandCompact: session.strataBandCompact ?? false,
+  strataBandDepth: session.strataBandDepth ?? "account",
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

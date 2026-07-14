@@ -232,8 +232,12 @@ export type RunTerraformImportFromSourcesOptions = {
    * Default off. */
   strataEdgeRouting?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
-   * primarily effective with rankSeparate. */
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -280,6 +284,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataPackedScoringEpsilon"
   | "strataEdgeRouting"
   | "strataBandCompact"
+  | "strataBandDepth"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -312,6 +317,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting === true,
   strataBandCompact: session.strataBandCompact === true,
+  strataBandDepth: session.strataBandDepth ?? "account",
 });
 
 /**
@@ -353,6 +359,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataPackedScoringEpsilon"
   | "strataEdgeRouting"
   | "strataBandCompact"
+  | "strataBandDepth"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -396,6 +403,7 @@ function buildPipelineFamilyLayoutOptions(
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
     strataEdgeRouting: options.strataEdgeRouting === true,
     strataBandCompact: options.strataBandCompact === true,
+    strataBandDepth: options.strataBandDepth ?? "account",
   };
 }
 

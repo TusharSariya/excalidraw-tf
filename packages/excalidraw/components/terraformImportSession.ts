@@ -84,8 +84,12 @@ export type TerraformImportSession = {
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing. */
   strataEdgeRouting?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
-   * primarily effective with rankSeparate. */
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

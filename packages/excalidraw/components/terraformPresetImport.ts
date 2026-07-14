@@ -92,8 +92,12 @@ export type RunTerraformImportFromSourcesArgs = {
    * Default off. */
   strataEdgeRouting?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
-   * primarily effective with rankSeparate. */
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -132,6 +136,7 @@ export const runTerraformImportWithView = async ({
   strataPackedScoringEpsilon,
   strataEdgeRouting,
   strataBandCompact,
+  strataBandDepth,
   importedTfdTexts,
   preset = null,
   signal,
@@ -176,6 +181,7 @@ export const runTerraformImportWithView = async ({
           strataPackedScoringEpsilon,
           strataEdgeRouting,
           strataBandCompact,
+          strataBandDepth,
         }
       : {}),
     importedTfdTexts,
@@ -215,7 +221,11 @@ export type RunTerraformPresetImportOptions = {
   strataPackedScoring?: boolean;
   strataPackedScoringEpsilon?: number;
   strataEdgeRouting?: boolean;
+  /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -279,6 +289,7 @@ export const runTerraformPresetImport = async (
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBandCompact: options.strataBandCompact,
+    strataBandDepth: options.strataBandDepth,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

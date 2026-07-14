@@ -462,6 +462,66 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("parses strataBandDepth and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandDepth=root",
+      );
+      expect(on).not.toBeNull();
+      expect(on!.strataBandDepth).toBe("root");
+      const bare = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(bare).not.toBeNull();
+      expect(bare!.strataBandDepth).toBeUndefined();
+    });
+
+    it("parses every strataBandDepth role (exact-case, incl. mixed-case subnetZone)", () => {
+      for (const role of [
+        "root",
+        "provider",
+        "account",
+        "region",
+        "vpc",
+        "subnetZone",
+      ] as const) {
+        expect(
+          parseTerraformDemoUrlParams(
+            `?preset=demo&view=strata&strataBandDepth=${role}`,
+          )!.strataBandDepth,
+        ).toBe(role);
+      }
+    });
+
+    it("rejects an invalid strataBandDepth (bogus value, or wrong case)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataBandDepth=bogus",
+        ),
+      ).toBeNull();
+      // Exact-case only — lowercased "subnetzone" is not a valid spelling.
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataBandDepth=subnetzone",
+        ),
+      ).toBeNull();
+    });
+
+    it("legacy strataBandCompact=1 still parses on its own (alias fold-in happens downstream, not in the parser)", () => {
+      const legacy = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandCompact=1",
+      );
+      expect(legacy).not.toBeNull();
+      expect(legacy!.strataBandCompact).toBe(true);
+      expect(legacy!.strataBandDepth).toBeUndefined();
+    });
+
+    it("explicit strataBandDepth and legacy strataBandCompact can both parse from the same URL (precedence is resolved downstream)", () => {
+      const both = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandDepth=region&strataBandCompact=1",
+      );
+      expect(both).not.toBeNull();
+      expect(both!.strataBandDepth).toBe("region");
+      expect(both!.strataBandCompact).toBe(true);
+    });
+
     it("parses strataPackedEps (integer, and fractional relative mode)", () => {
       expect(
         parseTerraformDemoUrlParams(
@@ -629,6 +689,27 @@ describe("terraformDemoUrlParams", () => {
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
       ).toEqual(full);
     });
+
+    it("round-trips strataBandDepth through build+parse", () => {
+      const full: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        strataSweeps: 4,
+        strataBandDepth: "root",
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
+      ).toEqual(full);
+    });
+
+    it("emits no strataBandDepth param when the field is absent (byte-identity)", () => {
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+        strataSweeps: 4,
+      });
+      expect(queryOf(url)).not.toContain("strataBandDepth");
+    });
   });
 
   describe("collectTerraformDemoParams", () => {
@@ -794,6 +875,28 @@ describe("terraformDemoUrlParams", () => {
         strataBandCompact: true,
       });
       expect(on.strataBandCompact).toBe(true);
+    });
+
+    it("strataBandDepth emits only when != default 'account' (never truthy-gated — a nonempty string is always truthy)", () => {
+      const absent = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataBandDepth" in absent).toBe(false);
+
+      const explicitDefault = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBandDepth: "account",
+      });
+      expect("strataBandDepth" in explicitDefault).toBe(false);
+
+      const nonDefault = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBandDepth: "root",
+      });
+      expect(nonDefault.strataBandDepth).toBe("root");
     });
 
     it("strataPackedScoringEpsilon emits truthy-only as strataPackedEps", () => {

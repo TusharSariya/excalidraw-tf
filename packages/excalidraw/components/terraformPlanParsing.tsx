@@ -191,8 +191,12 @@ export type TerraformPlanParsingOptions = {
    * ("penetrating-only" scene-build detours). Default off. */
   strataEdgeRouting?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
-   * primarily effective with rankSeparate. */
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;

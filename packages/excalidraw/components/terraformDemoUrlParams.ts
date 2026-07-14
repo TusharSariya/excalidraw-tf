@@ -19,6 +19,7 @@ import type { TerraformLodPreset } from "./terraformLod";
 import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
 
 import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
+import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 
 /** Edge-layer visibility pins (mirrors `AppState["terraformEdgeLayerPins"]`). */
 export type TerraformEdgeLayerPins = {
@@ -61,6 +62,18 @@ const VALID_LOD_PRESETS = new Set<TerraformLodPreset>([
   "performance",
   "balanced",
   "detailed",
+]);
+
+/** The 6 `StrataHullRole` cuts the band-depth slider accepts, exact-case
+ * (mixed-case `subnetZone`, so — unlike the other lowercase-normalized
+ * enums here — the raw param is NOT lowercased before the membership check). */
+const VALID_STRATA_BAND_DEPTHS = new Set<StrataHullRole>([
+  "root",
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
 ]);
 
 export type TerraformDemoUrlParams = {
@@ -116,8 +129,13 @@ export type TerraformDemoUrlParams = {
   strataEdgeRouting?: boolean;
   /** W10 (SDEC-63): banded row-share compaction lever
    * (`strataBandCompact=1/0`). Default off; primarily effective with
-   * rankSeparate. */
+   * rankSeparate. LEGACY ALIAS for `strataBandDepth: "root"` — kept for old
+   * share links; explicit `strataBandDepth` always wins. */
   strataBandCompact?: boolean;
+  /** v3.2 band-depth slider: the deepest role still banded (`root | provider |
+   * account | region | vpc | subnetZone`). Default `"account"` (today's fixed
+   * role→policy map, byte-identical). */
+  strataBandDepth?: StrataHullRole;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -403,6 +421,18 @@ export const parseTerraformDemoUrlParams = (
   if (strataBandCompact === null) {
     return null;
   }
+  // Band-depth cut enum. Hard-fail on an invalid value (same contract as the
+  // rest). Exact-case membership check (NOT lowercased — `subnetZone` is
+  // mixed-case, unlike every other enum parsed here).
+  const strataBandDepthRaw = params.get("strataBandDepth");
+  let strataBandDepth: StrataHullRole | undefined;
+  if (strataBandDepthRaw != null && strataBandDepthRaw.trim() !== "") {
+    const normalized = strataBandDepthRaw.trim() as StrataHullRole;
+    if (!VALID_STRATA_BAND_DEPTHS.has(normalized)) {
+      return null;
+    }
+    strataBandDepth = normalized;
+  }
   const strataPackedEpsRaw = params.get("strataPackedEps");
   let strataPackedEps: number | undefined;
   if (strataPackedEpsRaw != null && strataPackedEpsRaw.trim() !== "") {
@@ -584,6 +614,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
+    ...(strataBandDepth != null ? { strataBandDepth } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -653,6 +684,7 @@ export const buildTerraformDemoUrl = (
   setNum("strataPackedEps", params.strataPackedEps);
   setBool("strataEdgeRouting", params.strataEdgeRouting);
   setBool("strataBandCompact", params.strataBandCompact);
+  setEnum("strataBandDepth", params.strataBandDepth);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -751,6 +783,10 @@ export type TerraformDemoSettingsSnapshot = {
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
   strataBandCompact: boolean;
+  /** v3.2 band-depth slider. Optional (unlike the other Strata flags above)
+   * so a snapshot literal that predates this field still type-checks;
+   * defaults to `"account"` at every consumer. */
+  strataBandDepth?: StrataHullRole;
 };
 
 /**
@@ -837,6 +873,13 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
       // W10 (SDEC-63): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataBandCompact ? { strataBandCompact: true } : {}),
+      // v3.2 band-depth slider: emit only when it diverges from the default
+      // cut. `strataBandDepth` is a TRUTHY string at every value (including
+      // the default `"account"`), so — unlike the booleans above — this must
+      // compare explicitly to the default, never `&&`-truthy-gate.
+      ...((snapshot.strataBandDepth ?? "account") !== "account"
+        ? { strataBandDepth: snapshot.strataBandDepth }
+        : {}),
     };
   }
 
