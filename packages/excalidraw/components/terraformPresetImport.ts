@@ -98,6 +98,15 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
    * Default "account" (today's fixed role→policy map, byte-identical). */
   strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -137,6 +146,10 @@ export const runTerraformImportWithView = async ({
   strataEdgeRouting,
   strataBandCompact,
   strataBandDepth,
+  strataSiftRelocate,
+  strataCrossWeightPenetration,
+  strataCrossWeightEdge,
+  strataEdgeCrossCap,
   importedTfdTexts,
   preset = null,
   signal,
@@ -182,6 +195,12 @@ export const runTerraformImportWithView = async ({
           strataEdgeRouting,
           strataBandCompact,
           strataBandDepth,
+          strataSiftRelocate,
+          strataCrossWeightPenetration,
+          strataCrossWeightEdge,
+          // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+          // inherits `strataPackedScoringEpsilon`).
+          ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         }
       : {}),
     importedTfdTexts,
@@ -226,6 +245,15 @@ export type RunTerraformPresetImportOptions = {
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
    * Default "account" (today's fixed role→policy map, byte-identical). */
   strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -290,6 +318,14 @@ export const runTerraformPresetImport = async (
     strataEdgeRouting: options.strataEdgeRouting,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,
+    strataSiftRelocate: options.strataSiftRelocate,
+    strataCrossWeightPenetration: options.strataCrossWeightPenetration,
+    strataCrossWeightEdge: options.strataCrossWeightEdge,
+    // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

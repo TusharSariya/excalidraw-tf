@@ -166,6 +166,9 @@ describe("TerraformImportModal", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
+      strataSiftRelocate: false,
+      strataCrossWeightPenetration: 1,
+      strataCrossWeightEdge: 1,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -211,6 +214,9 @@ describe("TerraformImportModal", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
+      strataSiftRelocate: false,
+      strataCrossWeightPenetration: 1,
+      strataCrossWeightEdge: 1,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });

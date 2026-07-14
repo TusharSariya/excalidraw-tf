@@ -76,6 +76,10 @@ export const TerraformImportModal = ({
     strataPackedScoringEpsilon,
     strataEdgeRouting,
     strataBandDepth,
+    strataSiftRelocate,
+    strataCrossWeightPenetration,
+    strataCrossWeightEdge,
+    strataEdgeCrossCap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -647,6 +651,10 @@ terraform show -json tfplan > plan.json`}</code>
               strataPackedScoringEpsilon={strataPackedScoringEpsilon}
               strataEdgeRouting={strataEdgeRouting}
               strataBandDepth={strataBandDepth}
+              strataSiftRelocate={strataSiftRelocate}
+              strataCrossWeightPenetration={strataCrossWeightPenetration}
+              strataCrossWeightEdge={strataCrossWeightEdge}
+              strataEdgeCrossCap={strataEdgeCrossCap}
               setStrataSweeps={dialog.setStrataSweeps}
               setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
               setStrataRankSeparate={dialog.setStrataRankSeparate}
@@ -656,6 +664,12 @@ terraform show -json tfplan > plan.json`}</code>
               }
               setStrataEdgeRouting={dialog.setStrataEdgeRouting}
               setStrataBandDepth={dialog.setStrataBandDepth}
+              setStrataSiftRelocate={dialog.setStrataSiftRelocate}
+              setStrataCrossWeightPenetration={
+                dialog.setStrataCrossWeightPenetration
+              }
+              setStrataCrossWeightEdge={dialog.setStrataCrossWeightEdge}
+              setStrataEdgeCrossCap={dialog.setStrataEdgeCrossCap}
             />
           )}
           {view === "module" && (

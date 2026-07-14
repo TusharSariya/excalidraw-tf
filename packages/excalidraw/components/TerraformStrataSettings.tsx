@@ -77,6 +77,10 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon,
   strataEdgeRouting,
   strataBandDepth,
+  strataSiftRelocate,
+  strataCrossWeightPenetration,
+  strataCrossWeightEdge,
+  strataEdgeCrossCap,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
@@ -84,6 +88,10 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon,
   setStrataEdgeRouting,
   setStrataBandDepth,
+  setStrataSiftRelocate,
+  setStrataCrossWeightPenetration,
+  setStrataCrossWeightEdge,
+  setStrataEdgeCrossCap,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
@@ -92,6 +100,10 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
   strataBandDepth: StrataHullRole;
+  strataSiftRelocate: boolean;
+  strataCrossWeightPenetration: number;
+  strataCrossWeightEdge: number;
+  strataEdgeCrossCap: number | undefined;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
@@ -99,11 +111,20 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
+  setStrataSiftRelocate: (siftRelocate: boolean) => void;
+  setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
+  setStrataCrossWeightEdge: (edgeWeight: number) => void;
+  setStrataEdgeCrossCap: (cap: number | undefined) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
     strataSweeps === 4 ? "strata.ordering.on" : "strata.ordering.off",
   );
+  // Advanced crossing-weight disclosure, collapsed by default. Its open state is
+  // driven from React (not the native <details> toggle) so it can be force-closed
+  // and made non-interactive whenever the master "Reduce hull crossings" flag is
+  // off — the tuning weights are inert without it.
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const activeKey = hoverKey ?? stickyKey;
   const activeHelp = OPTION_HELP[activeKey];
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
@@ -182,6 +203,174 @@ export const TerraformStrataSettings = ({
                 )}
               </div>
             </div>
+            <div role="group" aria-label="Strata reduce hull crossings">
+              <span className="TerraformImportModal__controlLabel">
+                Reduce hull crossings{" "}
+                <span>sift and relocate containers to cut crossing arrows</span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option(
+                  "Off",
+                  !strataSiftRelocate,
+                  "strata.siftrelocate.off",
+                  () => setStrataSiftRelocate(false),
+                )}
+                {option(
+                  "On",
+                  strataSiftRelocate,
+                  "strata.siftrelocate.on",
+                  () => setStrataSiftRelocate(true),
+                )}
+              </div>
+              {strataSiftRelocate && !strataPackedScoring && (
+                <div
+                  className="TerraformImportModal__dependencyHint"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Also enable <strong>Packed edge scoring</strong> to widen
+                    the crossing-reduction candidates — the post-import
+                    relocation still runs without it.
+                  </span>
+                  <button
+                    type="button"
+                    className="TerraformImportModal__dependencyHintAction"
+                    onClick={() => setStrataPackedScoring(true)}
+                  >
+                    Turn on
+                  </button>
+                </div>
+              )}
+            </div>
+            <details
+              className={`TerraformImportModal__advancedDisclosure TerraformImportModal__strataAdvanced${
+                strataSiftRelocate
+                  ? ""
+                  : " TerraformImportModal__strataAdvanced--disabled"
+              }`}
+              open={strataSiftRelocate && advancedOpen}
+            >
+              <summary
+                className="TerraformImportModal__advancedSummary"
+                aria-disabled={!strataSiftRelocate}
+                aria-label="Advanced crossing weights"
+                onClick={(event) => {
+                  // Drive open state from React so the disclosure is inert while
+                  // the master flag is off (native toggle would still fire).
+                  event.preventDefault();
+                  if (strataSiftRelocate) {
+                    setAdvancedOpen((open) => !open);
+                  }
+                }}
+              >
+                Advanced crossing weights
+              </summary>
+              <div
+                role="group"
+                aria-label="Strata crossing objective weights"
+                className="TerraformImportModal__strataAdvancedBody"
+              >
+                <label className="TerraformImportModal__strataWeight">
+                  <span className="TerraformImportModal__controlLabel">
+                    Penetration weight{" "}
+                    <span>
+                      how hard to punish arrows tunnelling through boxes
+                    </span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    value={strataCrossWeightPenetration}
+                    disabled={!strataSiftRelocate}
+                    aria-label="Penetration weight"
+                    title={OPTION_HELP["strata.crosspenweight"].body}
+                    onMouseEnter={() => setHoverKey("strata.crosspenweight")}
+                    onMouseLeave={() => setHoverKey(null)}
+                    onFocus={() => setHoverKey("strata.crosspenweight")}
+                    onBlur={() => setHoverKey(null)}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      if (
+                        event.target.value !== "" &&
+                        !Number.isNaN(value) &&
+                        value >= 0
+                      ) {
+                        setStickyKey("strata.crosspenweight");
+                        setStrataCrossWeightPenetration(Math.round(value));
+                      }
+                    }}
+                  />
+                </label>
+                <label className="TerraformImportModal__strataWeight">
+                  <span className="TerraformImportModal__controlLabel">
+                    Edge-crossing weight{" "}
+                    <span>how hard to punish two arrows crossing</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    value={strataCrossWeightEdge}
+                    disabled={!strataSiftRelocate}
+                    aria-label="Edge-crossing weight"
+                    title={OPTION_HELP["strata.crossedgeweight"].body}
+                    onMouseEnter={() => setHoverKey("strata.crossedgeweight")}
+                    onMouseLeave={() => setHoverKey(null)}
+                    onFocus={() => setHoverKey("strata.crossedgeweight")}
+                    onBlur={() => setHoverKey(null)}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      if (
+                        event.target.value !== "" &&
+                        !Number.isNaN(value) &&
+                        value >= 0
+                      ) {
+                        setStickyKey("strata.crossedgeweight");
+                        setStrataCrossWeightEdge(Math.round(value));
+                      }
+                    }}
+                  />
+                </label>
+                <label className="TerraformImportModal__strataWeight">
+                  <span className="TerraformImportModal__controlLabel">
+                    Edge-crossing cap (optional){" "}
+                    <span>blank inherits the packed-scoring budget (ε)</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    value={strataEdgeCrossCap ?? ""}
+                    disabled={!strataSiftRelocate}
+                    placeholder="Inherits ε when blank"
+                    aria-label="Edge-crossing cap (optional)"
+                    title={OPTION_HELP["strata.edgecrosscap"].body}
+                    onMouseEnter={() => setHoverKey("strata.edgecrosscap")}
+                    onMouseLeave={() => setHoverKey(null)}
+                    onFocus={() => setHoverKey("strata.edgecrosscap")}
+                    onBlur={() => setHoverKey(null)}
+                    onChange={(event) => {
+                      const raw = event.target.value;
+                      setStickyKey("strata.edgecrosscap");
+                      if (raw === "") {
+                        setStrataEdgeCrossCap(undefined);
+                        return;
+                      }
+                      const value = Number(raw);
+                      if (!Number.isNaN(value) && value >= 0) {
+                        setStrataEdgeCrossCap(Math.round(value));
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </details>
           </div>
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">

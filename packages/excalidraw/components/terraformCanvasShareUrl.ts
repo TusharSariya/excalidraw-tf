@@ -99,6 +99,12 @@ const sessionToDemoSnapshot = (
   session.strataBandDepth !== "account"
     ? { strataBandDepth: session.strataBandDepth }
     : {}),
+  strataSiftRelocate: session.strataSiftRelocate ?? false,
+  strataCrossWeightPenetration: session.strataCrossWeightPenetration ?? 1,
+  strataCrossWeightEdge: session.strataCrossWeightEdge ?? 1,
+  ...(session.strataEdgeCrossCap !== undefined
+    ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
+    : {}),
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

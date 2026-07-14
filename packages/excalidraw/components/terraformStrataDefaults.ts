@@ -29,6 +29,15 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** W10 (SDEC-63): banded row-share compaction lever — probe lever, default
    * off pending owner adjudication (primarily effective with rankSeparate). */
   strataBandCompact: false,
+  /** OD-15 crossings-≻-length relocate (cross-hull sift + post-A7 vertical
+   * slots) — probe lever, default off pending its gate battery. */
+  strataSiftRelocate: false,
+  /** Relocate objective weights: C = penW·penetrations + crossW·edgeEdge (owner
+   * priority: hull crossings ≻ edge length). Integer/fixed-point. The
+   * edge-edge regression cap (`strataEdgeCrossCap`) inherits
+   * `strataPackedScoringEpsilon` when absent, so it is not seeded here. */
+  strataCrossWeightPenetration: 1,
+  strataCrossWeightEdge: 1,
 } as const;
 
 /**
@@ -56,6 +65,14 @@ export const resolveStrataDemoOptions = (params: {
     | "region"
     | "vpc"
     | "subnetZone";
+  /** OD-15 crossings-≻-length relocate lever. */
+  strataSift?: boolean;
+  /** Relocate objective weights (see `TERRAFORM_STRATA_LAYOUT_DEFAULTS`). */
+  strataPenW?: number;
+  strataCrossW?: number;
+  /** Edge-edge regression cap — OPTIONAL, no default materialized; absent
+   * ⇒ the engine inherits `strataPackedScoringEpsilon`. */
+  strataEdgeCap?: number;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -98,5 +115,19 @@ export const resolveStrataDemoOptions = (params: {
     // default own key). Non-default cuts (the `"root"` alias / explicit roles)
     // forward.
     ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
+    strataSiftRelocate:
+      params.strataSift ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSiftRelocate,
+    strataCrossWeightPenetration:
+      params.strataPenW ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,
+    strataCrossWeightEdge:
+      params.strataCrossW ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightEdge,
+    // Optional-only forward: no default materialized here (absent ⇒ the
+    // engine inherits `strataPackedScoringEpsilon`), per
+    // `TERRAFORM_STRATA_LAYOUT_DEFAULTS`'s comment above.
+    ...(params.strataEdgeCap !== undefined
+      ? { strataEdgeCrossCap: params.strataEdgeCap }
+      : {}),
   };
 };

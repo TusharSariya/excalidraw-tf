@@ -238,6 +238,15 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
    * Default "account" (today's fixed role→policy map, byte-identical). */
   strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -285,6 +294,10 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataEdgeRouting"
   | "strataBandCompact"
   | "strataBandDepth"
+  | "strataSiftRelocate"
+  | "strataCrossWeightPenetration"
+  | "strataCrossWeightEdge"
+  | "strataEdgeCrossCap"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -324,6 +337,14 @@ export const terraformPipelineReplayOptionsFromSession = (
   ...(session.strataBandDepth !== undefined &&
   session.strataBandDepth !== "account"
     ? { strataBandDepth: session.strataBandDepth }
+    : {}),
+  strataSiftRelocate: session.strataSiftRelocate === true,
+  strataCrossWeightPenetration: session.strataCrossWeightPenetration ?? 1,
+  strataCrossWeightEdge: session.strataCrossWeightEdge ?? 1,
+  // Optional-only forward: no default materialized (absent ⇒ engine
+  // inherits `strataPackedScoringEpsilon`).
+  ...(session.strataEdgeCrossCap !== undefined
+    ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
 });
 
@@ -367,6 +388,10 @@ function buildPipelineFamilyLayoutOptions(
   | "strataEdgeRouting"
   | "strataBandCompact"
   | "strataBandDepth"
+  | "strataSiftRelocate"
+  | "strataCrossWeightPenetration"
+  | "strataCrossWeightEdge"
+  | "strataEdgeCrossCap"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -416,6 +441,14 @@ function buildPipelineFamilyLayoutOptions(
     ...(options.strataBandDepth !== undefined &&
     options.strataBandDepth !== "account"
       ? { strataBandDepth: options.strataBandDepth }
+      : {}),
+    strataSiftRelocate: options.strataSiftRelocate === true,
+    strataCrossWeightPenetration: options.strataCrossWeightPenetration ?? 1,
+    strataCrossWeightEdge: options.strataCrossWeightEdge ?? 1,
+    // Optional-only forward: no default materialized (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
       : {}),
   };
 }

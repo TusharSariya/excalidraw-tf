@@ -15,6 +15,7 @@ import {
   placeStrataHullsPackedScored,
 } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
+import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
@@ -103,6 +104,36 @@ export type TerraformStrataSceneOptions = {
    * `engineOptions.strataBandDepth` only when non-default (byte-identity).
    */
   strataBandDepth?: StrataHullRole;
+  /**
+   * OD-15 crossings-≻-length relocate (default off, opt-in). Master flag for
+   * the cross-hull-aware sift + post-A7 vertical-slot relocation. When on WITH
+   * `strataPackedScoring`, the packed descent scores the widened
+   * (external-incidence) candidate set with the weighted objective + hard cap,
+   * and (independently of packed scoring) a post-A7
+   * `refineStrataVerticalSlots` pass runs before scene build. When off, the
+   * engine is byte-identical. Threaded into `engineOptions.strataSiftRelocate`.
+   */
+  strataSiftRelocate?: boolean;
+  /**
+   * OD-15 weight on hull-penetrations in the relocate objective's combined
+   * crossing score `C = penW·penetrations + crossW·edgeEdgeCrossings` (owner
+   * priority hull-crossings ≻ edge-length). Integer/fixed-point. Default 1.
+   * Inert unless `strataSiftRelocate` is on. Threaded only when non-default.
+   */
+  strataCrossWeightPenetration?: number;
+  /**
+   * OD-15 weight on edge-edge crossings in `C`. Integer/fixed-point. Default 1.
+   * Inert unless `strataSiftRelocate` is on. Threaded only when non-default.
+   */
+  strataCrossWeightEdge?: number;
+  /**
+   * OD-15 hard cap on edge-edge crossing REGRESSION (second owner guardrail): a
+   * relocate candidate whose RAW edge-edge crossings exceed
+   * `baseline + strataEdgeCrossCap` is rejected regardless of its weighted
+   * `C`/length win. Absent ⇒ inherit `strataPackedScoringEpsilon`. Inert unless
+   * `strataSiftRelocate` is on. Threaded only when provided.
+   */
+  strataEdgeCrossCap?: number;
   /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
@@ -200,6 +231,13 @@ export async function buildTerraformStrataExcalidrawScene(
   // W8b: ε-constraint budget (0 = strict rule) + frontier instrumentation.
   const strataPackedScoringEpsilon = options?.strataPackedScoringEpsilon ?? 0;
   const strataPackedFrontierMeta = options?.strataPackedFrontierMeta === true;
+  // OD-15 relocate (default off ⇒ byte-identical). Weights/cap are inert unless
+  // the master flag is on; edge-cross cap inherits the packed-scoring epsilon.
+  const strataSiftRelocate = options?.strataSiftRelocate === true;
+  const strataCrossWeightPenetration =
+    options?.strataCrossWeightPenetration ?? 1;
+  const strataCrossWeightEdge = options?.strataCrossWeightEdge ?? 1;
+  const strataEdgeCrossCap = options?.strataEdgeCrossCap;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
@@ -220,10 +258,23 @@ export async function buildTerraformStrataExcalidrawScene(
     strataRankSeparate,
     ...(strataJointNsRank ? { strataJointNsRank } : {}),
     ...(strataPackedScoring ? { strataPackedScoring } : {}),
-    ...(strataPackedScoring && strataPackedScoringEpsilon !== 0
+    ...((strataPackedScoring || strataSiftRelocate) &&
+    strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
       : {}),
     ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
+    // OD-15 relocate echoes — present only when the master flag is live, so the
+    // flag-off meta is byte-identical (weights/cap echoed only when non-default).
+    ...(strataSiftRelocate
+      ? {
+          strataSiftRelocate: true,
+          ...(strataCrossWeightPenetration !== 1
+            ? { strataCrossWeightPenetration }
+            : {}),
+          ...(strataCrossWeightEdge !== 1 ? { strataCrossWeightEdge } : {}),
+          ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+        }
+      : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -252,9 +303,13 @@ export async function buildTerraformStrataExcalidrawScene(
     sweeps: strataSweeps,
     coordinateRefine: strataCoordinateRefine,
     ...(strataPackedScoring ? { packedScoring: true } : {}),
-    // W8b: epsilon rides only when the scorer is on AND nonzero, so existing
-    // option literals (and epsilon-0 callers) stay byte-identical.
-    ...(strataPackedScoring && strataPackedScoringEpsilon !== 0
+    // W8b: epsilon rides when EITHER the packed scorer OR the OD-15 relocate is
+    // on AND it is nonzero. The relocate pass + post-A7 guard read ε/cap from
+    // engineOptions INDEPENDENTLY of packed scoring, so gating ε on packed
+    // scoring alone would silently run relocation with ε=0/cap=0 (P1-a). Still
+    // byte-identical for existing option literals and epsilon-0 callers.
+    ...((strataPackedScoring || strataSiftRelocate) &&
+    strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
       : {}),
     // Band-depth cut: spread ONLY when non-default. "account" is a TRUTHY
@@ -262,6 +317,19 @@ export async function buildTerraformStrataExcalidrawScene(
     // shape on every default run and break the flag-off byte-identity — the
     // `!== "account"` guard is load-bearing.
     ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
+    // OD-15 relocate: the master flag + its objective weights/cap ride ONLY
+    // when the flag is on (weights only when non-default, cap only when set),
+    // so the flag-off engineOptions object shape is byte-identical to today.
+    ...(strataSiftRelocate
+      ? {
+          strataSiftRelocate: true,
+          ...(strataCrossWeightPenetration !== 1
+            ? { strataCrossWeightPenetration }
+            : {}),
+          ...(strataCrossWeightEdge !== 1 ? { strataCrossWeightEdge } : {}),
+          ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+        }
+      : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -375,6 +443,17 @@ export async function buildTerraformStrataExcalidrawScene(
           repair.edgesPrime,
           // W8b: the guard shares the descent's resolved δ-band (0 = today).
           packedScored.effectiveDelta,
+          // OD-15: when the master flag is on the guard uses the SAME weighted
+          // objective + hard cap as the descent (absent ⇒ flag-off rule).
+          strataSiftRelocate
+            ? {
+                penW: strataCrossWeightPenetration,
+                crossW: strataCrossWeightEdge,
+                epsilon: strataPackedScoringEpsilon,
+                edgeCrossCap:
+                  strataEdgeCrossCap ?? strataPackedScoringEpsilon ?? 0,
+              }
+            : undefined,
         );
         placement = chosen.placement;
         packedScoringFellBack = chosen.fellBack;
@@ -385,6 +464,21 @@ export async function buildTerraformStrataExcalidrawScene(
           repair.edgesPrime,
         );
       }
+    }
+
+    // OD-15 post-A7 vertical-slot relocation (WP-RELOCATE). Runs whenever the
+    // master flag is on — independent of packed scoring — after A7 and before
+    // scene build; the existing structural check then validates the result.
+    // Flag-off ⇒ the module is never called (byte-identical). Uses the SAME
+    // engineOptions the descent read (carries the relocate weights/cap).
+    if (strataSiftRelocate) {
+      placement = refineStrataVerticalSlots(
+        placement,
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
     }
 
     stage = "scene-build";

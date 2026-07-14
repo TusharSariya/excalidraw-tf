@@ -203,6 +203,16 @@ export type TerraformPlanParsingOptions = {
   /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** OD-15 crossings-≻-length relocate (cross-hull sift + post-A7 vertical
+   * slots). Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap for the relocate descent. Optional — absent
+   * inherits `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

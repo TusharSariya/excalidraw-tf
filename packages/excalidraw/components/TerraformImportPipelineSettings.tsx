@@ -452,6 +452,46 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         'strataBandDepth (v3.2, default "account" — today\'s fixed role→policy map, byte-identical): resolveStrataHullPolicy(role, bandDepth) resolves every hull\'s policy generically from one monotone cut (STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed"), consumed uniformly by A0 placement, A7 coordRefine, A2 ordering, and packed-scoring eligibility. LEGACY ALIAS: strataBandCompact=true resolves to strataBandDepth="root" when the enum is absent.',
     },
   },
+  "strata.siftrelocate.off": {
+    title: "Reduce hull crossings · Off",
+    body: "Container hulls keep the order the earlier ordering passes produced. Where two unrelated hulls sit close on the canvas, their dependency arrows may still cross through one another — the layout spends no extra effort pulling them apart.",
+    dev: {
+      implements:
+        "strataSiftRelocate=false: neither the external-incidence sift nor the post-A7 relocation runs; hull order and placement stay byte-identical to the pre-OD-15 engine.",
+    },
+  },
+  "strata.siftrelocate.on": {
+    title: "Reduce hull crossings · On — OD-15",
+    body: "Two passes work to cut crossings between whole container hulls — which the owner ranks ABOVE shorter edges (hull-crossings ≻ edge-length): a sift widens the sibling orderings the packed scorer will consider, and a relocation pass moves each hull beside the neighbours it actually links to once edges are straightened. Fewer arrows cross unrelated containers, sometimes at the cost of slightly longer edges. Off by default pending its gate battery.",
+    dev: {
+      implements:
+        "strataSiftRelocate=true (OD-15): the external-incidence SIFT rides the packed-scoring descent (so it needs strataPackedScoring); the post-A7 RELOCATION runs regardless. Both minimise the weighted crossing cost C = penW·penetrations + crossW·edgeEdge.",
+    },
+  },
+  "strata.crosspenweight": {
+    title: "Penetration weight (penW)",
+    body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies only while Reduce hull crossings is on.",
+    dev: {
+      implements:
+        "strataCrossWeightPenetration (penW, default 1, integer ≥ 0): the penetrations coefficient in the weighted crossing cost C = penW·penetrations + crossW·edgeEdge minimised by the sift + relocation.",
+    },
+  },
+  "strata.crossedgeweight": {
+    title: "Edge-crossing weight (crossW)",
+    body: "How heavily the crossing objective counts two dependency arrows crossing each other. Raise it to prioritise untangling arrow-vs-arrow crossings; lower it toward 0 to focus on box tunnelling instead. Applies only while Reduce hull crossings is on.",
+    dev: {
+      implements:
+        "strataCrossWeightEdge (crossW, default 1, integer ≥ 0): the edge-edge coefficient in the weighted crossing cost C = penW·penetrations + crossW·edgeEdge minimised by the sift + relocation.",
+    },
+  },
+  "strata.edgecrosscap": {
+    title: "Edge-crossing cap (optional)",
+    body: "An optional ceiling on how many extra arrow-vs-arrow crossings a single crossing-reduction move may add before it is rejected. Leave it blank to inherit the packed edge-scoring crossing budget (ε). Set a number to cap it independently. Applies only while Reduce hull crossings is on.",
+    dev: {
+      implements:
+        "strataEdgeCrossCap (optional; blank ⇒ inherits strataPackedScoringEpsilon): the ε-style edge-edge regression cap the relocation may not exceed.",
+    },
+  },
 };
 
 export type OptionHelpKey = keyof typeof OPTION_HELP;

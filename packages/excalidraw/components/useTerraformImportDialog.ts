@@ -163,6 +163,24 @@ export const useTerraformImportDialog = ({
   const [strataBandDepth, setStrataBandDepth] = useState<StrataHullRole>(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth as StrataHullRole,
   );
+  // OD-15 crossings-≻-length relocate (strata-only). Default OFF pending its
+  // gate battery.
+  const [strataSiftRelocate, setStrataSiftRelocate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSiftRelocate as boolean,
+  );
+  // Relocate objective weights (strata-only, inert without strataSiftRelocate).
+  const [strataCrossWeightPenetration, setStrataCrossWeightPenetration] =
+    useState(
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration as number,
+    );
+  const [strataCrossWeightEdge, setStrataCrossWeightEdge] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightEdge as number,
+  );
+  // Edge-edge regression cap — OPTIONAL, no seeded default (absent ⇒ the
+  // engine inherits `strataPackedScoringEpsilon`).
+  const [strataEdgeCrossCap, setStrataEdgeCrossCap] = useState<
+    number | undefined
+  >(undefined);
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -465,6 +483,12 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataEdgeRouting,
         strataBandDepth,
+        strataSiftRelocate,
+        strataCrossWeightPenetration,
+        strataCrossWeightEdge,
+        // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+        // inherits `strataPackedScoringEpsilon`).
+        ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -609,6 +633,12 @@ export const useTerraformImportDialog = ({
           strataPackedScoringEpsilon,
           strataEdgeRouting,
           strataBandDepth,
+          strataSiftRelocate,
+          strataCrossWeightPenetration,
+          strataCrossWeightEdge,
+          // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+          // inherits `strataPackedScoringEpsilon`).
+          ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -948,6 +978,10 @@ export const useTerraformImportDialog = ({
         // param (the required-legacy-field snapshot shape is unchanged here).
         strataBandCompact: false,
         strataBandDepth,
+        strataSiftRelocate,
+        strataCrossWeightPenetration,
+        strataCrossWeightEdge,
+        strataEdgeCrossCap,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -979,6 +1013,10 @@ export const useTerraformImportDialog = ({
     strataPackedScoringEpsilon,
     strataEdgeRouting,
     strataBandDepth,
+    strataSiftRelocate,
+    strataCrossWeightPenetration,
+    strataCrossWeightEdge,
+    strataEdgeCrossCap,
     moduleLayoutOptions.mode,
   ]);
 
@@ -1011,6 +1049,10 @@ export const useTerraformImportDialog = ({
     strataPackedScoringEpsilon,
     strataEdgeRouting,
     strataBandDepth,
+    strataSiftRelocate,
+    strataCrossWeightPenetration,
+    strataCrossWeightEdge,
+    strataEdgeCrossCap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1065,6 +1107,10 @@ export const useTerraformImportDialog = ({
     setStrataPackedScoringEpsilon,
     setStrataEdgeRouting,
     setStrataBandDepth,
+    setStrataSiftRelocate,
+    setStrataCrossWeightPenetration,
+    setStrataCrossWeightEdge,
+    setStrataEdgeCrossCap,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

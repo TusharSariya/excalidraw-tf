@@ -136,6 +136,15 @@ export type TerraformDemoUrlParams = {
    * account | region | vpc | subnetZone`). Default `"account"` (today's fixed
    * role→policy map, byte-identical). */
   strataBandDepth?: StrataHullRole;
+  /** OD-15 crossings-≻-length relocate lever (`strataSift=1/0`). Default off. */
+  strataSift?: boolean;
+  /** Relocate objective weight on penetrations (`strataPenW`). Default 1. */
+  strataPenW?: number;
+  /** Relocate objective weight on edge-edge crossings (`strataCrossW`). Default 1. */
+  strataCrossW?: number;
+  /** Edge-edge regression cap (`strataEdgeCap`). Optional — absent inherits
+   * `strataPackedEps`. */
+  strataEdgeCap?: number;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -448,6 +457,37 @@ export const parseTerraformDemoUrlParams = (
     }
     strataPackedEps = parsed;
   }
+  const strataSift = parseBooleanParam("strataSift");
+  if (strataSift === null) {
+    return null;
+  }
+  const strataPenWRaw = params.get("strataPenW");
+  let strataPenW: number | undefined;
+  if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
+    const parsed = Number(strataPenWRaw.trim());
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    strataPenW = parsed;
+  }
+  const strataCrossWRaw = params.get("strataCrossW");
+  let strataCrossW: number | undefined;
+  if (strataCrossWRaw != null && strataCrossWRaw.trim() !== "") {
+    const parsed = Number(strataCrossWRaw.trim());
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    strataCrossW = parsed;
+  }
+  const strataEdgeCapRaw = params.get("strataEdgeCap");
+  let strataEdgeCap: number | undefined;
+  if (strataEdgeCapRaw != null && strataEdgeCapRaw.trim() !== "") {
+    const parsed = Number(strataEdgeCapRaw.trim());
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    strataEdgeCap = parsed;
+  }
 
   // ─── Runtime canvas view settings ───
   const lodEnabled = parseBooleanParam("lodEnabled");
@@ -615,6 +655,10 @@ export const parseTerraformDemoUrlParams = (
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
+    ...(strataSift != null ? { strataSift } : {}),
+    ...(strataPenW != null ? { strataPenW } : {}),
+    ...(strataCrossW != null ? { strataCrossW } : {}),
+    ...(strataEdgeCap != null ? { strataEdgeCap } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -685,6 +729,10 @@ export const buildTerraformDemoUrl = (
   setBool("strataEdgeRouting", params.strataEdgeRouting);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
+  setBool("strataSift", params.strataSift);
+  setNum("strataPenW", params.strataPenW);
+  setNum("strataCrossW", params.strataCrossW);
+  setNum("strataEdgeCap", params.strataEdgeCap);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -787,6 +835,15 @@ export type TerraformDemoSettingsSnapshot = {
    * so a snapshot literal that predates this field still type-checks;
    * defaults to `"account"` at every consumer. */
   strataBandDepth?: StrataHullRole;
+  /** OD-15 crossings-≻-length relocate lever. Default off. */
+  strataSiftRelocate: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
 };
 
 /**
@@ -879,6 +936,19 @@ export const collectTerraformDemoParams = (
       // compare explicitly to the default, never `&&`-truthy-gate.
       ...((snapshot.strataBandDepth ?? "account") !== "account"
         ? { strataBandDepth: snapshot.strataBandDepth }
+        : {}),
+      // OD-15 relocate + its weights: default-off/1/1 — truthy/non-default-only,
+      // like the packed-scoring levers above.
+      ...(snapshot.strataSiftRelocate ? { strataSift: true } : {}),
+      ...(snapshot.strataCrossWeightPenetration !== 1
+        ? { strataPenW: snapshot.strataCrossWeightPenetration }
+        : {}),
+      ...(snapshot.strataCrossWeightEdge !== 1
+        ? { strataCrossW: snapshot.strataCrossWeightEdge }
+        : {}),
+      // Edge-edge regression cap has no default — emit whenever explicitly set.
+      ...(snapshot.strataEdgeCrossCap !== undefined
+        ? { strataEdgeCap: snapshot.strataEdgeCrossCap }
         : {}),
     };
   }

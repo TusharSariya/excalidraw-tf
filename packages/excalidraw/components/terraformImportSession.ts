@@ -90,6 +90,15 @@ export type TerraformImportSession = {
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
    * Default "account" (today's fixed role→policy map, byte-identical). */
   strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

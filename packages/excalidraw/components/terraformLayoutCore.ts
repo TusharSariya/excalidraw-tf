@@ -490,6 +490,16 @@ type LayoutSceneContext = {
   /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** OD-15 crossings-≻-length relocate (cross-hull sift + post-A7 vertical
+   * slots). Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap for the relocate descent. Optional — absent
+   * inherits `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   colorMode?: TerraformColorMode;
 };
 
@@ -603,6 +613,14 @@ async function buildPipelineLayoutSceneBody(
         strataEdgeRouting: ctx.strataEdgeRouting,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
+        strataSiftRelocate: ctx.strataSiftRelocate,
+        strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
+        strataCrossWeightEdge: ctx.strataCrossWeightEdge,
+        // Optional-only forward: no default materialized (absent ⇒ engine
+        // inherits `strataPackedScoringEpsilon`).
+        ...(ctx.strataEdgeCrossCap !== undefined
+          ? { strataEdgeCrossCap: ctx.strataEdgeCrossCap }
+          : {}),
       };
       const pipelineScene = await buildPipeline(
         ctx.nodes5,
@@ -1160,6 +1178,14 @@ export async function layoutTerraformFromSources(
     strataEdgeRouting: options?.strataEdgeRouting === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
+    strataSiftRelocate: options?.strataSiftRelocate === true,
+    strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
+    strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
+    // Optional-only forward: no default materialized (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options?.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
     colorMode: options?.colorMode,
   };
 

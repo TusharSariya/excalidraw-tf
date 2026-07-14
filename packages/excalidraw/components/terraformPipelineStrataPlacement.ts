@@ -282,6 +282,15 @@ export function placeStrataHulls(
       },
       unitColSpanOf: (id: string): readonly [number, number] =>
         infoByUnitId.get(id)?.colSpan ?? [0, 0],
+      // OD-15 sift-relocate: external-incidence candidate eligibility. `edgesPrime`
+      // is the raw E′ multiset (pre-lift) and `unitOfCluster` is THIS hull's
+      // membership (external clusters → undefined), so a unit whose only edge
+      // LEAVES the hull becomes a relocation candidate — the case the lift drops.
+      // Gated inside strataPackedCandidateSequences by `siftRelocate`; inert and
+      // byte-identical when strataSiftRelocate is off/absent.
+      siftRelocate: options.strataSiftRelocate,
+      edgesPrime,
+      unitOfCluster: (cid: string) => unitOfCluster.get(cid),
     };
     let ordered: readonly StrataUnit[];
     const packedIndexForHull =

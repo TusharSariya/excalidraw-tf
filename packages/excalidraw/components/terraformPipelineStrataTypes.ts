@@ -71,6 +71,40 @@ export type StrataEngineOptions = {
    * option literals (flag-OFF byte-identity) are unaffected.
    */
   strataBandDepth?: StrataHullRole;
+  /**
+   * OD-15 crossings-≻-length relocate (default off, opt-in). Master flag for
+   * the cross-hull-aware sift + post-A7 vertical-slot relocation that reaches
+   * placements barycenter/candidate generation can't: a resource whose only
+   * edge LEAVES its hull (never proposed for a move today), and an X-disjoint
+   * hull that wants vertical slack (no sequence permutation moves it). When
+   * off, the engine is byte-identical. Consumed by the packed descent
+   * (external-incidence sift candidates) and the new post-A7 relocation pass;
+   * both score real leaf geometry with the weighted objective below. Optional
+   * so existing option literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataSiftRelocate?: boolean;
+  /**
+   * Weight on hull-penetrations in the relocate objective's combined crossing
+   * score `C = penW·penetrations + crossW·edgeEdgeCrossings` (owner priority:
+   * hull crossings ≻ edge length). Integer/fixed-point — the comparator must
+   * never do float equality. Default 1. Consumed only when `strataSiftRelocate`
+   * is on. Optional so existing option literals are unaffected.
+   */
+  strataCrossWeightPenetration?: number;
+  /** Weight on edge-edge crossings in `C` (see `strataCrossWeightPenetration`).
+   * Integer/fixed-point. Default 1. Consumed only when `strataSiftRelocate` is
+   * on. Optional so existing option literals are unaffected. */
+  strataCrossWeightEdge?: number;
+  /**
+   * Hard cap on edge-edge crossing REGRESSION for the relocate objective (the
+   * second of two owner guardrails; the weighted `C` selects, this cap bounds
+   * edge-edge blow-up): a candidate whose raw edge-edge crossings exceed
+   * `baseline + strataEdgeCrossCap` is rejected regardless of its weighted
+   * `C`/length win. Absent ⇒ inherit `packedScoringEpsilon`. Consumed only when
+   * `strataSiftRelocate` is on. Optional so existing option literals are
+   * unaffected.
+   */
+  strataEdgeCrossCap?: number;
 };
 
 /**

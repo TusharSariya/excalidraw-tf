@@ -53,6 +53,20 @@ import type {
  */
 export type StrataLiftedEdge = { from: string; to: string; key: string };
 
+/**
+ * Deterministic per-hull cap on the NUMBER of external-incidence relocation
+ * candidates ({@link strataPackedCandidateSequences}, `strataSiftRelocate`).
+ * Without a bound the relocation block emits up to 2·I·n candidates (I incident
+ * units × n boundaries × {initial, chain} bases), each O(n) to build and each
+ * trial-placed by the packed scorer — unbounded growth that blows the
+ * deterministic-freeze/perf budget on large hulls. 64 is comfortably above what
+ * the 123-cluster / 28-packed-hull target needs while capping worst-case work.
+ * Truncation is DETERMINISTIC (fixed base → unit → boundary order, never
+ * sampled) and affects ONLY the flag-on relocation candidates; the snapshot /
+ * sift / group-sift candidates are untouched and stay byte-identical.
+ */
+const STRATA_RELOCATE_CANDIDATE_BUDGET = 64;
+
 /** Stable per-hull unit id (namespaced so a hull key never shadows a leaf id). */
 export function strataUnitId(unit: StrataUnit): string {
   return unit.kind === "hull" ? `H:${unit.hullId}` : `L:${unit.clusterId}`;
@@ -180,6 +194,36 @@ export type StrataOrderParams = {
    * already.
    */
   unitColSpanOf?: (unitId: string) => readonly [number, number];
+  /**
+   * ADDITIVE-OPTIONAL (WP-SIFT, owner flag `strataSiftRelocate`). Default off ⇒
+   * absent ⇒ {@link strataPackedCandidateSequences} returns the byte-identical
+   * candidate set. When true it ALSO emits single-unit relocation candidates for
+   * every unit incident to ≥1 E′ edge INCLUDING edges whose far endpoint leaves
+   * this hull — the eligibility set {@link liftStrataEdgesToUnits} cannot express
+   * (it drops any edge with a non-local endpoint). Requires {@link edgesPrime} +
+   * {@link unitOfCluster} to derive that external incidence; absent either, the
+   * extension is inert (still byte-identical). Read ONLY by the packed candidate
+   * generator; {@link orderStrataUnits} ignores it.
+   */
+  siftRelocate?: boolean;
+  /**
+   * ADDITIVE-OPTIONAL (WP-SIFT). The SAME raw E′ multiset the caller lifts via
+   * {@link liftStrataEdgesToUnits}. Used ONLY to derive the external-incidence
+   * eligibility set for `siftRelocate` — it is NEVER folded into `liftedEdges` or
+   * the barycenter (that would poison {@link applyStrataSweep}, whose index-0
+   * default for an unknown adjacent unit spuriously pulls externally-connected
+   * units toward the start). Effective direction resolves here exactly as the lift
+   * (`reversed` swaps source/target).
+   */
+  edgesPrime?: readonly StrataPrimeEdge[];
+  /**
+   * ADDITIVE-OPTIONAL (WP-SIFT). The SAME cluster→unit membership the caller
+   * passed to {@link liftStrataEdgesToUnits}: a cluster local to THIS hull maps to
+   * its owning unit id ({@link strataUnitId}); a cluster OUTSIDE this hull maps to
+   * `undefined`. Lets the eligibility derivation keep edges with exactly one local
+   * endpoint (the opposite of the lift's both-endpoints-local drop rule).
+   */
+  unitOfCluster?: (clusterId: string) => string | undefined;
 };
 
 /** A lifted-edge endpoint incident to a unit, tagged for sweep relevance. */
@@ -394,7 +438,16 @@ function heightAwareGreedySeed(
 export function strataPackedCandidateSequences(
   params: StrataOrderParams,
 ): readonly (readonly StrataUnit[])[] {
-  const { units, contentKeyOf, liftedEdges, sweeps, unitColSpanOf } = params;
+  const {
+    units,
+    contentKeyOf,
+    liftedEdges,
+    sweeps,
+    unitColSpanOf,
+    siftRelocate,
+    edgesPrime,
+    unitOfCluster,
+  } = params;
 
   const keyOf = new Map<string, string>();
   const unitById = new Map<string, StrataUnit>();
@@ -449,7 +502,9 @@ export function strataPackedCandidateSequences(
   // of the initial and final snapshots. Dedupe by id-join so the candidate
   // list stays index-stable and duplicate-free; selection stays the caller's
   // whole-layout scorer.
-  const seen = new Set(snapshots.map((s) => s.map(strataUnitId).join("\u0001")));
+  const seen = new Set(
+    snapshots.map((s) => s.map(strataUnitId).join("\u0001")),
+  );
   const pushSift = (base: readonly string[]): void => {
     for (const leafId of base) {
       const unit = unitById.get(leafId)!;
@@ -527,6 +582,76 @@ export function strataPackedCandidateSequences(
   };
   pushGroupSift(initialIds);
   pushGroupSift(chain);
+
+  // WP-SIFT external-incidence relocation (owner flag `strataSiftRelocate`,
+  // default off ⇒ this whole block is skipped and the candidate set above is
+  // byte-identical). Fixes the external-incidence blind spot: the edge-incident
+  // sift clauses above build their eligibility from `adjacency`, which is derived
+  // from `liftedEdges` — and liftStrataEdgesToUnits DROPS any E′ edge whose far
+  // endpoint leaves this hull. So a unit whose ONLY edge exits the hull (e.g. a
+  // loose leaf whose sole edge targets another account) is never edge-incident,
+  // never sifted, and its crossing-/length-cutting relocation order is never
+  // generated. Derive a SEPARATE eligibility set from raw E′ + membership and emit
+  // single-unit sifts for it. CRITICAL: this set is NOT folded into `liftedEdges`
+  // or the barycenter — applyStrataSweep defaults an unknown adjacent unit to
+  // index 0, so injecting external endpoints there would spuriously pull
+  // externally-connected units toward the sequence start.
+  if (siftRelocate && edgesPrime && unitOfCluster) {
+    // incidentUnits: every unit at this hull incident to ≥1 E′ edge, INCLUDING
+    // edges with a non-local far endpoint (the opposite of the lift's drop rule).
+    // Skip purely-internal edges (both endpoints in one unit — or both external):
+    // they carry no inter-unit relocation signal.
+    const incidentUnitIds = new Set<string>();
+    for (const pe of edgesPrime) {
+      const effSource = pe.reversed ? pe.edge.target : pe.edge.source;
+      const effTarget = pe.reversed ? pe.edge.source : pe.edge.target;
+      const uFrom = unitOfCluster(effSource);
+      const uTo = unitOfCluster(effTarget);
+      if (uFrom === uTo) {
+        continue; // same unit, or both external (undefined === undefined)
+      }
+      if (uFrom !== undefined && unitById.has(uFrom)) {
+        incidentUnitIds.add(uFrom);
+      }
+      if (uTo !== undefined && unitById.has(uTo)) {
+        incidentUnitIds.add(uTo);
+      }
+    }
+    // Single-unit sift: insert each eligible unit (leaf OR child-hull) at every
+    // boundary of a base sequence. A single unit is atomic ⇒ trivially contiguous
+    // (Förster), so every boundary is legal. Deterministic base-order iteration;
+    // same `seen` dedup as the clauses above; appended last ⇒ prior candidate
+    // indices stay stable. Bounded by STRATA_RELOCATE_CANDIDATE_BUDGET: the shared
+    // counter spans BOTH bases (initial then chain) so the cap is per-hull, and
+    // only NEWLY-emitted (post-dedup) candidates count against it — deterministic
+    // truncation once the budget is spent (fixed base → unit → boundary order).
+    let relocateEmitted = 0;
+    const pushRelocate = (base: readonly string[]): void => {
+      for (const unitId of base) {
+        if (relocateEmitted >= STRATA_RELOCATE_CANDIDATE_BUDGET) {
+          return;
+        }
+        if (!incidentUnitIds.has(unitId)) {
+          continue;
+        }
+        const rest = base.filter((id) => id !== unitId);
+        for (let p = 0; p <= rest.length; p++) {
+          if (relocateEmitted >= STRATA_RELOCATE_CANDIDATE_BUDGET) {
+            return;
+          }
+          const seq = [...rest.slice(0, p), unitId, ...rest.slice(p)];
+          const key = seq.join("");
+          if (!seen.has(key)) {
+            seen.add(key);
+            snapshots.push(toUnits(seq));
+            relocateEmitted += 1;
+          }
+        }
+      }
+    };
+    pushRelocate(initialIds);
+    pushRelocate(chain);
+  }
   return snapshots;
 }
 

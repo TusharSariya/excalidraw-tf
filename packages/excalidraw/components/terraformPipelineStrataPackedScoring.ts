@@ -218,6 +218,106 @@ export function strataPackedScoreAdoptable(
   return false;
 }
 
+/**
+ * Coerce an objective weight to a safe, finite, non-negative value. A
+ * non-finite or negative weight (never expected on the engine path, but the
+ * URL/session surface is untrusted) falls back to the default 1. FRACTIONAL
+ * weights are allowed and preserved — the owner wants e.g. 1.5 as a future
+ * setting — the fractional-ness is absorbed by the integer ROUNDING in
+ * `strataWeightedCross`, not rejected here.
+ */
+function safeStrataWeight(w: number): number {
+  return Number.isFinite(w) && w >= 0 ? w : 1;
+}
+
+/**
+ * OD-15 relocate objective (`strataSiftRelocate`, default off). Combined
+ * crossing score `C = penW·penetrations + crossW·edgeEdgeCrossings` — the owner
+ * priority "hull-crossings ≻ edge-length" priced as a weighted sum (default
+ * 1/1). ALWAYS returns an INTEGER (`Math.round`), so every downstream
+ * comparison (`!==`/`<`) and the ε budget stay in a clean integer domain with
+ * NO float-equality hazard — even for non-dyadic fractional weights the owner
+ * may set (e.g. 1.5, rounded). Default 1/1 rounding is a no-op. Bad (non-finite/
+ * negative) weights are coerced to 1 via `safeStrataWeight`.
+ */
+export function strataWeightedCross(
+  score: { crossings: number; penetrations: number },
+  penW: number,
+  crossW: number,
+): number {
+  return Math.round(
+    safeStrataWeight(penW) * score.penetrations +
+      safeStrataWeight(crossW) * score.crossings,
+  );
+}
+
+/**
+ * `a` strictly precedes `b` under the relocate objective: lexicographic on
+ * (weightedCross, lengthL1). All integer comparisons.
+ */
+export function strataRelocateScoreLess(
+  a: StrataPackedScore,
+  b: StrataPackedScore,
+  w: { penW: number; crossW: number },
+): boolean {
+  const wa = strataWeightedCross(a, w.penW, w.crossW);
+  const wb = strataWeightedCross(b, w.penW, w.crossW);
+  if (wa !== wb) {
+    return wa < wb;
+  }
+  return a.lengthL1 < b.lengthL1;
+}
+
+/**
+ * OD-15 relocate adoption rule — the two owner guardrails, BOTH required:
+ *  (1) HARD CAP on RAW edge-edge crossings: reject any candidate whose
+ *      `crossings` exceed `baseline.crossings + edgeCrossCap` regardless of any
+ *      weighted-`C`/length win (bounds edge-edge blow-up).
+ *  (2) The candidate is adopted iff it EITHER strictly beats the incumbent on
+ *      (weightedCross, lengthL1) [the strict rule], OR wins within the ε budget
+ *      on weightedCross vs the LEGACY baseline (anti-ratchet, mirror of
+ *      `strataPackedScoreAdoptable`/`resolveStrataPackedEpsilonDelta` but on
+ *      weightedCross instead of raw crossings): delta > 0 AND candidate's
+ *      weightedCross <= baseline's weightedCross + delta AND its lengthL1
+ *      strictly improves the incumbent (the (weightedCross, lengthL1) suffix
+ *      after the budgeted lead term).
+ * Integer/fixed-point throughout (delta resolution's single non-integer step is
+ * the shared relative-mode ceil, exact for the shipped granularity). Cap failure
+ * always vetoes; ties keep the incumbent (diff stability).
+ */
+export function strataRelocateAdoptable(
+  candidate: StrataPackedScore,
+  baseline: StrataPackedScore,
+  incumbent: StrataPackedScore,
+  cfg: { penW: number; crossW: number; epsilon: number; edgeCrossCap: number },
+): boolean {
+  // Guardrail (1): hard cap on raw edge-edge crossing regression.
+  if (candidate.crossings > baseline.crossings + cfg.edgeCrossCap) {
+    return false;
+  }
+  const w = { penW: cfg.penW, crossW: cfg.crossW };
+  // Guardrail (2a): strict lexicographic win on (weightedCross, lengthL1).
+  if (strataRelocateScoreLess(candidate, incumbent, w)) {
+    return true;
+  }
+  // Guardrail (2b): ε-band anti-ratchet on weightedCross vs the LEGACY baseline.
+  const baselineWeighted = strataWeightedCross(baseline, cfg.penW, cfg.crossW);
+  const candidateWeighted = strataWeightedCross(
+    candidate,
+    cfg.penW,
+    cfg.crossW,
+  );
+  const delta = resolveStrataPackedEpsilonDelta(cfg.epsilon, baselineWeighted);
+  if (
+    delta > 0 &&
+    candidateWeighted <= baselineWeighted + delta &&
+    candidate.lengthL1 < incumbent.lengthL1
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Orientation sign of (a, b, c): +1 CCW, −1 CW, 0 collinear. Exact integers. */
 function orient2(
   ax: number,
@@ -485,6 +585,15 @@ export function scoreStrataPlacementGeometry(
  * descent's resolved `effectiveDelta` (one budget for the whole pipeline).
  * With delta = 0 the band clause is a subset of the no-worse rule, so the
  * default is bit-identical to the pre-W8b guard.
+ *
+ * OD-15 relocate (`relocate` provided ⇒ `strataSiftRelocate` on): the guard
+ * uses the SAME weighted objective + hard cap as the descent instead of the
+ * raw-crossing lex rule. Keep the scored arm iff it is within the raw
+ * edge-edge crossing cap (baseline = legacyFinal, the fallback arm) AND it is
+ * no worse than legacy on (weightedCross, lengthL1) OR wins within the ε budget
+ * on weightedCross — so a strictly-better pre-A7 arm is preserved rather than
+ * discarded wholesale (the measured all-or-nothing failure). Ties keep the
+ * scored arm. `relocate` absent ⇒ the flag-off path above is byte-identical.
  */
 export function chooseStrataRefinedPlacement(
   scoredFinal: StrataPlacementResult,
@@ -492,6 +601,12 @@ export function chooseStrataRefinedPlacement(
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
   delta = 0,
+  relocate?: {
+    penW: number;
+    crossW: number;
+    epsilon: number;
+    edgeCrossCap: number;
+  },
 ): { placement: StrataPlacementResult; fellBack: boolean } {
   const scoredScore = scoreStrataPlacementGeometry(
     scoredFinal,
@@ -503,6 +618,41 @@ export function chooseStrataRefinedPlacement(
     model,
     edgesPrime,
   );
+  if (relocate) {
+    const w = { penW: relocate.penW, crossW: relocate.crossW };
+    // Guardrail (1): hard cap on raw edge-edge crossings vs the legacy arm.
+    const withinCap =
+      scoredScore.crossings <= legacyScore.crossings + relocate.edgeCrossCap;
+    // Guardrail (2a): no worse than legacy on (weightedCross, lengthL1).
+    const noWorse = !strataRelocateScoreLess(legacyScore, scoredScore, w);
+    // Guardrail (2b): ε-band anti-ratchet on weightedCross vs the legacy arm.
+    const legacyWeighted = strataWeightedCross(
+      legacyScore,
+      relocate.penW,
+      relocate.crossW,
+    );
+    const scoredWeighted = strataWeightedCross(
+      scoredScore,
+      relocate.penW,
+      relocate.crossW,
+    );
+    const relocateDelta = resolveStrataPackedEpsilonDelta(
+      relocate.epsilon,
+      legacyWeighted,
+    );
+    // The ε arm must BUY length: require a STRICT length improvement (P1-b),
+    // matching `strataRelocateAdoptable`'s strict-length rule. With `<=` a
+    // scored arm that is strictly worse on weightedCross (e.g. C 11 vs legacy
+    // 10) but equal on length would be kept for no benefit.
+    const withinEpsilon =
+      relocateDelta > 0 &&
+      scoredWeighted <= legacyWeighted + relocateDelta &&
+      scoredScore.lengthL1 < legacyScore.lengthL1;
+    const keepScored = withinCap && (noWorse || withinEpsilon);
+    return keepScored
+      ? { placement: scoredFinal, fellBack: false }
+      : { placement: legacyFinal, fellBack: true };
+  }
   const keepScored =
     !strataPackedScoreLess(legacyScore, scoredScore) ||
     (delta > 0 &&
@@ -601,6 +751,84 @@ export function placeStrataHullsPackedScored(
     baselineScore.crossings,
   );
 
+  // OD-15 relocate (`strataSiftRelocate`, default off ⇒ byte-identical). When
+  // on, the descent scores the widened candidate set (WP-SIFT's
+  // external-incidence sift candidates flow through the reported counts) with
+  // the weighted objective + hard cap instead of the raw-crossing rule, and
+  // dedups geometrically-identical trial placements (WP-SIFT emits ~40% skyline
+  // no-ops) before paying the O(edges²) scorer.
+  const siftRelocate = options.strataSiftRelocate === true;
+  const relocateCfg = {
+    penW: options.strataCrossWeightPenetration ?? 1,
+    crossW: options.strataCrossWeightEdge ?? 1,
+    epsilon,
+    edgeCrossCap:
+      options.strataEdgeCrossCap ?? options.packedScoringEpsilon ?? 0,
+  };
+  // Cheap deterministic geometry fingerprint: sorted leaf + hull box extents.
+  // Score depends only on leaf centres (crossings/length) and hull boxes
+  // (penetrations), so identical fingerprints ⇒ identical score.
+  const fingerprintPlacement = (p: StrataPlacementResult): string => {
+    const parts: string[] = [];
+    for (const id of [...p.leafBoxes.keys()].sort()) {
+      const b = p.leafBoxes.get(id)!;
+      parts.push(`${id}:${b.x},${b.y},${b.width},${b.height}`);
+    }
+    for (const id of [...p.boxedHulls.keys()].sort()) {
+      const b = p.boxedHulls.get(id)!.box;
+      parts.push(`#${id}:${b.x},${b.y},${b.width},${b.height}`);
+    }
+    return parts.join("|");
+  };
+  // fingerprint → cached score. Dedup skips only the O(edges²) RE-SCORING of a
+  // geometry already evaluated; the ADOPTION decision still runs on every trial
+  // (P2-b): adoption depends on the rolling incumbent, so a geometry rejected
+  // earlier can become a strict weighted-C win after a later ε-band move rolls
+  // the incumbent. `scoreForTrial` returns the fresh-or-cached score (never
+  // touched flag-off ⇒ byte-identical).
+  const scoreCache = new Map<string, StrataPackedScore>();
+  const scoreForTrial = (
+    placement: StrataPlacementResult,
+  ): StrataPackedScore => {
+    if (!siftRelocate) {
+      return scoreStrataPlacementGeometry(placement, model, edgesPrime);
+    }
+    const fp = fingerprintPlacement(placement);
+    const cached = scoreCache.get(fp);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const fresh = scoreStrataPlacementGeometry(placement, model, edgesPrime);
+    scoreCache.set(fp, fresh);
+    return fresh;
+  };
+  if (siftRelocate) {
+    scoreCache.set(fingerprintPlacement(baselinePlacement), baselineScore);
+  }
+  // Unified adoption decision (returns the observability tag). Flag-off routes
+  // to the untouched `strataPackedScoreAdoptable`; flag-on to the relocate rule.
+  const decideAdoption = (
+    score: StrataPackedScore,
+    incumbent: StrataPackedScore,
+  ): false | "strict" | "epsilon" => {
+    if (!siftRelocate) {
+      return strataPackedScoreAdoptable(
+        score,
+        incumbent,
+        baselineScore.crossings,
+        effectiveDelta,
+      );
+    }
+    if (
+      !strataRelocateAdoptable(score, baselineScore, incumbent, relocateCfg)
+    ) {
+      return false;
+    }
+    return strataRelocateScoreLess(score, incumbent, relocateCfg)
+      ? "strict"
+      : "epsilon";
+  };
+
   let bestPlacement = baselinePlacement;
   let bestScore = baselineScore;
   const selection = new Map<string, number>();
@@ -629,17 +857,10 @@ export function placeStrataHullsPackedScored(
             trial,
           );
           trialCount += 1;
-          const score = scoreStrataPlacementGeometry(
-            placement,
-            model,
-            edgesPrime,
-          );
-          const adoptedVia = strataPackedScoreAdoptable(
-            score,
-            bestScore,
-            baselineScore.crossings,
-            effectiveDelta,
-          );
+          // OD-15 dedup reuses the cached score (skips re-scoring only); the
+          // adoption decision below still runs for every trial (P2-b).
+          const score = scoreForTrial(placement);
+          const adoptedVia = decideAdoption(score, bestScore);
           onPackedTrial?.({
             hullId,
             candidateIndex: c,
@@ -667,17 +888,10 @@ export function placeStrataHullsPackedScored(
             trial,
           );
           trialCount += 1;
-          const score = scoreStrataPlacementGeometry(
-            placement,
-            model,
-            edgesPrime,
-          );
-          const adoptedVia = strataPackedScoreAdoptable(
-            score,
-            bestScore,
-            baselineScore.crossings,
-            effectiveDelta,
-          );
+          // OD-15 dedup (see the c-loop site above): cached score, adoption
+          // still runs every trial (P2-b). Flag-off is byte-identical.
+          const score = scoreForTrial(placement);
+          const adoptedVia = decideAdoption(score, bestScore);
           onPackedTrial?.({
             hullId,
             candidateIndex: LEGACY,
