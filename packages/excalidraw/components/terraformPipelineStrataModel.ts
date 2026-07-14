@@ -21,7 +21,7 @@
  */
 import {
   compareStrataContentKeys,
-  STRATA_HULL_POLICY,
+  resolveStrataHullPolicy,
 } from "./terraformPipelineStrataTypes";
 import {
   topologyPathForCluster,
@@ -36,6 +36,7 @@ import type {
   StrataEdge,
   StrataEngineOptions,
   StrataHullNode,
+  StrataHullRole,
   StrataModel,
 } from "./terraformPipelineStrataTypes";
 
@@ -50,16 +51,19 @@ export const STRATA_ROOT_ID = "__strata_root__";
  * (`topologyRoleAndKeyFromPath`) — the id IS that content-addressed key; leaves
  * whose deepest hull is `h` land in `h.leafClusterIds` (keyed by cluster id so
  * two same-subnet siblings never collide). Children/leaves are ordered by the
- * pinned content comparator on canonical addresses (C4′).
+ * pinned content comparator on canonical addresses (C4′). Each hull's `policy`
+ * is resolved from the monotone band-depth cut `bandDepth` (default `"account"`
+ * reproduces `STRATA_HULL_POLICY` element-for-element).
  */
 function buildStrataHullTree(
   clusters: readonly PipelineCluster[],
   addressOf: (clusterId: string) => string,
+  bandDepth: StrataHullRole,
 ): StrataHullNode {
   const root: StrataHullNode = {
     id: STRATA_ROOT_ID,
     role: "root",
-    policy: STRATA_HULL_POLICY.root,
+    policy: resolveStrataHullPolicy("root", bandDepth),
     path: [],
     children: [],
     leafClusterIds: [],
@@ -79,7 +83,7 @@ function buildStrataHullTree(
         node = {
           id: rk.key,
           role: rk.role,
-          policy: STRATA_HULL_POLICY[rk.role],
+          policy: resolveStrataHullPolicy(rk.role, bandDepth),
           path: path.slice(0, len),
           children: [],
           leafClusterIds: [],
@@ -137,22 +141,38 @@ function finalizeStrataOrder(
 }
 
 /**
- * Band-row invariant (v3.1 §2.2, S0b assert): every child of a `banded` hull
- * occupies exactly one band-row and a bare-leaf child is its own singleton band.
- * Structurally, that means a banded hull's band rows are exactly its child hulls
- * plus its direct leaves, all distinct (no leaf is folded into another row and no
- * leaf id shadows a child-hull id). Also asserts per-role policy consistency —
- * a hull's policy must equal `STRATA_HULL_POLICY[role]`. Throws (dev-visible) on
- * violation so a future modeling regression voids loudly.
+ * Band-row invariant (v3.1 §2.2, S0b assert), cut-aware. Two guards:
+ *
+ *  1. Structural band-row (kept from before, keyed on the RESOLVED
+ *     `policy === "banded"`): every child of a banded hull occupies exactly one
+ *     band-row — its child hulls plus its direct leaves, all distinct (no leaf
+ *     folded into another row, no leaf id shadowing a child-hull id).
+ *  2. Cut-driven monotonicity (replaces the old static-map equality throw): the
+ *     root always resolves banded under `bandDepth` (root pinned banded, v3.1
+ *     §1.4), and NO banded hull may nest under a packed ancestor. packed-below-
+ *     banded is the ALLOWED direction (the cut walks banded → packed with
+ *     depth); banded-below-packed is impossible for a monotone cut and throws.
+ *
+ * Throws (dev-visible) on violation so a future modeling regression voids loudly.
  */
-export function assertStrataBandRowInvariant(hull: StrataHullNode): void {
-  if (hull.policy !== STRATA_HULL_POLICY[hull.role]) {
+export function assertStrataBandRowInvariant(
+  hull: StrataHullNode,
+  bandDepth: StrataHullRole,
+  ancestorPacked = false,
+): void {
+  // Root pinned banded (v3.1 §1.4): no legal cut resolves the root as packed.
+  if (hull.role === "root") {
+    const resolvedRoot = resolveStrataHullPolicy("root", bandDepth);
+    if (resolvedRoot !== "banded" || hull.policy !== "banded") {
+      throw new Error(
+        `Strata band-depth invariant: root hull ${hull.id} must be banded (resolved "${resolvedRoot}", stamped "${hull.policy}", cut "${bandDepth}") — root is pinned banded (v3.1 §1.4)`,
+      );
+    }
+  }
+  // Monotonicity: a banded hull can never sit under a packed ancestor.
+  if (ancestorPacked && hull.policy === "banded") {
     throw new Error(
-      `Strata model: hull ${hull.id} policy "${
-        hull.policy
-      }" != schema policy "${STRATA_HULL_POLICY[hull.role]}" for role "${
-        hull.role
-      }"`,
+      `Strata band-depth invariant: banded hull ${hull.id} (role "${hull.role}") nests under a packed ancestor — monotonicity violated`,
     );
   }
   if (hull.policy === "banded") {
@@ -171,8 +191,9 @@ export function assertStrataBandRowInvariant(hull: StrataHullNode): void {
       }
     }
   }
+  const childAncestorPacked = ancestorPacked || hull.policy === "packed";
   for (const child of hull.children) {
-    assertStrataBandRowInvariant(child);
+    assertStrataBandRowInvariant(child, bandDepth, childAncestorPacked);
   }
 }
 
@@ -253,8 +274,10 @@ export function buildStrataModel(
   const addressOf = (clusterId: string): string =>
     addressByCluster.get(clusterId) ?? clusterId;
 
-  const hullRoot = buildStrataHullTree(prep.clusters, addressOf);
-  assertStrataBandRowInvariant(hullRoot);
+  // Monotone band-depth cut → hull policy (default "account" = the frozen map).
+  const bandDepth: StrataHullRole = options.strataBandDepth ?? "account";
+  const hullRoot = buildStrataHullTree(prep.clusters, addressOf, bandDepth);
+  assertStrataBandRowInvariant(hullRoot, bandDepth);
   const { edges, selfLoops } = buildStrataEdges(prep.collapsedEdges);
 
   return { clusters, hullRoot, edges, selfLoops, addressOf };

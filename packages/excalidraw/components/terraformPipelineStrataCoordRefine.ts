@@ -230,12 +230,11 @@ type RefHull = {
   hull: StrataHullNode;
   policy: "banded" | "packed";
   /**
-   * W10 Stage 2: the policy A7's CONSTRAINTS follow. Equals `policy` unless
-   * `bandCompact` is live, where a banded NON-ROOT hull resolves to "packed"
-   * so both `blocksConstrain` (geometric x-overlap, not all-pairs) and
-   * `minGap` (leaf-leaf CLUSTER, not LANE) mirror the A0 skyline it was
-   * placed with — fixing only blocksConstrain would let seedCompact
-   * re-inflate leaf-leaf gaps from CLUSTER back to LANE (gap parity).
+   * The policy A7's CONSTRAINTS follow — always the hull's RESOLVED `policy`
+   * (fully-generic: a packed hull uses geometric x-overlap at
+   * `blocksConstrain` + leaf-leaf CLUSTER gaps at `minGap`, mirroring the A0
+   * skyline it was placed with; a banded hull pins the full-width stack). Kept
+   * as a distinct field so those readers stay policy-agnostic.
    */
   constraintPolicy: "banded" | "packed";
   topInset: number;
@@ -275,20 +274,17 @@ function blocksConstrain(
 function buildRefHull(
   hull: StrataHullNode,
   placement: StrataPlacementResult,
-  bandCompact: boolean,
 ): RefHull {
   const bh = placement.boxedHulls.get(hull.id);
   if (bh === undefined) {
     throw new Error(`Strata A7: hull "${hull.id}" is missing from placement`);
   }
   const policy = hull.policy;
-  // W10 Stage 2 resolution — mirrors the A0 branch exactly: skyline-placed
-  // hulls get skyline constraints. Identity when the option is absent
-  // (constraintPolicy === policy ⇒ flag-off behavior byte-identical).
-  const constraintPolicy: "banded" | "packed" =
-    policy === "packed" || (bandCompact && hull.role !== "root")
-      ? "packed"
-      : "banded";
+  // Constraints follow the RESOLVED policy exactly — skyline-placed (packed)
+  // hulls get skyline constraints (geometric overlap + CLUSTER gaps), banded
+  // hulls pin the full-width stack. The band-depth cut already lives in
+  // `hull.policy`, so nothing else is threaded here.
+  const constraintPolicy: "banded" | "packed" = policy;
   const topInset = framePad() + (hull.role === "root" ? 0 : titleReserve());
   const blocks: RefBlock[] = bh.placed.map((pu) => ({
     kind: pu.unit.kind,
@@ -304,7 +300,7 @@ function buildRefHull(
   }));
   const childById = new Map<string, RefHull>();
   for (const child of hull.children) {
-    childById.set(child.id, buildRefHull(child, placement, bandCompact));
+    childById.set(child.id, buildRefHull(child, placement));
   }
   return {
     hull,
@@ -661,19 +657,8 @@ export function refineStrataCoordinates(
   placement: StrataPlacementResult,
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
-  /**
-   * W10 Stage 2 (trailing optional — existing callers unaffected):
-   * `bandCompact` must match the A0 placement's option so constraint
-   * resolution mirrors how the geometry was actually placed. Absent ⇒
-   * constraintPolicy === policy ⇒ behavior byte-identical to pre-W10.
-   */
-  opts?: { bandCompact?: boolean },
 ): StrataPlacementResult {
-  const root = buildRefHull(
-    model.hullRoot,
-    placement,
-    opts?.bandCompact === true,
-  );
+  const root = buildRefHull(model.hullRoot, placement);
   const chordsByHull = buildChordsByHull(model.hullRoot, edgesPrime);
 
   refineHull(root, chordsByHull);

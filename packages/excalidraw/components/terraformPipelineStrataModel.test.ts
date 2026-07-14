@@ -29,6 +29,7 @@ import type {
 import type {
   StrataEngineOptions,
   StrataHullNode,
+  StrataHullRole,
 } from "./terraformPipelineStrataTypes";
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
@@ -187,19 +188,113 @@ describe("buildStrataModel — band-row invariant", () => {
     expect(account.leafClusterIds).toEqual(["acct-strip"]); // its own singleton
     expect(account.children).toEqual([]);
     // build already ran the assert; a direct call is also clean.
-    expect(() => assertStrataBandRowInvariant(model.hullRoot)).not.toThrow();
+    expect(() =>
+      assertStrataBandRowInvariant(model.hullRoot, "account"),
+    ).not.toThrow();
   });
 
-  it("assertStrataBandRowInvariant throws on a policy/role mismatch", () => {
-    const bad: StrataHullNode = {
-      id: "aws",
-      role: "provider",
-      policy: "packed", // provider must be banded
-      path: ["aws"],
-      children: [],
-      leafClusterIds: ["x"],
+  it("builds without throwing for every one of the 6 band-depth cuts", () => {
+    // A real multi-level fixture (provider→account→region→vpc→subnetZone).
+    const clusters = [
+      cluster(
+        "res.a",
+        placement("aws", "111", "us-east-1", "vpc-1", "private"),
+        "aws.a",
+      ),
+      cluster(
+        "res.b",
+        placement("aws", "222", "eu-west-1", "vpc-2", "public"),
+        "aws.b",
+      ),
+      cluster(
+        "res.c",
+        placement("gcp", "333", "us-central1", "vpc-3", "svc"),
+        "gcp.c",
+      ),
+    ];
+    const CUTS: readonly StrataHullRole[] = [
+      "root",
+      "provider",
+      "account",
+      "region",
+      "vpc",
+      "subnetZone",
+    ];
+    for (const cut of CUTS) {
+      expect(() =>
+        buildStrataModel(prep(clusters), { ...OPTS, strataBandDepth: cut }),
+      ).not.toThrow();
+    }
+  });
+
+  it("does NOT throw for a packed hull under a banded ancestor (monotone — packed-below-banded is allowed)", () => {
+    // cut "root" ⇒ provider resolves packed under the banded root: legal.
+    const bandedRoot: StrataHullNode = {
+      id: "__strata_root__",
+      role: "root",
+      policy: "banded",
+      path: [],
+      children: [
+        {
+          id: "aws",
+          role: "provider",
+          policy: "packed", // packed under banded root — the allowed direction
+          path: ["aws"],
+          children: [],
+          leafClusterIds: ["x"],
+        },
+      ],
+      leafClusterIds: [],
     };
-    expect(() => assertStrataBandRowInvariant(bad)).toThrow(/policy/);
+    expect(() =>
+      assertStrataBandRowInvariant(bandedRoot, "root"),
+    ).not.toThrow();
+  });
+
+  it("assertStrataBandRowInvariant throws when a BANDED hull nests under a PACKED ancestor (monotonicity)", () => {
+    const bad: StrataHullNode = {
+      id: "__strata_root__",
+      role: "root",
+      policy: "banded",
+      path: [],
+      children: [
+        {
+          id: "aws",
+          role: "provider",
+          policy: "packed",
+          path: ["aws"],
+          children: [
+            {
+              id: "aws/111",
+              role: "account",
+              policy: "banded", // banded under a packed ancestor — illegal
+              path: ["aws", "111"],
+              children: [],
+              leafClusterIds: ["y"],
+            },
+          ],
+          leafClusterIds: [],
+        },
+      ],
+      leafClusterIds: [],
+    };
+    expect(() => assertStrataBandRowInvariant(bad, "root")).toThrow(
+      /monotonicity/,
+    );
+  });
+
+  it("assertStrataBandRowInvariant throws when the root resolves packed (root is pinned banded)", () => {
+    const packedRoot: StrataHullNode = {
+      id: "__strata_root__",
+      role: "root",
+      policy: "packed", // impossible for any legal cut
+      path: [],
+      children: [],
+      leafClusterIds: [],
+    };
+    expect(() => assertStrataBandRowInvariant(packedRoot, "account")).toThrow(
+      /root/,
+    );
   });
 
   it("assertStrataBandRowInvariant throws on a duplicate leaf under a banded hull", () => {
@@ -211,7 +306,9 @@ describe("buildStrataModel — band-row invariant", () => {
       children: [],
       leafClusterIds: ["x", "x"],
     };
-    expect(() => assertStrataBandRowInvariant(dup)).toThrow(/duplicate/);
+    expect(() => assertStrataBandRowInvariant(dup, "account")).toThrow(
+      /duplicate/,
+    );
   });
 });
 

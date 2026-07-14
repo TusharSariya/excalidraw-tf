@@ -625,17 +625,20 @@ describe("placeStrataHulls — A2 sweep wiring (K>0)", () => {
   });
 });
 
-// ── W10 Stage 2: bandCompact (order-constrained banded row-share) ─────────────
+// ── Band-depth cut: provider/account packed at cut "root" ────────────────────
 //
-// Under `bandCompact` a banded NON-ROOT hull (provider/account) takes the same
-// dropY skyline as packed hulls (gap semantics VERBATIM, owner D1) in canonical
-// A2 order; the root stays a full-width stack (v3.1 §1.4). The A0 result also
-// carries the pre-A7 reclaim diagnostic (flag-on only).
+// The old `bandCompact` boolean is now the leftmost stop of the monotone
+// band-depth cut. Building the model with `strataBandDepth: "root"` resolves
+// provider/account to PACKED, so they take the same dropY skyline as
+// region/vpc/subnet — X-disjoint siblings share a Y-row (gap semantics
+// VERBATIM), while the root always stays a full-width banded stack (v3.1 §1.4).
+// Placement reads the RESOLVED `hull.policy` off the model, so the cut lives in
+// the model build, not the placement options.
 
-describe("placeStrataHulls — bandCompact (W10 Stage 2)", () => {
-  const BC: StrataEngineOptions = { ...OPTS, bandCompact: true };
+describe("placeStrataHulls — band-depth cut (provider/account packed at root)", () => {
+  const ROOT_CUT: StrataEngineOptions = { ...OPTS, strataBandDepth: "root" };
 
-  /** Two accounts under one provider, X-disjoint (cols 0/1, COL_GAP 600). */
+  /** Two accounts under one provider, X-disjoint (cols 0/1). */
   function twoAccountFixture() {
     const clusters = [
       frameCluster(
@@ -653,45 +656,51 @@ describe("placeStrataHulls — bandCompact (W10 Stage 2)", () => {
         100,
       ),
     ];
-    const model = buildStrataModel(prep(clusters), OPTS);
+    const modelDefault = buildStrataModel(prep(clusters), OPTS);
+    const modelRoot = buildStrataModel(prep(clusters), ROOT_CUT);
     const ranks = { c1: 0, c2: 1 };
-    return { model, ranks };
+    return { modelDefault, modelRoot, ranks };
   }
 
-  it("(a) banded non-root hull takes the skyline: X-disjoint accounts share a row", () => {
-    const { model, ranks } = twoAccountFixture();
-    const off = placeStrataHulls(model, primeEdges([]), rankStub(ranks), OPTS);
-    const on = placeStrataHulls(model, primeEdges([]), rankStub(ranks), BC);
+  it("(a) provider/account resolve packed at cut root: X-disjoint accounts share a row", () => {
+    const { modelDefault, modelRoot, ranks } = twoAccountFixture();
+    const off = placeStrataHulls(
+      modelDefault,
+      primeEdges([]),
+      rankStub(ranks),
+      OPTS,
+    );
+    const on = placeStrataHulls(
+      modelRoot,
+      primeEdges([]),
+      rankStub(ranks),
+      ROOT_CUT,
+    );
 
     const a111 = keyOf("aws", "111");
     const a222 = keyOf("aws", "222");
 
-    // flag OFF: legacy full-width stack — 111 strictly above 222.
+    // default cut: banded account level — legacy full-width stack, 111 above 222.
     const off111 = off.boxedHulls.get(a111)!.box;
     const off222 = off.boxedHulls.get(a222)!.box;
     expect(off111.y + off111.height).toBeLessThanOrEqual(off222.y);
 
-    // flag ON: X-disjoint siblings share the row (both drop to topInset).
+    // cut "root": account level is packed ⇒ X-disjoint siblings share the row.
     const on111 = on.boxedHulls.get(a111)!.box;
     const on222 = on.boxedHulls.get(a222)!.box;
     expect(on111.y).toBe(on222.y);
 
-    expect(checkStrataStructure(on, model)).toEqual({
+    expect(checkStrataStructure(on, modelRoot)).toEqual({
       nonAncestorOverlaps: 0,
       titleCollisions: 0,
       contiguityViolations: 0,
     });
-
-    // Diagnostics: 3 banded non-root hulls took the branch (provider aws +
-    // accounts 111/222); the provider reclaimed exactly one account band
-    // (its height + LANE_GAP_Y) vs the full-width stack counterfactual.
-    expect(on.bandCompactAppliedHullCount).toBe(3);
-    expect(on.bandCompactReclaimedPx).toBe(on111.height + PIPELINE_LANE_GAP_Y);
   });
 
-  it("(b) root stays a full-width stack under the flag (v3.1 §1.4)", () => {
-    // Two providers with X-disjoint leaves — a skyline WOULD row-share them,
-    // the pinned root banding must NOT.
+  it("(b) root stays a full-width stack even at cut root (v3.1 §1.4)", () => {
+    // Two providers with X-disjoint leaves — the providers are packed hulls at
+    // cut root, but the banded root MUST still stack them (packing the root
+    // would collapse the multi-provider seam).
     const clusters = [
       frameCluster(
         "c1",
@@ -708,53 +717,67 @@ describe("placeStrataHulls — bandCompact (W10 Stage 2)", () => {
         100,
       ),
     ];
-    const model = buildStrataModel(prep(clusters), OPTS);
+    const model = buildStrataModel(prep(clusters), ROOT_CUT);
     const on = placeStrataHulls(
       model,
       primeEdges([]),
       rankStub({ c1: 0, c2: 1 }),
-      BC,
+      ROOT_CUT,
     );
+    // Root is banded ⇒ its provider children are full-width stacked.
+    expect(model.hullRoot.policy).toBe("banded");
     const aws = on.boxedHulls.get("aws")!.box;
     const gcp = on.boxedHulls.get("gcp")!.box;
     expect(aws.y + aws.height).toBeLessThanOrEqual(gcp.y);
     expect(aws.y).not.toBe(gcp.y);
-    // Every provider/account here is single-child ⇒ the skyline equals the
-    // stack for each: fields present (flag on), reclaim exactly 0.
-    expect(on.bandCompactAppliedHullCount).toBe(4);
-    expect(on.bandCompactReclaimedPx).toBe(0);
+    expect(checkStrataStructure(on, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
   });
 
-  it("(c) flag-off placement is deep-equal with option absent (fixture-level identity)", () => {
-    const { model, ranks } = twoAccountFixture();
+  it("(c) default cut ≡ explicit strataBandDepth:'account' (byte-identical placement)", () => {
+    const clusters = [
+      frameCluster(
+        "c1",
+        placement("aws", "111", "r1", "vpc-1", "s1"),
+        "aws.c1",
+        200,
+        100,
+      ),
+      frameCluster(
+        "c2",
+        placement("aws", "222", "r1", "vpc-2", "s2"),
+        "aws.c2",
+        200,
+        100,
+      ),
+    ];
+    const ranks = { c1: 0, c2: 1 };
     const absent = placeStrataHulls(
-      model,
+      buildStrataModel(prep(clusters), OPTS),
       primeEdges([]),
       rankStub(ranks),
       OPTS,
     );
-    const explicitFalse = placeStrataHulls(
-      model,
+    const explicitAccount = placeStrataHulls(
+      buildStrataModel(prep(clusters), { ...OPTS, strataBandDepth: "account" }),
       primeEdges([]),
       rankStub(ranks),
-      {
-        ...OPTS,
-        bandCompact: false,
-      },
+      { ...OPTS, strataBandDepth: "account" },
     );
-    expect(explicitFalse).toEqual(absent);
-    // No diagnostic keys ride the flag-off result (byte-identity of shape).
+    expect(explicitAccount).toEqual(absent);
+    // No stray keys — the result is exactly the placement result.
     expect(Object.keys(absent).sort()).toEqual(["boxedHulls", "leafBoxes"]);
-    expect(absent.bandCompactAppliedHullCount).toBeUndefined();
-    expect(absent.bandCompactReclaimedPx).toBeUndefined();
   });
 
-  it("(e) D1 leaf-bearing banded hull: leaf-leaf gap is CLUSTER under the flag (second mechanism)", () => {
+  it("(e) leaf-bearing account packed at cut root: leaf-leaf gap tightens LANE→CLUSTER", () => {
     // Account 111 carries two DIRECT leaves (ancillaryScopeRole "account",
     // same column ⇒ X-overlap ⇒ they stack) plus a normal hull child at
-    // another column. dropY/gapBetween verbatim (owner D1): the leaf-leaf gap
-    // tightens from LANE (96, legacy banded stack) to CLUSTER (36) even
-    // though the leaves never row-share — the documented second mechanism.
+    // another column. At cut root the account is packed: dropY/gapBetween
+    // verbatim ⇒ the leaf-leaf gap tightens from LANE (96, banded stack) to
+    // CLUSTER (36) even though the leaves never row-share.
     const acct = (id: string, addr: string): PipelineCluster => ({
       ...frameCluster(id, placement("aws", "111", "r1"), addr, 200, 80),
       ancillaryScopeRole: "account",
@@ -770,24 +793,35 @@ describe("placeStrataHulls — bandCompact (W10 Stage 2)", () => {
         100,
       ),
     ];
-    const model = buildStrataModel(prep(clusters), OPTS);
+    const modelDefault = buildStrataModel(prep(clusters), OPTS);
+    const modelRoot = buildStrataModel(prep(clusters), ROOT_CUT);
     const ranks = { l1: 0, l2: 0, z1: 1 };
 
-    const off = placeStrataHulls(model, primeEdges([]), rankStub(ranks), OPTS);
-    const on = placeStrataHulls(model, primeEdges([]), rankStub(ranks), BC);
+    const off = placeStrataHulls(
+      modelDefault,
+      primeEdges([]),
+      rankStub(ranks),
+      OPTS,
+    );
+    const on = placeStrataHulls(
+      modelRoot,
+      primeEdges([]),
+      rankStub(ranks),
+      ROOT_CUT,
+    );
 
     const gapOf = (pl: typeof on): number =>
       pl.leafBoxes.get("l2")!.y -
       (pl.leafBoxes.get("l1")!.y + pl.leafBoxes.get("l1")!.height);
-    // legacy banded stack: LANE between every band.
+    // default cut: banded account ⇒ LANE between every band.
     expect(gapOf(off)).toBe(PIPELINE_LANE_GAP_Y);
-    // bandCompact: leaf-leaf CLUSTER gap (gapBetween verbatim).
+    // cut root: packed account ⇒ leaf-leaf CLUSTER gap (gapBetween verbatim).
     expect(gapOf(on)).toBe(PIPELINE_CLUSTER_GAP_Y);
 
     // The X-disjoint hull child row-shares with the first leaf.
     const regionId = keyOf("aws", "111", "r1");
     expect(on.boxedHulls.get(regionId)!.box.y).toBe(on.leafBoxes.get("l1")!.y);
-    expect(checkStrataStructure(on, model)).toEqual({
+    expect(checkStrataStructure(on, modelRoot)).toEqual({
       nonAncestorOverlaps: 0,
       titleCollisions: 0,
       contiguityViolations: 0,

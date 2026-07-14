@@ -668,55 +668,62 @@ describe("A7 full engine — flag OFF ≡ flag-absent, flag ON succeeds", () => 
   }
 });
 
-// ── W10 Stage 2: bandCompact — constraintPolicy resolution + gap parity ───────
+// ── Band-depth cut: A7 constraints follow the resolved hull policy ────────────
 //
-// A7 must mirror the A0 skyline a bandCompact placement was built with:
-// `constraintPolicy` resolves to "packed" for banded NON-ROOT hulls when the
-// option is live, at BOTH blocksConstrain (geometric x-overlap, not all-pairs)
-// AND minGap (leaf-leaf CLUSTER, not LANE). Fixing only blocksConstrain would
-// let seedCompact re-inflate leaf-leaf gaps from CLUSTER back to LANE — the
-// contrast arms below pin exactly that failure mode.
+// A7's `constraintPolicy` is now always the hull's RESOLVED `policy` (read off
+// the model). Building the model with `strataBandDepth: "root"` makes
+// provider/account packed, so A7 mirrors the A0 skyline for those hulls at BOTH
+// blocksConstrain (geometric x-overlap, not all-pairs) AND minGap (leaf-leaf
+// CLUSTER, not LANE) with no extra threading. The default-cut model keeps them
+// banded — the contrast that pins the LANE gap / stacked bands.
 
-describe("A7 bandCompact — constraintPolicy resolution + gap parity (W10 Stage 2)", () => {
-  const BC: StrataEngineOptions = { ...OPTS, bandCompact: true };
+describe("A7 band-depth cut — constraint policy follows the resolved hull policy", () => {
+  const ROOT_CUT: StrataEngineOptions = { ...OPTS, strataBandDepth: "root" };
 
   /** Account 111 with two X-overlapping DIRECT leaves (same column). */
-  function leafBearingAccount() {
+  function leafBearingAccount(opts: StrataEngineOptions) {
     const acct = (id: string, addr: string): PipelineCluster => ({
       ...frameCluster(id, placement("aws", "111", "r1"), addr, 200, 80),
       ancillaryScopeRole: "account",
     });
     const clusters = [acct("l1", "aws.l1"), acct("l2", "aws.l2")];
-    const model = buildStrataModel(prep(clusters), OPTS);
+    const model = buildStrataModel(prep(clusters), opts);
     const primes = primeEdges([]);
-    const a0 = placeStrataHulls(model, primes, rankStub({ l1: 0, l2: 0 }), BC);
+    const a0 = placeStrataHulls(
+      model,
+      primes,
+      rankStub({ l1: 0, l2: 0 }),
+      opts,
+    );
     return { model, primes, a0 };
   }
 
-  it("keeps the CLUSTER leaf-leaf gap through A7 (minGap parity, not re-inflated to LANE)", () => {
-    const { model, primes, a0 } = leafBearingAccount();
-    const gapOf = (p: StrataPlacementResult): number =>
-      p.leafBoxes.get("l2")!.y -
-      (p.leafBoxes.get("l1")!.y + p.leafBoxes.get("l1")!.height);
-    expect(gapOf(a0)).toBe(36); // A0 skyline: CLUSTER between two leaf cards
+  const leafGapOf = (p: StrataPlacementResult): number =>
+    p.leafBoxes.get("l2")!.y -
+    (p.leafBoxes.get("l1")!.y + p.leafBoxes.get("l1")!.height);
 
-    // Parity: with bandCompact threaded, A7 is a no-op (no chords) and the
-    // CLUSTER gap survives seedCompact.
-    const refined = refineStrataCoordinates(a0, model, primes, {
-      bandCompact: true,
-    });
-    expect(gapOf(refined)).toBe(36);
+  it("keeps the CLUSTER leaf-leaf gap through A7 when the account is packed (cut root)", () => {
+    const { model, primes, a0 } = leafBearingAccount(ROOT_CUT);
+    expect(leafGapOf(a0)).toBe(36); // A0 skyline: CLUSTER between two leaf cards
+
+    // A7 is a no-op here (no chords); the CLUSTER gap survives seedCompact
+    // because constraintPolicy === "packed" (minGap = CLUSTER, not LANE).
+    const refined = refineStrataCoordinates(a0, model, primes);
+    expect(leafGapOf(refined)).toBe(36);
     expect(fingerprint(refined)).toBe(fingerprint(a0));
-
-    // Contrast arm (the half-fix the design guards against): withOUT the
-    // option threaded, banded constraints re-inflate the gap to LANE.
-    const unthreaded = refineStrataCoordinates(a0, model, primes);
-    expect(gapOf(unthreaded)).toBe(96);
   });
 
-  it("uses geometric overlap at blocksConstrain: X-disjoint row-share survives A7", () => {
-    // Two accounts under one provider, X-disjoint columns ⇒ A0 (bandCompact)
-    // row-shares them at the provider level.
+  it("default cut keeps the account banded: leaf-leaf gap is LANE (the contrast)", () => {
+    const { model, primes, a0 } = leafBearingAccount(OPTS);
+    // Banded account: A0 stacks the two leaf bands at LANE; A7 preserves it.
+    expect(leafGapOf(a0)).toBe(96);
+    const refined = refineStrataCoordinates(a0, model, primes);
+    expect(leafGapOf(refined)).toBe(96);
+  });
+
+  it("uses geometric overlap at blocksConstrain: X-disjoint row-share survives A7 (cut root)", () => {
+    // Two accounts under one provider, X-disjoint columns; packed at cut root
+    // ⇒ A0 row-shares them at the provider level.
     const clusters = [
       frameCluster(
         "c1",
@@ -733,48 +740,42 @@ describe("A7 bandCompact — constraintPolicy resolution + gap parity (W10 Stage
         100,
       ),
     ];
-    const model = buildStrataModel(prep(clusters), OPTS);
+    const model = buildStrataModel(prep(clusters), ROOT_CUT);
     const primes = primeEdges([]);
-    const a0 = placeStrataHulls(model, primes, rankStub({ c1: 0, c2: 1 }), BC);
+    const a0 = placeStrataHulls(
+      model,
+      primes,
+      rankStub({ c1: 0, c2: 1 }),
+      ROOT_CUT,
+    );
     const a111 = keyOf("aws", "111");
     const a222 = keyOf("aws", "222");
     expect(a0.boxedHulls.get(a111)!.box.y).toBe(a0.boxedHulls.get(a222)!.box.y);
 
-    // With bandCompact threaded, the X-disjoint pair does not constrain ⇒
+    // constraintPolicy === "packed": the X-disjoint pair does not constrain ⇒
     // the shared row survives (identity — no chords to act on).
-    const refined = refineStrataCoordinates(a0, model, primes, {
-      bandCompact: true,
-    });
+    const refined = refineStrataCoordinates(a0, model, primes);
     expect(refined.boxedHulls.get(a111)!.box.y).toBe(
       refined.boxedHulls.get(a222)!.box.y,
     );
     expect(fingerprint(refined)).toBe(fingerprint(a0));
-
-    // Contrast arm: unthreaded, banded blocksConstrain treats EVERY pair as
-    // overlapping ⇒ seedCompact stacks the shared row back into bands.
-    const unthreaded = refineStrataCoordinates(a0, model, primes);
-    expect(unthreaded.boxedHulls.get(a222)!.box.y).toBeGreaterThan(
-      unthreaded.boxedHulls.get(a111)!.box.y,
-    );
   });
 
-  it("flag-off parity: opts absent ≡ { bandCompact: false } (constraintPolicy === policy)", () => {
+  it("default cut: constraintPolicy === policy — refine is run-twice byte-identical", () => {
     const { model, primes, a0 } = fixtureB();
-    const noOpts = refineStrataCoordinates(a0, model, primes);
-    const explicitFalse = refineStrataCoordinates(a0, model, primes, {
-      bandCompact: false,
-    });
-    expect(fingerprint(explicitFalse)).toBe(fingerprint(noOpts));
+    const r1 = refineStrataCoordinates(a0, model, primes);
+    const r2 = refineStrataCoordinates(a0, model, primes);
+    expect(fingerprint(r1)).toBe(fingerprint(r2));
   });
 });
 
-// ── W10 Stage 2: engine meta echo (Requested / AppliedHullCount / ReclaimedPx) ─
+// ── Band-depth cut: legacy strataBandCompact alias ⇒ strataBandDepth "root" ────
 
-describe("strataBandCompact — engine meta echo rules (W10 Stage 2)", () => {
+describe("band-depth cut — legacy strataBandCompact alias + meta echo", () => {
   const preset = "staging-localstack";
 
   it(
-    "flag OFF: meta is byte-identical to flag-absent and carries NO strataBandCompact* keys",
+    "cut default: meta byte-identical for flag-absent, strataBandCompact:false, and strataBandDepth:'account'; no strataBandCompact* keys",
     async () => {
       const { nodes, plan } = loadNodes(preset);
       const absent = await buildTerraformStrataExcalidrawScene(nodes, plan, {
@@ -784,7 +785,16 @@ describe("strataBandCompact — engine meta echo rules (W10 Stage 2)", () => {
         compact: true,
         strataBandCompact: false,
       });
+      const account = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+        strataBandDepth: "account",
+      });
+      // The default cut is byte-identical across all three spellings.
       expect(off.meta).toEqual(absent.meta);
+      expect(account.meta).toEqual(absent.meta);
+      expect(frameGeomByKey(account.elements)).toEqual(
+        frameGeomByKey(absent.elements),
+      );
       expect(
         Object.keys(absent.meta).filter((k) =>
           k.startsWith("strataBandCompact"),
@@ -794,39 +804,43 @@ describe("strataBandCompact — engine meta echo rules (W10 Stage 2)", () => {
         Object.keys(off.meta).filter((k) => k.startsWith("strataBandCompact")),
       ).toEqual([]);
     },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );
 
   it(
-    "flag ON (with rankSeparate + A7): Requested echo, pre-A7 AppliedHullCount snapshot, ReclaimedPx only-when-positive",
+    "legacy strataBandCompact:true ≡ strataBandDepth:'root' — same frame geometry (characterized alias)",
     async () => {
       const { nodes, plan } = loadNodes(preset);
-      const on = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+      const base = {
         compact: true,
         strataRankSeparate: true,
         strataCoordinateRefine: true,
+      } as const;
+      const alias = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        ...base,
         strataBandCompact: true,
       });
-      expect(on.meta.rcllV2Degraded).toBeUndefined();
-      expect(on.meta.strataBandCompactRequested).toBe(true);
-      // The snapshot is taken from the A0 result BEFORE A7 rebuilds the
-      // placement object — with coordinateRefine ON this only survives if the
-      // engine snapshots correctly.
-      const count = on.meta.strataBandCompactAppliedHullCount;
-      expect(typeof count).toBe("number");
-      expect(count as number).toBeGreaterThan(0);
-      // ε only-when-nonzero precedent: present ⇒ strictly positive. Under
-      // rankSeparate the W10 Stage-1 evidence says the row-share reclaims
-      // real height on this preset.
-      expect(on.meta.strataBandCompactReclaimedPx).toBeDefined();
-      expect(on.meta.strataBandCompactReclaimedPx as number).toBeGreaterThan(0);
-      // R2 evidence still all-zero on the final geometry.
-      expect(on.meta.strataStructural).toEqual({
+      const explicit = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        ...base,
+        strataBandDepth: "root",
+      });
+      // Neither degrades; both keep R2 zero.
+      expect(alias.meta.rcllV2Degraded).toBeUndefined();
+      expect(explicit.meta.rcllV2Degraded).toBeUndefined();
+      expect(alias.meta.strataStructural).toEqual({
         nonAncestorOverlaps: 0,
         titleCollisions: 0,
         contiguityViolations: 0,
       });
+      // The alias resolves to the same cut ⇒ identical frame geometry.
+      expect(frameGeomByKey(alias.elements)).toEqual(
+        frameGeomByKey(explicit.elements),
+      );
+      // The legacy alias still echoes its Requested marker (old links).
+      expect(alias.meta.strataBandCompactRequested).toBe(true);
+      // Explicit strataBandDepth does NOT set the legacy alias echo.
+      expect(explicit.meta.strataBandCompactRequested).toBeUndefined();
     },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 16,
   );
 });
