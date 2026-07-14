@@ -856,6 +856,67 @@
       }
     }
 
+    // Strata band-depth slider (v3.2) — replaces the old 2-button "Compact
+    // bands" toggle with a native range input over the 6 `StrataHullRole`
+    // depths, plus a tick row and "banded ← → packed" axis caption.
+    &__depthSlider {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    &__depthSliderAxisLabel {
+      flex: 0 0 auto;
+      color: var(--tf-muted);
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    &__depthSliderInput {
+      flex: 1 1 auto;
+      min-width: 6rem;
+      accent-color: var(--color-primary);
+      cursor: pointer;
+    }
+
+    &__depthSliderTicks {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.25rem;
+      margin-top: 0.2rem;
+    }
+
+    &__depthSliderTick {
+      display: flex;
+      flex: 1 1 0;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      color: var(--tf-muted);
+      font-size: 0.625rem;
+      font-weight: 500;
+
+      &--active {
+        color: var(--color-on-surface);
+        font-weight: 700;
+      }
+
+      &--experimental {
+        color: var(--color-warning, var(--tf-muted));
+      }
+
+      em {
+        margin-top: 0.1rem;
+        color: var(--tf-muted);
+        font-size: 0.5625rem;
+        font-style: normal;
+        font-weight: 400;
+        white-space: nowrap;
+      }
+    }
+
     &__modulePacking {
       margin: 0;
 

@@ -444,20 +444,12 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
-  "strata.bandcompact.off": {
-    title: "Compact bands · Off",
-    body: "Banded (provider/account) siblings keep the legacy one-per-row placement, even when two X-disjoint siblings could share a row without overlapping.",
+  "strata.banddepth": {
+    title: "Band depth",
+    body: 'Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. At the "Root" cut, provider and account become fully packed: placement geometry, sibling ordering, AND packed-edge-scoring eligibility all follow, exactly like Region/VPC/Zone do today. Root itself can never be packed — packing it would collapse the top-level providers side-by-side. Region/VPC/Zone cuts are experimental and usually make the canvas wider.',
     dev: {
       implements:
-        "strataBandCompact=false: A0's policy branch places banded non-root hulls with the legacy cursor stack; byte-identical to the pre-W10 engine.",
-    },
-  },
-  "strata.bandcompact.on": {
-    title: "Compact bands · On — W10 lever",
-    body: "Lets X-disjoint provider/account siblings share rows. Primarily effective with Rank separation (W10: 46-53% height reclaim with it, ~0 without).",
-    dev: {
-      implements:
-        "strataBandCompact=true (SDEC-63): A0 routes banded non-root hulls through the existing dropY skyline over actual padded x-extents in canonical A2 order; A7's constraintPolicy resolves to \"packed\" for these hulls so blocksConstrain/minGap parity holds.",
+        'strataBandDepth (v3.2, default "account" — today\'s fixed role→policy map, byte-identical): resolveStrataHullPolicy(role, bandDepth) resolves every hull\'s policy generically from one monotone cut (STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed"), consumed uniformly by A0 placement, A7 coordRefine, A2 ordering, and packed-scoring eligibility. LEGACY ALIAS: strataBandCompact=true resolves to strataBandDepth="root" when the enum is absent.',
     },
   },
 };

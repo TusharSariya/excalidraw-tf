@@ -51,6 +51,8 @@ import {
 import { buildTerraformDemoUrlFromSettings } from "./terraformDemoUrlParams";
 import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 
+import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+
 import type {
   TerraformImportArtifact,
   TerraformImportArtifactKind,
@@ -152,11 +154,14 @@ export const useTerraformImportDialog = ({
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting as boolean,
   );
-  // Strata W10 (SDEC-63, strata-only): banded row-share compaction lever.
-  // Default OFF pending owner adjudication; primarily effective with
-  // rankSeparate.
-  const [strataBandCompact, setStrataBandCompact] = useState(
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact as boolean,
+  // Strata band-depth slider (v3.2, strata-only): the deepest role still
+  // banded — deeper roles pack X-disjoint siblings into shared rows. Default
+  // "account" reproduces today's fixed role→policy map byte-identically.
+  // Legacy `strataBandCompact` boolean lives on only as an engine-side alias
+  // for `strataBandDepth: "root"` (old share links); this hook's UI state is
+  // the enum directly and no longer forwards the boolean.
+  const [strataBandDepth, setStrataBandDepth] = useState<StrataHullRole>(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth as StrataHullRole,
   );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
@@ -459,7 +464,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoring,
         strataPackedScoringEpsilon,
         strataEdgeRouting,
-        strataBandCompact,
+        strataBandDepth,
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -603,7 +608,7 @@ export const useTerraformImportDialog = ({
           strataPackedScoring,
           strataPackedScoringEpsilon,
           strataEdgeRouting,
-          strataBandCompact,
+          strataBandDepth,
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -713,7 +718,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoring,
         strataPackedScoringEpsilon,
         strataEdgeRouting,
-        strataBandCompact,
+        strataBandDepth,
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -937,7 +942,12 @@ export const useTerraformImportDialog = ({
         strataPackedScoring,
         strataPackedScoringEpsilon,
         strataEdgeRouting,
-        strataBandCompact,
+        // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
+        // the band-depth cut exclusively via `strataBandDepth` below; always
+        // false so a new share URL never re-emits the old `strataBandCompact`
+        // param (the required-legacy-field snapshot shape is unchanged here).
+        strataBandCompact: false,
+        strataBandDepth,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -968,7 +978,7 @@ export const useTerraformImportDialog = ({
     strataPackedScoring,
     strataPackedScoringEpsilon,
     strataEdgeRouting,
-    strataBandCompact,
+    strataBandDepth,
     moduleLayoutOptions.mode,
   ]);
 
@@ -1000,7 +1010,7 @@ export const useTerraformImportDialog = ({
     strataPackedScoring,
     strataPackedScoringEpsilon,
     strataEdgeRouting,
-    strataBandCompact,
+    strataBandDepth,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1054,7 +1064,7 @@ export const useTerraformImportDialog = ({
     setStrataPackedScoring,
     setStrataPackedScoringEpsilon,
     setStrataEdgeRouting,
-    setStrataBandCompact,
+    setStrataBandDepth,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

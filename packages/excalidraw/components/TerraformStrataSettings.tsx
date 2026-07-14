@@ -5,6 +5,33 @@ import {
   type OptionHelpKey,
 } from "./TerraformImportPipelineSettings";
 
+import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+
+/** Depth order for the band-depth slider, shallowest (root, always banded) to
+ * deepest (subnetZone, always packed) — the slider's index domain. UI-local
+ * mirror of the engine's `StrataHullRole` depth order (no runtime import of
+ * the engine module needed; the type import above is type-only). */
+export const STRATA_BAND_DEPTH_ORDER: readonly StrataHullRole[] = [
+  "root",
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
+];
+
+const STRATA_BAND_DEPTH_LABELS: Record<StrataHullRole, string> = {
+  root: "Root",
+  provider: "Provider",
+  account: "Account",
+  region: "Region",
+  vpc: "VPC",
+  subnetZone: "Zone",
+};
+
+/** Deep cuts (index >= this) are the experimental, "usually wider" stops. */
+const STRATA_BAND_DEPTH_EXPERIMENTAL_FROM = 3; // region
+
 /**
  * Strata (rcll-v2) view settings — WP-4-UI.
  *
@@ -37,14 +64,14 @@ export const TerraformStrataSettings = ({
   strataPackedScoring,
   strataPackedScoringEpsilon,
   strataEdgeRouting,
-  strataBandCompact,
+  strataBandDepth,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
   setStrataEdgeRouting,
-  setStrataBandCompact,
+  setStrataBandDepth,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
@@ -52,14 +79,14 @@ export const TerraformStrataSettings = ({
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
-  strataBandCompact: boolean;
+  strataBandDepth: StrataHullRole;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
-  setStrataBandCompact: (bandCompact: boolean) => void;
+  setStrataBandDepth: (bandDepth: StrataHullRole) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -196,21 +223,78 @@ export const TerraformStrataSettings = ({
               )}
             </div>
           </div>
-          <div role="group" aria-label="Strata compact bands">
+          <div role="group" aria-label="Strata band depth">
             <span className="TerraformImportModal__controlLabel">
-              Compact bands{" "}
-              <span>let X-disjoint provider/account siblings share rows</span>
+              Band depth{" "}
+              <span>
+                deepest level that stays a full-width band — everything below
+                packs X-disjoint siblings into shared rows
+              </span>
             </span>
-            <div className="TerraformImportModal__segmentedControl">
-              {option(
-                "Off",
-                !strataBandCompact,
-                "strata.bandcompact.off",
-                () => setStrataBandCompact(false),
-              )}
-              {option("On", strataBandCompact, "strata.bandcompact.on", () =>
-                setStrataBandCompact(true),
-              )}
+            <div className="TerraformImportModal__depthSlider">
+              <span
+                className="TerraformImportModal__depthSliderAxisLabel"
+                aria-hidden="true"
+              >
+                banded
+              </span>
+              <input
+                type="range"
+                className="TerraformImportModal__depthSliderInput"
+                min={0}
+                max={STRATA_BAND_DEPTH_ORDER.length - 1}
+                step={1}
+                value={STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth)}
+                aria-label="Strata band depth"
+                aria-valuetext={STRATA_BAND_DEPTH_LABELS[strataBandDepth]}
+                title={OPTION_HELP["strata.banddepth"].body}
+                onMouseEnter={() => setHoverKey("strata.banddepth")}
+                onMouseLeave={() => setHoverKey(null)}
+                onFocus={() => setHoverKey("strata.banddepth")}
+                onBlur={() => setHoverKey(null)}
+                onChange={(event) => {
+                  const nextRole =
+                    STRATA_BAND_DEPTH_ORDER[Number(event.target.value)];
+                  setStickyKey("strata.banddepth");
+                  setStrataBandDepth(nextRole);
+                }}
+              />
+              <span
+                className="TerraformImportModal__depthSliderAxisLabel"
+                aria-hidden="true"
+              >
+                packed
+              </span>
+            </div>
+            <div
+              className="TerraformImportModal__depthSliderTicks"
+              aria-hidden="true"
+            >
+              {STRATA_BAND_DEPTH_ORDER.map((role, index) => (
+                <span
+                  key={role}
+                  className={
+                    "TerraformImportModal__depthSliderTick" +
+                    (index === STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth)
+                      ? " TerraformImportModal__depthSliderTick--active"
+                      : "") +
+                    (index >= STRATA_BAND_DEPTH_EXPERIMENTAL_FROM
+                      ? " TerraformImportModal__depthSliderTick--experimental"
+                      : "")
+                  }
+                >
+                  {STRATA_BAND_DEPTH_LABELS[role]}
+                  {index >= STRATA_BAND_DEPTH_EXPERIMENTAL_FROM && (
+                    <em>experimental — usually wider</em>
+                  )}
+                </span>
+              ))}
+            </div>
+            <div className="TerraformImportModal__controlNote">
+              Deepest level laid out as full-width bands; levels below the cut
+              pack siblings into shared rows. Cuts deeper than Account primarily
+              reclaim vertical space when Rank separate is on (some spacing
+              still shifts without it). Root is always banded.
             </div>
           </div>
           {strataPackedScoring && (
@@ -247,12 +331,6 @@ export const TerraformStrataSettings = ({
               Measured to conflict (W8): rank separation rebuilds the column
               grid and packed edge scoring then optimizes global crossings at
               the expense of pair locality. Prefer one or the other.
-            </div>
-          )}
-          {strataBandCompact && !strataRankSeparate && (
-            <div className="TerraformImportModal__controlNote">
-              Primarily effective with rank separation (W10: 46-53% height
-              reclaim with it, ~0 without).
             </div>
           )}
           {/* Future: OD-15 "de-band" toggle lands here as an additional

@@ -1181,7 +1181,7 @@ describe("TerraformImportModal", () => {
     );
   });
 
-  it("Strata view: Compact bands defaults Off and On flips aria-pressed + threads strataBandCompact true", async () => {
+  it("Strata view: Band depth slider defaults to Account (index 2) and moving it to Root threads strataBandDepth root", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
       files: {},
@@ -1190,32 +1190,26 @@ describe("TerraformImportModal", () => {
     fillFirstBundle();
     fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
 
-    const compactBands = screen.getByRole("group", {
-      name: /strata compact bands/i,
-    });
-    const offBtn = within(compactBands).getByRole("button", {
-      name: /^off$/i,
-    });
-    const onBtn = within(compactBands).getByRole("button", {
-      name: /^on$/i,
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
     });
 
-    // Opt-in default-OFF: Off starts pressed.
-    expect(offBtn).toHaveAttribute("aria-pressed", "true");
-    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+    // Default cut is "account" — index 2 in the root/provider/account/region/vpc/subnetZone order.
+    expect(bandDepthSlider).toHaveValue("2");
+    expect(bandDepthSlider).toHaveAttribute("aria-valuetext", "Account");
 
-    fireEvent.click(onBtn);
-    expect(onBtn).toHaveAttribute("aria-pressed", "true");
-    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    expect(bandDepthSlider).toHaveValue("0");
+    expect(bandDepthSlider).toHaveAttribute("aria-valuetext", "Root");
 
     fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
-      expect.objectContaining({ strataBandCompact: true }),
+      expect.objectContaining({ strataBandDepth: "root" }),
     );
   });
 
-  it("Strata view: Compact bands On then back to Off threads strataBandCompact false", async () => {
+  it("Strata view: Band depth slider moved to Root then back to Account omits strataBandDepth (default cut)", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
       files: {},
@@ -1224,26 +1218,22 @@ describe("TerraformImportModal", () => {
     fillFirstBundle();
     fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
 
-    const compactBands = screen.getByRole("group", {
-      name: /strata compact bands/i,
-    });
-    const offBtn = within(compactBands).getByRole("button", {
-      name: /^off$/i,
-    });
-    const onBtn = within(compactBands).getByRole("button", {
-      name: /^on$/i,
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
     });
 
-    fireEvent.click(onBtn);
-    fireEvent.click(offBtn);
-    expect(offBtn).toHaveAttribute("aria-pressed", "true");
-    expect(onBtn).toHaveAttribute("aria-pressed", "false");
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    fireEvent.change(bandDepthSlider, { target: { value: "2" } });
+    expect(bandDepthSlider).toHaveValue("2");
+    expect(bandDepthSlider).toHaveAttribute("aria-valuetext", "Account");
 
     fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
-    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
-      expect.objectContaining({ strataBandCompact: false }),
-    );
+    // Default cut ("account") never materializes a `strataBandDepth` own key
+    // downstream — same byte-identity contract as every other default value.
+    expect(
+      vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1],
+    ).not.toHaveProperty("strataBandDepth");
   });
 
   it("Strata view: no W8 conflict note when only one of Compact height / Packed edge scoring is on", () => {
