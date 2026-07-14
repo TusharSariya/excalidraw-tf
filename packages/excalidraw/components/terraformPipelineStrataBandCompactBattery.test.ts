@@ -322,9 +322,7 @@ function bandLevels(elements: readonly ExcalidrawElement[]): BandLevels {
     minY = Math.min(minY, el.y);
     maxY = Math.max(maxY, el.y + el.height);
   }
-  const canvasHeight = round2(
-    Number.isFinite(maxY - minY) ? maxY - minY : 0,
-  );
+  const canvasHeight = round2(Number.isFinite(maxY - minY) ? maxY - minY : 0);
   const byRole = (role: string) =>
     elements
       .filter(
@@ -441,7 +439,9 @@ function metaEcho(meta: Record<string, unknown>): Record<string, unknown> {
     // ReclaimedPx is present ONLY when > 0.
     strataBandCompactRequested: pick("strataBandCompactRequested"),
     strataBandCompactRequestedPresent: has("strataBandCompactRequested"),
-    strataBandCompactAppliedHullCount: pick("strataBandCompactAppliedHullCount"),
+    strataBandCompactAppliedHullCount: pick(
+      "strataBandCompactAppliedHullCount",
+    ),
     strataBandCompactReclaimedPx: pick("strataBandCompactReclaimedPx"),
     strataBandCompactReclaimedPxPresent: has("strataBandCompactReclaimedPx"),
     // RS meta.
@@ -1088,7 +1088,17 @@ describe("W10b strataBandCompact adjudication battery (report-emitting; never as
           if (elements.length === 0) {
             softFailures.push(`${preset}/${armLabel}: scene EMPTY`);
           }
-          if (data.nSliceB === 0) {
+          // Under the band-depth model, strataBandCompact aliases to the
+          // band-depth root cut: provider/account resolve to hull.policy
+          // "packed" (same as region/vpc/subnetZone today), and slice-metrics
+          // (WP3) reads that resolved policy — so provider/account edges
+          // reclassify from slice-B (banded) to slice-A (packed). For BC arms
+          // (the arms whose ARM_OPTIONS set strataBandCompact:true, i.e.
+          // BC_ARMS) slice-B legitimately empties; this is the documented
+          // "characterized delta" from the band-depth slider work, not a
+          // harness failure. Only exempt BC arms — every non-BC arm must
+          // still trip this check.
+          if (data.nSliceB === 0 && !BC_ARMS.has(armLabel)) {
             softFailures.push(`${preset}/${armLabel}: slice-B EMPTY`);
           }
           if (data.paths.sampled === 0) {
@@ -1118,7 +1128,9 @@ describe("W10b strataBandCompact adjudication battery (report-emitting; never as
               (st.contiguityViolations ?? 0) > 0)
           ) {
             softFailures.push(
-              `${preset}/${armLabel}: R2 structural nonzero ${JSON.stringify(st)}`,
+              `${preset}/${armLabel}: R2 structural nonzero ${JSON.stringify(
+                st,
+              )}`,
             );
           }
           // Meta wiring health (byte-identity of the flag-off path): Requested
@@ -1239,7 +1251,10 @@ describe("W10b strataBandCompact adjudication battery (report-emitting; never as
         for (const armLabel of DETERMINISM_ARMS) {
           const rebuilt = await buildArm(sources, ARM_OPTIONS[armLabel]!);
           const before = JSON.stringify(
-            armSummaryNormalized(armData.get(armLabel)!, armRows.get(armLabel)!),
+            armSummaryNormalized(
+              armData.get(armLabel)!,
+              armRows.get(armLabel)!,
+            ),
           );
           const after = JSON.stringify(
             armSummaryNormalized(rebuilt.data, rebuilt.pathRows),
@@ -1258,9 +1273,7 @@ describe("W10b strataBandCompact adjudication battery (report-emitting; never as
         for (const armLabel of CHURN_ARMS) {
           const base = armElements.get(armLabel)!;
           if (base.length === 0) {
-            softFailures.push(
-              `${preset}/${armLabel}: churn base scene EMPTY`,
-            );
+            softFailures.push(`${preset}/${armLabel}: churn base scene EMPTY`);
             continue;
           }
           const addBuilt = await buildArmFrom(
@@ -1289,7 +1302,11 @@ describe("W10b strataBandCompact adjudication battery (report-emitting; never as
           const renameMetrics = computeStrataChurnMetrics(
             base,
             renameBuilt.elements,
-            { renames: { [renameMutation.oldAddress]: renameMutation.newAddress } },
+            {
+              renames: {
+                [renameMutation.oldAddress]: renameMutation.newAddress,
+              },
+            },
           );
           churn[armLabel] = {
             add: {
