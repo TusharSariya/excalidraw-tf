@@ -301,6 +301,62 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "default-cut e2e: no frame customData carries an OWN terraformHullPolicy key; non-default cut proves the check isn't vacuous (codex WP3-P3)",
+    async () => {
+      // Regression for codex WP3-P3: WP3's slice-metrics tests exercised the
+      // stamp condition (terraformPipelineStrataSceneBuild.ts) only against
+      // synthetic frames, so an "always-stamp" regression there — the stamp
+      // firing unconditionally instead of only when a hull's resolved policy
+      // diverges from the static role→policy map — would go undetected. This
+      // builds a REAL strata scene end-to-end through the same app path as
+      // the threading tests above (`layoutTerraformFromSources`, multi-
+      // provider preset) and checks `hasOwnProperty` directly (not just
+      // `!== undefined`) across every emitted frame, so a stamp present with
+      // an `undefined` value would also be caught.
+      const framesOf = (scene: Scene) =>
+        scene.elements.filter((el) => el.type === "frame");
+      const hasOwnStamp = (frame: ExcalidrawElement) =>
+        Object.prototype.hasOwnProperty.call(
+          (frame.customData ?? {}) as Record<string, unknown>,
+          "terraformHullPolicy",
+        );
+
+      // Default cut, option absent: no frame carries the own key.
+      const defaultAbsent = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(defaultAbsent.meta.rcllV2Degraded).toBeUndefined();
+      const defaultAbsentFrames = framesOf(defaultAbsent);
+      expect(defaultAbsentFrames.length).toBeGreaterThan(0);
+      expect(defaultAbsentFrames.every((f) => !hasOwnStamp(f))).toBe(true);
+
+      // Default cut, explicit "account": same guarantee.
+      const defaultExplicit = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "account",
+      });
+      expect(defaultExplicit.meta.rcllV2Degraded).toBeUndefined();
+      const defaultExplicitFrames = framesOf(defaultExplicit);
+      expect(defaultExplicitFrames.length).toBeGreaterThan(0);
+      expect(defaultExplicitFrames.every((f) => !hasOwnStamp(f))).toBe(true);
+
+      // Non-default cut: prove the absence checks above aren't vacuous — at
+      // least one frame DOES carry the own key once the cut actually moves a
+      // hull's resolved policy off the static map.
+      const nonDefault = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "root",
+      });
+      expect(nonDefault.meta.rcllV2Degraded).toBeUndefined();
+      expect(framesOf(nonDefault).some((f) => hasOwnStamp(f))).toBe(true);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
     "bandCompact alias on the direct-options path resolves the 'root' cut (WP4 P1) — identical to an explicit strataBandDepth:'root'",
     async () => {
       // Regression for codex WP4 P1: before the raw-forward fix, the

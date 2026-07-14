@@ -253,8 +253,17 @@ export const TerraformStrataSettings = ({
                 onFocus={() => setHoverKey("strata.banddepth")}
                 onBlur={() => setHoverKey(null)}
                 onChange={(event) => {
-                  const nextRole =
-                    STRATA_BAND_DEPTH_ORDER[Number(event.target.value)];
+                  const raw = Number(event.target.value);
+                  const idx = Number.isNaN(raw)
+                    ? STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth)
+                    : Math.min(
+                        STRATA_BAND_DEPTH_ORDER.length - 1,
+                        Math.max(0, Math.round(raw)),
+                      );
+                  const nextRole = STRATA_BAND_DEPTH_ORDER[idx];
+                  if (nextRole === undefined) {
+                    return;
+                  }
                   setStickyKey("strata.banddepth");
                   setStrataBandDepth(nextRole);
                 }}
