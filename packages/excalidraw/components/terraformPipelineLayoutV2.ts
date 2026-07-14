@@ -93,6 +93,7 @@ export async function buildTerraformPipelineV2ExcalidrawScene(
   options?: {
     compact?: boolean;
     includeAncillary?: boolean;
+    pipelinePrivateApiRegional?: boolean;
     /**
      * Pre-built prep, reused when a caller (the Strata engine's failure path)
      * already ran `preparePipelineLayout` for its own model — avoids a second
@@ -111,7 +112,11 @@ export async function buildTerraformPipelineV2ExcalidrawScene(
   const compact = options?.compact !== false;
   const includeAncillary = options?.includeAncillary === true;
 
-  const prep = options?.prep ?? preparePipelineLayout(nodes, plan, compact);
+  const prep =
+    options?.prep ??
+    preparePipelineLayout(nodes, plan, compact, {
+      privateApiRegional: options?.pipelinePrivateApiRegional,
+    });
 
   const ancillaryStrips = includeAncillary
     ? buildAncillaryStrips(nodes, plan, prep, { compact })

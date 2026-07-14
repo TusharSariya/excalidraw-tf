@@ -68,6 +68,7 @@ const sessionToDemoSnapshot = (
   pipelinePacked: session.pipelinePacked ?? false,
   pipelinePackedPullLeft: session.pipelinePackedPullLeft ?? false,
   pipelineIncludeAncillary: session.pipelineIncludeAncillary ?? false,
+  pipelinePrivateApiRegional: session.pipelinePrivateApiRegional ?? false,
   pipelineSemanticPlacement: session.pipelineSemanticPlacement ?? false,
   pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise ?? false,
   pipelineReorder: session.pipelineReorder ?? false,

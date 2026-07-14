@@ -954,6 +954,9 @@ export const useTerraformImportDialog = ({
         pipelinePacked,
         pipelinePackedPullLeft,
         pipelineIncludeAncillary,
+        // No dialog toggle for the private-API regional placement flag; the
+        // share URL only carries it when set programmatically (demo URL param).
+        pipelinePrivateApiRegional: false,
         pipelineSemanticPlacement,
         pipelineSwimlaneLaneRise,
         pipelineReorder,

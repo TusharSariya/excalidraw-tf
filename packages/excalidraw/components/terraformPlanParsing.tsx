@@ -132,6 +132,13 @@ export type TerraformPlanParsingOptions = {
   /** Pipeline: also draw non-TFD resources in per-hull "Unconnected" strips. */
   pipelineIncludeAncillary?: boolean;
   /**
+   * Pipeline (opt-in, default off): private VPC-endpoint-bound REST APIs
+   * (`aws_api_gateway_rest_api` with `endpoint_configuration.types = ["PRIVATE"]`)
+   * are placed at ACCOUNT+REGION level with a companion-inferred owning account,
+   * instead of nested inside a VPC/subnet. OFF ⇒ byte-identical topology extraction.
+   */
+  pipelinePrivateApiRegional?: boolean;
+  /**
    * Pipeline (opt-in, default off): nesting-aware semantic placement —
    * role-based forced topology bands + deterministic dataflow straightening.
    */

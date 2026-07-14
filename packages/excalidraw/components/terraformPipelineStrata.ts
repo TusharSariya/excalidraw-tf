@@ -29,6 +29,8 @@ import type { TerraformImportWarning } from "./terraformImportMerge";
 export type TerraformStrataSceneOptions = {
   compact?: boolean;
   includeAncillary?: boolean;
+  /** Opt-in (default off): private VPC-endpoint-bound REST APIs placed at region level. */
+  pipelinePrivateApiRegional?: boolean;
   /** OD-1 (M1b): X-axis network-simplex rank refinement (A1). Threaded at S0a;
    * consumed by `rankStrataClusters`. Default off. */
   strataNetworkSimplexRank?: boolean;
@@ -291,7 +293,9 @@ export async function buildTerraformStrataExcalidrawScene(
 
   // Build prep ONCE — same invocation shape as the v2 builder's internal call so
   // the fallback prep is a valid substitute. A prep throw propagates (see header).
-  const prep = preparePipelineLayout(nodes, plan, compact);
+  const prep = preparePipelineLayout(nodes, plan, compact, {
+    privateApiRegional: options?.pipelinePrivateApiRegional,
+  });
 
   const engineOptions = {
     compact,

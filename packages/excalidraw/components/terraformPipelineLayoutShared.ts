@@ -201,16 +201,29 @@ export function buildPlacementMap(
   plan: unknown,
   enrichedOverride?: EnrichedTopologyPlacements,
   precomputedSatelliteAddresses?: ReadonlySet<string>,
+  opts?: { privateApiRegional?: boolean },
 ): Map<string, PipelinePlacement> {
+  const privateApiRegional = opts?.privateApiRegional === true;
   const awsPlan = filterPlanByProviderFamily(plan as any, "aws");
   const cache = getTerraformImportPrepCache();
-  let enriched = enrichedOverride ?? cache?.enrichedPlacements;
+  // Only reuse the cached placement when it was built under the SAME
+  // `privateApiRegional` flag — otherwise a flag change within one session/worker
+  // would silently serve the other value's placements (regional-vs-VPC private
+  // API), making ON inert after an OFF build or OFF non-legacy after an ON build.
+  let enriched =
+    enrichedOverride ??
+    (cache?.enrichedPlacements !== undefined &&
+    cache.enrichedPlacementsPrivateApiRegional === privateApiRegional
+      ? cache.enrichedPlacements
+      : undefined);
   if (!enriched) {
     enriched = buildEnrichedTopologyPlacements(awsPlan, nodes, {
       precomputedSatelliteAddresses,
+      privateApiRegional,
     });
     if (cache) {
       cache.enrichedPlacements = enriched;
+      cache.enrichedPlacementsPrivateApiRegional = privateApiRegional;
     }
   }
   const out = topologyAddressPlacementMap(enriched, awsPlan);
@@ -1529,6 +1542,12 @@ export type PreparePipelineLayoutOptions = {
    * rewrite the depth floor; NS takes precedence).
    */
   networkSimplexRank?: boolean;
+  /**
+   * Opt-in (default off): private VPC-endpoint-bound REST APIs are placed at
+   * ACCOUNT+REGION level (companion-account inferred) instead of nested in a VPC.
+   * OFF ⇒ byte-identical legacy topology extraction.
+   */
+  privateApiRegional?: boolean;
 };
 
 export function preparePipelineLayout(
@@ -1556,7 +1575,9 @@ export function preparePipelineLayout(
         placementByAddress: terraformImportProfilerMeasure(
           "pipeline.prep.resourceRects",
           () =>
-            buildPlacementMap(nodes, plan, undefined, new Set(owners.keys())),
+            buildPlacementMap(nodes, plan, undefined, new Set(owners.keys()), {
+              privateApiRegional: options?.privateApiRegional,
+            }),
         ),
       };
     },

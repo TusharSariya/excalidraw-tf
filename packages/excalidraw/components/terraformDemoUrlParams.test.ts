@@ -23,6 +23,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   pipelinePacked: false,
   pipelinePackedPullLeft: false,
   pipelineIncludeAncillary: false,
+  pipelinePrivateApiRegional: false,
   pipelineSemanticPlacement: false,
   pipelineSwimlaneLaneRise: false,
   pipelineReorder: false,

@@ -429,6 +429,8 @@ type LayoutSceneContext = {
   pipelinePacked?: boolean;
   pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
+  /** Opt-in (default off): private VPC-endpoint-bound REST APIs placed at region level. */
+  pipelinePrivateApiRegional?: boolean;
   pipelineSemanticPlacement?: boolean;
   /** RCLL M4: X-disjoint swimlane lanes rise to share Y rows. */
   pipelineSwimlaneLaneRise?: boolean;
@@ -596,6 +598,7 @@ async function buildPipelineLayoutSceneBody(
       // tolerates the keys it doesn't read.
       const builderOptions = {
         ...pipelineOptions,
+        pipelinePrivateApiRegional: ctx.pipelinePrivateApiRegional,
         strataNetworkSimplexRank: ctx.strataNetworkSimplexRank,
         strataRankSeparate: ctx.strataRankSeparate,
         strataJointNsRank: ctx.strataJointNsRank,
@@ -775,9 +778,15 @@ async function buildSemanticLayoutSceneBody(
 
       const awsChanges = providerBuckets.get("aws") ?? [];
       if (awsChanges.length > 0) {
+        const privateApiRegionalOpts = {
+          privateApiRegional: ctx.pipelinePrivateApiRegional,
+        };
         const topoModel = extractTerraformTopologyFromPlan(awsPlan);
-        const zones = buildMergedTopologyZones(awsPlan);
-        const regionalBuckets = extractRegionalTopologyPrimaries(awsPlan);
+        const zones = buildMergedTopologyZones(awsPlan, privateApiRegionalOpts);
+        const regionalBuckets = extractRegionalTopologyPrimaries(
+          awsPlan,
+          privateApiRegionalOpts,
+        );
         const vpcEndpointBucketsRaw = extractVpcEndpointsByVpc(awsPlan);
         const {
           byZone: interfaceVpcEndpointZonePlacements,
@@ -1114,6 +1123,7 @@ export async function layoutTerraformFromSources(
     addressToStack,
     deferDecorations: options?.deferDecorations === true,
     pipelineCompact: options?.pipelineCompact,
+    pipelinePrivateApiRegional: options?.pipelinePrivateApiRegional,
     // Force the variant for RCLL / Strata so a stale-session/default variant
     // can't mis-route to the plain pipeline builder (dispatch keys on the
     // variant). Strata rides its own layoutMode (not the `pipelineVariant`

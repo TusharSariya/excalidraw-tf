@@ -38,6 +38,8 @@ export type TerraformImportSession = {
   pipelinePackedPullLeft?: boolean;
   /** Pipeline — draw non-TFD resources in per-hull "Unconnected" strips. */
   pipelineIncludeAncillary?: boolean;
+  /** Pipeline — private VPC-endpoint-bound REST APIs placed at region level. */
+  pipelinePrivateApiRegional?: boolean;
   /** Pipeline — nesting-aware semantic placement (forced bands + straightening). */
   pipelineSemanticPlacement?: boolean;
   /** RCLL M4 — X-disjoint swimlane lanes rise to share Y rows. */

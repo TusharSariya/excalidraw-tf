@@ -23,7 +23,7 @@ describe("staging multi-state import", () => {
           tfdTexts: [tfd],
           tfdLabels: ["pipeline.tfd"],
         },
-        { semanticLayout: true },
+        { semanticLayout: true, pipelinePrivateApiRegional: true },
       );
       expect(res.ok).toBe(true);
       const body = await res.json();
@@ -84,14 +84,28 @@ describe("staging multi-state import", () => {
           ),
       );
       expect(privateApiTiles.length).toBeGreaterThanOrEqual(5);
+      const knownRegions = new Set([
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+      ]);
       for (const api of privateApiTiles) {
         const clusterFrame = framesById.get(
           (api as { frameId?: string }).frameId ?? "",
         );
         expect(clusterFrame?.terraformTopologyRole).toBe("primaryCluster");
         const path = clusterFrame?.terraformTopologyPath ?? [];
-        expect(path.length).toBeGreaterThanOrEqual(4);
-        expect(path[2]).toMatch(/^vpc-/);
+        // Private REST APIs now sit at account/region level (siblings of SQS/S3),
+        // NOT inside a VPC frame: the path is the 3-segment
+        // account / region / cluster-address, with no `vpc-*` segment.
+        expect(path.length).toBe(3);
+        expect(path[0]).toBe("992382747916");
+        expect(knownRegions.has(path[1] ?? "")).toBe(true);
+        expect(path[2]).not.toMatch(/^vpc-/);
+        expect(path[2]).toContain(
+          "module.api.aws_api_gateway_rest_api.private",
+        );
       }
 
       const ecsEdgeLb = body.elements.filter(

@@ -182,6 +182,8 @@ export type RunTerraformImportFromSourcesOptions = {
   pipelinePackedPullLeft?: boolean;
   /** Pipeline — draw non-TFD resources in per-hull "Unconnected" strips. Default false. */
   pipelineIncludeAncillary?: boolean;
+  /** Pipeline — private VPC-endpoint-bound REST APIs placed at region level. Default false. */
+  pipelinePrivateApiRegional?: boolean;
   /** Pipeline — nesting-aware semantic placement (forced bands + straightening). Default false. */
   pipelineSemanticPlacement?: boolean;
   /** RCLL M4 — X-disjoint swimlane lanes rise to share Y rows. Default false. */
@@ -273,6 +275,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "pipelinePacked"
   | "pipelinePackedPullLeft"
   | "pipelineIncludeAncillary"
+  | "pipelinePrivateApiRegional"
   | "pipelineSemanticPlacement"
   | "pipelineSwimlaneLaneRise"
   | "pipelineReorder"
@@ -308,6 +311,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   pipelinePacked: session.pipelinePacked === true,
   pipelinePackedPullLeft: session.pipelinePackedPullLeft === true,
   pipelineIncludeAncillary: session.pipelineIncludeAncillary === true,
+  pipelinePrivateApiRegional: session.pipelinePrivateApiRegional === true,
   pipelineSemanticPlacement: session.pipelineSemanticPlacement === true,
   pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise === true,
   pipelineReorder: session.pipelineReorder === true,
@@ -367,6 +371,7 @@ function buildPipelineFamilyLayoutOptions(
   | "pipelinePacked"
   | "pipelinePackedPullLeft"
   | "pipelineIncludeAncillary"
+  | "pipelinePrivateApiRegional"
   | "pipelineSemanticPlacement"
   | "pipelineSwimlaneLaneRise"
   | "pipelineReorder"
@@ -411,6 +416,7 @@ function buildPipelineFamilyLayoutOptions(
     pipelinePacked: options.pipelinePacked === true,
     pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
     pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
+    pipelinePrivateApiRegional: options.pipelinePrivateApiRegional === true,
     pipelineSemanticPlacement: options.pipelineSemanticPlacement === true,
     pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
     pipelineReorder: options.pipelineReorder === true,
@@ -472,6 +478,7 @@ async function layoutTerraformSceneFromSources(
         options.pipelinePacked === true ||
         options.pipelinePackedPullLeft === true ||
         options.pipelineIncludeAncillary === true ||
+        options.pipelinePrivateApiRegional === true ||
         options.pipelineSemanticPlacement === true));
   if (presetId && !skipLayoutCache) {
     const cached = await fetchPresetLayoutCache(

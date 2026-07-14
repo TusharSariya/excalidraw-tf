@@ -85,6 +85,8 @@ export type TerraformDemoUrlParams = {
   packed?: boolean;
   packedPullLeft?: boolean;
   ancillary?: boolean;
+  /** Opt-in: private VPC-endpoint-bound REST APIs placed at region level. */
+  privateApiRegional?: boolean;
   semanticPlace?: boolean;
   /** Accepts the clear alias `laneRise` as well as the milestone name `swimlaneRise`. */
   swimlaneRise?: boolean;
@@ -307,6 +309,10 @@ export const parseTerraformDemoUrlParams = (
   }
   const ancillary = parseBooleanParam("ancillary");
   if (ancillary === null) {
+    return null;
+  }
+  const privateApiRegional = parseBooleanParam("privateApiRegional");
+  if (privateApiRegional === null) {
     return null;
   }
   const semanticPlace = parseBooleanParam("semanticPlace");
@@ -633,6 +639,7 @@ export const parseTerraformDemoUrlParams = (
     ...(packed != null ? { packed } : {}),
     ...(packedPullLeft != null ? { packedPullLeft } : {}),
     ...(ancillary != null ? { ancillary } : {}),
+    ...(privateApiRegional != null ? { privateApiRegional } : {}),
     ...(semanticPlace != null ? { semanticPlace } : {}),
     ...(swimlaneRise != null ? { swimlaneRise } : {}),
     ...(reorder != null ? { reorder } : {}),
@@ -707,6 +714,7 @@ export const buildTerraformDemoUrl = (
   setBool("packed", params.packed);
   setBool("packedPullLeft", params.packedPullLeft);
   setBool("ancillary", params.ancillary);
+  setBool("privateApiRegional", params.privateApiRegional);
   setBool("semanticPlace", params.semanticPlace);
   setBool("swimlaneRise", params.swimlaneRise);
   setBool("reorder", params.reorder);
@@ -808,6 +816,7 @@ export type TerraformDemoSettingsSnapshot = {
   pipelinePacked: boolean;
   pipelinePackedPullLeft: boolean;
   pipelineIncludeAncillary: boolean;
+  pipelinePrivateApiRegional: boolean;
   pipelineSemanticPlacement: boolean;
   pipelineSwimlaneLaneRise: boolean;
   pipelineReorder: boolean;
@@ -879,6 +888,9 @@ export const collectTerraformDemoParams = (
       ...(snapshot.pipelinePackedPullLeft ? { packedPullLeft: true } : {}),
       ancillary: snapshot.pipelineIncludeAncillary,
       semanticPlace: snapshot.pipelineSemanticPlacement,
+      ...(snapshot.pipelinePrivateApiRegional
+        ? { privateApiRegional: true }
+        : {}),
     };
   }
 
@@ -888,6 +900,9 @@ export const collectTerraformDemoParams = (
       ...base,
       compact: snapshot.pipelineCompact,
       ancillary: snapshot.pipelineIncludeAncillary,
+      ...(snapshot.pipelinePrivateApiRegional
+        ? { privateApiRegional: true }
+        : {}),
     };
     if (snapshot.pipelineLayoutProfile !== "custom") {
       return { ...rcll, profile: snapshot.pipelineLayoutProfile };
@@ -916,6 +931,9 @@ export const collectTerraformDemoParams = (
       ...base,
       compact: snapshot.pipelineCompact,
       ancillary: snapshot.pipelineIncludeAncillary,
+      ...(snapshot.pipelinePrivateApiRegional
+        ? { privateApiRegional: true }
+        : {}),
       ...(snapshot.strataNetworkSimplexRank ? { strataNsRank: true } : {}),
       strataSweeps: snapshot.strataSweeps,
       strataCoordRefine: snapshot.strataCoordinateRefine,

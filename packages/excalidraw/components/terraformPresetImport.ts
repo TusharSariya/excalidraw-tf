@@ -57,6 +57,7 @@ export type RunTerraformImportFromSourcesArgs = {
   pipelinePacked?: boolean;
   pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
+  pipelinePrivateApiRegional?: boolean;
   pipelineSemanticPlacement?: boolean;
   pipelineSwimlaneLaneRise?: boolean;
   pipelineReorder?: boolean;
@@ -124,6 +125,7 @@ export const runTerraformImportWithView = async ({
   pipelinePacked,
   pipelinePackedPullLeft,
   pipelineIncludeAncillary,
+  pipelinePrivateApiRegional,
   pipelineSemanticPlacement,
   pipelineSwimlaneLaneRise,
   pipelineReorder,
@@ -173,6 +175,7 @@ export const runTerraformImportWithView = async ({
           pipelinePacked,
           pipelinePackedPullLeft,
           pipelineIncludeAncillary,
+          pipelinePrivateApiRegional,
           pipelineSemanticPlacement,
           pipelineSwimlaneLaneRise,
           pipelineReorder,
@@ -218,6 +221,7 @@ export type RunTerraformPresetImportOptions = {
   pipelinePacked?: boolean;
   pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
+  pipelinePrivateApiRegional?: boolean;
   pipelineSemanticPlacement?: boolean;
   pipelineSwimlaneLaneRise?: boolean;
   pipelineReorder?: boolean;
@@ -296,6 +300,7 @@ export const runTerraformPresetImport = async (
     pipelinePacked: options.pipelinePacked,
     pipelinePackedPullLeft: options.pipelinePackedPullLeft,
     pipelineIncludeAncillary: options.pipelineIncludeAncillary,
+    pipelinePrivateApiRegional: options.pipelinePrivateApiRegional,
     pipelineSemanticPlacement: options.pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise,
     pipelineReorder: options.pipelineReorder,

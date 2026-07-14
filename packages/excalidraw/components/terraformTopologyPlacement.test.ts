@@ -8,6 +8,7 @@ import {
   computeVpcRouteTableFanOutAddressesForVpc,
   extractInterfaceEndpointSecurityGroupBuckets,
   extractPrimaryTopologyZones,
+  extractRegionalTopologyPrimaries,
   resolveTopologyVpcId,
   extractRouteTablesByVpc,
   extractSupplementarySubnetZones,
@@ -1270,7 +1271,7 @@ describe("extractPrimaryTopologyZones subnet coalescing", () => {
     ],
   };
 
-  it("places private API in intra tier and Lambda in private tier (separate columns)", () => {
+  it("places private API at region level (not VPC zone) and Lambda in private tier", () => {
     const plan = {
       ...basePlan,
       resource_changes: [
@@ -1311,27 +1312,41 @@ describe("extractPrimaryTopologyZones subnet coalescing", () => {
       ],
     };
     const zones = mergePrimaryTopologyZonesByTier(
-      extractPrimaryTopologyZones(plan).map((z) => ({
-        ...z,
-        topologyZoneSource: "primary" as const,
-      })),
+      extractPrimaryTopologyZones(plan, { privateApiRegional: true }).map(
+        (z) => ({
+          ...z,
+          topologyZoneSource: "primary" as const,
+        }),
+      ),
       plan,
     );
+    // The private REST API is no longer nested in the intra VPC zone; only the
+    // Lambda's private-tier zone carries a primary now.
     const withPrimaries = zones.filter((z) => z.addresses.length > 0);
-    expect(withPrimaries).toHaveLength(2);
-    const intraZone = withPrimaries.find((z) =>
-      z.addresses.includes("module.api.aws_api_gateway_rest_api.private"),
-    );
-    const privateZone = withPrimaries.find((z) =>
-      z.addresses.includes("module.api.aws_lambda_function.fn"),
-    );
-    expect(intraZone).toBeDefined();
-    expect(privateZone).toBeDefined();
-    expect(intraZone!.subnetIds).toEqual(["subnet-intra-a"]);
-    expect(privateZone!.subnetSignature).toBe(
+    expect(withPrimaries).toHaveLength(1);
+    const privateZone = withPrimaries[0]!;
+    expect(
+      privateZone.addresses.includes("module.api.aws_lambda_function.fn"),
+    ).toBe(true);
+    expect(privateZone.subnetSignature).toBe(
       "subnet-private-a|subnet-private-b",
     );
-    expect(intraZone!.mergedPrimaryByTier).toBeUndefined();
+    // No zone contains the private REST API anymore.
+    expect(
+      zones.some((z) =>
+        z.addresses.includes("module.api.aws_api_gateway_rest_api.private"),
+      ),
+    ).toBe(false);
+    // Instead it lands in the account/region bucket (VPC-less, siblings of SQS/S3).
+    const regional = extractRegionalTopologyPrimaries(plan, {
+      privateApiRegional: true,
+    });
+    const apiBucket = regional.find((b) =>
+      b.addresses.includes("module.api.aws_api_gateway_rest_api.private"),
+    );
+    expect(apiBucket).toBeDefined();
+    expect(apiBucket!.accountId).toBe("111111111111");
+    expect(apiBucket!.region).toBe("us-east-1");
   });
 
   it("coalesces same-tier primaries with different subnet multisets into one zone", () => {
