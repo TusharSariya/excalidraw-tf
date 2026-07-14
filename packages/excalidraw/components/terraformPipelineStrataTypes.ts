@@ -70,6 +70,15 @@ export type StrataEngineOptions = {
    * Optional so existing option literals (flag-OFF byte-identity) hold.
    */
   bandCompact?: boolean;
+  /**
+   * Band-depth slider (generalizes `STRATA_HULL_POLICY` + `bandCompact` into
+   * one monotone cut): the deepest role still resolved as "banded" via
+   * `resolveStrataHullPolicy`. Default `"account"` when absent — byte-
+   * identical to today's fixed map. Root is pinned banded (v3.1 §1.4), so
+   * `"root"` is the leftmost legal stop. Optional so existing option
+   * literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataBandDepth?: StrataHullRole;
 };
 
 /**
@@ -125,6 +134,29 @@ export const STRATA_HULL_POLICY: Readonly<
   vpc: "packed",
   subnetZone: "packed",
 };
+
+/** Depth order of `StrataHullRole`, shallowest (root) to deepest (subnetZone). */
+const STRATA_ROLE_DEPTH: Readonly<Record<StrataHullRole, number>> = {
+  root: 0,
+  provider: 1,
+  account: 2,
+  region: 3,
+  vpc: 4,
+  subnetZone: 5,
+};
+
+/**
+ * Resolve a hull's policy from the monotone band-depth cut `bandDepth`: roles
+ * at or above (shallower than or equal to) the cut are "banded", deeper roles
+ * are "packed". `resolveStrataHullPolicy(role, "account")` reproduces
+ * `STRATA_HULL_POLICY` element-for-element (default cut, byte-identical to
+ * today's fixed map — guarded by a dev test).
+ */
+export const resolveStrataHullPolicy = (
+  role: StrataHullRole,
+  bandDepth: StrataHullRole,
+): StrataHullPolicy =>
+  STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed";
 
 /**
  * Hull tree node. Band-row invariant (v3.1 §2.2, S0b assert): every child of
