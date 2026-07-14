@@ -1283,4 +1283,97 @@ describe("TerraformImportModal", () => {
     );
     expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
   });
+
+  it("Strata view: Band depth readout updates per role and the Root copy is corrected", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    // Default (Account) readout.
+    expect(
+      screen.getByText(
+        /providers and accounts stay full-width bands; regions and below pack/i,
+      ),
+    ).toBeInTheDocument();
+
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Root — the corrected copy (the old note wrongly said deeper cuts reclaim).
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    expect(
+      screen.getByText(/only root stays banded; providers and below pack/i),
+    ).toBeInTheDocument();
+
+    // Region.
+    fireEvent.change(bandDepthSlider, { target: { value: "3" } });
+    expect(
+      screen.getByText(/down to regions stay full-width; vpcs and below pack/i),
+    ).toBeInTheDocument();
+  });
+
+  it("Strata view: experimental caption shows exactly once for Region+ and never for Account-or-shallower", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Account (default) — no experimental caption.
+    expect(screen.queryByText(/experimental — usually wider/i)).toBeNull();
+
+    // Region — exactly one caption (not one per Region/VPC/Zone tick, the old bug).
+    fireEvent.change(bandDepthSlider, { target: { value: "3" } });
+    expect(screen.getAllByText(/experimental — usually wider/i)).toHaveLength(
+      1,
+    );
+
+    // Back to Provider — caption gone.
+    fireEvent.change(bandDepthSlider, { target: { value: "1" } });
+    expect(screen.queryByText(/experimental — usually wider/i)).toBeNull();
+  });
+
+  it("Strata view: coupling hint shows only for Root/Provider cuts while Compact height is off", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const hint = /packing provider and account only reclaims height when/i;
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Default cut (Account) + Compact height off — no hint.
+    expect(screen.queryByText(hint)).toBeNull();
+
+    // Provider — hint appears.
+    fireEvent.change(bandDepthSlider, { target: { value: "1" } });
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    // Root — still present.
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    // Turning Compact height (rankSeparate) on removes the hint even at Root.
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+    expect(screen.queryByText(hint)).toBeNull();
+
+    // Turn Compact height back off — hint returns at Root.
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^off$/i }),
+    );
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    // Move to Account — hint gone regardless of Compact height.
+    fireEvent.change(bandDepthSlider, { target: { value: "2" } });
+    expect(screen.queryByText(hint)).toBeNull();
+  });
 });

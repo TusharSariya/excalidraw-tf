@@ -363,6 +363,34 @@
       line-height: 1.35;
     }
 
+    // Grouped Strata settings — the flat option list is divided into labeled
+    // sections (Readability / Height & packing / Edges) so related levers read
+    // as a set. Each section is a flex column with its own row rhythm and a
+    // faint rule above; the first section drops the rule/top spacing.
+    &__settingsSection {
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+      margin-top: 0.55rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--color-gray-20);
+
+      &:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+      }
+    }
+
+    &__settingsSectionHeader {
+      margin-bottom: -0.15rem;
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--tf-muted);
+    }
+
     // Phase section label inside the RCLL settings grid (Content / Structure /
     // Columns / Ordering / Vertical) — small, uppercase, with a faint rule above
     // so the controls read as ordered pipeline stages.
@@ -891,6 +919,7 @@
     &__depthSliderTick {
       display: flex;
       flex: 1 1 0;
+      min-width: 0;
       flex-direction: column;
       align-items: center;
       text-align: center;
@@ -902,18 +931,41 @@
         color: var(--color-on-surface);
         font-weight: 700;
       }
+    }
 
-      &--experimental {
-        color: var(--color-warning, var(--tf-muted));
-      }
+    // Live one-line readout of the current band-depth cut, plus an optional
+    // muted "experimental" caption appended once (not per tick).
+    &__depthReadout {
+      grid-column: 1 / -1;
+      display: block;
+      margin-top: 0.35rem;
+      color: var(--tf-muted);
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
 
-      em {
-        margin-top: 0.1rem;
-        color: var(--tf-muted);
-        font-size: 0.5625rem;
-        font-style: normal;
-        font-weight: 400;
-        white-space: nowrap;
+    &__depthReadoutCaption {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--color-warning, var(--tf-muted));
+      font-size: 0.6875rem;
+    }
+
+    // Passive coupling hint: shown only for shallow cuts with Compact height
+    // off — a muted info note (icon + text), no button, no auto-action.
+    &__couplingHint {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+      color: var(--tf-muted);
+      font-size: 0.75rem;
+      line-height: 1.35;
+
+      strong {
+        color: var(--color-on-surface);
+        font-weight: 700;
       }
     }
 

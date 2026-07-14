@@ -364,7 +364,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     body: "Runs 4 barycenter sweeps per hull to reorder bands and cut crossing arrows between adjacent layers, keeping only the best-scoring order found. Validated default: the W5 battery measured K=4 (+A7) as the first Strata arm to beat the v2 view on predicted dependency-tracing cost.",
     dev: {
       implements:
-        "strataSweeps=4 (A2, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain). Default ON since the W5 default flip.",
+        "strataSweeps=4 (A2, K=4, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain). Default ON since the W5 default flip.",
       refs: [
         "Sugiyama, Tagawa & Toda 1981 (barycenter ordering)",
         "docs/strata-view-w5-repaired-stats-report.md",
@@ -446,7 +446,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
   },
   "strata.banddepth": {
     title: "Band depth",
-    body: 'Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. At the "Root" cut, provider and account become fully packed: placement geometry, sibling ordering, AND packed-edge-scoring eligibility all follow, exactly like Region/VPC/Zone do today. Root itself can never be packed — packing it would collapse the top-level providers side-by-side. Region/VPC/Zone cuts are experimental and usually make the canvas wider.',
+    body: "Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. Shallower cuts toward Root pack provider and account, which reclaims vertical height when Compact height (rankSeparate) is on. Region, VPC, and Zone cuts are experimental and usually make the canvas wider. Root is always banded — packing it would collapse the top-level providers side-by-side.",
     dev: {
       implements:
         'strataBandDepth (v3.2, default "account" — today\'s fixed role→policy map, byte-identical): resolveStrataHullPolicy(role, bandDepth) resolves every hull\'s policy generically from one monotone cut (STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed"), consumed uniformly by A0 placement, A7 coordRefine, A2 ordering, and packed-scoring eligibility. LEGACY ALIAS: strataBandCompact=true resolves to strataBandDepth="root" when the enum is absent.',
