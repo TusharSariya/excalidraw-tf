@@ -592,7 +592,13 @@ async function buildPipelineLayoutSceneBody(
         strataPackedScoring: ctx.strataPackedScoring,
         strataPackedScoringEpsilon: ctx.strataPackedScoringEpsilon,
         strataBandCompact: ctx.strataBandCompact,
-        strataBandDepth: ctx.strataBandDepth,
+        // Raw forward — omit at default/absent so builderOptions never carries
+        // an explicit "account"/undefined cut into the engine (which would
+        // defeat the bandCompact alias). Non-default cuts forward.
+        ...(ctx.strataBandDepth !== undefined &&
+        ctx.strataBandDepth !== "account"
+          ? { strataBandDepth: ctx.strataBandDepth }
+          : {}),
         strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
         strataEdgeRouting: ctx.strataEdgeRouting,
         strataSweeps: ctx.strataSweeps,
@@ -1141,7 +1147,15 @@ export async function layoutTerraformFromSources(
     strataPackedScoring: options?.strataPackedScoring === true,
     strataPackedScoringEpsilon: options?.strataPackedScoringEpsilon ?? 0,
     strataBandCompact: options?.strataBandCompact === true,
-    strataBandDepth: options?.strataBandDepth ?? "account",
+    // Forward the band-depth cut RAW — omit at the default ("account") or when
+    // absent, so this sceneContext literal never materializes a default own
+    // key and the engine's `strataBandCompact` alias
+    // (terraformPipelineStrata.ts) still resolves to "root" when only the
+    // legacy boolean arrives. A non-default cut forwards unchanged.
+    ...(options?.strataBandDepth !== undefined &&
+    options?.strataBandDepth !== "account"
+      ? { strataBandDepth: options.strataBandDepth }
+      : {}),
     strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
     strataEdgeRouting: options?.strataEdgeRouting === true,
     strataSweeps: options?.strataSweeps ?? 0,

@@ -317,7 +317,14 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting === true,
   strataBandCompact: session.strataBandCompact === true,
-  strataBandDepth: session.strataBandDepth ?? "account",
+  // Raw forward — omit at default ("account")/absent so a replayed session
+  // never re-materializes a default cut. A bare `strataBandCompact` session
+  // (no enum) thus reaches the engine as bandCompact-only, and the engine
+  // alias resolves it to "root". Non-default cuts forward.
+  ...(session.strataBandDepth !== undefined &&
+  session.strataBandDepth !== "account"
+    ? { strataBandDepth: session.strataBandDepth }
+    : {}),
 });
 
 /**
@@ -403,7 +410,13 @@ function buildPipelineFamilyLayoutOptions(
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
     strataEdgeRouting: options.strataEdgeRouting === true,
     strataBandCompact: options.strataBandCompact === true,
-    strataBandDepth: options.strataBandDepth ?? "account",
+    // Raw forward — omit at default ("account")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default cut key.
+    // Non-default cuts forward.
+    ...(options.strataBandDepth !== undefined &&
+    options.strataBandDepth !== "account"
+      ? { strataBandDepth: options.strataBandDepth }
+      : {}),
   };
 }
 

@@ -301,6 +301,51 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "bandCompact alias on the direct-options path resolves the 'root' cut (WP4 P1) — identical to an explicit strataBandDepth:'root'",
+    async () => {
+      // Regression for codex WP4 P1: before the raw-forward fix, the
+      // sceneContext + builderOptions literals materialized
+      // strataBandDepth:"account", so a bare `strataBandCompact:true` (no
+      // enum) arriving via direct options had its "account" win the engine's
+      // `?? (strataBandCompact ? "root" : "account")` resolver — the alias was
+      // DEFEATED and the layout stayed the default cut. The old
+      // `threads strataBandCompact` test only asserted a crash-free build, so
+      // this escaped. Prove the alias now fires via the policy-stamp (the only
+      // app-observable proof: it fires ONLY when a hull's resolved policy
+      // diverges from the static map, i.e. under a non-default cut).
+      const hasPolicyStamp = (scene: Scene) =>
+        scene.elements.some(
+          (el) =>
+            el.type === "frame" &&
+            (el.customData as Record<string, unknown> | undefined)
+              ?.terraformHullPolicy !== undefined,
+        );
+
+      const compact = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandCompact: true,
+      });
+      expect(compact.meta.rcllV2Degraded).toBeUndefined();
+      // provider/account hulls (banded under the static map) now resolve
+      // "packed" via the alias → stamped.
+      expect(hasPolicyStamp(compact)).toBe(true);
+
+      // Byte-identical to the explicit "root" cut: the alias is exactly
+      // `strataBandDepth:"root"`.
+      const root = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "root",
+      });
+      expect(geometryTuples(compact.elements)).toEqual(
+        geometryTuples(root.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
     "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
     async () => {
       const strataOff = await buildStrata();

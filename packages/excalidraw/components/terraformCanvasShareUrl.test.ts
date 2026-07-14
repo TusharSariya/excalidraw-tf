@@ -155,6 +155,30 @@ describe("terraformCanvasShareUrl", () => {
     });
   });
 
+  it("strataBandDepth: default cut is omitted from the /demo URL, a non-default cut round-trips (WP4 P2 byte-identity)", () => {
+    // Default cut ("account") and absent are byte-identical — the snapshot →
+    // URL path must not materialize a default `strataBandDepth` param, matching
+    // legacy share links that predate the slider.
+    for (const session of [
+      makeSession({ layoutMode: "strata" }),
+      makeSession({ layoutMode: "strata", strataBandDepth: "account" }),
+    ]) {
+      const url = buildTerraformCanvasShareUrl(session, defaultView);
+      expect(url).toContain("view=strata");
+      expect(url).not.toContain("strataBandDepth");
+    }
+
+    // A non-default cut round-trips through the snapshot into the URL.
+    const nonDefault = buildTerraformCanvasShareUrl(
+      makeSession({ layoutMode: "strata", strataBandDepth: "root" }),
+      defaultView,
+    );
+    expect(nonDefault).toContain("strataBandDepth=root");
+    expect(
+      parseTerraformDemoUrlParams(queryOf(nonDefault!))?.strataBandDepth,
+    ).toBe("root");
+  });
+
   it("omits dev perf params when settings are at defaults", () => {
     const url = buildTerraformCanvasShareUrl(
       makeSession({ layoutMode: "rcll" }),

@@ -92,7 +92,13 @@ const sessionToDemoSnapshot = (
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting ?? false,
   strataBandCompact: session.strataBandCompact ?? false,
-  strataBandDepth: session.strataBandDepth ?? "account",
+  // Raw forward — omit at default ("account")/absent so the demo snapshot (and
+  // the URL built from it) never carries a default cut key, matching
+  // hand-built/legacy snapshots that omit it. Non-default cuts forward.
+  ...(session.strataBandDepth !== undefined &&
+  session.strataBandDepth !== "account"
+    ? { strataBandDepth: session.strataBandDepth }
+    : {}),
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

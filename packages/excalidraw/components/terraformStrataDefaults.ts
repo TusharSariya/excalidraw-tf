@@ -56,37 +56,47 @@ export const resolveStrataDemoOptions = (params: {
     | "region"
     | "vpc"
     | "subnetZone";
-}) => ({
-  strataNetworkSimplexRank:
-    params.strataNsRank ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataNetworkSimplexRank,
-  strataSweeps:
-    params.strataSweeps ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSweeps,
-  strataCoordinateRefine:
-    params.strataCoordRefine ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordinateRefine,
-  strataRankSeparate:
-    params.strataRankSeparate ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate,
-  strataPackedScoring:
-    params.strataPackedScoring ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring,
-  strataPackedScoringEpsilon:
-    params.strataPackedEps ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
-  strataEdgeRouting:
-    params.strataEdgeRouting ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
-  strataBandCompact:
-    params.strataBandCompact ??
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,
+}) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
   // absent (same precedence as the `terraformPipelineStrata.ts` app-layer
-  // fold-in — encoded once here, once there).
-  strataBandDepth:
+  // fold-in — encoded once here, once there). The resolved value is forwarded
+  // RAW: the default (`"account"`) is OMITTED, never materialized as an own
+  // key, so nothing downstream (sceneContext/session/snapshot) persists a
+  // default cut and the engine alias still fires for bare-bandCompact inputs.
+  // The `"root"` alias output and any explicit deeper role DO forward.
+  const strataBandDepth =
     params.strataBandDepth ??
     (params.strataBandCompact
       ? "root"
-      : TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth),
-});
+      : TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth);
+  return {
+    strataNetworkSimplexRank:
+      params.strataNsRank ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataNetworkSimplexRank,
+    strataSweeps:
+      params.strataSweeps ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSweeps,
+    strataCoordinateRefine:
+      params.strataCoordRefine ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordinateRefine,
+    strataRankSeparate:
+      params.strataRankSeparate ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate,
+    strataPackedScoring:
+      params.strataPackedScoring ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring,
+    strataPackedScoringEpsilon:
+      params.strataPackedEps ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
+    strataEdgeRouting:
+      params.strataEdgeRouting ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
+    strataBandCompact:
+      params.strataBandCompact ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,
+    // Forward the cut RAW: omit at the default `"account"` (never materialize a
+    // default own key). Non-default cuts (the `"root"` alias / explicit roles)
+    // forward.
+    ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
+  };
+};

@@ -21,8 +21,15 @@ describe("resolveStrataDemoOptions", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
-      strataBandDepth: "account",
+      // The default cut ("account") is OMITTED (raw-forward discipline): no
+      // seam may materialize a default `strataBandDepth` own key.
     });
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        resolveStrataDemoOptions(params!),
+        "strataBandDepth",
+      ),
+    ).toBe(false);
   });
 
   it("keeps an explicit strataSweeps=0 — the default must not override an explicit opt-out", () => {
@@ -62,7 +69,7 @@ describe("resolveStrataDemoOptions", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
-      strataBandDepth: "account",
+      // Default cut omitted — see the bare-URL test above.
     });
   });
 
@@ -99,11 +106,18 @@ describe("resolveStrataDemoOptions", () => {
     expect(resolveStrataDemoOptions(on!).strataBandCompact).toBe(true);
   });
 
-  it("resolves strataBandDepth: default 'account', explicit URL param wins", () => {
+  it("resolves strataBandDepth: default omitted (no default key), explicit URL param wins", () => {
     const bare = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata",
     );
-    expect(resolveStrataDemoOptions(bare!).strataBandDepth).toBe("account");
+    // The default cut is never materialized as an own key (raw-forward).
+    expect(resolveStrataDemoOptions(bare!).strataBandDepth).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        resolveStrataDemoOptions(bare!),
+        "strataBandDepth",
+      ),
+    ).toBe(false);
     const on = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata&strataBandDepth=region",
     );
@@ -125,11 +139,12 @@ describe("resolveStrataDemoOptions", () => {
     expect(resolveStrataDemoOptions(both!).strataBandDepth).toBe("region");
   });
 
-  it("strataBandCompact=0 (explicit false) does not alias to root — resolves the plain default", () => {
+  it("strataBandCompact=0 (explicit false) does not alias to root — resolves the plain default (omitted)", () => {
     const off = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata&strataBandCompact=0",
     );
-    expect(resolveStrataDemoOptions(off!).strataBandDepth).toBe("account");
+    // Resolves to the default cut, which is omitted rather than materialized.
+    expect(resolveStrataDemoOptions(off!).strataBandDepth).toBeUndefined();
   });
 
   it("resolves strataPackedScoringEpsilon: default 0, explicit strataPackedEps wins (incl. relative)", () => {
