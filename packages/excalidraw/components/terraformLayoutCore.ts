@@ -1123,7 +1123,18 @@ export async function layoutTerraformFromSources(
     addressToStack,
     deferDecorations: options?.deferDecorations === true,
     pipelineCompact: options?.pipelineCompact,
-    pipelinePrivateApiRegional: options?.pipelinePrivateApiRegional,
+    // Engine-core view-scoping (load-bearing, enforced regardless of entry
+    // path — direct/worker/dialog/demo/semantic): private-API regional
+    // placement is ONLY wired for the strata view; it collides/gate-fails on
+    // v2/rcll/compound/pipeline/semantic. Force it false for every non-strata
+    // layoutMode so those stay byte-identical no matter what the caller passed;
+    // strata keeps the caller's value (the import wrapper defaults it ON).
+    // sceneContext is the single fan-in — builderOptions (:601) and the meta
+    // echo (:782) both read `ctx.pipelinePrivateApiRegional`, so gating here
+    // covers every consumer. The import-wrapper scoping stays too, to keep the
+    // worker-options payload false for non-strata dialog imports.
+    pipelinePrivateApiRegional:
+      layoutMode === "strata" ? options?.pipelinePrivateApiRegional : false,
     // Force the variant for RCLL / Strata so a stale-session/default variant
     // can't mis-route to the plain pipeline builder (dispatch keys on the
     // variant). Strata rides its own layoutMode (not the `pipelineVariant`

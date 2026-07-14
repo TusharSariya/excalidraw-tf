@@ -181,6 +181,13 @@ export const useTerraformImportDialog = ({
   const [strataEdgeCrossCap, setStrataEdgeCrossCap] = useState<
     number | undefined
   >(undefined);
+  // Private REST APIs at account+region level instead of nested in a VPC.
+  // Strata-only: seeded ON (the strata view is the only one wired for it), but
+  // `runTerraformImportWithView` view-scopes the value so it never reaches a
+  // non-strata engine/worker call — those keep forcing it false, byte-identical
+  // to today. The toggle is exposed only in the strata settings panel.
+  const [pipelinePrivateApiRegional, setPipelinePrivateApiRegional] =
+    useState(true);
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -465,6 +472,10 @@ export const useTerraformImportDialog = ({
         pipelinePacked,
         pipelinePackedPullLeft,
         pipelineIncludeAncillary,
+        // Threaded for every view; `runTerraformImportWithView` view-scopes it
+        // (non-strata → false), so the strata-ON seed never leaks to another
+        // pipeline.
+        pipelinePrivateApiRegional,
         pipelineSemanticPlacement,
         pipelineSwimlaneLaneRise,
         pipelineReorder,
@@ -615,6 +626,9 @@ export const useTerraformImportDialog = ({
           pipelinePacked,
           pipelinePackedPullLeft,
           pipelineIncludeAncillary,
+          // View-scoped downstream (non-strata → false); the strata-ON seed
+          // never reaches another pipeline's engine call.
+          pipelinePrivateApiRegional,
           pipelineSemanticPlacement,
           pipelineSwimlaneLaneRise,
           pipelineReorder,
@@ -954,9 +968,11 @@ export const useTerraformImportDialog = ({
         pipelinePacked,
         pipelinePackedPullLeft,
         pipelineIncludeAncillary,
-        // No dialog toggle for the private-API regional placement flag; the
-        // share URL only carries it when set programmatically (demo URL param).
-        pipelinePrivateApiRegional: false,
+        // Strata exposes a toggle for this (default ON); the share URL round-
+        // trips its current state. The strata serialize branch emits it in both
+        // states so an explicit OFF survives share→reload. For non-strata views
+        // it stays truthy-only downstream and the engine ignores it anyway.
+        pipelinePrivateApiRegional,
         pipelineSemanticPlacement,
         pipelineSwimlaneLaneRise,
         pipelineReorder,
@@ -997,6 +1013,7 @@ export const useTerraformImportDialog = ({
     pipelinePacked,
     pipelinePackedPullLeft,
     pipelineIncludeAncillary,
+    pipelinePrivateApiRegional,
     pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise,
     pipelineReorder,
@@ -1033,6 +1050,7 @@ export const useTerraformImportDialog = ({
     pipelinePacked,
     pipelinePackedPullLeft,
     pipelineIncludeAncillary,
+    pipelinePrivateApiRegional,
     pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise,
     pipelineReorder,
@@ -1089,6 +1107,7 @@ export const useTerraformImportDialog = ({
     setPipelinePacked,
     setPipelinePackedPullLeft,
     setPipelineIncludeAncillary,
+    setPipelinePrivateApiRegional,
     setPipelineSemanticPlacement,
     // The RCLL-flag setters are the "custom"-marking wrappers, so any Advanced edit
     // flips the primary Layout control to "Custom" (the raw setters stay internal).

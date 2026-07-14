@@ -888,21 +888,19 @@ export const collectTerraformDemoParams = (
       ...(snapshot.pipelinePackedPullLeft ? { packedPullLeft: true } : {}),
       ancillary: snapshot.pipelineIncludeAncillary,
       semanticPlace: snapshot.pipelineSemanticPlacement,
-      ...(snapshot.pipelinePrivateApiRegional
-        ? { privateApiRegional: true }
-        : {}),
+      // `privateApiRegional` is strata-only (see the strata branch below); the
+      // pipeline view never applies it, so it is not serialized here — keeping
+      // non-strata share URLs byte-identical to before the flag existed.
     };
   }
 
   if (snapshot.view === "rcll") {
     // `compact` + `ancillary` are independent of the Layout profile, so always emit them.
+    // `privateApiRegional` is strata-only (see the strata branch); not serialized here.
     const rcll: TerraformDemoUrlParams = {
       ...base,
       compact: snapshot.pipelineCompact,
       ancillary: snapshot.pipelineIncludeAncillary,
-      ...(snapshot.pipelinePrivateApiRegional
-        ? { privateApiRegional: true }
-        : {}),
     };
     if (snapshot.pipelineLayoutProfile !== "custom") {
       return { ...rcll, profile: snapshot.pipelineLayoutProfile };
@@ -931,9 +929,12 @@ export const collectTerraformDemoParams = (
       ...base,
       compact: snapshot.pipelineCompact,
       ancillary: snapshot.pipelineIncludeAncillary,
-      ...(snapshot.pipelinePrivateApiRegional
-        ? { privateApiRegional: true }
-        : {}),
+      // Strata defaults private-API regional placement ON, so — like the K=4+A7
+      // engine flags above — emit it EXPLICITLY in both states. A truthy-only
+      // emit would drop an "explicit OFF" toggle from the share URL and silently
+      // re-import with the default ON. (pipeline/rcll keep truthy-only: they
+      // default the flag OFF, so absent already round-trips faithfully.)
+      privateApiRegional: snapshot.pipelinePrivateApiRegional,
       ...(snapshot.strataNetworkSimplexRank ? { strataNsRank: true } : {}),
       strataSweeps: snapshot.strataSweeps,
       strataCoordRefine: snapshot.strataCoordinateRefine,

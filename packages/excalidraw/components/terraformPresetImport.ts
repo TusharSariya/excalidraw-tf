@@ -175,7 +175,17 @@ export const runTerraformImportWithView = async ({
           pipelinePacked,
           pipelinePackedPullLeft,
           pipelineIncludeAncillary,
-          pipelinePrivateApiRegional,
+          // View-scoping (the SINGLE place non-strata forces the flag off):
+          // the private-API regional placement is only wired for the strata
+          // view — turning it on for the v2/rcll/compound/classic pipelines
+          // introduces collisions/gate failures. So non-strata views ALWAYS
+          // pass false regardless of the seed/URL, keeping them byte-identical
+          // to today; the strata view passes the caller's value and, when that
+          // is absent (a bare `view=strata` demo URL), defaults ON.
+          pipelinePrivateApiRegional:
+            layoutMode === "strata"
+              ? pipelinePrivateApiRegional ?? true
+              : false,
           pipelineSemanticPlacement,
           pipelineSwimlaneLaneRise,
           pipelineReorder,

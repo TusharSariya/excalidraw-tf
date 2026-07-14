@@ -81,6 +81,8 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
+  pipelinePrivateApiRegional,
+  setPipelinePrivateApiRegional,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
@@ -104,6 +106,8 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
   strataEdgeCrossCap: number | undefined;
+  pipelinePrivateApiRegional: boolean;
+  setPipelinePrivateApiRegional: (privateApiRegional: boolean) => void;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
@@ -565,6 +569,33 @@ export const TerraformStrataSettings = ({
                 )}
                 {option("On", strataEdgeRouting, "strata.edgerouting.on", () =>
                   setStrataEdgeRouting(true),
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="TerraformImportModal__settingsSection">
+            <div className="TerraformImportModal__settingsSectionHeader">
+              Placement
+            </div>
+            <div role="group" aria-label="Strata private API placement">
+              <span className="TerraformImportModal__controlLabel">
+                Private API placement{" "}
+                <span>
+                  place private APIs by account (region-level), not inside a VPC
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option(
+                  "Off",
+                  !pipelinePrivateApiRegional,
+                  "strata.privateapi.off",
+                  () => setPipelinePrivateApiRegional(false),
+                )}
+                {option(
+                  "On",
+                  pipelinePrivateApiRegional,
+                  "strata.privateapi.on",
+                  () => setPipelinePrivateApiRegional(true),
                 )}
               </div>
             </div>

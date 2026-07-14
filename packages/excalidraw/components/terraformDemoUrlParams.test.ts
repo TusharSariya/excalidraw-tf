@@ -774,6 +774,24 @@ describe("terraformDemoUrlParams", () => {
       expect(params.ancillary).toBe(false);
     });
 
+    it("pipeline + rcll views never serialize privateApiRegional (strata-only)", () => {
+      // The flag is view-scoped to strata; a non-strata snapshot that happens to
+      // carry it true must NOT emit the param, so non-strata share URLs stay
+      // byte-identical (and never advertise a placement they won't apply).
+      const pipeline = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "pipeline",
+        pipelinePrivateApiRegional: true,
+      });
+      expect("privateApiRegional" in pipeline).toBe(false);
+      const rcll = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "rcll",
+        pipelinePrivateApiRegional: true,
+      });
+      expect("privateApiRegional" in rcll).toBe(false);
+    });
+
     it("rcll view with a custom profile spells out the eight flags", () => {
       const params = collectTerraformDemoParams({
         ...baseSnapshot,
@@ -813,6 +831,9 @@ describe("terraformDemoUrlParams", () => {
         view: "strata",
         compact: true,
         ancillary: false,
+        // Strata defaults private-API regional placement ON, so it is emitted
+        // in both states too (here the baseSnapshot's OFF ⇒ explicit false).
+        privateApiRegional: false,
         strataSweeps: 0,
         strataCoordRefine: false,
         strataRankSeparate: false,
@@ -976,6 +997,22 @@ describe("terraformDemoUrlParams", () => {
       const parsed = parseTerraformDemoUrlParams(
         queryOf(buildTerraformDemoUrlFromSettings(snapshot)),
       );
+      expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
+    });
+
+    it("round-trips an explicit private-API-regional OFF in the strata view", () => {
+      // Strata defaults the flag ON, so the serialize branch must emit it in
+      // both states — an explicit OFF has to survive share→reload rather than
+      // being dropped and silently re-defaulting ON.
+      const snapshot: TerraformDemoSettingsSnapshot = {
+        ...baseSnapshot,
+        view: "strata",
+        pipelinePrivateApiRegional: false,
+      };
+      const url = buildTerraformDemoUrlFromSettings(snapshot);
+      expect(queryOf(url)).toContain("privateApiRegional=0");
+      const parsed = parseTerraformDemoUrlParams(queryOf(url));
+      expect(parsed!.privateApiRegional).toBe(false);
       expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
     });
   });

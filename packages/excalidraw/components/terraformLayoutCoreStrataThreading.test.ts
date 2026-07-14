@@ -18,7 +18,7 @@
  *     fires for Strata exactly like every non-rcll variant, and is absent on rcll
  *   - ancillary is deferred at M1 (extraction-free) and echoed honestly
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
@@ -26,6 +26,7 @@ import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/d
 
 import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraformPresetFixtures";
 
+import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
 import { layoutTerraformFromSources } from "./terraformLayoutCore";
 
 import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
@@ -84,6 +85,21 @@ const buildRcll = async (opts: Record<string, unknown> = {}) => {
 };
 
 describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
+  // Hermetic isolation: the import prep cache (terraformImportPrepCache.ts) is
+  // session-global and keyed on preset/flag, so a sibling test running in the
+  // same vitest worker can leave a stale enriched-placement/prep entry that
+  // this file's `layoutTerraformFromSources` calls would reuse — surfacing here
+  // as a spurious `rcllV2Degraded` (a foreign stage's finalize object). Clear it
+  // before AND after every test so each build re-derives from its own sources
+  // and no cross-test placement can leak in (also leaves the cache clean for
+  // whoever runs next in the worker).
+  beforeEach(() => {
+    clearTerraformImportPrepCache();
+  });
+  afterEach(() => {
+    clearTerraformImportPrepCache();
+  });
+
   it(
     "a strata-set variant reaches the engine (dispatch, not a stale mis-route to classic)",
     async () => {
@@ -444,5 +460,51 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "engine-core view-scoping: pipelinePrivateApiRegional is inert for non-strata layoutModes (forced false at the sceneContext seam) but live for strata",
+    async () => {
+      // Load-bearing regression for the engine-core scoping (terraformLayoutCore.ts
+      // sceneContext literal). This exercises the DIRECT engine path
+      // (`layoutTerraformFromSources`) — the one that bypasses the import
+      // wrapper's scoping — on the real multi-account private-API fixture. The
+      // flag is strata-only: turning it on for v2/rcll must change NOTHING, so
+      // those views stay byte-identical regardless of what a direct/worker
+      // caller passes; strata must actually apply it.
+      const v2Off = await buildV2();
+      const v2On = await buildV2({ pipelinePrivateApiRegional: true });
+      // Non-strata forces the flag false at the engine core ⇒ geometry is
+      // byte-identical, proving the private-API regional placement never ran.
+      expect(geometryTuples(v2On.elements)).toEqual(
+        geometryTuples(v2Off.elements),
+      );
+
+      const rcllOff = await buildRcll();
+      const rcllOn = await buildRcll({ pipelinePrivateApiRegional: true });
+      expect(geometryTuples(rcllOn.elements)).toEqual(
+        geometryTuples(rcllOff.elements),
+      );
+
+      // Strata keeps the caller's value — the same flag DOES move geometry
+      // here (the fixture is the multi-account private-API case), proving the
+      // scoping is view-specific, not a blanket no-op that would hide the fix.
+      const strataOff = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        pipelinePrivateApiRegional: false,
+      });
+      const strataOn = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        pipelinePrivateApiRegional: true,
+      });
+      expect(strataOff.meta.rcllV2Degraded).toBeUndefined();
+      expect(strataOn.meta.rcllV2Degraded).toBeUndefined();
+      expect(geometryTuples(strataOn.elements)).not.toEqual(
+        geometryTuples(strataOff.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );
 });

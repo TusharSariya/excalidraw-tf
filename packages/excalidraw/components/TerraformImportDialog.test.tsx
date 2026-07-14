@@ -1006,6 +1006,10 @@ describe("TerraformImportModal", () => {
         strataPackedScoringEpsilon: 0,
         strataEdgeRouting: false,
         strataBandCompact: false,
+        // Private-API regional placement defaults ON in the strata view (the
+        // only view wired for it; every other view forces it false — see the
+        // pipeline/compound assertions above).
+        pipelinePrivateApiRegional: true,
       }),
     );
   });
