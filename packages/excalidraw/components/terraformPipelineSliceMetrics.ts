@@ -33,7 +33,15 @@
  *
  * The role→policy map is NOT re-declared here — it is imported from
  * `terraformPipelineStrataTypes.ts` (`STRATA_HULL_POLICY`), the single source
- * of truth per v3.1 §2.6.
+ * of truth per v3.1 §2.6. That static map is only the DEFAULT-CUT fallback:
+ * the Strata band-depth slider (`strataBandDepth`) can move the banded/packed
+ * boundary, in which case the moved hull frames carry the RESOLVED policy as
+ * `customData.terraformHullPolicy` (spec v3.1 §53), stamped by
+ * `terraformPipelineStrataSceneBuild.ts`. Both policy reads below (A/B
+ * classification and stacked-band-height) prefer that stamp off the LCA hull
+ * frame and fall back to `STRATA_HULL_POLICY[roleForPathLength(...)]` only when
+ * it is absent (default cut / unstamped non-Strata builders). Root is pinned
+ * banded regardless — it has no frame (v3.1 §1.4).
  */
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
@@ -43,6 +51,7 @@ import { median } from "./terraformPipelineCoordinateAssignment";
 import { PIPELINE_COLUMN_GAP } from "./terraformPipelineLayoutShared";
 import {
   STRATA_HULL_POLICY,
+  type StrataHullPolicy,
   type StrataHullRole,
 } from "./terraformPipelineStrataTypes";
 
@@ -181,6 +190,15 @@ const pathOf = (el: Frame): string[] => {
 const addressOf = (el: Frame): string | null => {
   const a = el.customData?.terraformPrimaryAddress;
   return typeof a === "string" ? a : null;
+};
+
+/** The resolved band-depth policy stamped on a hull frame under a non-default
+ * `strataBandDepth` cut (spec v3.1 §53). Absent (⇒ undefined) at the default
+ * "account" cut and for non-Strata builders, in which case the readers below
+ * fall back to the static `STRATA_HULL_POLICY` role→policy map. */
+const policyOf = (el: Frame): StrataHullPolicy | undefined => {
+  const p = el.customData?.terraformHullPolicy;
+  return p === "banded" || p === "packed" ? p : undefined;
 };
 
 /** A topology frame's own key (== its element id, per pipelineFrameCustomData's
@@ -445,7 +463,7 @@ export function computeSliceMetrics(
 
   const topoFramesByPathKey = new Map<
     string,
-    { role: StrataHullRole; rect: Rect }
+    { role: StrataHullRole; rect: Rect; policy?: StrataHullPolicy }
   >();
   const topoFrameByTopologyKey = new Map<
     string,
@@ -461,6 +479,7 @@ export function computeSliceMetrics(
       topoFramesByPathKey.set(path.join("\0"), {
         role: role as StrataHullRole,
         rect,
+        policy: policyOf(f),
       });
       const tKey = topologyKeyOf(f);
       if (tKey) {
@@ -547,7 +566,13 @@ export function computeSliceMetrics(
       continue;
     }
     const lcaPath = longestCommonPrefix(src.path, tgt.path);
-    const policy = STRATA_HULL_POLICY[roleForPathLength(lcaPath.length)];
+    // Prefer the resolved policy stamped on the LCA hull frame (non-default
+    // band-depth cut); fall back to the static role→policy map when absent
+    // (default cut / dissolved band). Root (length 0) has no frame and is
+    // pinned "B" regardless.
+    const stampedPolicy = topoFramesByPathKey.get(lcaPath.join("\0"))?.policy;
+    const policy =
+      stampedPolicy ?? STRATA_HULL_POLICY[roleForPathLength(lcaPath.length)];
     const slice: SliceLabel =
       policy === "banded" || lcaPath.length === 0 ? "B" : "A";
     edgeClasses.push({ slice, lcaPath, src, tgt, geom });
@@ -613,20 +638,28 @@ export function computeSliceMetrics(
         distribution,
       };
 
-  // ── stacked band height: every banded hull (root/provider/account) present
-  // in the scene, keyed by distinct topology-path prefixes among clusters ──
+  // ── stacked band height: every BANDED hull present in the scene, keyed by
+  // distinct topology-path prefixes among clusters. The banded-level set is
+  // derived from the RESOLVED policy per hull — the stamped
+  // `terraformHullPolicy` off the hull's frame when present (non-default
+  // band-depth cut), else the static role→policy map. Root ("") is pinned
+  // banded (no frame). At the default "account" cut no frame is stamped, so
+  // every fallback returns the static map and this reproduces the historical
+  // depths-0–2 (root/provider/account) banded set exactly. ──
   const bandedHullPathKeys = new Map<string, readonly string[]>();
   if (clusters.length > 0) {
     bandedHullPathKeys.set("", []);
   }
   for (const c of clusters) {
-    if (c.path.length >= 1) {
-      const p = c.path.slice(0, 1);
-      bandedHullPathKeys.set(p.join("\0"), p);
-    }
-    if (c.path.length >= 2) {
-      const p = c.path.slice(0, 2);
-      bandedHullPathKeys.set(p.join("\0"), p);
+    for (let len = 1; len <= c.path.length; len++) {
+      const p = c.path.slice(0, len);
+      const key = p.join("\0");
+      const policy =
+        topoFramesByPathKey.get(key)?.policy ??
+        STRATA_HULL_POLICY[roleForPathLength(len)];
+      if (policy === "banded") {
+        bandedHullPathKeys.set(key, p);
+      }
     }
   }
   const perHull: StackedBandHeightEntry[] = [];

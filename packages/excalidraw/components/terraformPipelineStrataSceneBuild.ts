@@ -48,6 +48,7 @@ import {
 } from "./terraformPipelineStrataEdgeRouting";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import { STRATA_ROOT_ID } from "./terraformPipelineStrataModel";
+import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
 import {
   topologyFrameSkeletonId,
   topologyPathForCluster,
@@ -222,6 +223,20 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
         }
       }
 
+      // Resolved-policy stamp (spec v3.1 §53 `terraformHullPolicy`): the
+      // slice-metrics diagnostics run on built scene elements and have no
+      // `hull.policy` to read, so they otherwise reconstruct policy from the
+      // static role→policy map — stale once a non-default band-depth cut moves
+      // the banded/packed boundary. Stamp the resolved policy CONDITIONALLY —
+      // only when this hull's policy diverges from `STRATA_HULL_POLICY[role]`
+      // (i.e. the cut actually moved it). At the default "account" cut every
+      // hull matches the map, so the key is never added and frame customData is
+      // byte-identical to today.
+      const policyStamp =
+        hull.policy !== STRATA_HULL_POLICY[hull.role]
+          ? { terraformHullPolicy: hull.policy }
+          : {};
+
       const box = boxed.box;
       skeleton.push({
         type: "frame",
@@ -244,6 +259,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
               terraformTopologyPath: [...hull.path],
               terraformSubnetSignature: p.subnetSignature,
               terraformSubnetTier: p.subnetTier,
+              ...policyStamp,
             })
           : {
               terraform: true,
@@ -252,6 +268,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
               terraformTopologyRole: role,
               terraformTopologyKey: frameId,
               terraformTopologyPath: [...hull.path],
+              ...policyStamp,
             },
       } as unknown as ExcalidrawElementSkeleton);
       layoutBoxes.set(frameId, {
