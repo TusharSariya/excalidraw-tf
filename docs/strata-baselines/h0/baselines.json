@@ -1,0 +1,296 @@
+{
+  "harness": "H0",
+  "builtAtSeed": 20260704,
+  "frozenConfig": {
+    "preset": "staging-extended-localstack-v2",
+    "seed": 20260704,
+    "layoutMode": "strata",
+    "compact": true,
+    "ancillary": false,
+    "privateApiRegional": false,
+    "strataSweeps": 4,
+    "strataCoordRefine": true,
+    "strataRankSeparate": true,
+    "strataPackedScoring": true,
+    "strataPackedEps": 1,
+    "strataBandDepth": "root",
+    "strataSift": true,
+    "strataPackedConverge": true,
+    "strataTransitiveAdopt": true
+  },
+  "note": "Frozen baselines for the Strata readability investigation. Every record uses the canonical dual-scoring schema (chord + rendered). Reproduced on the REAL app path (fidelity gate green). Downstream agents: consume these numbers, do not recompute the baseline.",
+  "realMeta": {
+    "strataPackedScoringSelections": {
+      "aws": 0,
+      "aws\u0000000000000004\u0000us-east-1": 138,
+      "aws\u0000000000000003": 6,
+      "aws\u0000000000000003\u0000us-west-2": 33,
+      "aws\u0000000000000002": 7,
+      "aws\u0000000000000002\u0000us-east-1": 513,
+      "aws\u0000000000000002\u0000us-east-1\u0000vpc-cb9aa19e8b67f8fa8": 12,
+      "aws\u0000000000000002\u0000us-east-1\u0000vpc-cb9aa19e8b67f8fa8\u0000subnet-0a9151d5b60032166|subnet-ae7649601c3c3945b": 8,
+      "aws\u0000000000000002\u0000us-east-1\u0000vpc-cb9aa19e8b67f8fa8\u0000subnet-3404c648e45253ecb|subnet-4a7f347d481496c16": 8,
+      "aws\u0000000000000002\u0000us-west-1": 9,
+      "aws\u0000000000000002\u0000us-west-1\u0000vpc-869e848d2cb7923c3": 1,
+      "aws\u0000000000000001\u0000us-east-1": 3
+    },
+    "strataPackedScoringFellBack": false,
+    "strataPackedScoringTrials": 5325,
+    "strataPackedScoringEpsilon": 1,
+    "strataPackedScoringEffectiveDelta": 1,
+    "strataPackedScoringConvergeRecovered": null
+  },
+  "sceneBaseline": {
+    "chord": {
+      "crossings": 204,
+      "penetrations": 66,
+      "lengthL1": 733742.0833333335,
+      "lengthL1X": 539648,
+      "lengthL1Y": 194094.08333333337,
+      "weightedC": 270
+    },
+    "rendered": {
+      "crossings": 173,
+      "sharpShare": 0.51,
+      "tll": 284223,
+      "tllX": 240450,
+      "tllY": 86963,
+      "pierce": 66,
+      "conP50": 104.36,
+      "conMean": 145.833,
+      "gdevMaxDeg": 140.09,
+      "rtHatP50": 12.91,
+      "rtHatMean": 13.069,
+      "pathRows": 500,
+      "dataflowArrows": 145,
+      "leftwardArrows": 0
+    },
+    "lr": {
+      "backwardNonReversed": 0,
+      "reversedEdges": 0,
+      "feasible": true
+    }
+  },
+  "caseTargets": [
+    {
+      "case": "C1",
+      "label": "/staging/api-6/name Parameter Store — sits too low in middle column",
+      "ownerMove": "move HIGHER (shorter edge, fewer crossings)",
+      "clusterId": "module.api6.aws_ssm_parameter.api_name",
+      "address": "module.api6.aws_ssm_parameter.api_name",
+      "account": "000000000002",
+      "region": "us-east-1",
+      "rank": 15,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 7440,
+        "y": 5678,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+          "otherAddress": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+          "reversed": false,
+          "chordLenL1": 5568,
+          "chordDx": 1984,
+          "chordDy": 3584,
+          "leftward": false
+        }
+      ]
+    },
+    {
+      "case": "C2",
+      "label": "staging-egress-dlq + staging-events-dlq (SQS DLQs) — far-right column",
+      "ownerMove": "move LEFT (shorter edge, removes hull penetration, straighter)",
+      "clusterId": "module.ingress_queue.module.queue.aws_sqs_queue.dlq[0]",
+      "address": "module.ingress_queue.module.queue.aws_sqs_queue.dlq[0]",
+      "account": "000000000002",
+      "region": "us-east-1",
+      "rank": 15,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 7440,
+        "y": 6831,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]",
+          "otherAddress": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]",
+          "reversed": false,
+          "chordLenL1": 7175,
+          "chordDx": 6944,
+          "chordDy": 231,
+          "leftward": false
+        }
+      ]
+    },
+    {
+      "case": "C2",
+      "label": "staging-egress-dlq + staging-events-dlq (SQS DLQs) — far-right column",
+      "ownerMove": "move LEFT (shorter edge, removes hull penetration, straighter)",
+      "clusterId": "module.egress_queue.module.queue.aws_sqs_queue.dlq[0]",
+      "address": "module.egress_queue.module.queue.aws_sqs_queue.dlq[0]",
+      "account": "000000000002",
+      "region": "us-east-1",
+      "rank": 15,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 7440,
+        "y": 6600,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+          "otherAddress": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+          "reversed": false,
+          "chordLenL1": 5191,
+          "chordDx": 4960,
+          "chordDy": -231,
+          "leftward": false
+        }
+      ]
+    },
+    {
+      "case": "C2",
+      "label": "staging-egress-dlq + staging-events-dlq (SQS DLQs) — far-right column",
+      "ownerMove": "move LEFT (shorter edge, removes hull penetration, straighter)",
+      "clusterId": "aws_sqs_queue.ingest_fifo_dlq",
+      "address": "aws_sqs_queue.ingest_fifo_dlq",
+      "account": "000000000003",
+      "region": "us-east-1",
+      "rank": 11,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 5456,
+        "y": 1539,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "aws_sqs_queue.ingest_fifo",
+          "otherAddress": "aws_sqs_queue.ingest_fifo",
+          "reversed": false,
+          "chordLenL1": 1223,
+          "chordDx": 992,
+          "chordDy": 231,
+          "leftward": false
+        },
+        {
+          "role": "out",
+          "other": "aws_sns_topic.ops",
+          "otherAddress": "aws_sns_topic.ops",
+          "reversed": false,
+          "chordLenL1": 19282.5,
+          "chordDx": 16864,
+          "chordDy": -2418.5,
+          "leftward": false
+        }
+      ]
+    },
+    {
+      "case": "C3-s3",
+      "label": "S3 bucket …-west (us-west-2)",
+      "ownerMove": "move LEFT/UP (less length, less us-west-2 area)",
+      "clusterId": "module.api8_west_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
+      "address": "module.api8_west_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
+      "account": "000000000002",
+      "region": "us-west-2",
+      "rank": 26,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 12896,
+        "y": 3948,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "module.api8.aws_ecs_service.api",
+          "otherAddress": "module.api8.aws_ecs_service.api",
+          "reversed": false,
+          "chordLenL1": 5480,
+          "chordDx": 3968,
+          "chordDy": 1512,
+          "leftward": false
+        }
+      ]
+    },
+    {
+      "case": "C3-ssm8",
+      "label": "/staging/api-8/name ssm param (us-west-2)",
+      "ownerMove": "move LEFT/UP",
+      "clusterId": "module.api8.aws_ssm_parameter.api_name",
+      "address": "module.api8.aws_ssm_parameter.api_name",
+      "account": "000000000002",
+      "region": "us-west-2",
+      "rank": 26,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 12896,
+        "y": 3717,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "module.api8.aws_ecs_service.api",
+          "otherAddress": "module.api8.aws_ecs_service.api",
+          "reversed": false,
+          "chordLenL1": 5018,
+          "chordDx": 3968,
+          "chordDy": 1050,
+          "leftward": false
+        }
+      ]
+    },
+    {
+      "case": "C3-ssm9",
+      "label": "/staging/api-9/name ssm param (us-west-2)",
+      "ownerMove": "move LEFT/UP",
+      "clusterId": "module.api9.aws_ssm_parameter.api_name",
+      "address": "module.api9.aws_ssm_parameter.api_name",
+      "account": "000000000002",
+      "region": "us-west-2",
+      "rank": 26,
+      "maxRank": 29,
+      "isFarRightColumn": false,
+      "leafBox": {
+        "x": 12896,
+        "y": 4179,
+        "width": 346,
+        "height": 195
+      },
+      "incidentEdges": [
+        {
+          "role": "in",
+          "other": "module.api9.aws_ecs_service.api",
+          "otherAddress": "module.api9.aws_ecs_service.api",
+          "reversed": false,
+          "chordLenL1": 5480,
+          "chordDx": 3968,
+          "chordDy": 1512,
+          "leftward": false
+        }
+      ]
+    }
+  ]
+}

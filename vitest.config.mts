@@ -69,6 +69,11 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       "**/.claude/**",
+      // `*.probe.test.*` are heavy (30× timeout) real-app-path research probes
+      // (e.g. the Strata readability H0 harness). They are NOT part of the
+      // normal suite or the coverage gauntlet — run them explicitly via the
+      // private `vitest.probe.config.mts`.
+      "**/*.probe.test.*",
       ...(isFastRun ? SLOW_TEST_PATTERNS : []),
     ],
     // Since hooks are running in stack in v2, which means all hooks run serially whereas
