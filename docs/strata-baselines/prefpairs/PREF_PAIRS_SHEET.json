@@ -1,0 +1,124 @@
+{
+  "preset": "staging-extended-localstack-v2",
+  "seed": 20260715,
+  "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+  "rows": [
+    {
+      "index": 1,
+      "pairId": "P01",
+      "focusHint": "account 000000000004 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 2,
+      "pairId": "P02",
+      "focusHint": "account 000000000004 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 3,
+      "pairId": "P03",
+      "focusHint": "account 000000000004 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 4,
+      "pairId": "P04",
+      "focusHint": "horizontal position of the whole account 000000000004 block (dead gap vs crossings)",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 5,
+      "pairId": "P05",
+      "focusHint": "the ingress/egress DLQ queue cards (top area) — horizontal distance from their sources",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 6,
+      "pairId": "P06",
+      "focusHint": "account 000000000001 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 7,
+      "pairId": "P07",
+      "focusHint": "account 000000000002 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 8,
+      "pairId": "P08",
+      "focusHint": "account 000000000003 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 9,
+      "pairId": "P09",
+      "focusHint": "account 000000000003 / region us-east-1 — row ordering inside this region differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 10,
+      "pairId": "P10",
+      "focusHint": "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 11,
+      "pairId": "P11",
+      "focusHint": "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 12,
+      "pairId": "P12",
+      "focusHint": "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    },
+    {
+      "index": 13,
+      "pairId": "P13",
+      "focusHint": "region us-west-2 — position of the S3 bucket row differs",
+      "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+      "raterChoice": "",
+      "confidence": "",
+      "notes": ""
+    }
+  ]
+}
