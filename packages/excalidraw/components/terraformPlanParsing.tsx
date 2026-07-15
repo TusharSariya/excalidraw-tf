@@ -224,6 +224,8 @@ export type TerraformPlanParsingOptions = {
    * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
    * ε=0. */
   strataPackedConverge?: boolean;
+  /** P0.2: transitive adoption relation for the packed descent. Default off. */
+  strataTransitiveAdopt?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

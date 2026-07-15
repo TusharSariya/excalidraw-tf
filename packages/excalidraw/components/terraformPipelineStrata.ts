@@ -144,6 +144,15 @@ export type TerraformStrataSceneOptions = {
    */
   strataPackedConverge?: boolean;
   /**
+   * P0.2 adoption-relation repair (default off, opt-in): replace the packed
+   * descent's non-transitive ε adoption GATE with a transitive strict total
+   * order — ε survives as a feasibility crossing cap, adoption is arg-min
+   * under the integer key (weightedC, lengthL1, crossings, penetrations).
+   * Threaded into `engineOptions.transitiveAdopt` only when on
+   * (byte-identity). Makes `strataPackedConverge` inert (best-seen ≡ final).
+   */
+  strataTransitiveAdopt?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -249,6 +258,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataEdgeCrossCap = options?.strataEdgeCrossCap;
   // G-DESCENT remedy: best-seen adopted-snapshot return, default off.
   const strataPackedConverge = options?.strataPackedConverge === true;
+  // P0.2: transitive adoption relation, default off.
+  const strataTransitiveAdopt = options?.strataTransitiveAdopt === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
@@ -288,6 +299,8 @@ export async function buildTerraformStrataExcalidrawScene(
       : {}),
     // G-DESCENT converge echo — present only when on (flag-off byte-identity).
     ...(strataPackedConverge ? { strataPackedConverge: true } : {}),
+    // P0.2 transitive-adoption echo — present only when on (byte-identity).
+    ...(strataTransitiveAdopt ? { strataTransitiveAdopt: true } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -348,6 +361,8 @@ export async function buildTerraformStrataExcalidrawScene(
     // G-DESCENT converge: rides ONLY when on, so the flag-off engineOptions
     // object shape is byte-identical to today.
     ...(strataPackedConverge ? { packedConverge: true } : {}),
+    // P0.2 transitive adoption: rides ONLY when on (byte-identity).
+    ...(strataTransitiveAdopt ? { transitiveAdopt: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.

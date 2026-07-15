@@ -107,8 +107,12 @@ export type StrataPackedTrialRecord = {
   pass: number;
   score: StrataPackedScore;
   adopted: boolean;
-  /** How the trial was adopted: strict lexicographic win vs ε-band admission. */
-  adoptedVia?: "strict" | "epsilon";
+  /**
+   * How the trial was adopted: strict lexicographic win vs ε-band admission,
+   * or (P0.2 `transitiveAdopt` mode only) a win under the transitive
+   * eligible-arg-min relation.
+   */
+  adoptedVia?: "strict" | "epsilon" | "transitive";
 };
 
 export type StrataPackedScoredPlacement = {
@@ -324,6 +328,96 @@ export function strataRelocateAdoptable(
     return true;
   }
   return false;
+}
+
+/**
+ * P0.2 transitive adoption (`transitiveAdopt`, default off ⇒ byte-identical).
+ *
+ * THE BUG BEING FIXED: `strataPackedScoreAdoptable` / `strataRelocateAdoptable`
+ * are GATES (strict-lex win OR baseline-relative ε-band), not comparators.
+ * The ε arm is relative to the LEGACY baseline while the strict arm is
+ * relative to the rolling incumbent, so the induced relation is neither
+ * antisymmetric nor transitive — with delta = 1 and baseline crossings 10,
+ * A = (11,9,10) is adoptable over B = (10,100,100) via ε AND B is adoptable
+ * over A via strict — a 2-cycle. The module-header oscillation note is this
+ * exact defect; `packedConverge` repairs the RETURNED selection (best-seen),
+ * not the adoption relation itself.
+ *
+ * THE FIX: keep ε purely as a FEASIBILITY constraint (a trial is eligible iff
+ * its raw crossings are within `baselineCrossings + cap` — the identical
+ * crossing budget the gate enforced: the gate's strict arm can also never
+ * exceed it, because the incumbent's crossings never exceed baseline + delta),
+ * then adopt by strict-less under ONE integer lexicographic key
+ * `(weightedC, lengthL1, crossings, penetrations)`:
+ *   - `weightedC = round(penW·pen + crossW·cross)` — the OD-15 owner-priced
+ *     finite exchange rate (default 1/1); a crossing is bought by a
+ *     sufficiently large penetration win instead of the gate's incoherent
+ *     "L1 buys crossings via ε-band but crossings-lex overrules everything"
+ *     pair of arms;
+ *   - `lengthL1` — exact integer doubled-centre L1;
+ *   - `crossings`, `penetrations` — canonical integer tiebreaks, making the
+ *     key injective in the full score (equal keys ⇒ equal scores).
+ * Strict lexicographic order on integer tuples is a strict total order:
+ * transitive, antisymmetric (irreflexive), no float/rounding tie hazard —
+ * every component is an integer (`Math.round` in `strataWeightedCross`; L1 /
+ * crossings / penetrations are exact integers). Exact key ties keep the
+ * EARLIEST candidate (the canonical Strata tiebreak — equivalent to
+ * appending the deterministic (hullId visit order, candidateIndex) to the
+ * tuple). Adoption is therefore strictly monotone in the key: no cycles, no
+ * hold-then-drop, and best-seen ≡ final (packedConverge becomes inert).
+ *
+ * HONEST SEMANTIC DELTA vs the gate (documented, opt-in): the crossing
+ * BUDGET is preserved exactly, but WITHIN the band the preference changes —
+ * the gate's ε arm let a strict (pen, L1) improvement buy crossings while
+ * its strict arm still priced crossings lexicographically infinite; the
+ * transitive key prices pen↔cross at finite penW:crossW and never lets L1
+ * buy weightedC. One coherent order replaces two contradictory arms.
+ */
+export type StrataTransitiveKey = readonly [number, number, number, number];
+
+/** The integer lexicographic adoption key (see the P0.2 block above). */
+export function strataTransitiveKeyOf(
+  score: StrataPackedScore,
+  penW: number,
+  crossW: number,
+): StrataTransitiveKey {
+  return [
+    strataWeightedCross(score, penW, crossW),
+    score.lengthL1,
+    score.crossings,
+    score.penetrations,
+  ];
+}
+
+/** `a` strictly precedes `b` under the transitive adoption key. */
+export function strataTransitiveLess(
+  a: StrataPackedScore,
+  b: StrataPackedScore,
+  w: { penW: number; crossW: number },
+): boolean {
+  const ka = strataTransitiveKeyOf(a, w.penW, w.crossW);
+  const kb = strataTransitiveKeyOf(b, w.penW, w.crossW);
+  for (let i = 0; i < 4; i++) {
+    if (ka[i]! !== kb[i]!) {
+      return ka[i]! < kb[i]!;
+    }
+  }
+  return false;
+}
+
+/**
+ * ε-feasibility for the transitive mode: raw crossings within the legacy
+ * baseline budget. The baseline itself is always eligible (cap >= 0), and
+ * only eligible trials are ever adopted, so the incumbent stays inside the
+ * feasible set — the relation restricted to reachable states is a strict
+ * total order.
+ */
+export function strataTransitiveEligible(
+  trial: StrataPackedScore,
+  baselineCrossings: number,
+  cap: number,
+): boolean {
+  return trial.crossings <= baselineCrossings + Math.max(0, cap);
 }
 
 /** Orientation sign of (a, b, c): +1 CCW, −1 CW, 0 collinear. Exact integers. */
@@ -813,12 +907,30 @@ export function placeStrataHullsPackedScored(
   if (siftRelocate) {
     scoreCache.set(fingerprintPlacement(baselinePlacement), baselineScore);
   }
+  // P0.2 transitive adoption (default off ⇒ the branches below are untouched
+  // and byte-identical). Feasibility cap = the SAME raw-crossing budget the
+  // gate enforced: the relocate hard cap when siftRelocate is on, else the
+  // resolved ε delta.
+  const transitiveAdopt = options.transitiveAdopt === true;
+  const transitiveCap = siftRelocate
+    ? relocateCfg.edgeCrossCap
+    : effectiveDelta;
+  const transitiveW = { penW: relocateCfg.penW, crossW: relocateCfg.crossW };
   // Unified adoption decision (returns the observability tag). Flag-off routes
   // to the untouched `strataPackedScoreAdoptable`; flag-on to the relocate rule.
   const decideAdoption = (
     score: StrataPackedScore,
     incumbent: StrataPackedScore,
-  ): false | "strict" | "epsilon" => {
+  ): false | "strict" | "epsilon" | "transitive" => {
+    if (transitiveAdopt) {
+      return strataTransitiveEligible(
+        score,
+        baselineScore.crossings,
+        transitiveCap,
+      ) && strataTransitiveLess(score, incumbent, transitiveW)
+        ? "transitive"
+        : false;
+    }
     if (!siftRelocate) {
       return strataPackedScoreAdoptable(
         score,
@@ -869,8 +981,14 @@ export function placeStrataHullsPackedScored(
     | ((score: StrataPackedScore, placement: StrataPlacementResult) => void)
     | null = null;
   if (packedConverge) {
+    // P0.2: with `transitiveAdopt` on, the converge comparator IS the
+    // transitive adoption key — adoption is strictly monotone under it, so
+    // best-seen ≡ final and `convergeRecovered` must come back false (the
+    // probe asserts this redundancy).
     const less = (a: StrataPackedScore, b: StrataPackedScore): boolean =>
-      siftRelocate
+      transitiveAdopt
+        ? strataTransitiveLess(a, b, transitiveW)
+        : siftRelocate
         ? strataRelocateScoreLess(a, b, relocateCfg)
         : strataPackedScoreLess(a, b);
     seenLess = less;

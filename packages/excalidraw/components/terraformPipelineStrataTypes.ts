@@ -116,6 +116,25 @@ export type StrataEngineOptions = {
    * byte-identity) are unaffected.
    */
   packedConverge?: boolean;
+  /**
+   * P0.2 adoption-relation repair (default off, opt-in): replace the packed
+   * descent's ε adoption GATE (strict-lex OR ε-band — a non-transitive,
+   * non-antisymmetric relation that can authorize both A→B and B→A from
+   * different baselines; see the scoring module header's oscillation note)
+   * with a TRANSITIVE strict total order. A trial is ELIGIBLE iff its raw
+   * edge-edge crossings are within the legacy-baseline crossing budget
+   * (`baseline + delta`, delta from `packedScoringEpsilon` — the ε survives
+   * as a FEASIBILITY constraint, unchanged cap semantics), and adoption is
+   * arg-min under the integer lexicographic key
+   * `(weightedC, lengthL1, crossings, penetrations)` (weights from
+   * `strataCrossWeightPenetration`/`strataCrossWeightEdge`, default 1/1;
+   * exact ties keep the EARLIEST — the canonical Strata tiebreak). Adoption
+   * becomes strictly monotone, so the hold-then-drop non-convergence that
+   * `packedConverge` papers over cannot occur (best-seen ≡ final). Consumed
+   * only when `packedScoring` is on. Optional so existing option literals
+   * (flag-OFF byte-identity) are unaffected.
+   */
+  transitiveAdopt?: boolean;
 };
 
 /**

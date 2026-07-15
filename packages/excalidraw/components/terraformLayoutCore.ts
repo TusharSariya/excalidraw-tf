@@ -506,6 +506,8 @@ type LayoutSceneContext = {
    * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
    * ε=0. */
   strataPackedConverge?: boolean;
+  /** P0.2: transitive adoption relation for the packed descent. Default off. */
+  strataTransitiveAdopt?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -622,6 +624,7 @@ async function buildPipelineLayoutSceneBody(
         strataCoordinateRefine: ctx.strataCoordinateRefine,
         strataSiftRelocate: ctx.strataSiftRelocate,
         strataPackedConverge: ctx.strataPackedConverge,
+        strataTransitiveAdopt: ctx.strataTransitiveAdopt,
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1206,6 +1209,7 @@ export async function layoutTerraformFromSources(
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     strataSiftRelocate: options?.strataSiftRelocate === true,
     strataPackedConverge: options?.strataPackedConverge === true,
+    strataTransitiveAdopt: options?.strataTransitiveAdopt === true,
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine
