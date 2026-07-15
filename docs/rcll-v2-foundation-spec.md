@@ -27,7 +27,6 @@ The single highest-leverage change is **F1**: replace the within-column Y-orderi
 | **F9** | Cyclic-leaf **repair**: FAS reversal + back-edge restyle — D5 | Fixes the silent un-styled backward arrow; keeps R3 for all other edges |
 | **F10** | **Configurable containment schema** (replace the AWS role enum) — D6 | De-hacks the one non-general piece; folded into the core refactor |
 
-
 ## Document graph
 
 | Relation | Link |

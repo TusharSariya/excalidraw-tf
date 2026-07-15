@@ -7,7 +7,6 @@
 | Companion | [`strata-view-decision-log.md`](./strata-view-decision-log.md) (SDEC register; appended every work package + checkpoint) |
 | Process | Milestones W0→W3; every milestone ends with a **test battery + owner visual validation (hard stop)**; codex review before each checkpoint commit; commit only on owner OK. Implementation agents: **sonnet** (plumbing/mechanical/tests), **opus** (algorithm cores). The orchestrator writes/updates docs, reviews every diff against the specs, runs batteries, and owns gate interpretation. |
 
-
 ## Document graph
 
 | Relation | Link |
@@ -91,6 +90,7 @@ Engine = **passthrough to the v2 substrate** at this stage (`buildTerraformStrat
 Also S0a: the **variant clobber guard** (`terraformLayoutCore.ts:1026-27` + duplicate in sceneApply — `layoutMode==="rcll"` force-rewrites the variant): strata rides its **own layoutMode**, so the clobber sites must not touch it — asserted by the threading test. **rcllV2Degraded demo-UI badge** (v3.1 §5.2) is an explicit small S0a task. Toggle surface for M1: `strataNetworkSimplexRank` (OD-1 flag, default OFF), `strataSweeps` (K, default 0 in M1a / 4 in M1b), `strataCoordinateRefine` (A7 flag, default OFF until SA7) — all opt-in, default off (owner standing rule), all threaded through every C6′ seam + URL params + proof-API catalog.
 
 **Work packages (both sonnet, parallel):**
+
 - **WP-1a — wiring**: touch points 1–14 + passthrough entry + degraded badge. Battery: `terraformDemoUrlParams.test.ts`, `terraformCanvasShareUrl.test.ts`, `terraformSceneApply.test.ts`, typecheck.
 - **WP-1b — tests**: strata threading test (pattern: `terraformLayoutCoreRcllThreading.test.ts`) asserting URL/dialog-set variant reaches the engine + scene-meta echo matches; stale-cache regression (warm KV cache bypassed for strata); worker parity `terraformLayoutWorkerParity.test.ts` views matrix += strata (note: rcll is missing there today — add both); trap regressions #2/#3/#5; proof-API curl assertion.
 
@@ -101,64 +101,77 @@ Also S0a: the **variant clobber guard** (`terraformLayoutCore.ts:1026-27` + dupl
 New modules, one per phase, in `packages/excalidraw/components/` (family-consistent naming). Shared files touched only where stated, under D2′ (existing-engine snapshots must hold).
 
 ### P0 — Prep [reuse; no new code]
+
 - **In:** sources → `terraformPlanParsing` → `preparePipelineLayout` (`terraformPipelineLayoutShared.ts:1400`). **Out:** `PipelineLayoutPrep` (clusters, collapsed edges, skeleton sizes).
 - The engine consumes prep read-only. **S4 (shared-file touch):** extract `isDepthFloorValid` from `Shared.ts:598-601` as a pure gate (C7; the one v1.0 step sound as written). WP-2a.
 
 ### P1 — Strata model · `terraformPipelineStrataModel.ts` [new]
+
 - **In:** prep. **Out:** `StrataModel = { units, leafClusters, hullTree, E, addressOf }` — hull tree = **M1 hardcoded in-engine copy** of provider→account→region→vpc→subnetZone (copy-then-parametrize, D6′; the shared `buildHullTree` is never mutated; pattern reference: `terraformPipelineRcllModel.ts:75`), **with per-role policy: packed = {region, vpc, subnetZone}, banded = {account, provider}, root.policy = "banded" (v3.1 §1.4)**. Hull `placement` metadata from the schema path, never first-writer-wins.
 - **Tests:** model unit tests (hull tree shape on both presets; policy map; the band-row invariant precondition — every child of a banded hull is one band-row, bare leaf = singleton band, v3.1 §2.2). **WP-2b (opus).**
 
 ### P2 — A3 cycle repair · `terraformPipelineStrataCycleRepair.ts` [new] — spec v2.0 §6-A3 verbatim
+
 - **In:** collapsed cluster graph E (self-loops dropped for ranking, kept for render; parallel edges deduped with multiplicity). **Out:** `F` (reversed set), `E′ = (E − F) ∪ reverse(F)`; every downstream phase consumes E′ (C10′); true direction restored at draw with back-edge styling.
 - Per-SCC condensation ON (OD-4), pinned-comparator adjacency, `s = leftSeq ++ rightSeq` **no reverse**, comparator-least ties (tie handling changes |F| — T7 pins the arc; v3.1 §9).
 - **Tests (T7, mandatory fixtures):** acyclic chain ⇒ F=∅; 2-cycle+3-chain ⇒ |F|=1 arc pinned; self-loop dropped; two disjoint SCCs ⇒ F = union of SCC-local sets; E′-consumption assert (reversed arc participates forward). **WP-2a (sonnet).**
 
 ### P3 — A1 rank · `terraformPipelineStrataRank.ts` [new + reuse]
+
 - **In:** E′. **Out:** `rank(v)` per cluster; `columnX[rank]` from per-column max leaf width + COLUMN_GAP.
 - Longest-path floor via a **forked, sequence-free `computeDepths` signature** (C4′ — the shared edge type embeds `sequence`); NS refinement (`computeNetworkSimplexDepths`, exact Gansner [reuse `Shared.ts:638`]) behind the OD-1 flag, committed only through `isDepthFloorValid` → `applyDepthFloorIfValid` (C7). No `?? PIPELINE_MARGIN` fallback — off-grid rank is a hard dev-assert (C1′). No cyclic clamp exists in this engine (A3 ran first).
 - **Tests:** rank unit tests incl. the OD-1 arm; C1′ assert test. **WP-2a (sonnet; NS wiring reviewed by orchestrator).**
 
 ### P4+P5 — A0 compound placement + A2 ordering · `terraformPipelineStrataPlacement.ts`, `terraformPipelineStrataOrdering.ts` [new] — spec v2.0 §6-A0/§6-A2 + **v3.1 §1**
+
 - **In:** StrataModel + ranks. **Out:** boxed hull tree with absolute coords after root pass (children offset top-down; leaf skeletons pre-compensated).
 - `layoutHull(h)` post-order: children laid out first (fixed boxes) → `units(h)` (child hulls + direct leaves; colSpan = [min,max] leaf rank) → **A2 orders ONE sequence over units(h)** → place by policy: **packed** = per-hull skyline `dropY` over the unit's actual padded x-extent [reuse `Pack.ts:137-160` semantics, monotone, OD-6]; **banded** = full-width stacks in sequence order with LANE_GAP; box = bbox + FRAME_PAD + TITLE_RESERVE (frozen constants).
 - **A2 (M1a ships K=0 = pure model order — the checkpoint is labeled "model-order bands"; K=4 turns on in M1b):** initial sequence = content-key sort (pinned comparator); K directional sweeps, layer = colSpan.min, barycenter over swept-direction + same-layer neighbors on normalized positions; candidates = **{initial, sweep 1..K, height-aware greedy seed}** (v3.1 §1.3); **banded acceptance = weighted bands-skipped cost** (v3.1 §1.1: Σ per lifted edge of Σ(h_band + LANE_GAP_Y) over skipped bands — integer, sequence-only, no geometry); crossings-trial tiebreak (box-center chords, v3.1 §1.2); remaining ties → earliest; packed acceptance = crossings decrease (v2.0). Scoping words: trial and counts over units(h) and edges lifted to h ONLY (v3.0 §3.2).
 - **Tests:** placement structural checks (R2: non-ancestor overlap 0, title collisions 0, contiguity 0 — both presets); **band-adjacency fixture** (≥4 bands, connectivity ≠ alphabetical ⇒ connected bands adjacent + no crossings regression + integer tie→initial, v3.0 §3.5 + v3.1); multi-column unit fixture; same-layer fixture (≥70% units share colSpan.min); **≥2-provider root fixture** (banded acceptance fires at root, v3.1 §1.4); generation-purity fixture. **WP-2b (opus) for K=0 M1a; WP-3a (opus) for K=4 acceptance.**
 
 ### P6 — A7 coordinate refinement · `terraformPipelineStrataCoordinates.ts` [new; M1b, flag-gated] — spec v2.0 §6-A7 + v3.0 §4
+
 - **In:** boxed tree. **Out:** refined Y (slice-A scope only — within-packed-hull; A7 is NOT the cross-band lever).
 - Option 1 (OD-5): per-column batch (Jacobi) median targets from E′ neighbors → **PAV/isotonic projection** in A2 order with min-gaps → accept column iff global Σ|Δy| strictly decreases; fixed 2-down+2-up sweeps; bottom-up nesting (children rigid at parent); **re-anchor pass** (hull extents recomputed bottom-up, absolute coords re-applied) — output final only after re-anchoring; **R2 standing invariant re-checked on final geometry** (dev-assert in-engine + every T9 run).
 - **Gate (v3.0 §4.2):** slice-A near-straight AND slice-A mean/p95 deviation strictly better than the same engine pre-A7; T2 not regressed; slice-B reported, never cited as A7 wins. **Tests:** A7 unit tests (projection determinism, no-op columns tolerated) + gate measurement in T9. **WP-3b (opus).**
 
 ### P7 — A6 deterministic finalize · `terraformPipelineStrataFinalize.ts` [new; M1b] — spec v2.0 §6-A6 + v3.0 §6 + v3.1 §6
+
 - **In:** final boxed tree + generation G (finalize input: state serial else app-side counter). **Out:** `ExcalidrawElement[]` with total identity control.
 - `stableId` `tf:role:address(:#ordinal)`; **`groupId = "tfg:"+key` (restored, member-set-independent)**; injective SVG-safe frame-id encoding; direction-preserving length-prefixed edge ids; `seed = FNV-1a(stableId)&0x7fffffff||1`; `version = G`, `versionNonce = FNV-1a(stableId+":"+G)&0x7fffffff||1`; id-reference rewrite (boundElements/containerId/frameId/bindings **+ groupIds**, v3.1 §6.1) with dangling-ref dev-assert; ids proven unique BEFORE convert/restore; OD-8 disposition deferred to S3 (parity test either way).
 - **Coverage: both skeleton-conversion call sites** (`terraformPipelineLayoutFinalize.ts:127` and the fallback path) — T1's outcome must not depend on which internal path fired.
 - **Tests (T1/T3 + fixtures):** run-twice byte-equal in pinned env; static no-`Math.random`/`Date` scan; SVG frame-id round-trip; generation purity (G vs G+1 ⇒ only version/versionNonce differ). **WP-3c (sonnet, orchestrator reviews identity code).**
 
 ### P8 — Scene build · `terraformPipelineStrataSceneBuild.ts` [new] — seam #6 bypass
+
 - **In:** finalized elements/boxed tree. **Out:** the scene body.
 - Reuses `buildCompoundFramesFromLayoutBoxes` + edge-skeleton appenders + `convertPipelineSkeletonToElements` where semantics are engine-neutral, **but MUST NOT call `applyCompoundHierarchicalLayout`** (`…CompoundHierarchy.ts:213-249` re-stacks provider Y in all three legacy paths — C6′ seam #6). The engine owns absolute coordinates end-to-end.
 - **Tests: provider-Y byte-assert** — engine-emitted provider Y survives byte-identically into the built scene, on a **≥2-provider fixture** (single-provider masks the clobber as a pure translate; exact Y values, not shapes). **WP-2c (opus).**
 
 ### P9 — Apply layer (tombstones) · `terraformSceneApply.ts` [shared-file touch; M1b with S0c]
+
 - At `replaceAllElements` time: `removed = prevSceneAddresses − newAddresses`; per removed address append its canonical-id element with `isDeleted: true`, `version = G`, explicit `versionNonce` (never `newElementWith`'s random fallback), **`updated = getUpdatedTimestamp()`** (`@excalidraw/common` — verified importable, no layer violation; the sole wall-clock exception, v3.0 §6).
 - **Tests (T4):** removed resource appears exactly once; **clock-injected** `isSyncableElement` assert (stub `getUpdatedTimestamp`/inject now; companion negative assert that `updated=1` is rejected — proves the real 24h window is exercised). Collab-lane scenario lands at S3/M2. **WP-3c.**
 
 ### P10 — Diagnostics & metrics (T9) · `terraformPipelineCollisionDiagnostics.ts` [shared-file touch, additive] + Q2 harness
+
 - **Population rule (normative):** all engine-emitted non-aggregated TFD arrows regardless of `isDeleted`. **Slice split:** LCA-hull policy via the **role→policy map mirroring the engine's schema copy** (v3.1 §2.6; hull tree reconstructed from frame `customData.terraformTopologyPath`; dissolved-band case for deBand comparison arms). New fields: per-slice extent p50/p90/mean, **bands-skipped** (projection to LCA child-bands, v3.1 §2.1), stacked band height, rank-span-normalized deviation (COLUMN_GAP floor), leaf-only area utilization, prep wall-clock (T10 addition).
 - **Harness reality (v3.1 §2.6):** `terraformPipelineQ2Audit.test.ts` consumes named fields and hand-lists object meta keys — every new field and `rcllV2Degraded` needs explicit lines. Gate arithmetic: paired-per-edge bootstrap CI (address-keyed, pinned seed), N_B,min/N_min rules. **WP-2d (sonnet); baselines frozen by the orchestrator (see §5 W2).**
 
 ### P11 — Failure contract wrapper · in `terraformPipelineStrata.ts` [new] — v3.0 §8.4 + v3.1 §5
+
 - Entry wraps A3→finalize in one guard. Caught: any phase throw; R2/R3 structural failure on final geometry in prod (dev still hard-asserts); non-finite coordinate. On catch: **fallback = `buildTerraformPipelineV2ExcalidrawScene(..., { prep })`** — the v2 builder gains the optional `prep` param (shared-file touch, D2′, default behavior unchanged) so the failure path never re-pays the ~20s skeleton build — with `rcllV2Degraded = {stage, reason}` merged into scene meta. Fallback throw ⇒ propagate (never a silent partial scene). T9 asserts `rcllV2Degraded` absent on both presets. **WP-2c.**
 
 ## 4. Milestone ladder
 
 ### W0 (done except D10) — v3.1 ✅ · decision log ✅ · this doc ✅ · **WP-0d D10 bug-fix PR (sonnet, running)**
+
 Five measurement-contaminating fixes + regression tests (prep-cache fingerprint, sibling-edge comparator, randomInteger zero-seed, shorten→compact demotion surfacing, v2-full+ancillary collision — last one may be report-only if invasive). Battery: affected suites + typecheck. Owner validation: green tests + doc skim → commit.
 
 ### W1 — S0a → **V0** (§2 above)
 
 ### W2 — M1a → **V1**
+
 - **WP-2a (sonnet):** P2 A3 + T7 fixtures; P3 A1 + S4 extraction (+D2′ snapshots).
 - **WP-2b (opus):** P1 model + P4 A0 + P5 A2@K=0 + structural checks.
 - **WP-2c (opus):** P8 scene build + provider-Y assert; P11 failure contract (+v2 `prep` param).
@@ -167,6 +180,7 @@ Five measurement-contaminating fixes + regression tests (prep-cache fingerprint,
 - Battery: T7, R2/R3 on both presets **in both card modes (compact AND full)**, Q2 + strata@K0 arm, T10 wall-clock (engine + prep), typecheck. **Checkpoint V1 (owner):** first real Strata geometry on both presets ("model-order bands" label — readability battery not meaningful until K=4). STOP → codex → commit.
 
 ### W3 — M1b → **V2**
+
 - **WP-3a (opus):** A2 K=4 + v3.1 §1 acceptance + fixtures (band-adjacency, ≥2-provider root).
 - **WP-3b (opus):** A7 + SA7 gate.
 - **WP-3c (sonnet):** A6 finalize both call sites + T1/T3 + P9 tombstones + T4 clock-injection.

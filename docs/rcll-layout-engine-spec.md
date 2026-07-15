@@ -25,7 +25,6 @@ This spec captures the **full decision-making context** for the layout engine's 
 | **Decided** | (1) The perf defect is fixed; layout is not the felt-cost bottleneck. (2) The global-rank primitive is correct (Sander) and already shipped (`computeGlobalSeparatedFloor`, `…RcllPlacement.ts:1705`). (3) The recursion _host_ is the Sander §4 anti-pattern. (4) "Patch RCLL into non-recursive via incremental swaps" is the wrong path (worst-of-both — see §5). (5) A post-placement edge-routing/bundling lane is **not** the readability fix (the problem is coordinate-assignment/density). |
 | **Open — gated on data** | The **A vs B** host decision, gated on Q1 (DOM attribution) + Q2 (RCLL readability) + Q3 (v2-vs-RCLL bake-off). See the report §6. |
 
-
 **Recommendation: A now, B as a characterized-for-later spec (this document).** There is no driving metric for B today — the engine passes its gates and the felt cost lives in the DOM ceiling (hypothesis, Q1). Do the cheap measurements first; choose B deliberately **when** a metric demands it, at which point this spec is the build, not a research project.
 
 ---

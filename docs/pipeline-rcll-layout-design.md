@@ -11,7 +11,6 @@
 | **Scope** | Placement algorithm for **Pipeline view** only (Semantic and Module views unchanged) |
 | **Implementation** | **In progress — shipped behind `pipelineLayoutVariant:"rcll"`:** M0a/M0b (seam + measurement), M1 (model), M2 (layering), M3a (+ 2 hardening passes) / M3b (hull-aware cyclic placement, default on), M4 (swimlane lane-rise — A/B toggle, default OFF), M6 (crossing-min reorder — A/B toggle, default OFF), **M6c (container-aware crossing minimization — A/B toggle, default OFF; measured GO on v2: rankSeparate+M4 crossings 362→260 / de-band vpc 268→221, Δheight=Δwidth=0 — Phase 1 engine + Phase 2 UI/URL/dev-API surface BUILT, default OFF)**, M5 (gate-fix `3313c2d52` + A1 Brandes–Köpf straightener `b91a4d77a` plus direct-leaf rise beside swimlane lanes — toggle, default OFF; Axis-2 de-densify probed + PAUSED), \*\*M5r (coordinated per-column re-pack — A/B toggle `coordRepack`, default OFF, requires `straighten`; measured GO on v2: intra-container dataflow | ΔY | −32.9 % total / −42.6 % median, intra-crossings 4→1, CON-3/4/5/12 all 0, band growth 0, OFF byte-identical)**, and **RCLL All Resources ancillary bands** ([§8.1](#81-rcll-ancillary-all-resources--reserved-band-built)). **Default-on behaviour is M3a/M3b** (M4/M5/M6 are default-OFF A/B toggles; All Resources is user-selected). **Build/run order ≠ milestone number\*\* — see the [§24.2](#242-milestone-table) banner. This document is the source of truth; it is kept in lockstep with the code (see Document discipline). |
 
-
 ## Document graph
 
 | Relation | Link |

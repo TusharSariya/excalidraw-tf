@@ -30,7 +30,6 @@ The daily-driver view is **all-resources + compact + no-debanding + everything-o
 | `columnPacking` | `compact` | `compact` |
 | `reorder` / `staircaseBandOverlap` | `true` / `true` | `true` / `true` |
 
-
 So the canonical lens = **`compact`-profile flags + `crossingMin` forced ON + `deBandLevel` forced NONE.** Individual options override the profile (`terraformLayoutCore.ts:958,990`; URL params expose each flag). **Consequence:** `crossingMin`'s "−28 % crossings" is **opt-in** — it is OFF in every named profile, so it helps the canonical view only because the operator manually enables it, not because a preset does.
 
 ---

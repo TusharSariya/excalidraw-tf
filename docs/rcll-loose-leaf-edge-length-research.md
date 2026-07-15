@@ -57,7 +57,6 @@ The "loose leaf pinned to the top of a column" symptom is the **textbook signatu
 | **Network-simplex on auxiliary graph** | Gansner GKNV93 | Exact min total weighted edge length; edge-type weights real-real=1, real-virtual=2, virtual-virtual=8 (keep long/dummy chains straight, still pull real leaves). | You already shipped NS on the **X** axis (`columnPacking:"shorten"`); this is its **Y** analog. |
 | **Dummy nodes for column-skipping edges** | standard Sugiyama; **= your DEC-5** (PARKED/OPEN) | Insert virtual nodes along long edges so multi-column edges have a chain to align along. | **Prerequisite** for fixing the distant-neighbor leaf subclass (Mechanism-B limitation #2). |
 
-
 ---
 
 ## 3. What is CLOSED — do not re-propose

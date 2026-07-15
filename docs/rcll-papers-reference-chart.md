@@ -30,7 +30,6 @@ _Which papers actually shaped the Recursive Compound Layered Layout (RCLL) engin
 | **R12** | Rüegg et al. — _Size- & Port-Aware Horizontal Node Coordinate Assignment_ (2015) | Made that straightener respect real card sizes |
 | **—** | Rüegg et al. 2016 + Liao–Wong 1983 _(cited inline)_ | Bidirectional 1-D compaction behind `columnCompact` (pull-left into whitespace) |
 
-
 ---
 
 ## ⚖️ Built-then-superseded, or evaluated & rejected (with measurement)

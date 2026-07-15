@@ -12,7 +12,6 @@
 | Scope | Pipeline view layout architecture |
 | Related RFC | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
 
-
 ## Document graph
 
 | Relation | Link |

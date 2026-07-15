@@ -44,7 +44,6 @@ Median self-ms across 3 runs, all-resources config:
 | `pipeline.rcll.crossingMin.count` | 5.1 | 4 |
 | `pipeline.prep.materialize` | 4.0 | 1 |
 
-
 `pipeline.prep` (the parent span) is ~7.9s inclusive but only ~1.9ms self — i.e. essentially 100% of `prep` is these two sub-calls. **Dataflow-only** (`includeAncillary: false`) shows the identical ~3,950-3,980ms for both spans — ancillary inclusion does not touch this cost at all. RCLL's own stages (layering, placement, crossingMin, reorder, straighten, rankSeparate, columnCompact) and the ancillary allocator together are **under 400ms combined** — a rounding error against the ~7.9s prep phase.
 
 **Ancillary surcharge (by subtraction):** isolating `includeAncillary: true` vs `false` gives a surcharge signal of +55ms / -221ms / +2.5ms across 3 runs — i.e. it does not cleanly reconcile by subtraction because it's _smaller than the run-to-run noise_ (~150-200ms) of the dominant 7.9s prep phase. The ancillary spans' own direct measurement is more reliable: `ancillaryStrips` + `ancillaryInsert` sum to a consistent **~94-95ms** across all 3 runs. **Conclusion: ancillary processing genuinely costs ~90-95ms and is not a contributor to the slowness.**

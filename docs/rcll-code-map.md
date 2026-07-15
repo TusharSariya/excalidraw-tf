@@ -13,7 +13,6 @@ Direct code links for the **Recursive Compound Layered Layout (RCLL)** pipeline.
 | **Headless proof API** | `excalidraw-app/dev/terraformImportPresetDevPlugin.mjs` — `GET /api/terraform-layout?layoutMode=rcll&…` |
 | **Canonical fixture** | preset `staging-extended-localstack-v2` (used in `terraformPipelineRcll.test.ts`) |
 
-
 ## Document graph
 
 | Relation | Link |

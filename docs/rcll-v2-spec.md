@@ -10,7 +10,6 @@
 | Audience | an implementing agent/engineer (execute §6 step by step) + a reviewer (check §7 conformance) |
 | First milestone | **M1 (S0+S1+S2)** — stand up the new engine and prove diff-stability |
 
-
 ## Document graph
 
 | Relation | Link |

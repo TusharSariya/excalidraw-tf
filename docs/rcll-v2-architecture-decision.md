@@ -8,7 +8,6 @@
 | Supersedes | [`pipeline-rcll-v2-pivot-recommendation.md`](./pipeline-rcll-v2-pivot-recommendation.md) (2026-06-20) |
 | Companions | [`rcll-architecture-assessment-report.md`](./rcll-architecture-assessment-report.md) · [`rcll-layout-engine-spec.md`](./rcll-layout-engine-spec.md) · RFC [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
 
-
 ## Document graph
 
 | Relation | Link |
