@@ -441,6 +441,22 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       refs: ["strata-methodology-audit-2026-07-15"],
     },
   },
+  "strata.transitive.off": {
+    title: "Stable adoption rule · Off",
+    body: "The packed scorer keeps the legacy ε adoption gate. That gate can be non-transitive: the descent may adopt a layout and later drop it for one that scores strictly worse (adopt-then-drop; audit 5.3).",
+    dev: {
+      implements:
+        "strataTransitiveAdopt=false: legacy ε adoption gate (can be non-transitive — adopt-then-drop; audit 5.3). Byte-identical to the pre-fix engine.",
+    },
+  },
+  "strata.transitive.on": {
+    title: "Stable adoption rule · On — experimental",
+    body: "Candidate layouts are compared with one strict total order for the whole descent, so an adopted layout can only ever be replaced by a strictly better one (fixes rare oscillation). ε is kept only as a feasibility crossing-cap. Experimental; small crossings tradeoff vs Keep best order found.",
+    dev: {
+      implements:
+        "strataTransitiveAdopt / transitiveAdopt — replace the ε adoption gate with a strict total order (weightedC, lengthL1, crossings, penetrations); ε kept as a feasibility crossing-cap. Opt-in; descent-scoped; gated on the preference-calibration work. Small crossings tradeoff vs converge.",
+    },
+  },
   "strata.edgerouting.off": {
     title: "Route edges around containers · Off",
     body: "Every dependency arrow stays a straight centre-to-centre segment, even when it passes through a container box (hull frame or resource card) that is unrelated to both endpoints — W7/W8 measured 65–123 such penetrations per preset.",

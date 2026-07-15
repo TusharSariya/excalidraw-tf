@@ -253,6 +253,9 @@ export type RunTerraformImportFromSourcesOptions = {
    * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
    * ε=0. */
   strataPackedConverge?: boolean;
+  /** Transitive-adopt remedy: strict total-order adoption gate replacing the
+   * ε adoption gate. Default off. */
+  strataTransitiveAdopt?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -306,6 +309,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataCrossWeightEdge"
   | "strataEdgeCrossCap"
   | "strataPackedConverge"
+  | "strataTransitiveAdopt"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -356,6 +360,7 @@ export const terraformPipelineReplayOptionsFromSession = (
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
   strataPackedConverge: session.strataPackedConverge === true,
+  strataTransitiveAdopt: session.strataTransitiveAdopt === true,
 });
 
 /**
@@ -404,6 +409,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataCrossWeightEdge"
   | "strataEdgeCrossCap"
   | "strataPackedConverge"
+  | "strataTransitiveAdopt"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -464,6 +470,7 @@ function buildPipelineFamilyLayoutOptions(
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
       : {}),
     strataPackedConverge: options.strataPackedConverge === true,
+    strataTransitiveAdopt: options.strataTransitiveAdopt === true,
   };
 }
 

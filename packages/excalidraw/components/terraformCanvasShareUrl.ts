@@ -107,6 +107,7 @@ const sessionToDemoSnapshot = (
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
   strataPackedConverge: session.strataPackedConverge ?? false,
+  strataTransitiveAdopt: session.strataTransitiveAdopt ?? false,
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

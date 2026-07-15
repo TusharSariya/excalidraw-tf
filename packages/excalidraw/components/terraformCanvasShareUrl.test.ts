@@ -176,6 +176,27 @@ describe("terraformCanvasShareUrl", () => {
     ).toBe(true);
   });
 
+  it("strataTransitiveAdopt: default off is omitted from the /demo URL, an ON session round-trips", () => {
+    // Default off and absent are byte-identical — the snapshot → URL path must
+    // not materialize a default `strataTransitiveAdopt` param.
+    const defaultUrl = buildTerraformCanvasShareUrl(
+      makeSession({ layoutMode: "strata" }),
+      defaultView,
+    );
+    expect(defaultUrl).toContain("view=strata");
+    expect(defaultUrl).not.toContain("strataTransitiveAdopt");
+
+    // An ON session round-trips through the snapshot into the URL.
+    const onUrl = buildTerraformCanvasShareUrl(
+      makeSession({ layoutMode: "strata", strataTransitiveAdopt: true }),
+      defaultView,
+    );
+    expect(onUrl).toContain("strataTransitiveAdopt=1");
+    expect(
+      parseTerraformDemoUrlParams(queryOf(onUrl!))?.strataTransitiveAdopt,
+    ).toBe(true);
+  });
+
   it("strataBandDepth: default cut is omitted from the /demo URL, a non-default cut round-trips (WP4 P2 byte-identity)", () => {
     // Default cut ("account") and absent are byte-identical — the snapshot →
     // URL path must not materialize a default `strataBandDepth` param, matching

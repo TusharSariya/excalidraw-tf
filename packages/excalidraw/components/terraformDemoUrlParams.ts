@@ -151,6 +151,9 @@ export type TerraformDemoUrlParams = {
    * snapshot instead of the rolling incumbent (`strataPackedConverge=1/0`).
    * Default off; inert at ε=0. */
   strataPackedConverge?: boolean;
+  /** Transitive-adopt remedy: strict total-order adoption gate replacing the
+   * ε adoption gate (`strataTransitiveAdopt=1/0`). Default off. */
+  strataTransitiveAdopt?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -475,6 +478,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataPackedConverge === null) {
     return null;
   }
+  const strataTransitiveAdopt = parseBooleanParam("strataTransitiveAdopt");
+  if (strataTransitiveAdopt === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -675,6 +682,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataCrossW != null ? { strataCrossW } : {}),
     ...(strataEdgeCap != null ? { strataEdgeCap } : {}),
     ...(strataPackedConverge != null ? { strataPackedConverge } : {}),
+    ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -751,6 +759,7 @@ export const buildTerraformDemoUrl = (
   setNum("strataCrossW", params.strataCrossW);
   setNum("strataEdgeCap", params.strataEdgeCap);
   setBool("strataPackedConverge", params.strataPackedConverge);
+  setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -867,6 +876,9 @@ export type TerraformDemoSettingsSnapshot = {
    * snapshot. Optional (no dialog control; default off) so pre-existing
    * snapshot literals still type-check. */
   strataPackedConverge?: boolean;
+  /** Transitive-adopt remedy: strict total-order adoption gate. Optional
+   * (default off) so pre-existing snapshot literals still type-check. */
+  strataTransitiveAdopt?: boolean;
 };
 
 /**
@@ -985,6 +997,10 @@ export const collectTerraformDemoParams = (
         : {}),
       // G-DESCENT converge: default-off — truthy-only, like packed scoring.
       ...(snapshot.strataPackedConverge ? { strataPackedConverge: true } : {}),
+      // Transitive adopt: default-off — truthy-only, like packed scoring.
+      ...(snapshot.strataTransitiveAdopt
+        ? { strataTransitiveAdopt: true }
+        : {}),
     };
   }
 

@@ -155,6 +155,13 @@ export const useTerraformImportDialog = ({
   const [strataPackedConverge, setStrataPackedConverge] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedConverge as boolean,
   );
+  // Strata transitive-adopt (strata-only): replace the ε adoption gate with a
+  // strict total order so the descent can't adopt-then-drop a layout for a
+  // strictly worse one. Default OFF (byte-identical off); descent-scoped;
+  // gated on the preference-calibration work.
+  const [strataTransitiveAdopt, setStrataTransitiveAdopt] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt as boolean,
+  );
   // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
   // routing — penetrating edges only. Default OFF pending its gate battery.
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
@@ -499,6 +506,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoring,
         strataPackedScoringEpsilon,
         strataPackedConverge,
+        strataTransitiveAdopt,
         strataEdgeRouting,
         strataBandDepth,
         strataSiftRelocate,
@@ -653,6 +661,7 @@ export const useTerraformImportDialog = ({
           strataPackedScoring,
           strataPackedScoringEpsilon,
           strataPackedConverge,
+          strataTransitiveAdopt,
           strataEdgeRouting,
           strataBandDepth,
           strataSiftRelocate,
@@ -770,6 +779,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoring,
         strataPackedScoringEpsilon,
         strataPackedConverge,
+        strataTransitiveAdopt,
         strataEdgeRouting,
         strataBandDepth,
         signal: layoutAbortRef.current?.signal,
@@ -1000,6 +1010,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoring,
         strataPackedScoringEpsilon,
         strataPackedConverge,
+        strataTransitiveAdopt,
         strataEdgeRouting,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
@@ -1042,6 +1053,7 @@ export const useTerraformImportDialog = ({
     strataPackedScoring,
     strataPackedScoringEpsilon,
     strataPackedConverge,
+    strataTransitiveAdopt,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1080,6 +1092,7 @@ export const useTerraformImportDialog = ({
     strataPackedScoring,
     strataPackedScoringEpsilon,
     strataPackedConverge,
+    strataTransitiveAdopt,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1140,6 +1153,7 @@ export const useTerraformImportDialog = ({
     setStrataPackedScoring,
     setStrataPackedScoringEpsilon,
     setStrataPackedConverge,
+    setStrataTransitiveAdopt,
     setStrataEdgeRouting,
     setStrataBandDepth,
     setStrataSiftRelocate,

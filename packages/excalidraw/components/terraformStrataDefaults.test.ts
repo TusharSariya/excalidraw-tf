@@ -25,6 +25,7 @@ describe("resolveStrataDemoOptions", () => {
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
       strataPackedConverge: false,
+      strataTransitiveAdopt: false,
       // The default cut ("account") is OMITTED (raw-forward discipline): no
       // seam may materialize a default `strataBandDepth` own key.
     });
@@ -77,6 +78,7 @@ describe("resolveStrataDemoOptions", () => {
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
       strataPackedConverge: false,
+      strataTransitiveAdopt: false,
       // Default cut omitted — see the bare-URL test above.
     });
   });

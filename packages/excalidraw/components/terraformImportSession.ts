@@ -105,6 +105,9 @@ export type TerraformImportSession = {
    * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
    * ε=0. */
   strataPackedConverge?: boolean;
+  /** Transitive-adopt remedy: strict total-order adoption gate replacing the
+   * ε adoption gate. Default off. */
+  strataTransitiveAdopt?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

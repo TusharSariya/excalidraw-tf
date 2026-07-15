@@ -76,6 +76,7 @@ export const TerraformStrataSettings = ({
   strataPackedScoring,
   strataPackedScoringEpsilon,
   strataPackedConverge,
+  strataTransitiveAdopt,
   strataEdgeRouting,
   strataBandDepth,
   strataSiftRelocate,
@@ -90,6 +91,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
   setStrataPackedConverge,
+  setStrataTransitiveAdopt,
   setStrataEdgeRouting,
   setStrataBandDepth,
   setStrataSiftRelocate,
@@ -103,6 +105,7 @@ export const TerraformStrataSettings = ({
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
   strataPackedConverge: boolean;
+  strataTransitiveAdopt: boolean;
   strataEdgeRouting: boolean;
   strataBandDepth: StrataHullRole;
   strataSiftRelocate: boolean;
@@ -117,6 +120,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataPackedConverge: (packedConverge: boolean) => void;
+  setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
@@ -588,6 +592,32 @@ export const TerraformStrataSettings = ({
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+            {strataPackedScoring && (
+              <div role="group" aria-label="Strata stable adoption order">
+                <span className="TerraformImportModal__controlLabel">
+                  Stable adoption rule{" "}
+                  <span>
+                    compare layouts with one strict order so the scorer can't
+                    accept a layout then drop it for a worse one (fixes rare
+                    oscillation; experimental)
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataTransitiveAdopt,
+                    "strata.transitive.off",
+                    () => setStrataTransitiveAdopt(false),
+                  )}
+                  {option(
+                    "On",
+                    strataTransitiveAdopt,
+                    "strata.transitive.on",
+                    () => setStrataTransitiveAdopt(true),
+                  )}
+                </div>
               </div>
             )}
             {strataRankSeparate && strataPackedScoring && (

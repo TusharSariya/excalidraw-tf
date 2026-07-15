@@ -42,6 +42,11 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * snapshot instead of the rolling incumbent — probe lever, default off
    * (inert at ε=0). */
   strataPackedConverge: false,
+  /** Transitive-adopt remedy: replace the ε adoption gate with a strict total
+   * order (weightedC, lengthL1, crossings, penetrations); ε kept as a
+   * feasibility crossing-cap — probe lever, default off (byte-identical
+   * off). */
+  strataTransitiveAdopt: false,
 } as const;
 
 /**
@@ -79,6 +84,8 @@ export const resolveStrataDemoOptions = (params: {
   strataEdgeCap?: number;
   /** G-DESCENT remedy: best-seen adopted snapshot return. */
   strataPackedConverge?: boolean;
+  /** Transitive-adopt remedy: strict total-order adoption gate. */
+  strataTransitiveAdopt?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -126,6 +133,9 @@ export const resolveStrataDemoOptions = (params: {
     strataPackedConverge:
       params.strataPackedConverge ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedConverge,
+    strataTransitiveAdopt:
+      params.strataTransitiveAdopt ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,
