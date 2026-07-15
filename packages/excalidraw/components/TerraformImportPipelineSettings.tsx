@@ -424,6 +424,23 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.converge.off": {
+    title: "Keep best order found · Off",
+    body: "The packed scorer returns the LAST hull order its bounded-greedy descent was holding when it stopped — even when an earlier candidate it visited scored strictly better. Non-convergence measured on the owner's real config: the dominant candidate was held then dropped between passes.",
+    dev: {
+      implements:
+        "strataPackedConverge=false: orderStrataUnits keeps the rolling incumbent as-is; byte-identical to the pre-converge engine.",
+    },
+  },
+  "strata.converge.on": {
+    title: "Keep best order found · On — G-DESCENT remedy",
+    body: "Returns the best hull order the packed scorer found across the whole descent instead of the last one it tried — recovers a strictly-better order the descent visited then dropped (measured 174→169 crossings on the staging-extended-localstack-v2 preset). Inert unless the Crossing budget (ε) is 1 or more: with ε at 0 (strict) the incumbent can never regress, so best-seen and last-tried coincide.",
+    dev: {
+      implements:
+        "strataPackedConverge / packedConverge — best-seen adopted snapshot under the active comparator (G-DESCENT remedy).",
+      refs: ["strata-methodology-audit-2026-07-15"],
+    },
+  },
   "strata.edgerouting.off": {
     title: "Route edges around containers · Off",
     body: "Every dependency arrow stays a straight centre-to-centre segment, even when it passes through a container box (hull frame or resource card) that is unrelated to both endpoints — W7/W8 measured 65–123 such penetrations per preset.",

@@ -75,6 +75,7 @@ export const TerraformStrataSettings = ({
   strataRankSeparate,
   strataPackedScoring,
   strataPackedScoringEpsilon,
+  strataPackedConverge,
   strataEdgeRouting,
   strataBandDepth,
   strataSiftRelocate,
@@ -88,6 +89,7 @@ export const TerraformStrataSettings = ({
   setStrataRankSeparate,
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
+  setStrataPackedConverge,
   setStrataEdgeRouting,
   setStrataBandDepth,
   setStrataSiftRelocate,
@@ -100,6 +102,7 @@ export const TerraformStrataSettings = ({
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
+  strataPackedConverge: boolean;
   strataEdgeRouting: boolean;
   strataBandDepth: StrataHullRole;
   strataSiftRelocate: boolean;
@@ -113,6 +116,7 @@ export const TerraformStrataSettings = ({
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
+  setStrataPackedConverge: (packedConverge: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
@@ -539,6 +543,51 @@ export const TerraformStrataSettings = ({
                     </option>
                   )}
                 </select>
+              </div>
+            )}
+            {strataPackedScoring && (
+              <div role="group" aria-label="Strata keep best order found">
+                <span className="TerraformImportModal__controlLabel">
+                  Keep best order found{" "}
+                  <span>
+                    return the best order the packed scorer found, not the last
+                    one it tried
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataPackedConverge,
+                    "strata.converge.off",
+                    () => setStrataPackedConverge(false),
+                  )}
+                  {option(
+                    "On",
+                    strataPackedConverge,
+                    "strata.converge.on",
+                    () => setStrataPackedConverge(true),
+                  )}
+                </div>
+                {strataPackedConverge && strataPackedScoringEpsilon === 0 && (
+                  <div
+                    className="TerraformImportModal__dependencyHint"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span aria-hidden="true">ⓘ</span>
+                    <span>
+                      Only changes the layout when the{" "}
+                      <strong>crossing budget (ε)</strong> is 1 or more.
+                    </span>
+                    <button
+                      type="button"
+                      className="TerraformImportModal__dependencyHintAction"
+                      onClick={() => setStrataPackedScoringEpsilon(1)}
+                    >
+                      Set ε to 1
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {strataRankSeparate && strataPackedScoring && (

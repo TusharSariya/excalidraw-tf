@@ -502,6 +502,10 @@ type LayoutSceneContext = {
   /** Edge-edge regression cap for the relocate descent. Optional — absent
    * inherits `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -617,6 +621,7 @@ async function buildPipelineLayoutSceneBody(
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
         strataSiftRelocate: ctx.strataSiftRelocate,
+        strataPackedConverge: ctx.strataPackedConverge,
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1200,6 +1205,7 @@ export async function layoutTerraformFromSources(
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     strataSiftRelocate: options?.strataSiftRelocate === true,
+    strataPackedConverge: options?.strataPackedConverge === true,
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine

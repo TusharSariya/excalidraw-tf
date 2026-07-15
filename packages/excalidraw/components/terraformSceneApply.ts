@@ -249,6 +249,10 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -301,6 +305,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataCrossWeightPenetration"
   | "strataCrossWeightEdge"
   | "strataEdgeCrossCap"
+  | "strataPackedConverge"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -350,6 +355,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   ...(session.strataEdgeCrossCap !== undefined
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
+  strataPackedConverge: session.strataPackedConverge === true,
 });
 
 /**
@@ -397,6 +403,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataCrossWeightPenetration"
   | "strataCrossWeightEdge"
   | "strataEdgeCrossCap"
+  | "strataPackedConverge"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -456,6 +463,7 @@ function buildPipelineFamilyLayoutOptions(
     ...(options.strataEdgeCrossCap !== undefined
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
       : {}),
+    strataPackedConverge: options.strataPackedConverge === true,
   };
 }
 

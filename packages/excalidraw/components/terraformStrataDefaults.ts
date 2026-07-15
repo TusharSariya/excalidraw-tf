@@ -38,6 +38,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * `strataPackedScoringEpsilon` when absent, so it is not seeded here. */
   strataCrossWeightPenetration: 1,
   strataCrossWeightEdge: 1,
+  /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
+   * snapshot instead of the rolling incumbent — probe lever, default off
+   * (inert at ε=0). */
+  strataPackedConverge: false,
 } as const;
 
 /**
@@ -73,6 +77,8 @@ export const resolveStrataDemoOptions = (params: {
   /** Edge-edge regression cap — OPTIONAL, no default materialized; absent
    * ⇒ the engine inherits `strataPackedScoringEpsilon`. */
   strataEdgeCap?: number;
+  /** G-DESCENT remedy: best-seen adopted snapshot return. */
+  strataPackedConverge?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -117,6 +123,9 @@ export const resolveStrataDemoOptions = (params: {
     ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
     strataSiftRelocate:
       params.strataSift ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSiftRelocate,
+    strataPackedConverge:
+      params.strataPackedConverge ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedConverge,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

@@ -875,3 +875,192 @@ describe("segmentIntersectsStrataBoxInterior — exact open-interior test", () =
     expect(hit(5, 0, 5, -8)).toBe(false);
   });
 });
+
+// ── packedConverge — best-seen snapshot return (G-DESCENT remedy) ────────────
+//
+// With epsilon 0 adoption is strictly monotone under the comparator, so the
+// rolling incumbent IS the best-seen snapshot and converge must be inert. Only
+// an ε-band adoption (packedScoringEpsilon > 0) can displace a comparator-
+// better incumbent (hold-then-drop) — that is the case converge exists for.
+
+// Shared single-build fixture for the ε-1 test below (both runs must see the
+// SAME model/edges/rank objects; blindSpotFixture() builds fresh ones).
+const model0 = (() => {
+  let cached: {
+    model: StrataModel;
+    rankR: StrataRankResult;
+    edgesE: StrataPrimeEdge[];
+  } | null = null;
+  return () => {
+    if (!cached) {
+      const { model, rank, edges } = blindSpotFixture();
+      cached = { model, rankR: rank, edgesE: edges };
+    }
+    return cached;
+  };
+})();
+
+describe("packedConverge — best-seen snapshot return", () => {
+  /** Lexicographic minimum over the ADOPTED frontier records (the best-seen). */
+  const bestSeenOf = (
+    records: readonly StrataPackedTrialRecord[],
+  ): StrataPackedScore => {
+    const adopted = records.filter((r) => r.adopted);
+    let best = adopted[0]!.score;
+    for (const r of adopted) {
+      if (strataPackedScoreLess(r.score, best)) {
+        best = r.score;
+      }
+    }
+    return best;
+  };
+
+  it("default off is byte-identical: flag absent === explicit false (ε 0 and ε 1)", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    for (const packedScoringEpsilon of [0, 1]) {
+      const absent = placeStrataHullsPackedScored(model, edges, rank, {
+        ...OPTS_K4,
+        packedScoringEpsilon,
+      });
+      const explicitOff = placeStrataHullsPackedScored(model, edges, rank, {
+        ...OPTS_K4,
+        packedScoringEpsilon,
+        packedConverge: false,
+      });
+      expect([...explicitOff.selections.entries()]).toEqual([
+        ...absent.selections.entries(),
+      ]);
+      expect(explicitOff.score).toEqual(absent.score);
+      expect(explicitOff.trialCount).toBe(absent.trialCount);
+      // The report-only field must be ABSENT on both off paths (object-shape
+      // byte-identity, not just value equality).
+      expect("convergeRecovered" in absent).toBe(false);
+      expect("convergeRecovered" in explicitOff).toBe(false);
+      expect(placementFingerprint(explicitOff.placement)).toBe(
+        placementFingerprint(absent.placement),
+      );
+    }
+  });
+
+  it("ε 0: converge is inert — strict-only adoption is monotone, the incumbent IS the best-seen", () => {
+    const { model, rank, edges } = blindSpotFixture();
+    const off = placeStrataHullsPackedScored(model, edges, rank, OPTS_K4);
+    const on = placeStrataHullsPackedScored(model, edges, rank, {
+      ...OPTS_K4,
+      packedConverge: true,
+    });
+    expect([...on.selections.entries()]).toEqual([...off.selections.entries()]);
+    expect(on.score).toEqual(off.score);
+    expect(on.trialCount).toBe(off.trialCount);
+    expect(on.convergeRecovered).toBe(false);
+    expect(placementFingerprint(on.placement)).toBe(
+      placementFingerprint(off.placement),
+    );
+  });
+
+  it("ε 1: a transiently-adopted-then-dropped winner is recovered within the 2-pass descent", () => {
+    // The hold-then-drop mechanism: an ε-band adoption strictly improves only
+    // the (pen, L1) suffix while crossings may rise back within the budget, so
+    // a comparator-dominant snapshot adopted earlier can be displaced. Converge
+    // must return that best-seen snapshot; the descent itself stays 2-pass
+    // bounded — no extra passes are bought.
+    const OPTS_EPS: StrataEngineOptions = {
+      ...OPTS_K4,
+      packedScoringEpsilon: 1,
+    };
+
+    // OFF with the frontier collector: detect whether this fixture actually
+    // oscillates (a comparator-better snapshot was adopted, then displaced).
+    const offRecords: StrataPackedTrialRecord[] = [];
+    const off = placeStrataHullsPackedScored(
+      model0().model,
+      model0().edgesE,
+      model0().rankR,
+      OPTS_EPS,
+      (r) => offRecords.push(r),
+    );
+    const bestSeenOff = bestSeenOf(offRecords);
+    const oscillated = strataPackedScoreLess(bestSeenOff, off.score);
+
+    // ON with the collector: the descent TRAJECTORY must be unchanged — the
+    // flag only changes what is returned.
+    const onRecords: StrataPackedTrialRecord[] = [];
+    const on = placeStrataHullsPackedScored(
+      model0().model,
+      model0().edgesE,
+      model0().rankR,
+      { ...OPTS_EPS, packedConverge: true },
+      (r) => onRecords.push(r),
+    );
+    expect(onRecords).toEqual(offRecords);
+    expect(on.trialCount).toBe(off.trialCount);
+    expect(on.baselineScore).toEqual(off.baselineScore);
+
+    // The return contract: score === the comparator-minimum over adopted
+    // trials, and it is never worse than the incumbent OFF returned.
+    expect(on.score).toEqual(bestSeenOf(onRecords));
+    expect(strataPackedScoreLess(off.score, on.score)).toBe(false);
+
+    if (oscillated) {
+      // RECOVERY: the best-seen snapshot strictly beats the rolling incumbent.
+      expect(strataPackedScoreLess(on.score, off.score)).toBe(true);
+      expect(on.score).toEqual(bestSeenOff);
+      expect(on.convergeRecovered).toBe(true);
+    } else {
+      // NO-CHANGE-tolerant (house rule — reported honestly, never forced):
+      // this fixture did not hold-then-drop at ε=1, so converge is inert.
+      // eslint-disable-next-line no-console -- probe output IS the deliverable
+      console.log(
+        "packedConverge fixture: NO hold-then-drop at ε=1 — converge inert on this fixture (real-preset Config 2 covers the recovery path)",
+      );
+      expect(on.convergeRecovered).toBe(false);
+      expect(placementFingerprint(on.placement)).toBe(
+        placementFingerprint(off.placement),
+      );
+    }
+
+    // Replay contract: the returned selections reproduce the returned
+    // placement through placeStrataHulls (the per-hull map is the real
+    // contract, not a side path) — this is what forces `selections` to be the
+    // best-seen SNAPSHOT's map, not the final incumbent's.
+    const replay = placeStrataHulls(
+      model0().model,
+      model0().edgesE,
+      model0().rankR,
+      OPTS_EPS,
+      new Map(on.selections),
+    );
+    expect(placementFingerprint(replay)).toBe(
+      placementFingerprint(on.placement),
+    );
+
+    // Deterministic: double-compute is selection- and placement-identical.
+    const again = placeStrataHullsPackedScored(
+      model0().model,
+      model0().edgesE,
+      model0().rankR,
+      { ...OPTS_EPS, packedConverge: true },
+    );
+    expect([...again.selections.entries()]).toEqual([
+      ...on.selections.entries(),
+    ]);
+    expect(placementFingerprint(again.placement)).toBe(
+      placementFingerprint(on.placement),
+    );
+  });
+
+  it("canonical fingerprint: two logically-equal selection maps with different insertion order place identically", () => {
+    // Best-seen snapshot tracking snapshots the rolling selection map; the
+    // observable contract: placeStrataHulls is a pure function of the map's
+    // ENTRIES, not its insertion order.
+    const { model, rank, edges } = blindSpotFixture();
+    const scored = placeStrataHullsPackedScored(model, edges, rank, OPTS_K4);
+    expect(scored.selections.size).toBeGreaterThanOrEqual(1);
+    const entries = [...scored.selections.entries()];
+    const forward = new Map(entries);
+    const reversed = new Map([...entries].reverse());
+    const a = placeStrataHulls(model, edges, rank, OPTS_K4, forward);
+    const b = placeStrataHulls(model, edges, rank, OPTS_K4, reversed);
+    expect(placementFingerprint(a)).toBe(placementFingerprint(b));
+  });
+});

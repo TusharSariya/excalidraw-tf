@@ -139,6 +139,14 @@ export type StrataPackedScoredPlacement = {
   selections: ReadonlyMap<string, number>;
   /** Full trial placements evaluated (cost observability). */
   trialCount: number;
+  /**
+   * G-DESCENT converge (report-only, present ONLY when `packedConverge` is
+   * on — the default return object shape is byte-identical): true when the
+   * best-seen adopted snapshot strictly beat the final rolling incumbent
+   * under the active comparator (i.e. the descent held-then-dropped a
+   * dominant order and converge recovered it).
+   */
+  convergeRecovered?: boolean;
 };
 
 /** `a` strictly precedes `b` lexicographically (crossings, penetrations, L1). */
@@ -833,6 +841,51 @@ export function placeStrataHullsPackedScored(
   let bestScore = baselineScore;
   const selection = new Map<string, number>();
 
+  // G-DESCENT converge (`packedConverge`, default off ⇒ the tracker is never
+  // allocated and the return below is byte-identical). When on, every ADOPTION
+  // snapshots the FULL rolling selection map (a `new Map(selection)` copy) +
+  // its placement + score, and the descent returns the best-seen snapshot
+  // under the ACTIVE comparator (relocate-weighted when `strataSiftRelocate`,
+  // else the strict lexicographic rule) instead of the rolling incumbent. The
+  // descent TRAJECTORY (trials, adoption decisions, trialCount, frontier
+  // records) is untouched — only the return changes. Strict-better replaces;
+  // ties keep the EARLIEST snapshot (never replace on tie — diff stability).
+  // At ε=0 adoption is strictly monotone, so best-seen ≡ rolling incumbent
+  // and converge is inert by construction.
+  // Off-path discipline: when the flag is off, NONE of the best-seen
+  // machinery exists — no closures allocated, no per-adoption calls — so the
+  // default path does literally no extra work beyond an optional-call null
+  // check at the two adoption sites.
+  const packedConverge = options.packedConverge === true;
+  let bestSeen: {
+    score: StrataPackedScore;
+    selection: Map<string, number>;
+    placement: StrataPlacementResult;
+  } | null = null;
+  let seenLess:
+    | ((a: StrataPackedScore, b: StrataPackedScore) => boolean)
+    | null = null;
+  let considerBestSeen:
+    | ((score: StrataPackedScore, placement: StrataPlacementResult) => void)
+    | null = null;
+  if (packedConverge) {
+    const less = (a: StrataPackedScore, b: StrataPackedScore): boolean =>
+      siftRelocate
+        ? strataRelocateScoreLess(a, b, relocateCfg)
+        : strataPackedScoreLess(a, b);
+    seenLess = less;
+    bestSeen = {
+      score: baselineScore,
+      selection: new Map<string, number>(),
+      placement: baselinePlacement,
+    };
+    considerBestSeen = (score, placement) => {
+      if (bestSeen !== null && less(score, bestSeen.score)) {
+        bestSeen = { score, selection: new Map(selection), placement };
+      }
+    };
+  }
+
   if (options.sweeps > 0) {
     const hullIds = reorderablePackedHullIds(model.hullRoot);
     const LEGACY = -1;
@@ -874,6 +927,7 @@ export function placeStrataHullsPackedScored(
             bestScore = score;
             selection.set(hullId, c);
             changed = true;
+            considerBestSeen?.(score, placement);
           }
         }
         // Pass 2: also retry dropping this hull back to legacy.
@@ -905,6 +959,7 @@ export function placeStrataHullsPackedScored(
             bestScore = score;
             selection.delete(hullId);
             changed = true;
+            considerBestSeen?.(score, placement);
           }
         }
       }
@@ -912,6 +967,25 @@ export function placeStrataHullsPackedScored(
         break;
       }
     }
+  }
+
+  // G-DESCENT converge return: the best-seen adopted snapshot's OWN placement/
+  // score/selection map (never the rolling values re-forced onto the final map
+  // — the winner can differ from the incumbent in several hulls). Default off
+  // returns the rolling incumbent EXACTLY as before (byte-identical).
+  if (bestSeen !== null && seenLess !== null) {
+    const recovered = seenLess(bestSeen.score, bestScore);
+    return {
+      placement: recovered ? bestSeen.placement : bestPlacement,
+      baselinePlacement,
+      baselineScore,
+      score: recovered ? bestSeen.score : bestScore,
+      epsilon,
+      effectiveDelta,
+      selections: recovered ? bestSeen.selection : selection,
+      trialCount,
+      convergeRecovered: recovered,
+    };
   }
 
   return {

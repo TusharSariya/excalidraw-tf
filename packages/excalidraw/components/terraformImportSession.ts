@@ -101,6 +101,10 @@ export type TerraformImportSession = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

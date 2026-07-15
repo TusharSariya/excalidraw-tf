@@ -688,6 +688,7 @@ describe("terraformDemoUrlParams", () => {
         strataPackedScoring: true,
         strataPackedEps: 2,
         strataBandCompact: true,
+        strataPackedConverge: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),

@@ -89,6 +89,10 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer.
    * Default 0 (strict rule). */
   strataPackedScoringEpsilon?: number;
+  /** Strata G-DESCENT converge: return the packed scorer's best-seen adopted
+   * snapshot instead of the last rolling incumbent. Default off; inert unless
+   * `strataPackedScoringEpsilon` >= 1. */
+  strataPackedConverge?: boolean;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
@@ -145,6 +149,7 @@ export const runTerraformImportWithView = async ({
   strataRankSeparate,
   strataPackedScoring,
   strataPackedScoringEpsilon,
+  strataPackedConverge,
   strataEdgeRouting,
   strataBandCompact,
   strataBandDepth,
@@ -205,6 +210,7 @@ export const runTerraformImportWithView = async ({
           strataRankSeparate,
           strataPackedScoring,
           strataPackedScoringEpsilon,
+          strataPackedConverge,
           strataEdgeRouting,
           strataBandCompact,
           strataBandDepth,
@@ -253,6 +259,9 @@ export type RunTerraformPresetImportOptions = {
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
   strataPackedScoringEpsilon?: number;
+  /** Strata G-DESCENT converge: best-seen adopted snapshot. Default off;
+   * inert unless `strataPackedScoringEpsilon` >= 1. */
+  strataPackedConverge?: boolean;
   strataEdgeRouting?: boolean;
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
@@ -330,6 +339,7 @@ export const runTerraformPresetImport = async (
     strataRankSeparate: options.strataRankSeparate,
     strataPackedScoring: options.strataPackedScoring,
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
+    strataPackedConverge: options.strataPackedConverge,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,

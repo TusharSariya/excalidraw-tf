@@ -220,6 +220,10 @@ export type TerraformPlanParsingOptions = {
   /** Edge-edge regression cap for the relocate descent. Optional — absent
    * inherits `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

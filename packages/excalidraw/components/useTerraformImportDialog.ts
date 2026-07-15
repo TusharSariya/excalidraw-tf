@@ -149,6 +149,12 @@ export const useTerraformImportDialog = ({
   const [strataPackedScoringEpsilon, setStrataPackedScoringEpsilon] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon as number,
   );
+  // Strata G-DESCENT converge (strata-only): return the best-seen adopted
+  // snapshot instead of the packed descent's last rolling incumbent. Default
+  // OFF (byte-identical off); inert unless strataPackedScoringEpsilon >= 1.
+  const [strataPackedConverge, setStrataPackedConverge] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedConverge as boolean,
+  );
   // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
   // routing — penetrating edges only. Default OFF pending its gate battery.
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
@@ -492,6 +498,7 @@ export const useTerraformImportDialog = ({
         strataRankSeparate,
         strataPackedScoring,
         strataPackedScoringEpsilon,
+        strataPackedConverge,
         strataEdgeRouting,
         strataBandDepth,
         strataSiftRelocate,
@@ -645,6 +652,7 @@ export const useTerraformImportDialog = ({
           strataRankSeparate,
           strataPackedScoring,
           strataPackedScoringEpsilon,
+          strataPackedConverge,
           strataEdgeRouting,
           strataBandDepth,
           strataSiftRelocate,
@@ -761,6 +769,7 @@ export const useTerraformImportDialog = ({
         strataRankSeparate,
         strataPackedScoring,
         strataPackedScoringEpsilon,
+        strataPackedConverge,
         strataEdgeRouting,
         strataBandDepth,
         signal: layoutAbortRef.current?.signal,
@@ -990,6 +999,7 @@ export const useTerraformImportDialog = ({
         strataRankSeparate,
         strataPackedScoring,
         strataPackedScoringEpsilon,
+        strataPackedConverge,
         strataEdgeRouting,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
@@ -1031,6 +1041,7 @@ export const useTerraformImportDialog = ({
     strataRankSeparate,
     strataPackedScoring,
     strataPackedScoringEpsilon,
+    strataPackedConverge,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1068,6 +1079,7 @@ export const useTerraformImportDialog = ({
     strataRankSeparate,
     strataPackedScoring,
     strataPackedScoringEpsilon,
+    strataPackedConverge,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1127,6 +1139,7 @@ export const useTerraformImportDialog = ({
     setStrataRankSeparate,
     setStrataPackedScoring,
     setStrataPackedScoringEpsilon,
+    setStrataPackedConverge,
     setStrataEdgeRouting,
     setStrataBandDepth,
     setStrataSiftRelocate,

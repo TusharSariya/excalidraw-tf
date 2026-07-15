@@ -147,6 +147,10 @@ export type TerraformDemoUrlParams = {
   /** Edge-edge regression cap (`strataEdgeCap`). Optional — absent inherits
    * `strataPackedEps`. */
   strataEdgeCap?: number;
+  /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
+   * snapshot instead of the rolling incumbent (`strataPackedConverge=1/0`).
+   * Default off; inert at ε=0. */
+  strataPackedConverge?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -467,6 +471,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataSift === null) {
     return null;
   }
+  const strataPackedConverge = parseBooleanParam("strataPackedConverge");
+  if (strataPackedConverge === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -666,6 +674,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPenW != null ? { strataPenW } : {}),
     ...(strataCrossW != null ? { strataCrossW } : {}),
     ...(strataEdgeCap != null ? { strataEdgeCap } : {}),
+    ...(strataPackedConverge != null ? { strataPackedConverge } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -741,6 +750,7 @@ export const buildTerraformDemoUrl = (
   setNum("strataPenW", params.strataPenW);
   setNum("strataCrossW", params.strataCrossW);
   setNum("strataEdgeCap", params.strataEdgeCap);
+  setBool("strataPackedConverge", params.strataPackedConverge);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -853,6 +863,10 @@ export type TerraformDemoSettingsSnapshot = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
+   * snapshot. Optional (no dialog control; default off) so pre-existing
+   * snapshot literals still type-check. */
+  strataPackedConverge?: boolean;
 };
 
 /**
@@ -969,6 +983,8 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataEdgeCrossCap !== undefined
         ? { strataEdgeCap: snapshot.strataEdgeCrossCap }
         : {}),
+      // G-DESCENT converge: default-off — truthy-only, like packed scoring.
+      ...(snapshot.strataPackedConverge ? { strataPackedConverge: true } : {}),
     };
   }
 

@@ -137,6 +137,13 @@ export type TerraformStrataSceneOptions = {
    */
   strataEdgeCrossCap?: number;
   /**
+   * G-DESCENT remedy (default off, opt-in): the packed-scoring descent returns
+   * the best-seen ADOPTED snapshot under the active comparator instead of the
+   * rolling incumbent. Inert at ε=0 (strict adoption is monotone). Threaded
+   * into `engineOptions.packedConverge` only when on (byte-identity).
+   */
+  strataPackedConverge?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -240,6 +247,8 @@ export async function buildTerraformStrataExcalidrawScene(
     options?.strataCrossWeightPenetration ?? 1;
   const strataCrossWeightEdge = options?.strataCrossWeightEdge ?? 1;
   const strataEdgeCrossCap = options?.strataEdgeCrossCap;
+  // G-DESCENT remedy: best-seen adopted-snapshot return, default off.
+  const strataPackedConverge = options?.strataPackedConverge === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
@@ -277,6 +286,8 @@ export async function buildTerraformStrataExcalidrawScene(
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         }
       : {}),
+    // G-DESCENT converge echo — present only when on (flag-off byte-identity).
+    ...(strataPackedConverge ? { strataPackedConverge: true } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -334,6 +345,9 @@ export async function buildTerraformStrataExcalidrawScene(
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         }
       : {}),
+    // G-DESCENT converge: rides ONLY when on, so the flag-off engineOptions
+    // object shape is byte-identical to today.
+    ...(strataPackedConverge ? { packedConverge: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.

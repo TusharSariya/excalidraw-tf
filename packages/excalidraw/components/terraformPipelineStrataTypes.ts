@@ -105,6 +105,17 @@ export type StrataEngineOptions = {
    * unaffected.
    */
   strataEdgeCrossCap?: number;
+  /**
+   * G-DESCENT remedy (default off, opt-in): the packed-scoring descent returns
+   * the BEST-SEEN ADOPTED snapshot under the active comparator (with that
+   * snapshot's own selection map + placement + score) instead of the rolling
+   * incumbent. Inert at ε=0 (strict adoption is monotone — incumbent IS the
+   * best-seen); only ε-band adoption (`packedScoringEpsilon` > 0) can displace
+   * a comparator-better incumbent (the diagnosed hold-then-drop). Consumed only
+   * when `packedScoring` is on. Optional so existing option literals (flag-OFF
+   * byte-identity) are unaffected.
+   */
+  packedConverge?: boolean;
 };
 
 /**

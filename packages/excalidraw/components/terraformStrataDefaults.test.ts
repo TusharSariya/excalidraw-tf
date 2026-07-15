@@ -21,6 +21,10 @@ describe("resolveStrataDemoOptions", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
+      strataSiftRelocate: false,
+      strataCrossWeightPenetration: 1,
+      strataCrossWeightEdge: 1,
+      strataPackedConverge: false,
       // The default cut ("account") is OMITTED (raw-forward discipline): no
       // seam may materialize a default `strataBandDepth` own key.
     });
@@ -69,6 +73,10 @@ describe("resolveStrataDemoOptions", () => {
       strataPackedScoringEpsilon: 0,
       strataEdgeRouting: false,
       strataBandCompact: false,
+      strataSiftRelocate: false,
+      strataCrossWeightPenetration: 1,
+      strataCrossWeightEdge: 1,
+      strataPackedConverge: false,
       // Default cut omitted — see the bare-URL test above.
     });
   });

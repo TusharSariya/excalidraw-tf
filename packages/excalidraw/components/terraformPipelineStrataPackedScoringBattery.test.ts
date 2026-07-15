@@ -87,6 +87,40 @@ const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
     strataCoordinateRefine: true,
     strataPackedScoring: true,
   },
+  // G-DESCENT converge pair. Converge is provably inert at ε 0 (strict-only
+  // adoption is monotone; incumbent === best-seen), so the pair MUST carry
+  // ε >= 1 — a bare P+converge arm would measure nothing. Config-2-shaped
+  // (bandDepth root + A7 + rankSeparate + siftRelocate + ε 1 — the owner's
+  // real URL), the configuration the hold-then-drop was diagnosed on.
+  /** Config-2 substrate WITHOUT converge — the paired baseline for the lever. */
+  C2_strata_config2: {
+    layoutMode: "strata",
+    pipelineCompact: true,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+    strataRankSeparate: true,
+    strataBandDepth: "root",
+    strataPackedScoring: true,
+    strataSiftRelocate: true,
+    strataPackedScoringEpsilon: 1,
+    strataCrossWeightPenetration: 1,
+    strataCrossWeightEdge: 1,
+  },
+  /** Config-2 + the lever under test: best-seen snapshot return. */
+  Q_strata_config2_converge: {
+    layoutMode: "strata",
+    pipelineCompact: true,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+    strataRankSeparate: true,
+    strataBandDepth: "root",
+    strataPackedScoring: true,
+    strataSiftRelocate: true,
+    strataPackedScoringEpsilon: 1,
+    strataCrossWeightPenetration: 1,
+    strataCrossWeightEdge: 1,
+    strataPackedConverge: true,
+  },
 };
 
 /** [baseline, candidate] pairs the gate plan reads. */
@@ -94,6 +128,8 @@ const CELL_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ["A_v2_baseline", "I_strata_k4_a7"],
   ["A_v2_baseline", "P_strata_k4_a7_packed"],
   ["I_strata_k4_a7", "P_strata_k4_a7_packed"],
+  ["C2_strata_config2", "Q_strata_config2_converge"],
+  ["I_strata_k4_a7", "Q_strata_config2_converge"],
 ];
 
 // ── final-geometry penetration counter (the scorer's term, re-measured) ─────
@@ -101,7 +137,10 @@ const CELL_PAIRS: ReadonlyArray<readonly [string, string]> = [
 type Box = { x: number; y: number; w: number; h: number };
 
 const pointInBox = (px: number, py: number, b: Box, pad = 0): boolean =>
-  px >= b.x - pad && px <= b.x + b.w + pad && py >= b.y - pad && py <= b.y + b.h + pad;
+  px >= b.x - pad &&
+  px <= b.x + b.w + pad &&
+  py >= b.y - pad &&
+  py <= b.y + b.h + pad;
 
 /** Proper segment vs axis-aligned box intersection (either endpoint inside counts). */
 function segmentIntersectsBox(
@@ -197,9 +236,10 @@ function arrowPolyline(el: ExcalidrawElement): Array<[number, number]> {
  * endpoint lies inside the (2px-padded) box — endpoint boxes are the arrow's
  * own legitimate containers/targets.
  */
-function countPenetrations(
-  elements: readonly ExcalidrawElement[],
-): { hullPenetrations: number; cardPenetrations: number } {
+function countPenetrations(elements: readonly ExcalidrawElement[]): {
+  hullPenetrations: number;
+  cardPenetrations: number;
+} {
   const arrows = elements.filter(isTfdArrow);
   const hulls: Box[] = elements
     .filter(isHullFrame)
@@ -270,9 +310,7 @@ function ownerCase(elements: readonly ExcalidrawElement[]) {
   const cy = (e: ExcalidrawElement) => e.y + e.height / 2;
   return {
     found: true,
-    centreDistancePx: round2(
-      Math.hypot(cx(src) - cx(dst), cy(src) - cy(dst)),
-    ),
+    centreDistancePx: round2(Math.hypot(cx(src) - cx(dst), cy(src) - cy(dst))),
   };
 }
 
@@ -400,7 +438,9 @@ function extentCell(
   cand: ReadonlyMap<string, number>,
 ) {
   const run = (statistic: BootstrapStatistic) =>
-    ciView(pairedBootstrapCi({ baseline: base, candidate: cand }, { statistic }));
+    ciView(
+      pairedBootstrapCi({ baseline: base, candidate: cand }, { statistic }),
+    );
   return { p50: run("p50"), p90: run("p90"), meanLegacy: run("mean") };
 }
 
@@ -474,6 +514,24 @@ describe("W7 packed-scoring battery (report-emitting; never asserts gates)", () 
         const armData = new Map<string, ArmData>();
         const armRows = new Map<string, PathMetricsRow[]>();
         const arms: Record<string, unknown> = {};
+        // W10b known flag (owner-flagged in W15 for the `_BC` arms):
+        // bandDepth-"root" arms legitimately produce an EMPTY slice-B (edges
+        // reclassify B→A) — confirmed on BOTH presets in the W15 bandCompact
+        // battery. NOT a converge regression. The whitelist is deliberately
+        // narrow: (1) exact (preset, arm) pairs only — a new preset added to
+        // the battery is NOT auto-whitelisted; (2) OFF/ON PARITY required —
+        // both Config-2 arms must empty together on that preset, so a NEW
+        // empty slice on just one side of the pair still fails the health
+        // gate. Every other arm hard-fails as before.
+        const SLICE_B_ROOT_CUT_ARMS = [
+          "C2_strata_config2",
+          "Q_strata_config2_converge",
+        ] as const;
+        const SLICE_B_ROOT_CUT_EMPTY_PRESETS: ReadonlySet<string> = new Set([
+          "P1",
+          "P2",
+        ]);
+        const emptyRootCutSliceB = new Set<string>();
         for (const armLabel of Object.keys(ARM_OPTIONS)) {
           const { data, pathRows } = await buildArm(
             sources,
@@ -483,7 +541,17 @@ describe("W7 packed-scoring battery (report-emitting; never asserts gates)", () 
           armRows.set(armLabel, pathRows);
           arms[armLabel] = armSummary(data, pathRows);
           if (data.nSliceB === 0) {
-            softFailures.push(`${preset}/${armLabel}: slice-B EMPTY`);
+            if (
+              (SLICE_B_ROOT_CUT_ARMS as readonly string[]).includes(
+                armLabel,
+              ) &&
+              SLICE_B_ROOT_CUT_EMPTY_PRESETS.has(presetLabel)
+            ) {
+              // Deferred: whitelisted only if the paired arm empties too.
+              emptyRootCutSliceB.add(armLabel);
+            } else {
+              softFailures.push(`${preset}/${armLabel}: slice-B EMPTY`);
+            }
           }
           if (data.paths.sampled === 0) {
             softFailures.push(`${preset}/${armLabel}: path population EMPTY`);
@@ -498,6 +566,26 @@ describe("W7 packed-scoring battery (report-emitting; never asserts gates)", () 
                 data.rcllV2Degraded,
               )}`,
             );
+          }
+        }
+
+        // OFF/ON parity gate for the deferred root-cut empties: whitelisted
+        // ONLY when BOTH Config-2 arms emptied on this preset. A one-sided
+        // empty is a NEW divergence between the paired arms → health failure.
+        if (emptyRootCutSliceB.size > 0) {
+          if (emptyRootCutSliceB.size === SLICE_B_ROOT_CUT_ARMS.length) {
+            // eslint-disable-next-line no-console -- probe output IS the deliverable
+            console.log(
+              `${preset}: slice-B EMPTY for ${[...emptyRootCutSliceB].join(
+                " + ",
+              )} (whitelisted W10b bandDepth-root behavior; OFF/ON parity held)`,
+            );
+          } else {
+            for (const armLabel of emptyRootCutSliceB) {
+              softFailures.push(
+                `${preset}/${armLabel}: slice-B EMPTY without OFF/ON parity (paired Config-2 arm non-empty)`,
+              );
+            }
           }
         }
 
