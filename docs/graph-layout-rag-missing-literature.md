@@ -125,3 +125,63 @@ thread (`research-thread-constraints`); connector routing (`doi-10-1007-11618058
   prefixes) for: Purchase Metrics 2002, Klammler (arxiv + s2), (SGD)² (arxiv + s2), Stott 2004
   (iv-2004 forward), shape-based metrics (×3), Effects-of-Sociogram (×2), Di Bartolomeo review
   (osf + cgf). A dedupe pass during the next ingest would improve `cite`-graph keying.
+
+
+---
+
+## Appendix — 13-agent readability investigation harvest (2026-07-15)
+
+
+Compiled by JOINT-SYNTH from the 11 per-agent "missing from graph-layout-rag" stubs
+(F-CROSS, F-PEN, F-LEN, F-ANG, F-HUB, F-LR, M-MEAS, M-OBJ, CASE-C1/C2/C3). Deduped
+and grouped by theme. Sources tagged `[agent]`; "present" notes what the corpus already
+has so we don't re-harvest. **P0** = load-bearing for the prescription (harvest first).
+
+## Layering / ranking (flow axis — the X-operator's theory)
+1. **Gansner, North, Vo — "GNV2" full min-cost-flow / LP optimal ranking** (the treatment TSE93 §2.2 forward-references) — corpus has only the TSE93 summary. Sharpens the height↔length bicriteria. `[F-LEN]`
+2. **Eiglsperger, Siebenhaller, Kaufmann — "An Efficient Implementation of Sugiyama's Algorithm for Layered Graph Drawing"** (GD 2004) — modern NS-layering + Brandes–Köpf coordinate combo; the concrete implementation template. `[F-LEN, F-LR]`
+3. **Coffman–Graham layering** primary (width-bounded layering) — the third corner of the height/width/length trilemma; needed to reason about the height-regression risk. `[F-LEN]`
+4. **Petit — "Experiments on the Minimum Linear Arrangement Problem"** — canonical MinLA empirical baseline; corpus has only downstream MinLA theory. `[F-LEN]`
+5. **Compound / containment-constrained ranking + x-coordinate assignment** — the real gap: hierarchically-contained (hull/cluster) rank compaction and rigid group/hull horizontal translation subject to inter-group separation + LR precedence. Pull on: ELK `RectPacking`/compound `layered` compaction, Sander compound Sugiyama, priority/network-simplex compaction with group constraints. `[F-LEN, CASE-C3]` — *present & sufficient for the flat + port-aware half:* Gansner TSE93 `gansner-tse93`, Rüegg et al. size/port-aware X-assignment `elk-10-1007-978-3-319-27261-0-12`.
+6. **"Pull sinks toward sources" — barycenter / median-X on terminal rank / dot `rank=sink`** — frames the guarded left-shift for pure-sink accounts (the C3-block dead-gap). `[CASE-C3]`
+7. **Interval-constrained single-vertex re-ranking that trades −1 crossing for a length increase** (bicriteria, tiny-gain regime) — the exact C1 operator; no citation located. `[CASE-C1]`
+
+## LR / upward-drawing feasibility
+8. **Sugiyama–Tagawa–Toda 1981 — "Methods for Visual Understanding of Hierarchical System Structures"** (IEEE SMC-11) — foundational LR/layered framework AND the explicit "priority = degree" ordering rule; corpus is metadata-only. `[F-LR, F-HUB]`
+9. **Di Battista–Tamassia upward planarity (1988); Garg–Tamassia upward-planarity complexity (1995)** — the primary complexity results for LR-feasibility ≡ upward/monotone drawing; corpus surfaces only JGAA monotone-drawing hits. `[F-LR]`
+10. **Brandes–Köpf under non-unit / shared (banded) slots** — coordinate assignment when multiple nodes share a layer-perpendicular band (strata's packed-row regime); no source found. BK itself is present (`elk-10-1007-3-540-45848-4-3` + erratum `arxiv-2008.01252`). `[F-LR]`
+11. **Dataflow left-to-right convention primary** (structured-analysis / SADT / DFD / UML-activity layout norms) — the "TFD left-to-right rule" is asserted with no cited primary. `[F-LR]`
+
+## Penetration / clustered planarity / containment
+12. **Feng, Cohen, Eades 1995 — "Planar Drawing of Clustered Graphs"** (GD'95) — c-planarity origin, the hard/definitional formulation; cited, no PDF. `[F-PEN]`
+13. **Sugiyama & Misue 1991 — "Visualization of structural information: automatic drawing of compound digraphs"** (IEEE SMC) — compound-layout origin; cited only. `[F-PEN]`
+14. **Dwyer, Marriott, Stuckey 2006 — IPSep-CoLa / "Fast Node Overlap Removal"** — the containment-as-separation primary source; metadata stub, no extractable text. `[F-PEN]`
+15. **Bouts & Speckmann 2015 — "Clustered Edge Routing"** (PacificVis) — edges routed around cluster hulls with permeable ancestor hulls = the exact routed-penetration model; repo's router cites it, corpus lacks the PDF. **P0** (the penetration-by-routing prescription rests on it). `[F-PEN]`
+16. **Nöllenburg & Wolff 2011 — "Drawing and Labeling High-Quality Metro Maps by MIP"** (IEEE TVCG, `forward-10-1109-tvcg-2010-81`) — metadata-only; H1–H4 hard-constraint list + lazy-constraint tractability + the interchange-bend cost (the `thru`-continuity term template). **P0.** `[F-PEN, F-HUB]`
+17. **Fulek & Tóth 2019 — "Atomic Embeddability, Clustered Planarity, and Thickenability"** (SODA) — poly-time c-planarity; absent. `[F-PEN]`
+18. **Dwyer et al. 2008 — "Dunnart: A Constraint-based Network Diagram Authoring Tool"** — applied hard-constraint authoring; not in corpus. `[F-PEN]`
+
+## Crossing angle / straightness / octilinearity
+19. **Ware, Purchase, Colpoys, McGill 2002 — "Cognitive Measurements of Graph Aesthetics"** (Info Vis, `doi-10-1057-palgrave-ivs-9500013`) — **metadata-only; full text is the P0 harvest** for the on-path continuity coefficient the whole hub/straightness prescription rests on (code embeds the coefficients only). Flagged independently by F-ANG, F-HUB, M-MEAS. **P0.** `[F-ANG, F-HUB, M-MEAS]`
+20. **Huang, Eades, Hong, Lin 2013/2014 — "Improving Multiple Aesthetics Produces Better Graph Drawings"** (JVLC) — the joint crossing-angle × crossings × symmetry tradeoff study; directly on-point for the angle-redundancy question. `[F-ANG]`
+21. **Argyriou, Bekos, Symvonis — "Maximizing Total Resolution / RAC via SGD"** + crossing-resolution follow-ups to Huang 2008 — the quantitative response-time-vs-angle curve to pin θ\* (vs the 70° default). `[F-ANG]`
+22. **Kieffer, Dwyer, Marriott, Wybrow 2016 — "HOLA: Human-like Orthogonal Network Layout"** — orthogonal-with-good-angles for hierarchical/DAG layouts (closer to the LR case than metro). `[F-ANG]`
+23. **Bekos / Didimo — "Graph Drawing Beyond Planarity" survey, RAC / large-angle chapters** — the soft-vs-hard angle tractability boundary under a layered/LR skeleton. `[F-ANG]`
+24. **Empirical study of octilinearity value in NON-metro (software/architecture/dependency) diagrams** — all corpus octilinear work is transit-map; whether the ~27% octilinear deficit hurts dependency-graph readability is open & un-cited. `[F-ANG]`
+25. **Dawson / Ware search-set path-tracing follow-ups** — eye-tracking on tracing a path *through* nodes (branch fan-out cost at through-nodes); needed to price the `thru`-weight. `[F-HUB]`
+26. **Purchase 1997 — "Which aesthetic has the greatest effect on human understanding?"** — the bends-second ranking underpinning continuity priority; missing. `[F-HUB]`
+   - *Present & adequate for hub rendering:* Bach confluent (2016), Zheng power-confluent (2019), Holten FDEB (2009). Gap is placement/perception, not rendering.
+
+## Measurement / proxy-fidelity theory
+27. **Biased-but-monotone proxy metrics / surrogate-objective fidelity** — when a cheap surrogate preserves rank order vs when it sign-flips; the empirical result was measured here, corpus lacks the theory reference. `[M-MEAS]`
+28. **Chord-vs-rendered / pre-vs-post-routing metric divergence as a named result** — measuring the same graph on straight chords vs its routed rendering; Mooney 2025 (per-edge-geometry distributions) is the nearest vehicle, no direct paper. `[M-MEAS, F-CROSS]`
+29. **Crossing-angle ↔ crossing-count anti-correlation quantified** — Huang 2008 is qualitative eye-tracking; no metric-landscape paper co-plots the two on one corpus (Mooney's landscape work nearest). `[M-MEAS]`
+30. **Size-portability of fixed exchange-rate weights (penW:crossW) under un-normalized counts** — Klammler-style weight-learning exists (`arxiv-1809-01017v1`), the normalization-sensitivity analysis does not. `[M-MEAS]`
+31. **Crossing count of centre-chord proxies vs boundary-attached rendered edges** (the +18% over-count bias); **angle-weighted crossing cost validated at n≈hundreds layered/orthogonal drawings** (Huang's is small node-link); **crossings inside compound/clustered layered drawings**; **pre-refinement vs post-refinement ranking-inversion hazard** (scoring proxy geometry the compaction then re-orders — an engineering pitfall the literature doesn't name). `[F-CROSS]`
+
+## Multi-objective-optimization / OR theory (all expected-absent from a graph-drawing corpus; harvest only if the objective rework proceeds)
+32. **Haimes, Lasdon, Wismer 1971** — ε-constraint method origin (authority for "ε = constrained selection over a Pareto frontier"). `[M-OBJ]`
+33. **Miettinen 1999 — *Nonlinear Multiobjective Optimization*** — lexicographic as the weight-ratio→∞ limit of weighted-sum; weighted-sum cannot reach non-convex Pareto points, ε-constraint can. `[M-OBJ]`
+34. **Marler & Arora 2004 — "Survey of multi-objective optimization methods for engineering"** — weighted-sum vs lexicographic vs ε-constraint validity/normalization. `[M-OBJ]`
+35. **Charnes & Cooper — goal programming (lexicographic/preemptive)** — the OR framing strata's lexicographic keys unknowingly are. `[M-OBJ]`
+   - *Present & sufficient for the graph-drawing side:* Klammler `arxiv-1809-01017v1`, Ahmed `(SGD)²`, Bast/Brosi, Nöllenburg-Wolff, Dwyer/IPSep-CoLa.
