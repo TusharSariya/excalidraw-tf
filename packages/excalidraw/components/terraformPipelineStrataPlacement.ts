@@ -24,12 +24,12 @@
  * `build.width/height`.
  */
 import {
-  PIPELINE_CLUSTER_GAP_Y,
   PIPELINE_FRAME_PAD,
   PIPELINE_LANE_GAP_Y,
   PIPELINE_MARGIN,
 } from "./terraformPipelineLayoutShared";
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
+import { strataGapBetween } from "./terraformPipelineStrataSeparation";
 import {
   liftStrataEdgesToUnits,
   orderStrataUnits,
@@ -58,17 +58,21 @@ import type {
 // test-caught failure). Call-time reads always see the initialized bindings.
 /** Title strip reserved at the top of a hull box (v3.1-frozen HULL_TITLE_BAND). */
 const strataTitleReserve = (): number => PIPELINE_FRAME_PAD * 2;
-/** Stacked-gap when a framed hull is involved (clears its border + title). */
-const strataHullGapY = (): number => PIPELINE_LANE_GAP_Y;
-/** Stacked-gap between two plain leaf cards. */
-const strataLeafGapY = (): number => PIPELINE_CLUSTER_GAP_Y;
 
 /** A rectangle already occupied in a hull's local frame (for geometric drop). */
 type SkylineRect = { x0: number; x1: number; y1: number; isHull: boolean };
 
-/** Stacked gap between two blocks: wide if either is a framed hull. */
+/**
+ * Stacked gap between two blocks: wide if either is a framed hull.
+ *
+ * Delegates to the SHARED `strataGapBetween` so the post-A7 movers (which
+ * re-place boxes without `dropY` and must re-assert this invariant themselves)
+ * cannot drift from the canonical rule. This is the packed arm by construction —
+ * `dropY` is only used by the packed policy; the banded policy stacks with
+ * LANE_GAP_Y directly in `layoutHull`.
+ */
 function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
-  return aIsHull || bIsHull ? strataHullGapY() : strataLeafGapY();
+  return strataGapBetween("packed", aIsHull, bIsHull);
 }
 
 /**

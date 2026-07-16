@@ -44,9 +44,7 @@
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataCoordRefine.test.ts
  */
 import {
-  PIPELINE_CLUSTER_GAP_Y,
   PIPELINE_FRAME_PAD,
-  PIPELINE_LANE_GAP_Y,
   PIPELINE_MARGIN,
 } from "./terraformPipelineLayoutShared";
 import {
@@ -54,6 +52,7 @@ import {
   strataUnitId,
 } from "./terraformPipelineStrataOrdering";
 import { checkStrataStructure } from "./terraformPipelineStrataPlacement";
+import { strataGapBetween } from "./terraformPipelineStrataSeparation";
 import { compareStrataContentKeys } from "./terraformPipelineStrataTypes";
 
 import type {
@@ -85,10 +84,9 @@ function minGap(
   aIsHull: boolean,
   bIsHull: boolean,
 ): number {
-  if (policy === "banded") {
-    return PIPELINE_LANE_GAP_Y;
-  }
-  return aIsHull || bIsHull ? PIPELINE_LANE_GAP_Y : PIPELINE_CLUSTER_GAP_Y;
+  // Delegates to the SHARED rule (terraformPipelineStrataSeparation.ts) so this
+  // pass, A0 placement, and the post-A7 movers cannot drift apart.
+  return strataGapBetween(policy, aIsHull, bIsHull);
 }
 
 /** Numerical noise floor for feasibility + strict-decrease comparisons. */
