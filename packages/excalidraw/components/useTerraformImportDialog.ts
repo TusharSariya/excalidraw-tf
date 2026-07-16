@@ -162,6 +162,11 @@ export const useTerraformImportDialog = ({
   const [strataTransitiveAdopt, setStrataTransitiveAdopt] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt as boolean,
   );
+  // P1 leaf-sink pull-in (strata-only): post-A7 pass that pulls degree-1 sink
+  // leaves into the column right of their source. Default OFF (byte-identical).
+  const [strataSinkPullIn, setStrataSinkPullIn] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkPullIn as boolean,
+  );
   // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
   // routing — penetrating edges only. Default OFF pending its gate battery.
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
@@ -507,6 +512,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataPackedConverge,
         strataTransitiveAdopt,
+        strataSinkPullIn,
         strataEdgeRouting,
         strataBandDepth,
         strataSiftRelocate,
@@ -662,6 +668,7 @@ export const useTerraformImportDialog = ({
           strataPackedScoringEpsilon,
           strataPackedConverge,
           strataTransitiveAdopt,
+          strataSinkPullIn,
           strataEdgeRouting,
           strataBandDepth,
           strataSiftRelocate,
@@ -780,8 +787,17 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataPackedConverge,
         strataTransitiveAdopt,
+        strataSinkPullIn,
         strataEdgeRouting,
         strataBandDepth,
+        // Keep this handler's strata option shape identical to the regular
+        // preset-import path above: the sift/sink-pull-in operators consume
+        // these weights + cap, so dropping them here would make the same UI
+        // state adopt differently between the two import buttons.
+        strataSiftRelocate,
+        strataCrossWeightPenetration,
+        strataCrossWeightEdge,
+        ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -1011,6 +1027,7 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataPackedConverge,
         strataTransitiveAdopt,
+        strataSinkPullIn,
         strataEdgeRouting,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
@@ -1054,6 +1071,7 @@ export const useTerraformImportDialog = ({
     strataPackedScoringEpsilon,
     strataPackedConverge,
     strataTransitiveAdopt,
+    strataSinkPullIn,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1093,6 +1111,7 @@ export const useTerraformImportDialog = ({
     strataPackedScoringEpsilon,
     strataPackedConverge,
     strataTransitiveAdopt,
+    strataSinkPullIn,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1154,6 +1173,7 @@ export const useTerraformImportDialog = ({
     setStrataPackedScoringEpsilon,
     setStrataPackedConverge,
     setStrataTransitiveAdopt,
+    setStrataSinkPullIn,
     setStrataEdgeRouting,
     setStrataBandDepth,
     setStrataSiftRelocate,

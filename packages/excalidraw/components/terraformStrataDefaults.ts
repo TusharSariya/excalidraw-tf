@@ -47,6 +47,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * feasibility crossing-cap — probe lever, default off (byte-identical
    * off). */
   strataTransitiveAdopt: false,
+  /** P1 leaf-sink pull-in: pull degree-1 sink leaves into the column right of
+   * their source to shorten long connectors — probe lever, default off. */
+  strataSinkPullIn: false,
 } as const;
 
 /**
@@ -86,6 +89,8 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedConverge?: boolean;
   /** Transitive-adopt remedy: strict total-order adoption gate. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in. */
+  strataSinkPullIn?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -136,6 +141,9 @@ export const resolveStrataDemoOptions = (params: {
     strataTransitiveAdopt:
       params.strataTransitiveAdopt ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt,
+    strataSinkPullIn:
+      params.strataSinkPullIn ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkPullIn,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

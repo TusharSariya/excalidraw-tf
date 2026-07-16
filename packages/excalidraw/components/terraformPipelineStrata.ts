@@ -16,6 +16,7 @@ import {
 } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
+import { refineStrataSinkPullIn } from "./terraformPipelineStrataSinkPullIn";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
@@ -153,6 +154,14 @@ export type TerraformStrataSceneOptions = {
    */
   strataTransitiveAdopt?: boolean;
   /**
+   * P1 leaf-sink pull-in (default off, opt-in): a post-A7 pass that pulls each
+   * degree-1 sink leaf into the on-grid column right of its source to collapse
+   * long near-horizontal connectors. Never re-ranks; parent hull box held fixed
+   * (height invariant). Threaded into `engineOptions.strataSinkPullIn` only when
+   * on (byte-identity).
+   */
+  strataSinkPullIn?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -260,6 +269,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataPackedConverge = options?.strataPackedConverge === true;
   // P0.2: transitive adoption relation, default off.
   const strataTransitiveAdopt = options?.strataTransitiveAdopt === true;
+  // P1 leaf-sink pull-in (post-A7), default off.
+  const strataSinkPullIn = options?.strataSinkPullIn === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
@@ -301,6 +312,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataPackedConverge ? { strataPackedConverge: true } : {}),
     // P0.2 transitive-adoption echo — present only when on (byte-identity).
     ...(strataTransitiveAdopt ? { strataTransitiveAdopt: true } : {}),
+    // P1 leaf-sink pull-in echo — present only when on (byte-identity).
+    ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -331,12 +344,12 @@ export async function buildTerraformStrataExcalidrawScene(
     sweeps: strataSweeps,
     coordinateRefine: strataCoordinateRefine,
     ...(strataPackedScoring ? { packedScoring: true } : {}),
-    // W8b: epsilon rides when EITHER the packed scorer OR the OD-15 relocate is
-    // on AND it is nonzero. The relocate pass + post-A7 guard read ε/cap from
+    // W8b: epsilon rides when the packed scorer OR the OD-15 relocate OR the P1
+    // leaf-sink pull-in is on AND it is nonzero. All three read ε/cap from
     // engineOptions INDEPENDENTLY of packed scoring, so gating ε on packed
-    // scoring alone would silently run relocation with ε=0/cap=0 (P1-a). Still
+    // scoring alone would silently run those passes with ε=0/cap=0. Still
     // byte-identical for existing option literals and epsilon-0 callers.
-    ...((strataPackedScoring || strataSiftRelocate) &&
+    ...((strataPackedScoring || strataSiftRelocate || strataSinkPullIn) &&
     strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
       : {}),
@@ -345,12 +358,15 @@ export async function buildTerraformStrataExcalidrawScene(
     // shape on every default run and break the flag-off byte-identity — the
     // `!== "account"` guard is load-bearing.
     ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
-    // OD-15 relocate: the master flag + its objective weights/cap ride ONLY
-    // when the flag is on (weights only when non-default, cap only when set),
-    // so the flag-off engineOptions object shape is byte-identical to today.
-    ...(strataSiftRelocate
+    // Relocate objective weights/cap: these ride when EITHER relocate operator
+    // is on — the OD-15 sift/vertical-relocate OR the P1 leaf-sink pull-in —
+    // because BOTH consume penW/crossW/cap through `strataRelocateAdoptable`.
+    // Gating them on strataSiftRelocate alone would neuter the ε/cap owner
+    // guardrails and the weight sliders for a sink-pull-in-only run. Weights
+    // ride only when non-default, cap only when set, so the both-off shape is
+    // byte-identical to today.
+    ...(strataSiftRelocate || strataSinkPullIn
       ? {
-          strataSiftRelocate: true,
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
             : {}),
@@ -358,11 +374,15 @@ export async function buildTerraformStrataExcalidrawScene(
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         }
       : {}),
+    // OD-15 relocate master flag: rides ONLY when on (byte-identity off).
+    ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
     // G-DESCENT converge: rides ONLY when on, so the flag-off engineOptions
     // object shape is byte-identical to today.
     ...(strataPackedConverge ? { packedConverge: true } : {}),
     // P0.2 transitive adoption: rides ONLY when on (byte-identity).
     ...(strataTransitiveAdopt ? { transitiveAdopt: true } : {}),
+    // P1 leaf-sink pull-in: rides ONLY when on (byte-identity).
+    ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -506,6 +526,20 @@ export async function buildTerraformStrataExcalidrawScene(
     // engineOptions the descent read (carries the relocate weights/cap).
     if (strataSiftRelocate) {
       placement = refineStrataVerticalSlots(
+        placement,
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
+    }
+
+    // P1 leaf-sink pull-in (post-A7, after vertical-relocate so it operates on
+    // settled Y). Runs whenever its own master flag is on — independent of the
+    // relocate/packed flags. Flag-off ⇒ the module is never called
+    // (byte-identical). The final structural check validates the result.
+    if (strataSinkPullIn) {
+      placement = refineStrataSinkPullIn(
         placement,
         model,
         repair.edgesPrime,

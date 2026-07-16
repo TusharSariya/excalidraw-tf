@@ -108,6 +108,9 @@ export type TerraformImportSession = {
   /** Transitive-adopt remedy: strict total-order adoption gate replacing the
    * ε adoption gate. Default off. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward their source.
+   * Default off. */
+  strataSinkPullIn?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

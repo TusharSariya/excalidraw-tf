@@ -96,6 +96,8 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata transitive-adopt: strict total-order adoption gate replacing the
    * ε adoption gate. Default off. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
+  strataSinkPullIn?: boolean;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
@@ -154,6 +156,7 @@ export const runTerraformImportWithView = async ({
   strataPackedScoringEpsilon,
   strataPackedConverge,
   strataTransitiveAdopt,
+  strataSinkPullIn,
   strataEdgeRouting,
   strataBandCompact,
   strataBandDepth,
@@ -216,6 +219,7 @@ export const runTerraformImportWithView = async ({
           strataPackedScoringEpsilon,
           strataPackedConverge,
           strataTransitiveAdopt,
+          strataSinkPullIn,
           strataEdgeRouting,
           strataBandCompact,
           strataBandDepth,
@@ -269,6 +273,8 @@ export type RunTerraformPresetImportOptions = {
   strataPackedConverge?: boolean;
   /** Strata transitive-adopt: strict total-order adoption gate. Default off. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
+  strataSinkPullIn?: boolean;
   strataEdgeRouting?: boolean;
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
@@ -348,6 +354,7 @@ export const runTerraformPresetImport = async (
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
     strataPackedConverge: options.strataPackedConverge,
     strataTransitiveAdopt: options.strataTransitiveAdopt,
+    strataSinkPullIn: options.strataSinkPullIn,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,

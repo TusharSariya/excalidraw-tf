@@ -501,6 +501,22 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataSiftRelocate=true (OD-15): the external-incidence SIFT rides the packed-scoring descent (so it needs strataPackedScoring); the post-A7 RELOCATION runs regardless. Both minimise the weighted crossing cost C = penW·penetrations + crossW·edgeEdge.",
     },
   },
+  "strata.sinkpullin.off": {
+    title: "Pull leaf sinks toward source · Off",
+    body: "Terminal resources keep the far-right column their longest-path rank assigned them, so their connector arrows stay long and their region boxes stay wide.",
+    dev: {
+      implements:
+        "strataSinkPullIn=false: the post-A7 leaf-sink pull-in pass never runs; degree-1 sink leaves keep their rankSeparate column and the engine is byte-identical.",
+    },
+  },
+  "strata.sinkpullin.on": {
+    title: "Pull leaf sinks toward source · On — P1",
+    body: "Pulls dead-end resources back into a column nearer the resources they depend on, shortening their long connector arrows — but only when doing so doesn't make the diagram taller.",
+    dev: {
+      implements:
+        "strataSinkPullIn=true (P1, Lever A): a post-A7 pass translates each effective degree-1 sink leaf (in-deg 1, out-deg 0 over E′, honoring A3 reversed) onto columnX[srcRank+1] paired with a bounded candidate-Y set; the parent hull box is held fixed (P5 height gate = containment clamp) and each trial is gated by checkStrataStructure all-zero + strataRelocateAdoptable (weighted-C + edge-cross cap + ε). Never re-ranks (preserves the rankSeparate height lever). Phase 1 = P1 + P3-left; box-width reclaim (P4) is a deferred phase 2.",
+    },
+  },
   "strata.crosspenweight": {
     title: "Penetration weight (penW)",
     body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies only while Reduce hull crossings is on.",

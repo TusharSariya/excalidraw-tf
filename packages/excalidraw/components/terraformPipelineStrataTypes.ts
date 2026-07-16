@@ -135,6 +135,17 @@ export type StrataEngineOptions = {
    * (flag-OFF byte-identity) are unaffected.
    */
   transitiveAdopt?: boolean;
+  /**
+   * P1 leaf-sink pull-in (`strataSinkPullIn`, default off, opt-in): a post-A7
+   * pass that translates each effective degree-1 sink LEAF (in-degree 1,
+   * out-degree 0 over E′) to the on-grid column immediately right of its
+   * source, shortening its long near-horizontal connector, gated by the same
+   * structural + weighted-C/ε machinery as the vertical-relocate pass. Never
+   * touches ranks (the -42% height lever is preserved); the parent hull box is
+   * held fixed so hull height is invariant. Optional so existing option
+   * literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataSinkPullIn?: boolean;
 };
 
 /**

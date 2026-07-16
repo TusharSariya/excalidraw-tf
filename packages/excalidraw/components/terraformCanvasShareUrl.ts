@@ -108,6 +108,7 @@ const sessionToDemoSnapshot = (
     : {}),
   strataPackedConverge: session.strataPackedConverge ?? false,
   strataTransitiveAdopt: session.strataTransitiveAdopt ?? false,
+  strataSinkPullIn: session.strataSinkPullIn ?? false,
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

@@ -154,6 +154,9 @@ export type TerraformDemoUrlParams = {
   /** Transitive-adopt remedy: strict total-order adoption gate replacing the
    * ε adoption gate (`strataTransitiveAdopt=1/0`). Default off. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in: pull degree-1 sink leaves into the column right of
+   * their source (`strataSinkPullIn=1/0`). Default off. */
+  strataSinkPullIn?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -482,6 +485,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataTransitiveAdopt === null) {
     return null;
   }
+  const strataSinkPullIn = parseBooleanParam("strataSinkPullIn");
+  if (strataSinkPullIn === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -683,6 +690,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataEdgeCap != null ? { strataEdgeCap } : {}),
     ...(strataPackedConverge != null ? { strataPackedConverge } : {}),
     ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
+    ...(strataSinkPullIn != null ? { strataSinkPullIn } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -760,6 +768,7 @@ export const buildTerraformDemoUrl = (
   setNum("strataEdgeCap", params.strataEdgeCap);
   setBool("strataPackedConverge", params.strataPackedConverge);
   setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
+  setBool("strataSinkPullIn", params.strataSinkPullIn);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -879,6 +888,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** Transitive-adopt remedy: strict total-order adoption gate. Optional
    * (default off) so pre-existing snapshot literals still type-check. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in. Optional (default off) so pre-existing snapshot
+   * literals still type-check. */
+  strataSinkPullIn?: boolean;
 };
 
 /**
@@ -1001,6 +1013,8 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataTransitiveAdopt
         ? { strataTransitiveAdopt: true }
         : {}),
+      // P1 leaf-sink pull-in: default-off — truthy-only.
+      ...(snapshot.strataSinkPullIn ? { strataSinkPullIn: true } : {}),
     };
   }
 

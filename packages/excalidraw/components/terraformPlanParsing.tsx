@@ -226,6 +226,8 @@ export type TerraformPlanParsingOptions = {
   strataPackedConverge?: boolean;
   /** P0.2: transitive adoption relation for the packed descent. Default off. */
   strataTransitiveAdopt?: boolean;
+  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
+  strataSinkPullIn?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

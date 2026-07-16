@@ -77,6 +77,7 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon,
   strataPackedConverge,
   strataTransitiveAdopt,
+  strataSinkPullIn,
   strataEdgeRouting,
   strataBandDepth,
   strataSiftRelocate,
@@ -92,6 +93,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon,
   setStrataPackedConverge,
   setStrataTransitiveAdopt,
+  setStrataSinkPullIn,
   setStrataEdgeRouting,
   setStrataBandDepth,
   setStrataSiftRelocate,
@@ -106,6 +108,7 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon: number;
   strataPackedConverge: boolean;
   strataTransitiveAdopt: boolean;
+  strataSinkPullIn: boolean;
   strataEdgeRouting: boolean;
   strataBandDepth: StrataHullRole;
   strataSiftRelocate: boolean;
@@ -121,6 +124,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataPackedConverge: (packedConverge: boolean) => void;
   setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
+  setStrataSinkPullIn: (sinkPullIn: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
@@ -140,6 +144,11 @@ export const TerraformStrataSettings = ({
   const activeKey = hoverKey ?? stickyKey;
   const activeHelp = OPTION_HELP[activeKey];
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
+  // The crossing objective weights + edge-crossing cap feed BOTH relocate
+  // operators — the OD-15 sift/vertical-relocate and the P1 leaf-sink pull-in —
+  // so the tuning disclosure is live whenever EITHER is on (matching the engine,
+  // which forwards penW/crossW/cap when sift OR sink-pull-in is enabled).
+  const weightsActive = strataSiftRelocate || strataSinkPullIn;
 
   const option = (
     label: string,
@@ -258,21 +267,22 @@ export const TerraformStrataSettings = ({
             </div>
             <details
               className={`TerraformImportModal__advancedDisclosure TerraformImportModal__strataAdvanced${
-                strataSiftRelocate
+                weightsActive
                   ? ""
                   : " TerraformImportModal__strataAdvanced--disabled"
               }`}
-              open={strataSiftRelocate && advancedOpen}
+              open={weightsActive && advancedOpen}
             >
               <summary
                 className="TerraformImportModal__advancedSummary"
-                aria-disabled={!strataSiftRelocate}
+                aria-disabled={!weightsActive}
                 aria-label="Advanced crossing weights"
                 onClick={(event) => {
                   // Drive open state from React so the disclosure is inert while
-                  // the master flag is off (native toggle would still fire).
+                  // both relocate operators are off (native toggle would still
+                  // fire).
                   event.preventDefault();
-                  if (strataSiftRelocate) {
+                  if (weightsActive) {
                     setAdvancedOpen((open) => !open);
                   }
                 }}
@@ -297,7 +307,7 @@ export const TerraformStrataSettings = ({
                     step={1}
                     inputMode="numeric"
                     value={strataCrossWeightPenetration}
-                    disabled={!strataSiftRelocate}
+                    disabled={!weightsActive}
                     aria-label="Penetration weight"
                     title={OPTION_HELP["strata.crosspenweight"].body}
                     onMouseEnter={() => setHoverKey("strata.crosspenweight")}
@@ -328,7 +338,7 @@ export const TerraformStrataSettings = ({
                     step={1}
                     inputMode="numeric"
                     value={strataCrossWeightEdge}
-                    disabled={!strataSiftRelocate}
+                    disabled={!weightsActive}
                     aria-label="Edge-crossing weight"
                     title={OPTION_HELP["strata.crossedgeweight"].body}
                     onMouseEnter={() => setHoverKey("strata.crossedgeweight")}
@@ -359,7 +369,7 @@ export const TerraformStrataSettings = ({
                     step={1}
                     inputMode="numeric"
                     value={strataEdgeCrossCap ?? ""}
-                    disabled={!strataSiftRelocate}
+                    disabled={!weightsActive}
                     placeholder="Inherits ε when blank"
                     aria-label="Edge-crossing cap (optional)"
                     title={OPTION_HELP["strata.edgecrosscap"].body}
@@ -383,6 +393,32 @@ export const TerraformStrataSettings = ({
                 </label>
               </div>
             </details>
+            <div role="group" aria-label="Strata pull leaf sinks toward source">
+              <span className="TerraformImportModal__controlLabel">
+                Pull leaf sinks toward source{" "}
+                <span>
+                  move dead-end resources back next to what feeds them
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option("Off", !strataSinkPullIn, "strata.sinkpullin.off", () =>
+                  setStrataSinkPullIn(false),
+                )}
+                {option("On", strataSinkPullIn, "strata.sinkpullin.on", () =>
+                  setStrataSinkPullIn(true),
+                )}
+              </div>
+              {strataSinkPullIn && !strataRankSeparate && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Primarily useful with <strong>Compact height</strong>{" "}
+                    enabled — that pass is what strands sinks in far columns for
+                    the pull-in to reclaim.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">
