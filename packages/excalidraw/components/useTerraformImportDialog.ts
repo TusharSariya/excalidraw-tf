@@ -178,6 +178,18 @@ export const useTerraformImportDialog = ({
   const [strataTranspose, setStrataTranspose] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose as boolean,
   );
+  // Strata P5 (Lever C, strata-only): per-hull implied-height maintain-or-
+  // decrease referee on the sink-pull-in / block-clamp adoptions. Default OFF
+  // (inert under phase 1 — byte-identical).
+  const [strataHeightGate, setStrataHeightGate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate as boolean,
+  );
+  // Strata P5 (Lever A, strata-only): relax the sink-pull-in's single
+  // all-or-nothing target column into a capped leftmost-first column ladder.
+  // Default OFF (byte-identical).
+  const [strataSinkLadder, setStrataSinkLadder] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkLadder as boolean,
+  );
   // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
   // routing — penetrating edges only. Default OFF pending its gate battery.
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
@@ -531,6 +543,8 @@ export const useTerraformImportDialog = ({
         strataSinkPullIn,
         strataBlockClamp,
         strataTranspose,
+        strataHeightGate,
+        strataSinkLadder,
         strataEdgeRouting,
         strataBorderRoute,
         strataBandDepth,
@@ -690,6 +704,8 @@ export const useTerraformImportDialog = ({
           strataSinkPullIn,
           strataBlockClamp,
           strataTranspose,
+          strataHeightGate,
+          strataSinkLadder,
           strataEdgeRouting,
           strataBorderRoute,
           strataBandDepth,
@@ -812,6 +828,8 @@ export const useTerraformImportDialog = ({
         strataSinkPullIn,
         strataBlockClamp,
         strataTranspose,
+        strataHeightGate,
+        strataSinkLadder,
         strataEdgeRouting,
         strataBorderRoute,
         strataBandDepth,
@@ -1055,6 +1073,8 @@ export const useTerraformImportDialog = ({
         strataSinkPullIn,
         strataBlockClamp,
         strataTranspose,
+        strataHeightGate,
+        strataSinkLadder,
         strataEdgeRouting,
         strataBorderRoute,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
@@ -1102,6 +1122,8 @@ export const useTerraformImportDialog = ({
     strataSinkPullIn,
     strataBlockClamp,
     strataTranspose,
+    strataHeightGate,
+    strataSinkLadder,
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
@@ -1145,6 +1167,8 @@ export const useTerraformImportDialog = ({
     strataSinkPullIn,
     strataBlockClamp,
     strataTranspose,
+    strataHeightGate,
+    strataSinkLadder,
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
@@ -1210,6 +1234,8 @@ export const useTerraformImportDialog = ({
     setStrataSinkPullIn,
     setStrataBlockClamp,
     setStrataTranspose,
+    setStrataHeightGate,
+    setStrataSinkLadder,
     setStrataEdgeRouting,
     setStrataBorderRoute,
     setStrataBandDepth,

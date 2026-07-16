@@ -185,6 +185,26 @@ export type TerraformStrataSceneOptions = {
    */
   strataTranspose?: boolean;
   /**
+   * P5 / Lever C height gate (default off, opt-in): applies the per-hull
+   * implied-height maintain-or-decrease referee as a conjunct on every adoption
+   * in the sink-pull-in and block-clamp passes. Height is a GATE only — never a
+   * term in the packed objective. INERT under phase 1 (both passes hold hull
+   * boxes fixed); it ships as the referee a phase-2 occupant-displacement
+   * relaxation needs, and it repairs the block clamp's vacuous scene-global
+   * height check. Threaded into `engineOptions.strataHeightGate` only when on
+   * (byte-identity).
+   */
+  strataHeightGate?: boolean;
+  /**
+   * P5 / Lever A sink ladder (default off, opt-in): relaxes the sink-pull-in's
+   * all-or-nothing single target column into a capped leftmost-first ladder of
+   * candidate columns, so a stranded sink whose fully-pulled-in column fails
+   * X-containment can still take a partial pull instead of not moving at all.
+   * Removes no gate; never re-ranks. Threaded into
+   * `engineOptions.strataSinkLadder` only when on (byte-identity).
+   */
+  strataSinkLadder?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -308,6 +328,10 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataBlockClamp = options?.strataBlockClamp === true;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
+  // P5 (Lever C) per-hull height maintain-or-decrease gate, default off.
+  const strataHeightGate = options?.strataHeightGate === true;
+  // P5 (Lever A) sink-pull-in column ladder, default off.
+  const strataSinkLadder = options?.strataSinkLadder === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // P3-pierce border-exit routing (scene-build), default off.
@@ -361,6 +385,9 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
     // P4 block-clamp echo — present only when on (byte-identity).
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
+    // P5 height-gate / sink-ladder echoes — present only when on (byte-identity).
+    ...(strataHeightGate ? { strataHeightGate: true } : {}),
+    ...(strataSinkLadder ? { strataSinkLadder: true } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -441,6 +468,11 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
     // P2 transpose: rides ONLY when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
+    // P5 height gate / sink ladder: ride ONLY when on (byte-identity). Both are
+    // consumed INSIDE the sink-pull-in / block-clamp operators, so the pipeline
+    // stage order below is unchanged.
+    ...(strataHeightGate ? { strataHeightGate: true } : {}),
+    ...(strataSinkLadder ? { strataSinkLadder: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.

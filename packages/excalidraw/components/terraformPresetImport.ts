@@ -104,6 +104,10 @@ export type RunTerraformImportFromSourcesArgs = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs.
    * Default off. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink-pull-in column ladder. Default off. */
+  strataSinkLadder?: boolean;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
@@ -167,6 +171,8 @@ export const runTerraformImportWithView = async ({
   strataSinkPullIn,
   strataBlockClamp,
   strataTranspose,
+  strataHeightGate,
+  strataSinkLadder,
   strataEdgeRouting,
   strataBorderRoute,
   strataBandCompact,
@@ -233,6 +239,8 @@ export const runTerraformImportWithView = async ({
           strataSinkPullIn,
           strataBlockClamp,
           strataTranspose,
+          strataHeightGate,
+          strataSinkLadder,
           strataEdgeRouting,
           strataBorderRoute,
           strataBandCompact,
@@ -293,6 +301,10 @@ export type RunTerraformPresetImportOptions = {
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. Default off. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink-pull-in column ladder. Default off. */
+  strataSinkLadder?: boolean;
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
@@ -377,6 +389,8 @@ export const runTerraformPresetImport = async (
     strataSinkPullIn: options.strataSinkPullIn,
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
+    strataHeightGate: options.strataHeightGate,
+    strataSinkLadder: options.strataSinkLadder,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBorderRoute: options.strataBorderRoute,
     strataBandCompact: options.strataBandCompact,

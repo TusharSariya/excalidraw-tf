@@ -61,6 +61,17 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * remove diagonal crossings the barycenter sweeps leave in fan-in columns —
    * probe lever, default off (envelope-preserving, byte-identical off). */
   strataTranspose: false,
+  /** P5 (Lever C) per-hull implied-height maintain-or-decrease acceptance gate
+   * for the sink-pull-in / block-clamp passes — probe lever, default off.
+   * Measured inert at the frozen preset (not inert by construction: it can veto
+   * real sink-pull-in moves — see that module's ratchet note). It is the referee
+   * a phase-2 occupant-displacement relaxation needs, not a height win today. */
+  strataHeightGate: false,
+  /** P5 (Lever A) sink-pull-in column ladder: relax the all-or-nothing single
+   * target column into a capped leftmost-first rung ladder so partial pull-ins
+   * are attempted — probe lever, default off. Measured NULL at the frozen preset
+   * (−0.37% lengthL1; zero crossings/height/width change). */
+  strataSinkLadder: false,
 } as const;
 
 /**
@@ -107,6 +118,10 @@ export const resolveStrataDemoOptions = (params: {
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink-pull-in column ladder. */
+  strataSinkLadder?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -169,6 +184,12 @@ export const resolveStrataDemoOptions = (params: {
     strataTranspose:
       params.strataTranspose ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose,
+    strataHeightGate:
+      params.strataHeightGate ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate,
+    strataSinkLadder:
+      params.strataSinkLadder ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkLadder,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

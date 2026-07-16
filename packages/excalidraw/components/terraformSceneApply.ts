@@ -266,6 +266,11 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease gate for the sink-pull-in
+   * / block-clamp passes. Default off. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink-pull-in column ladder. Default off. */
+  strataSinkLadder?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -324,6 +329,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataSinkPullIn"
   | "strataBlockClamp"
   | "strataTranspose"
+  | "strataHeightGate"
+  | "strataSinkLadder"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -379,6 +386,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataSinkPullIn: session.strataSinkPullIn === true,
   strataBlockClamp: session.strataBlockClamp === true,
   strataTranspose: session.strataTranspose === true,
+  strataHeightGate: session.strataHeightGate === true,
+  strataSinkLadder: session.strataSinkLadder === true,
 });
 
 /**
@@ -432,6 +441,8 @@ function buildPipelineFamilyLayoutOptions(
   | "strataSinkPullIn"
   | "strataBlockClamp"
   | "strataTranspose"
+  | "strataHeightGate"
+  | "strataSinkLadder"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -497,6 +508,8 @@ function buildPipelineFamilyLayoutOptions(
     strataSinkPullIn: options.strataSinkPullIn === true,
     strataBlockClamp: options.strataBlockClamp === true,
     strataTranspose: options.strataTranspose === true,
+    strataHeightGate: options.strataHeightGate === true,
+    strataSinkLadder: options.strataSinkLadder === true,
   };
 }
 

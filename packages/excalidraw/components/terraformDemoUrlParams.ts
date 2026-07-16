@@ -166,6 +166,12 @@ export type TerraformDemoUrlParams = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings (`strataTranspose=1/0`). Default off. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
+   * sink-pull-in / block-clamp passes (`strataHeightGate=1/0`). Default off. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink-pull-in column ladder: attempt partial pull-ins instead of
+   * only the all-or-nothing target column (`strataSinkLadder=1/0`). Default off. */
+  strataSinkLadder?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -510,6 +516,14 @@ export const parseTerraformDemoUrlParams = (
   if (strataTranspose === null) {
     return null;
   }
+  const strataHeightGate = parseBooleanParam("strataHeightGate");
+  if (strataHeightGate === null) {
+    return null;
+  }
+  const strataSinkLadder = parseBooleanParam("strataSinkLadder");
+  if (strataSinkLadder === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -715,6 +729,8 @@ export const parseTerraformDemoUrlParams = (
     ...(strataSinkPullIn != null ? { strataSinkPullIn } : {}),
     ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
     ...(strataTranspose != null ? { strataTranspose } : {}),
+    ...(strataHeightGate != null ? { strataHeightGate } : {}),
+    ...(strataSinkLadder != null ? { strataSinkLadder } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -796,6 +812,8 @@ export const buildTerraformDemoUrl = (
   setBool("strataSinkPullIn", params.strataSinkPullIn);
   setBool("strataBlockClamp", params.strataBlockClamp);
   setBool("strataTranspose", params.strataTranspose);
+  setBool("strataHeightGate", params.strataHeightGate);
+  setBool("strataSinkLadder", params.strataSinkLadder);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -925,6 +943,12 @@ export type TerraformDemoSettingsSnapshot = {
   /** P2 within-column transpose. Optional (default off) so pre-existing snapshot
    * literals still type-check. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) height gate. Optional (default off) so pre-existing snapshot
+   * literals still type-check. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink ladder. Optional (default off) so pre-existing snapshot
+   * literals still type-check. */
+  strataSinkLadder?: boolean;
 };
 
 /**
@@ -1054,6 +1078,9 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataBlockClamp ? { strataBlockClamp: true } : {}),
       // P2 within-column transpose: default-off — truthy-only.
       ...(snapshot.strataTranspose ? { strataTranspose: true } : {}),
+      // P5 height gate / sink ladder: default-off — truthy-only.
+      ...(snapshot.strataHeightGate ? { strataHeightGate: true } : {}),
+      ...(snapshot.strataSinkLadder ? { strataSinkLadder: true } : {}),
     };
   }
 

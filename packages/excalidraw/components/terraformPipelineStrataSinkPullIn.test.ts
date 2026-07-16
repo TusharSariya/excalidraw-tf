@@ -14,6 +14,12 @@
  *   (f) already-adjacent + degree-2 node ⇒ never candidates (referential identity)
  *   (g) height gate: parent box height invariant across the whole pass (phase 1)
  *   (h) two sinks of one source ⇒ greedy composition, both pulled, structure clean
+ *   (i) strataSinkLadder: partial pull-ins the single-column cliff skips, incl.
+ *       the far-parent case that proves the rung budget must count FEASIBLE
+ *       columns rather than raw ones
+ *   (j) strataHeightGate: proof it is WIRED into this pass and that its veto
+ *       fires on an engine-produced candidate (the ratchet fixture) — the
+ *       counterexample to the "the maxTop clamp makes the gate inert" claim
  *
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataSinkPullIn.test.ts
  */
@@ -25,6 +31,7 @@ import {
   placeStrataHulls,
 } from "./terraformPipelineStrataPlacement";
 import { refineStrataSinkPullIn } from "./terraformPipelineStrataSinkPullIn";
+import { strataHullImpliedHeights } from "./terraformPipelineStrataHeightGate";
 import { scoreStrataPlacementGeometry } from "./terraformPipelineStrataPackedScoring";
 
 import type {
@@ -166,6 +173,15 @@ function hullHeights(p: StrataPlacementResult): Map<string, number> {
 }
 
 // ── (a) flag-off referential identity ─────────────────────────────────────────
+
+/** Deep snapshot of every leaf box (geometry-equality proof). */
+function leafSnapshot(p: StrataPlacementResult): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [id, b] of p.leafBoxes) {
+    out.set(id, `${b.x},${b.y},${b.width},${b.height}`);
+  }
+  return out;
+}
 
 describe("sinkPullIn flag-off — byte-identical", () => {
   it("returns the input placement by reference when the flag is absent/false", () => {
@@ -333,6 +349,300 @@ describe("sinkPullIn X-containment — sink never pulled outside its parent hull
     expect(kBox.x + kBox.width).toBeLessThanOrEqual(
       parentBox.x + parentBox.width,
     );
+  });
+});
+
+// ── (i) strataSinkLadder — partial pull-in when the full pull-in is infeasible ─
+
+/**
+ * The P3 mechanism in miniature: a sink whose parent hull SPANS several columns,
+ * fed by a source in a different, left-lying hull.
+ *
+ *   vpc-1 (left):  s      @ col 0
+ *   vpc-2 (right): anchor @ col 2,  k @ col 5   ⇒ vpc-2's box spans cols 2..5
+ *   edge: s → k  (k is the only degree-1 sink)
+ *
+ * `columnX[srcRank + 1]` = columnX[1] lands in inter-hull space LEFT of vpc-2's
+ * box, so the committed single-column pass rejects the ONLY candidate it has and
+ * k never moves — even though columns 3 and 4 sit inside k's own parent box and
+ * would shorten the chord substantially. Rung 2 is genuinely infeasible (anchor
+ * occupies it and there is no vertical slack — the P5 interval-clique floor), so
+ * the leftmost ADMISSIBLE rung is 3.
+ */
+function ladderFixture() {
+  const pLeft = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+  const pRight = placement("aws", "1", "us-east-1", "vpc-2", "subB");
+  const clusters = [
+    frameCluster("s", pLeft, "aws.s", 200, 60),
+    frameCluster("anchor", pRight, "aws.anchor", 200, 60),
+    frameCluster("k", pRight, "aws.k", 200, 60),
+  ];
+  const model = buildStrataModel(prep(clusters, [edge("s", "k")]), OPTS);
+  const primes = primeEdges([["s", "k"]]);
+  const rank = rankStub({ s: 0, anchor: 2, k: 5 });
+  const a0 = placeStrataHulls(model, primes, rank, OPTS);
+  return { model, primes, rank, a0 };
+}
+
+describe("sinkLadder — attempts the partial pull-ins the single column skips", () => {
+  it("moves nothing today: the one candidate column escapes the parent box", () => {
+    // The DELTA is the feature — this pins the current cliff behavior so the
+    // ladder test below is proving a real change, not restating a pass.
+    const { model, primes, rank, a0 } = ladderFixture();
+    const parentBox = a0.boxedHulls.get(parentHullOf(a0, "k"))!.box;
+    expect(rank.columnX[1]).toBeLessThan(parentBox.x); // the cliff's cause
+
+    const out = refineStrataSinkPullIn(a0, model, primes, rank, OPTS_ON);
+    expect(out).toBe(a0); // referential identity — the sink stays stranded
+  });
+
+  it("lands the sink on the leftmost ADMISSIBLE rung inside its parent box", () => {
+    const { model, primes, rank, a0 } = ladderFixture();
+    const out = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...OPTS_ON,
+      strataSinkLadder: true,
+    });
+
+    expect(out).not.toBe(a0);
+    const kBox = out.leafBoxes.get("k")!;
+    // rung 1 escapes the box; rung 2 is occupied by `anchor` with no vertical
+    // slack; rung 3 is the leftmost admissible one ⇒ biggest legal shortening.
+    expect(kBox.x).toBe(rank.columnX[3]);
+    expect(kBox.x).toBeLessThan(a0.leafBoxes.get("k")!.x); // strictly shortened
+
+    // every gate still holds: containment, structure, and the phase-1 height
+    // invariant (no hull box may change).
+    const parentBox = out.boxedHulls.get(parentHullOf(out, "k"))!.box;
+    expect(kBox.x).toBeGreaterThanOrEqual(parentBox.x);
+    expect(kBox.x + kBox.width).toBeLessThanOrEqual(
+      parentBox.x + parentBox.width,
+    );
+    expect(checkStrataStructure(out, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
+    expect(hullHeights(out)).toEqual(hullHeights(a0));
+  });
+
+  it("never re-ranks: the moved leaf keeps its original colSpan", () => {
+    const { model, primes, rank, a0 } = ladderFixture();
+    const out = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...OPTS_ON,
+      strataSinkLadder: true,
+    });
+    const spanOf = (p: StrataPlacementResult) => {
+      for (const [, bh] of p.boxedHulls) {
+        for (const pu of bh.placed) {
+          if (pu.unit.kind === "leaf" && pu.unit.clusterId === "k") {
+            return pu.colSpan;
+          }
+        }
+      }
+      throw new Error("k not placed");
+    };
+    expect(spanOf(out)).toEqual(spanOf(a0));
+  });
+
+  it("preserves LR: the landing column is always right of the source", () => {
+    const { model, primes, rank, a0 } = ladderFixture();
+    const out = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...OPTS_ON,
+      strataSinkLadder: true,
+    });
+    const kBox = out.leafBoxes.get("k")!;
+    const sBox = out.leafBoxes.get("s")!;
+    expect(kBox.x).toBeGreaterThan(sBox.x);
+  });
+
+  it("composes with the height gate: no divergence on THIS fixture", () => {
+    // Fixture-specific, NOT a general inertness claim — see the ratchet suite
+    // below, which exhibits a fixture where the gate DOES change the outcome.
+    const { model, primes, rank, a0 } = ladderFixture();
+    const ladderOnly = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...OPTS_ON,
+      strataSinkLadder: true,
+    });
+    const ladderGated = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...OPTS_ON,
+      strataSinkLadder: true,
+      strataHeightGate: true,
+    });
+    expect(leafSnapshot(ladderGated)).toEqual(leafSnapshot(ladderOnly));
+  });
+
+  /**
+   * The BUDGET-vs-FEASIBILITY case, and the reason the budget counts FEASIBLE
+   * rungs rather than raw columns.
+   *
+   *   vpc-1 (left):  s      @ col 0
+   *   vpc-2 (right): anchor @ col 8,  k @ col 12   ⇒ vpc-2's box spans cols 8..12
+   *
+   * Every column in `srcRank+1 .. srcRank+BUDGET` (1..6) lands LEFT of vpc-2's
+   * box, so a budget spent on RAW columns is exhausted before the first feasible
+   * rung (col 8) is ever trial-placed, and the ladder silently does nothing — in
+   * exactly the P3 shape (a region-level sink whose source sits inside a
+   * left-lying VPC) the ladder exists to serve. Counting feasible rungs instead
+   * reaches col 8; col 8 is occupied by `anchor` with no vertical slack, so the
+   * leftmost ADMISSIBLE rung is col 9.
+   */
+  function farParentFixture() {
+    const pLeft = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const pRight = placement("aws", "1", "us-east-1", "vpc-2", "subB");
+    const clusters = [
+      frameCluster("s", pLeft, "aws.s", 200, 60),
+      frameCluster("anchor", pRight, "aws.anchor", 200, 60),
+      frameCluster("k", pRight, "aws.k", 200, 60),
+    ];
+    const model = buildStrataModel(prep(clusters, [edge("s", "k")]), OPTS);
+    const primes = primeEdges([["s", "k"]]);
+    const rank = rankStub({ s: 0, anchor: 8, k: 12 });
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+    return { model, primes, rank, a0 };
+  }
+
+  it("reaches a parent box lying further right than the raw-column budget", () => {
+    const { model, primes, rank, a0 } = farParentFixture();
+    const parentBox = a0.boxedHulls.get(parentHullOf(a0, "k"))!.box;
+
+    // The defect's precondition: EVERY raw rung in 1..6 escapes the parent box,
+    // so a raw-column budget never reaches a feasible column.
+    for (let raw = 1; raw <= 6; raw++) {
+      expect(rank.columnX[raw]!).toBeLessThan(parentBox.x);
+    }
+
+    const out = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...OPTS_ON,
+      strataSinkLadder: true,
+    });
+
+    expect(out).not.toBe(a0); // the sink moves — a raw-column budget left it stranded.
+    const kBox = out.leafBoxes.get("k")!;
+    expect(kBox.x).toBe(rank.columnX[9]);
+    expect(kBox.x).toBeLessThan(a0.leafBoxes.get("k")!.x);
+    expect(kBox.x).toBeGreaterThanOrEqual(parentBox.x);
+    expect(kBox.x + kBox.width).toBeLessThanOrEqual(
+      parentBox.x + parentBox.width,
+    );
+    expect(checkStrataStructure(out, model)).toEqual(R2_CLEAN);
+    expect(hullHeights(out)).toEqual(hullHeights(a0));
+  });
+});
+
+// ── (j) height gate: WIRED into this pass, and its veto fires on a real move ──
+
+/**
+ * The RATCHET fixture — the executable proof that `strataHeightGate` is (a) truly
+ * wired into `refineStrataSinkPullIn` and (b) able to REJECT a candidate the
+ * engine actually produces. Both matter: a test that only asserts gate-on ==
+ * gate-off would still pass if the operator ignored the flag entirely.
+ *
+ *   vpc-1 (ABOVE): sa @ row 1, sb @ row 2      (sources sit above the sinks)
+ *   vpc-2 (BELOW): a00 @ col 3, a0 @ col 5 row 1, a1 @ col 5 row 2, b1 @ col 6
+ *
+ * `a1` is vpc-2's uniquely bottom-most unit, so it alone pins the hull's implied
+ * height. Processing order is by address, so `a1` moves first: it pulls left to
+ * the empty col 4 and RISES to row 1 (its source is above), vacating the bottom
+ * row ⇒ vpc-2's implied height drops 268 → 172. `b1` is processed next and wants
+ * col 4 too; row 1 is now taken by `a1`, so its only admissible landing is row 2
+ * — which re-grows the implied height 172 → 232.
+ *
+ * Gate OFF: `b1` takes it (the dx win dominates lengthL1). Gate ON: rejected,
+ * because 232 > the ROLLING incumbent's 172.
+ *
+ * NOTE the honest cost this pins: 232 is still ≤ the BASELINE's 268, so the
+ * vetoed move never actually grew the hull past where it started. The veto is an
+ * artifact of comparing against the rolling incumbent (which buys per-step
+ * monotonicity) rather than the baseline (which is all the "cannot regress
+ * rankSeparate's -42% win" theorem needs). That trade is a live phase-2 decision
+ * — see the module header — and this test is where it becomes visible.
+ */
+function ratchetFixture() {
+  const p1 = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+  const p2 = placement("aws", "1", "us-east-1", "vpc-2", "subB");
+  // vpc-1's addresses sort FIRST, which places it above vpc-2 — that is what puts
+  // the sources above the sinks and lets `a1` rise.
+  const clusters = [
+    frameCluster("sa", p1, "aws.0sa", 200, 60),
+    frameCluster("sb", p1, "aws.0sb", 200, 60),
+    frameCluster("a00", p2, "aws.a00", 200, 60),
+    frameCluster("a0", p2, "aws.a0", 200, 60),
+    frameCluster("a1", p2, "aws.a1", 200, 60),
+    frameCluster("b1", p2, "aws.b1", 200, 60),
+  ];
+  const model = buildStrataModel(
+    prep(clusters, [edge("sa", "a1"), edge("sb", "b1")]),
+    OPTS,
+  );
+  const primes = primeEdges([
+    ["sa", "a1"],
+    ["sb", "b1"],
+  ]);
+  const rank = rankStub({ sa: 3, sb: 3, a00: 3, a0: 5, a1: 5, b1: 6 });
+  const a0 = placeStrataHulls(model, primes, rank, OPTS);
+  return { model, primes, rank, a0 };
+}
+
+describe("heightGate — wired into sinkPullIn, and its veto fires", () => {
+  const LADDER = { ...OPTS_ON, strataSinkLadder: true };
+
+  it("sets up: a1 uniquely pins its hull's implied height", () => {
+    const { a0 } = ratchetFixture();
+    const hullId = parentHullOf(a0, "a1");
+    const box = a0.boxedHulls.get(hullId)!.box;
+    const bottomOf = (id: string) => {
+      const b = a0.leafBoxes.get(id)!;
+      return b.y + b.height;
+    };
+    // a1 is strictly lower than every sibling ⇒ it alone pins maxBottom.
+    for (const sib of ["a00", "a0", "b1"]) {
+      expect(bottomOf(sib)).toBeLessThan(bottomOf("a1"));
+    }
+    expect(bottomOf("a1") + 28).toBe(box.y + box.height); // pins the box floor.
+  });
+
+  it("REJECTS a real engine move that gate-off adopts (gate is not inert)", () => {
+    const { model, primes, rank, a0 } = ratchetFixture();
+
+    const gateOff = refineStrataSinkPullIn(a0, model, primes, rank, LADDER);
+    const gateOn = refineStrataSinkPullIn(a0, model, primes, rank, {
+      ...LADDER,
+      strataHeightGate: true,
+    });
+
+    // Both arms agree on a1: it rises to row 1 of col 4 (height-DECREASING, so
+    // the gate admits it) — this is what arms the ratchet.
+    expect(gateOff.leafBoxes.get("a1")).toEqual(gateOn.leafBoxes.get("a1"));
+    expect(gateOn.leafBoxes.get("a1")!.y).toBeLessThan(
+      a0.leafBoxes.get("a1")!.y,
+    );
+
+    // They DIVERGE on b1 — the whole point.
+    expect(leafSnapshot(gateOn)).not.toEqual(leafSnapshot(gateOff));
+
+    // gate OFF: b1 pulls left into col 4 and drops to row 2.
+    expect(gateOff.leafBoxes.get("b1")!.x).toBe(rank.columnX[4]);
+    expect(gateOff.leafBoxes.get("b1")!.y).toBeGreaterThan(
+      gateOff.leafBoxes.get("a1")!.y,
+    );
+
+    // gate ON: the drop is vetoed, so b1 never moves at all.
+    expect(gateOn.leafBoxes.get("b1")).toEqual(a0.leafBoxes.get("b1"));
+  });
+
+  it("keeps every hull at-or-below its BASELINE implied height in both arms", () => {
+    // The gate's actual theorem. It holds gate-ON by the ratchet, and here it
+    // also happens to hold gate-OFF — which is precisely why the vetoed move
+    // cost length for no height benefit.
+    const { model, primes, rank, a0 } = ratchetFixture();
+    const base = strataHullImpliedHeights(a0);
+    for (const opts of [LADDER, { ...LADDER, strataHeightGate: true }]) {
+      const out = refineStrataSinkPullIn(a0, model, primes, rank, opts);
+      for (const [id, h] of strataHullImpliedHeights(out)) {
+        expect(h).toBeLessThanOrEqual(base.get(id)!);
+      }
+      expect(checkStrataStructure(out, model)).toEqual(R2_CLEAN);
+    }
   });
 });
 

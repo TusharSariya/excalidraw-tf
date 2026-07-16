@@ -112,6 +112,8 @@ const sessionToDemoSnapshot = (
   strataSinkPullIn: session.strataSinkPullIn ?? false,
   strataBlockClamp: session.strataBlockClamp ?? false,
   strataTranspose: session.strataTranspose ?? false,
+  strataHeightGate: session.strataHeightGate ?? false,
+  strataSinkLadder: session.strataSinkLadder ?? false,
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

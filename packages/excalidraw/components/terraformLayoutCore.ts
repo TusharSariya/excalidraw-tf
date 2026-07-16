@@ -519,6 +519,12 @@ type LayoutSceneContext = {
   /** P2 within-column transpose (post-A7): swap Y-adjacent X-overlapping sibling
    * pairs to remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
+   * sink-pull-in / block-clamp passes. Default off. */
+  strataHeightGate?: boolean;
+  /** P5 (Lever A) sink-pull-in column ladder: attempt partial pull-ins instead
+   * of the single all-or-nothing target column. Default off. */
+  strataSinkLadder?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -640,6 +646,8 @@ async function buildPipelineLayoutSceneBody(
         strataSinkPullIn: ctx.strataSinkPullIn,
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
+        strataHeightGate: ctx.strataHeightGate,
+        strataSinkLadder: ctx.strataSinkLadder,
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1229,6 +1237,8 @@ export async function layoutTerraformFromSources(
     strataSinkPullIn: options?.strataSinkPullIn === true,
     strataBlockClamp: options?.strataBlockClamp === true,
     strataTranspose: options?.strataTranspose === true,
+    strataHeightGate: options?.strataHeightGate === true,
+    strataSinkLadder: options?.strataSinkLadder === true,
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine

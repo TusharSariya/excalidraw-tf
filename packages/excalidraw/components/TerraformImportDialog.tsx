@@ -80,6 +80,8 @@ export const TerraformImportModal = ({
     strataSinkPullIn,
     strataBlockClamp,
     strataTranspose,
+    strataHeightGate,
+    strataSinkLadder,
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
@@ -661,6 +663,8 @@ terraform show -json tfplan > plan.json`}</code>
               strataSinkPullIn={strataSinkPullIn}
               strataBlockClamp={strataBlockClamp}
               strataTranspose={strataTranspose}
+              strataHeightGate={strataHeightGate}
+              strataSinkLadder={strataSinkLadder}
               strataEdgeRouting={strataEdgeRouting}
               strataBorderRoute={strataBorderRoute}
               strataBandDepth={strataBandDepth}
@@ -684,6 +688,8 @@ terraform show -json tfplan > plan.json`}</code>
               setStrataSinkPullIn={dialog.setStrataSinkPullIn}
               setStrataBlockClamp={dialog.setStrataBlockClamp}
               setStrataTranspose={dialog.setStrataTranspose}
+              setStrataHeightGate={dialog.setStrataHeightGate}
+              setStrataSinkLadder={dialog.setStrataSinkLadder}
               setStrataEdgeRouting={dialog.setStrataEdgeRouting}
               setStrataBorderRoute={dialog.setStrataBorderRoute}
               setStrataBandDepth={dialog.setStrataBandDepth}

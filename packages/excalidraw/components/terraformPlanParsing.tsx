@@ -236,6 +236,8 @@ export type TerraformPlanParsingOptions = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  strataHeightGate?: boolean;
+  strataSinkLadder?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

@@ -67,6 +67,7 @@
  * terraformPipelineLayoutShared — `PIPELINE_FRAME_PAD` is read at call time.
  */
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
+import { strataHeightGateAdmits } from "./terraformPipelineStrataHeightGate";
 import { checkStrataStructure } from "./terraformPipelineStrataPlacement";
 import {
   scoreStrataPlacementGeometry,
@@ -103,18 +104,6 @@ type StrataBlock = {
   hullIds: Set<string>;
   /** union of leafClusterIds over the whole subtree. */
   leafIds: Set<string>;
-};
-
-/** Max `box.y + box.height` over all hull + leaf boxes (the diagram bottom). */
-const maxBottomOf = (placement: StrataPlacementResult): number => {
-  let maxBottom = Number.NEGATIVE_INFINITY;
-  for (const [, bh] of placement.boxedHulls) {
-    maxBottom = Math.max(maxBottom, bh.box.y + bh.box.height);
-  }
-  for (const [, box] of placement.leafBoxes) {
-    maxBottom = Math.max(maxBottom, box.y + box.height);
-  }
-  return maxBottom;
 };
 
 /**
@@ -474,11 +463,29 @@ export function refineStrataBlockClamp(
         continue;
       }
 
-      // Gate (d): HEIGHT maintain-or-decrease. INERT under phase 1 — a rigid
-      // X-only translate touches no box's y/height, so maxBottom is identical
-      // and this can never fire today. Kept as a real comparison so a future
-      // box-recompute phase (which WOULD move Y) inherits a live height gate.
-      if (maxBottomOf(candidate) > maxBottomOf(incumbent)) {
+      // Gate (d): HEIGHT maintain-or-decrease (P5 / Lever C). Still INERT under
+      // phase 1 — a rigid X-only translate touches no box's y/height, so no
+      // hull's implied height can change and this cannot fire today.
+      //
+      // It is nonetheless REPAIRED here, because the previous formulation was
+      // not merely inert but VACUOUS-BY-CONSTRUCTION: it compared a scene-global
+      // `max(box.y + box.height)` scalar, which is dominated by the tallest/root
+      // extent and therefore ADMITS a non-tallest hull growing arbitrarily. A
+      // future box-recompute phase would have inherited a gate that silently
+      // passes exactly the moves it exists to reject. `strataHeightGateAdmits`
+      // quantifies per-hull over implied content heights instead; the vacuity
+      // regression test in terraformPipelineStrataHeightGate.test.ts pins the
+      // difference (old check admits, new check rejects, same candidate).
+      //
+      // NOTE (measured, BlockClamp header :41-51): this pass's null result is
+      // NOT height-vetoed — at the frozen preset the largest feasible clamp
+      // (k=2) is +4 crossings / +2 penetrations against −23.8k px length and the
+      // weighted-C + edge-cross cap gate (e) correctly VETOES it. No height gate
+      // can change that outcome.
+      if (
+        options.strataHeightGate === true &&
+        !strataHeightGateAdmits(candidate, incumbent)
+      ) {
         continue;
       }
 

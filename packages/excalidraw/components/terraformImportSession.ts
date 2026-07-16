@@ -119,6 +119,8 @@ export type TerraformImportSession = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  strataHeightGate?: boolean;
+  strataSinkLadder?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

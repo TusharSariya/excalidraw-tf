@@ -80,6 +80,8 @@ export const TerraformStrataSettings = ({
   strataSinkPullIn,
   strataBlockClamp,
   strataTranspose,
+  strataHeightGate,
+  strataSinkLadder,
   strataEdgeRouting,
   strataBorderRoute,
   strataBandDepth,
@@ -99,6 +101,8 @@ export const TerraformStrataSettings = ({
   setStrataSinkPullIn,
   setStrataBlockClamp,
   setStrataTranspose,
+  setStrataHeightGate,
+  setStrataSinkLadder,
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataBandDepth,
@@ -117,6 +121,8 @@ export const TerraformStrataSettings = ({
   strataSinkPullIn: boolean;
   strataBlockClamp: boolean;
   strataTranspose: boolean;
+  strataHeightGate: boolean;
+  strataSinkLadder: boolean;
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
   strataBandDepth: StrataHullRole;
@@ -136,6 +142,8 @@ export const TerraformStrataSettings = ({
   setStrataSinkPullIn: (sinkPullIn: boolean) => void;
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
+  setStrataHeightGate: (heightGate: boolean) => void;
+  setStrataSinkLadder: (sinkLadder: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
@@ -167,6 +175,14 @@ export const TerraformStrataSettings = ({
     strataSinkPullIn ||
     strataBlockClamp ||
     strataTranspose;
+  // The height gate is refereed INSIDE the sink-pull-in and block-clamp passes
+  // only, so its hint keys off those two alone. This DELIBERATELY differs from
+  // `weightsActive` above — do not "unify" them: the P2 transpose is
+  // envelope-preserving (an adjacent exchange keeps the pair's union span, so
+  // hull height is invariant), which makes the gate a provable no-op for it.
+  // Reusing `weightsActive` would light this row for transpose-only users and
+  // imply an effect that cannot exist. The OD-15 sift is likewise not a consumer.
+  const heightGateMoversActive = strataSinkPullIn || strataBlockClamp;
 
   const option = (
     label: string,
@@ -474,6 +490,33 @@ export const TerraformStrataSettings = ({
                 </div>
               )}
             </div>
+            <div role="group" aria-label="Strata allow partial sink pull-ins">
+              <span className="TerraformImportModal__controlLabel">
+                Allow partial sink pull-ins{" "}
+                <span>
+                  when a dead-end resource can&rsquo;t move all the way back to
+                  its source, move it as far as it can go instead of not at all
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option("Off", !strataSinkLadder, "strata.sinkladder.off", () =>
+                  setStrataSinkLadder(false),
+                )}
+                {option("On", strataSinkLadder, "strata.sinkladder.on", () =>
+                  setStrataSinkLadder(true),
+                )}
+              </div>
+              {strataSinkLadder && !strataSinkPullIn && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Does nothing on its own — turn on{" "}
+                    <strong>Pull leaf sinks toward source</strong>, the pass
+                    this widens.
+                  </span>
+                </div>
+              )}
+            </div>
             <div role="group" aria-label="Strata compact pure-sink accounts">
               <span className="TerraformImportModal__controlLabel">
                 Compact pure-sink accounts{" "}
@@ -525,6 +568,49 @@ export const TerraformStrataSettings = ({
                   () => setStrataRankSeparate(true),
                 )}
               </div>
+            </div>
+            <div
+              role="group"
+              aria-label="Strata keep containers from growing taller"
+            >
+              <span className="TerraformImportModal__controlLabel">
+                Keep containers from growing taller{" "}
+                <span>
+                  check each pull-in and clamp move against every container it
+                  touches, and keep it only if nothing ends up taller
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option("Off", !strataHeightGate, "strata.heightgate.off", () =>
+                  setStrataHeightGate(false),
+                )}
+                {option("On", strataHeightGate, "strata.heightgate.on", () =>
+                  setStrataHeightGate(true),
+                )}
+              </div>
+              {strataHeightGate && !heightGateMoversActive && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Does nothing on its own — turn on{" "}
+                    <strong>Pull leaf sinks toward source</strong> or{" "}
+                    <strong>Compact pure-sink accounts</strong>, the passes it
+                    referees.
+                  </span>
+                </div>
+              )}
+              {strataHeightGate && heightGateMoversActive && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Usually no visible change: nothing yet makes a container
+                    taller, so this check rarely has anything to catch. It can
+                    still hold a resource back where an earlier move already
+                    made its container shorter. Mainly groundwork for a later
+                    pass.
+                  </span>
+                </div>
+              )}
             </div>
             <div role="group" aria-label="Strata band depth">
               <span className="TerraformImportModal__controlLabel">
