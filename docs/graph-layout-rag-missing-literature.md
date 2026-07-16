@@ -185,3 +185,45 @@ has so we don't re-harvest. **P0** = load-bearing for the prescription (harvest 
 34. **Marler & Arora 2004 — "Survey of multi-objective optimization methods for engineering"** — weighted-sum vs lexicographic vs ε-constraint validity/normalization. `[M-OBJ]`
 35. **Charnes & Cooper — goal programming (lexicographic/preemptive)** — the OR framing strata's lexicographic keys unknowingly are. `[M-OBJ]`
    - *Present & sufficient for the graph-drawing side:* Klammler `arxiv-1809-01017v1`, Ahmed `(SGD)²`, Bast/Brosi, Nöllenburg-Wolff, Dwyer/IPSep-CoLa.
+
+---
+
+## Appendix — 8-agent construction/algorithm research harvest (2026-07-16)
+
+From the 8-agent + 4-cross-examination research pass on the P1–P5 layout problems
+(`docs/strata-problems/`, `scratchpad/strata-research-agent{1-8}-*.md`,
+`scratchpad/strata-problem-crystallization.md`). Each agent verified absence via `rag graph`.
+**Only genuinely-absent (or metadata-only) primaries new to this file are listed** — many candidates
+turned out already present: HOLA (`A2`/#22), STT 1981 (`M13`/#8), Sander compound
+(`sander-compound-directed-graphs`), Forster compound crossing (`forster-compound-crossing-gd2002`),
+IPSep-CoLa / Fast Node Overlap Removal (`dwyer-ipsep-cola`, #14), Eiglsperger–Siebenhaller–Kaufmann
+(appendix #2), and — verified via their rag doc_ids by the coord/tradeoff agents — **Klau–Mutzel 1999**
+(`doi-10-1007-3-540-48777-8-23`), **Jabrayilov et al. 2016** Compact Generalized Layering
+(`doi-10-1007-978-3-319-50106-2-17`), **Bannister–Eppstein–Simons** inapproximability
+(`jgaa-2643-inapproximability-of-orthogonal-compaction`), **Healy–Nikolov min-width layering**
+(`doi-10-1007-3-540-45848-4-2`). Those need no harvest.
+
+### N. MISSING — confirmed absent (harvest these)
+
+| # | Paper | Why it matters (which agent / problem) | Where to get it |
+|---|---|---|---|
+| N1 | **Coffman, E.G. & Graham, R.L. — "Optimal scheduling for two-processor systems."** Acta Informatica 1(3):200–213, 1972. DOI 10.1007/BF00288685 | The **Coffman–Graham width-bounded layering** primitive — the third corner of the height/width/length trilemma; grounds the height-gate reasoning and why `rankSeparate` trades width for height. Present only via handbook secondary. `[agents 1,4,6 / P5]` | SpringerLink; widely mirrored |
+| N2 | **Baker, B.S., Coffman, E.G. & Rivest, R.L. — "Orthogonal packings in two dimensions."** SIAM J. Comput. 9(4):846–855, 1980. DOI 10.1137/0209064 | The **strip-packing / bottom-left** formalism that strata's `dropY` skyline packer instantiates — grounds the "`dropY` as *sole* placement is a category error (packing ≠ coordinate assignment)" finding. `[agent 4 / P5]` | SIAM; mirrors |
+| N3 | **Patrignani, M. — "On the complexity of orthogonal compaction."** Computational Geometry 19(1):47–67, 2001. DOI 10.1016/S0925-7721(01)00010-4 | NP-hardness of 2-D orthogonal compaction — the complexity backbone of the width↔height tradeoff (why the *joint* optimum is intractable and the axes fight). `[agent 6 / P5]` | ScienceDirect |
+| N4 | **Eades, P. & Wormald, N.C. — "Edge crossings in drawings of bipartite graphs."** Algorithmica 11(4):379–403, 1994. DOI 10.1007/BF01187020 | NP-completeness of one-layer crossing minimization — *why* barycenter/median stall in local minima and a **transpose/adjacent-exchange** pass is required (the primitive strata lacks). `[agent 5 / P2]` | SpringerLink |
+| N5 | **Jünger, M. & Mutzel, P. — "2-Layer Straightline Crossing Minimization: Performance of Exact and Heuristic Algorithms."** JGAA 1(1):1–25, 1997. DOI 10.7155/jgaa.00001 | Exact vs heuristic two-layer ordering benchmark — the yardstick for a transpose-augmented ordering fix. `[agent 5 / P2]` | JGAA (open) |
+| N6 | **Doğrusöz, U., Giral, E., Cetintas, A., Civril, A. & Demir, E. — "A layout algorithm for undirected compound graphs."** Information Sciences 179(7):980–994, 2009. DOI 10.1016/j.ins.2008.11.017 | **CoSE** force-directed compound layout — the force-directed counterpoint to Sander's hierarchical compound; the alternative-construction (b) reference for nested containers. `[agent 3,8 / P3]` | ScienceDirect; CoSE-Bilkent site |
+
+### N-meta. PRESENT but metadata-only — full-text harvest
+
+| # | Paper | Why / status |
+|---|---|---|
+| N7 | **Nikolov, N.S., Tarassov, A. & Branke, J. — "In search for efficient heuristics for minimum-width graph layering with consideration of dummy nodes."** ACM J. Exp. Algorithmics 10:2.7, 2005. DOI 10.1145/1064546.1180618 | Min-width layering + **vertex-promotion** heuristics. Agent 2 verified promotion is a *source-side dummy-count* method that **cannot** pull a sink toward its parent — this primary pins that boundary (kills "use promotion for P1/P4"). Corpus metadata-only. `[agents 1,2,4]` |
+
+**Key negative result to record (not a paper — a measurement):** the **joint constrained network-simplex ranker**
+(`computeStrataJointNsFloor` / `strataJointNsRank`, `docs/strata-view-w5b-joint-ns-probe.md`, 2026-07-12) —
+Gansner's constraint-edge device (real edges weighted + all-to-all separation as zero-weight constraints,
+the IPSep-CoLa philosophy in the rank stage) — is BUILT and MEASURED a **NO-GO** on `staging-extended-localstack-v2`
+(held height 14,105 vs 14,126, but crossings-on-path +6/+7, rt̂ p90 +4.5/+5.4). Confirms **rank-span compression
+is the wrong lever** (shortening a sink's span densifies its column → path crossings), which is why the surviving
+prescription is a *targeted guard-gated X-shift*, not any NS/constraint-layer rank objective.
