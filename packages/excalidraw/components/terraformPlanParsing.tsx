@@ -228,6 +228,9 @@ export type TerraformPlanParsingOptions = {
   strataTransitiveAdopt?: boolean;
   /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
+   * left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

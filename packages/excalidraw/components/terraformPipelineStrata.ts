@@ -16,6 +16,7 @@ import {
 } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
+import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { refineStrataSinkPullIn } from "./terraformPipelineStrataSinkPullIn";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
@@ -162,6 +163,15 @@ export type TerraformStrataSceneOptions = {
    */
   strataSinkPullIn?: boolean;
   /**
+   * P4 pure-sink account block clamp (default off, opt-in): a post-A7 pass that
+   * rigid-translates a whole dead-end account subtree left toward the resources
+   * it depends on (the multi-source generalization of the leaf-sink pull-in).
+   * Never re-ranks; Y/height untouched. Consumes the same weighted-C/ε machinery
+   * as the relocate passes. Threaded into `engineOptions.strataBlockClamp` only
+   * when on (byte-identity).
+   */
+  strataBlockClamp?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -271,6 +281,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataTransitiveAdopt = options?.strataTransitiveAdopt === true;
   // P1 leaf-sink pull-in (post-A7), default off.
   const strataSinkPullIn = options?.strataSinkPullIn === true;
+  // P4 pure-sink account block clamp (post-A7), default off.
+  const strataBlockClamp = options?.strataBlockClamp === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
@@ -314,6 +326,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataTransitiveAdopt ? { strataTransitiveAdopt: true } : {}),
     // P1 leaf-sink pull-in echo — present only when on (byte-identity).
     ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
+    // P4 block-clamp echo — present only when on (byte-identity).
+    ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -349,7 +363,10 @@ export async function buildTerraformStrataExcalidrawScene(
     // engineOptions INDEPENDENTLY of packed scoring, so gating ε on packed
     // scoring alone would silently run those passes with ε=0/cap=0. Still
     // byte-identical for existing option literals and epsilon-0 callers.
-    ...((strataPackedScoring || strataSiftRelocate || strataSinkPullIn) &&
+    ...((strataPackedScoring ||
+      strataSiftRelocate ||
+      strataSinkPullIn ||
+      strataBlockClamp) &&
     strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
       : {}),
@@ -365,7 +382,7 @@ export async function buildTerraformStrataExcalidrawScene(
     // guardrails and the weight sliders for a sink-pull-in-only run. Weights
     // ride only when non-default, cap only when set, so the both-off shape is
     // byte-identical to today.
-    ...(strataSiftRelocate || strataSinkPullIn
+    ...(strataSiftRelocate || strataSinkPullIn || strataBlockClamp
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
@@ -383,6 +400,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataTransitiveAdopt ? { transitiveAdopt: true } : {}),
     // P1 leaf-sink pull-in: rides ONLY when on (byte-identity).
     ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
+    // P4 block-clamp: rides ONLY when on (byte-identity).
+    ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -540,6 +559,23 @@ export async function buildTerraformStrataExcalidrawScene(
     // (byte-identical). The final structural check validates the result.
     if (strataSinkPullIn) {
       placement = refineStrataSinkPullIn(
+        placement,
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
+    }
+
+    // P4 pure-sink account block clamp (post-A7, after the leaf-sink pull-in).
+    // A block whose leaf the pull-in nudged OFF its grid column is conservatively
+    // skipped by the clamp's on-grid landing gate (a rigid grid-ΔX cannot re-land
+    // a perturbed leaf on-grid), so the two passes compose safely rather than the
+    // clamp translating an off-grid block. Runs whenever its own master flag is
+    // on — independent of the relocate/packed/sink flags. Flag-off ⇒ the module
+    // is never called (byte-identical). The final structural check validates it.
+    if (strataBlockClamp) {
+      placement = refineStrataBlockClamp(
         placement,
         model,
         repair.edgesPrime,

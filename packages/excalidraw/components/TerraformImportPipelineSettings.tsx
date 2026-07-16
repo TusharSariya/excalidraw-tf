@@ -517,9 +517,25 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataSinkPullIn=true (P1, Lever A): a post-A7 pass translates each effective degree-1 sink leaf (in-deg 1, out-deg 0 over E′, honoring A3 reversed) onto columnX[srcRank+1] paired with a bounded candidate-Y set; the parent hull box is held fixed (P5 height gate = containment clamp) and each trial is gated by checkStrataStructure all-zero + strataRelocateAdoptable (weighted-C + edge-cross cap + ε). Never re-ranks (preserves the rankSeparate height lever). Phase 1 = P1 + P3-left; box-width reclaim (P4) is a deferred phase 2.",
     },
   },
+  "strata.blockclamp.off": {
+    title: "Compact pure-sink accounts · Off",
+    body: "A whole dead-end account (one that only receives connections, like an org audit/security account) keeps the far-right columns its longest-path rank assigned it, so its inbound arrows stay long and the diagram stays wide.",
+    dev: {
+      implements:
+        "strataBlockClamp=false: the post-A7 P4 block-clamp pass never runs; pure-sink account blocks keep their rankSeparate columns and the engine is byte-identical.",
+    },
+  },
+  "strata.blockclamp.on": {
+    title: "Compact pure-sink accounts · On — P4",
+    body: "Pulls an entire dead-end account block left toward its deepest real source, shortening the long cross-account arrows feeding it — but only when doing so doesn't add crossings or make the diagram taller. Provider frame extents are held fixed this phase, so it shortens the arrows without yet reclaiming overall diagram width.",
+    dev: {
+      implements:
+        "strataBlockClamp=true (P4, Lever A): a post-A7 pass clamps each pure-sink account block to max(source rank)+1 (decoupled from any single source — the anchors are multi-source fan-in hubs), rigid-translating the whole subtree left in pixels, gated by X-containment + checkStrataStructure all-zero + the weighted-C/ε machinery and the P5 height-maintained-or-decreased gate. Never re-ranks (preserves the rankSeparate height lever).",
+    },
+  },
   "strata.crosspenweight": {
     title: "Penetration weight (penW)",
-    body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies only while Reduce hull crossings is on.",
+    body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",
     dev: {
       implements:
         "strataCrossWeightPenetration (penW, default 1, integer ≥ 0): the penetrations coefficient in the weighted crossing cost C = penW·penetrations + crossW·edgeEdge minimised by the sift + relocation.",
@@ -527,7 +543,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
   },
   "strata.crossedgeweight": {
     title: "Edge-crossing weight (crossW)",
-    body: "How heavily the crossing objective counts two dependency arrows crossing each other. Raise it to prioritise untangling arrow-vs-arrow crossings; lower it toward 0 to focus on box tunnelling instead. Applies only while Reduce hull crossings is on.",
+    body: "How heavily the crossing objective counts two dependency arrows crossing each other. Raise it to prioritise untangling arrow-vs-arrow crossings; lower it toward 0 to focus on box tunnelling instead. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",
     dev: {
       implements:
         "strataCrossWeightEdge (crossW, default 1, integer ≥ 0): the edge-edge coefficient in the weighted crossing cost C = penW·penetrations + crossW·edgeEdge minimised by the sift + relocation.",
@@ -535,7 +551,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
   },
   "strata.edgecrosscap": {
     title: "Edge-crossing cap (optional)",
-    body: "An optional ceiling on how many extra arrow-vs-arrow crossings a single crossing-reduction move may add before it is rejected. Leave it blank to inherit the packed edge-scoring crossing budget (ε). Set a number to cap it independently. Applies only while Reduce hull crossings is on.",
+    body: "An optional ceiling on how many extra arrow-vs-arrow crossings a single crossing-reduction move may add before it is rejected. Leave it blank to inherit the packed edge-scoring crossing budget (ε). Set a number to cap it independently. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",
     dev: {
       implements:
         "strataEdgeCrossCap (optional; blank ⇒ inherits strataPackedScoringEpsilon): the ε-style edge-edge regression cap the relocation may not exceed.",

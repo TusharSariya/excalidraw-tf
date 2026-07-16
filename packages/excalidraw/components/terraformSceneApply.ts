@@ -258,6 +258,9 @@ export type RunTerraformImportFromSourcesOptions = {
   strataTransitiveAdopt?: boolean;
   /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
+   * left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -313,6 +316,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataPackedConverge"
   | "strataTransitiveAdopt"
   | "strataSinkPullIn"
+  | "strataBlockClamp"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -365,6 +369,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataPackedConverge: session.strataPackedConverge === true,
   strataTransitiveAdopt: session.strataTransitiveAdopt === true,
   strataSinkPullIn: session.strataSinkPullIn === true,
+  strataBlockClamp: session.strataBlockClamp === true,
 });
 
 /**
@@ -415,6 +420,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataPackedConverge"
   | "strataTransitiveAdopt"
   | "strataSinkPullIn"
+  | "strataBlockClamp"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -477,6 +483,7 @@ function buildPipelineFamilyLayoutOptions(
     strataPackedConverge: options.strataPackedConverge === true,
     strataTransitiveAdopt: options.strataTransitiveAdopt === true,
     strataSinkPullIn: options.strataSinkPullIn === true,
+    strataBlockClamp: options.strataBlockClamp === true,
   };
 }
 

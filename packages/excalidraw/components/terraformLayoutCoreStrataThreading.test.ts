@@ -454,6 +454,56 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataBlockClamp end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
+    async () => {
+      // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading
+      // boundary'): the flag must survive the sceneContext literal AND the
+      // builderOptions fan-in in terraformLayoutCore.ts, or it is dropped on the
+      // real `layoutTerraformFromSources` app path while looking wired in the
+      // dialog. The engine echoes `strataBlockClamp: true` in flagMeta only when
+      // on, so the meta echo is the app-observable end-to-end proof.
+      const off = await buildStrata({
+        strataRankSeparate: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default-off: the echo key is ABSENT (not present-with-false), so the
+      // flag-off meta is byte-identical to pre-change.
+      expect(off.meta.strataBlockClamp).toBeUndefined();
+
+      const on = await buildStrata({
+        strataRankSeparate: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBlockClamp: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataBlockClamp).toBe(true);
+      expect(on.elements.length).toBeGreaterThan(0);
+      // Structural invariant still holds after the post-A7 block-clamp pass.
+      expect(on.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
+
+      // Default-off byte-identity: a build with the flag ABSENT and one with it
+      // explicit-false produce geometry identical to today's baseline.
+      const explicitFalse = await buildStrata({
+        strataRankSeparate: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBlockClamp: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
     "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
     async () => {
       const strataOff = await buildStrata();

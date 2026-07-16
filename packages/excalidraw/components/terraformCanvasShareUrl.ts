@@ -109,6 +109,7 @@ const sessionToDemoSnapshot = (
   strataPackedConverge: session.strataPackedConverge ?? false,
   strataTransitiveAdopt: session.strataTransitiveAdopt ?? false,
   strataSinkPullIn: session.strataSinkPullIn ?? false,
+  strataBlockClamp: session.strataBlockClamp ?? false,
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

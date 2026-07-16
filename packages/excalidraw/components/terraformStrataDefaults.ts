@@ -50,6 +50,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** P1 leaf-sink pull-in: pull degree-1 sink leaves into the column right of
    * their source to shorten long connectors — probe lever, default off. */
   strataSinkPullIn: false,
+  /** P4 pure-sink account block clamp: rigid-translate a whole dead-end account
+   * subtree left toward its sources to shorten cross-account arrows and narrow
+   * the diagram — probe lever, default off. */
+  strataBlockClamp: false,
 } as const;
 
 /**
@@ -91,6 +95,8 @@ export const resolveStrataDemoOptions = (params: {
   strataTransitiveAdopt?: boolean;
   /** P1 leaf-sink pull-in. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp. */
+  strataBlockClamp?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -144,6 +150,9 @@ export const resolveStrataDemoOptions = (params: {
     strataSinkPullIn:
       params.strataSinkPullIn ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkPullIn,
+    strataBlockClamp:
+      params.strataBlockClamp ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBlockClamp,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

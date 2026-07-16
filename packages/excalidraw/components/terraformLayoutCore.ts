@@ -511,6 +511,9 @@ type LayoutSceneContext = {
   /** P1 leaf-sink pull-in (post-A7): pull each degree-1 sink leaf into the
    * column right of its source to shorten long connectors. Default off. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp (post-A7): rigid-translate a whole
+   * dead-end account subtree left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -629,6 +632,7 @@ async function buildPipelineLayoutSceneBody(
         strataPackedConverge: ctx.strataPackedConverge,
         strataTransitiveAdopt: ctx.strataTransitiveAdopt,
         strataSinkPullIn: ctx.strataSinkPullIn,
+        strataBlockClamp: ctx.strataBlockClamp,
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1215,6 +1219,7 @@ export async function layoutTerraformFromSources(
     strataPackedConverge: options?.strataPackedConverge === true,
     strataTransitiveAdopt: options?.strataTransitiveAdopt === true,
     strataSinkPullIn: options?.strataSinkPullIn === true,
+    strataBlockClamp: options?.strataBlockClamp === true,
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine

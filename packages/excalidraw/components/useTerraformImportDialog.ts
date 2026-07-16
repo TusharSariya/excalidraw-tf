@@ -167,6 +167,11 @@ export const useTerraformImportDialog = ({
   const [strataSinkPullIn, setStrataSinkPullIn] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkPullIn as boolean,
   );
+  // P4 pure-sink account block clamp (strata-only): post-A7 pass that rigid-
+  // translates a whole dead-end account subtree left. Default OFF (byte-identical).
+  const [strataBlockClamp, setStrataBlockClamp] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBlockClamp as boolean,
+  );
   // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
   // routing — penetrating edges only. Default OFF pending its gate battery.
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
@@ -513,6 +518,7 @@ export const useTerraformImportDialog = ({
         strataPackedConverge,
         strataTransitiveAdopt,
         strataSinkPullIn,
+        strataBlockClamp,
         strataEdgeRouting,
         strataBandDepth,
         strataSiftRelocate,
@@ -669,6 +675,7 @@ export const useTerraformImportDialog = ({
           strataPackedConverge,
           strataTransitiveAdopt,
           strataSinkPullIn,
+          strataBlockClamp,
           strataEdgeRouting,
           strataBandDepth,
           strataSiftRelocate,
@@ -788,6 +795,7 @@ export const useTerraformImportDialog = ({
         strataPackedConverge,
         strataTransitiveAdopt,
         strataSinkPullIn,
+        strataBlockClamp,
         strataEdgeRouting,
         strataBandDepth,
         // Keep this handler's strata option shape identical to the regular
@@ -1028,6 +1036,7 @@ export const useTerraformImportDialog = ({
         strataPackedConverge,
         strataTransitiveAdopt,
         strataSinkPullIn,
+        strataBlockClamp,
         strataEdgeRouting,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
@@ -1072,6 +1081,7 @@ export const useTerraformImportDialog = ({
     strataPackedConverge,
     strataTransitiveAdopt,
     strataSinkPullIn,
+    strataBlockClamp,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1112,6 +1122,7 @@ export const useTerraformImportDialog = ({
     strataPackedConverge,
     strataTransitiveAdopt,
     strataSinkPullIn,
+    strataBlockClamp,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -1174,6 +1185,7 @@ export const useTerraformImportDialog = ({
     setStrataPackedConverge,
     setStrataTransitiveAdopt,
     setStrataSinkPullIn,
+    setStrataBlockClamp,
     setStrataEdgeRouting,
     setStrataBandDepth,
     setStrataSiftRelocate,

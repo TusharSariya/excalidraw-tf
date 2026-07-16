@@ -146,6 +146,19 @@ export type StrataEngineOptions = {
    * literals (flag-OFF byte-identity) are unaffected.
    */
   strataSinkPullIn?: boolean;
+  /**
+   * P4 pure-sink account block clamp (`strataBlockClamp`, default off, opt-in):
+   * a post-A7 pass that rigid-translates a whole DEAD-END account subtree LEFT
+   * to `max(external source rank) + 1` — the multi-source fan-in generalization
+   * of the leaf-sink pull-in (which co-moves only a single degree-1 leaf).
+   * Consumes the same weighted-C/ε machinery (penW/crossW/ε/cap through
+   * `strataRelocateAdoptable`) plus X-containment, R2, and an explicit height
+   * gate. Never re-ranks (the -42% height lever is preserved) and never runs
+   * grid X-compaction — a single rigid per-block pixel translate onto one
+   * existing on-grid left column. Optional so existing option literals (flag-OFF
+   * byte-identity) are unaffected.
+   */
+  strataBlockClamp?: boolean;
 };
 
 /**

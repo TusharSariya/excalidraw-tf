@@ -157,6 +157,9 @@ export type TerraformDemoUrlParams = {
   /** P1 leaf-sink pull-in: pull degree-1 sink leaves into the column right of
    * their source (`strataSinkPullIn=1/0`). Default off. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
+   * left toward its sources (`strataBlockClamp=1/0`). Default off. */
+  strataBlockClamp?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -489,6 +492,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataSinkPullIn === null) {
     return null;
   }
+  const strataBlockClamp = parseBooleanParam("strataBlockClamp");
+  if (strataBlockClamp === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -691,6 +698,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPackedConverge != null ? { strataPackedConverge } : {}),
     ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
     ...(strataSinkPullIn != null ? { strataSinkPullIn } : {}),
+    ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -769,6 +777,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataPackedConverge", params.strataPackedConverge);
   setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
   setBool("strataSinkPullIn", params.strataSinkPullIn);
+  setBool("strataBlockClamp", params.strataBlockClamp);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -891,6 +900,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** P1 leaf-sink pull-in. Optional (default off) so pre-existing snapshot
    * literals still type-check. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp. Optional (default off) so pre-existing
+   * snapshot literals still type-check. */
+  strataBlockClamp?: boolean;
 };
 
 /**
@@ -1015,6 +1027,8 @@ export const collectTerraformDemoParams = (
         : {}),
       // P1 leaf-sink pull-in: default-off — truthy-only.
       ...(snapshot.strataSinkPullIn ? { strataSinkPullIn: true } : {}),
+      // P4 pure-sink account block clamp: default-off — truthy-only.
+      ...(snapshot.strataBlockClamp ? { strataBlockClamp: true } : {}),
     };
   }
 

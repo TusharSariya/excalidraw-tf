@@ -78,6 +78,7 @@ export const TerraformImportModal = ({
     strataPackedConverge,
     strataTransitiveAdopt,
     strataSinkPullIn,
+    strataBlockClamp,
     strataEdgeRouting,
     strataBandDepth,
     strataSiftRelocate,
@@ -656,6 +657,7 @@ terraform show -json tfplan > plan.json`}</code>
               strataPackedConverge={strataPackedConverge}
               strataTransitiveAdopt={strataTransitiveAdopt}
               strataSinkPullIn={strataSinkPullIn}
+              strataBlockClamp={strataBlockClamp}
               strataEdgeRouting={strataEdgeRouting}
               strataBandDepth={strataBandDepth}
               strataSiftRelocate={strataSiftRelocate}
@@ -676,6 +678,7 @@ terraform show -json tfplan > plan.json`}</code>
               setStrataPackedConverge={dialog.setStrataPackedConverge}
               setStrataTransitiveAdopt={dialog.setStrataTransitiveAdopt}
               setStrataSinkPullIn={dialog.setStrataSinkPullIn}
+              setStrataBlockClamp={dialog.setStrataBlockClamp}
               setStrataEdgeRouting={dialog.setStrataEdgeRouting}
               setStrataBandDepth={dialog.setStrataBandDepth}
               setStrataSiftRelocate={dialog.setStrataSiftRelocate}

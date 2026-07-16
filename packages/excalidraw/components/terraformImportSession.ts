@@ -111,6 +111,9 @@ export type TerraformImportSession = {
   /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward their source.
    * Default off. */
   strataSinkPullIn?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a whole dead-end account
+   * subtree left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

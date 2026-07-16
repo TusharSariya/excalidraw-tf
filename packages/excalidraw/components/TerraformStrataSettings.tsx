@@ -78,6 +78,7 @@ export const TerraformStrataSettings = ({
   strataPackedConverge,
   strataTransitiveAdopt,
   strataSinkPullIn,
+  strataBlockClamp,
   strataEdgeRouting,
   strataBandDepth,
   strataSiftRelocate,
@@ -94,6 +95,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedConverge,
   setStrataTransitiveAdopt,
   setStrataSinkPullIn,
+  setStrataBlockClamp,
   setStrataEdgeRouting,
   setStrataBandDepth,
   setStrataSiftRelocate,
@@ -109,6 +111,7 @@ export const TerraformStrataSettings = ({
   strataPackedConverge: boolean;
   strataTransitiveAdopt: boolean;
   strataSinkPullIn: boolean;
+  strataBlockClamp: boolean;
   strataEdgeRouting: boolean;
   strataBandDepth: StrataHullRole;
   strataSiftRelocate: boolean;
@@ -125,6 +128,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedConverge: (packedConverge: boolean) => void;
   setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
   setStrataSinkPullIn: (sinkPullIn: boolean) => void;
+  setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
@@ -144,11 +148,13 @@ export const TerraformStrataSettings = ({
   const activeKey = hoverKey ?? stickyKey;
   const activeHelp = OPTION_HELP[activeKey];
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
-  // The crossing objective weights + edge-crossing cap feed BOTH relocate
-  // operators — the OD-15 sift/vertical-relocate and the P1 leaf-sink pull-in —
-  // so the tuning disclosure is live whenever EITHER is on (matching the engine,
-  // which forwards penW/crossW/cap when sift OR sink-pull-in is enabled).
-  const weightsActive = strataSiftRelocate || strataSinkPullIn;
+  // The crossing objective weights + edge-crossing cap feed ALL THREE relocate
+  // operators — the OD-15 sift/vertical-relocate, the P1 leaf-sink pull-in, and
+  // the P4 pure-sink account block clamp — so the tuning disclosure is live
+  // whenever ANY is on (matching the engine, which forwards penW/crossW/cap when
+  // sift OR sink-pull-in OR block-clamp is enabled).
+  const weightsActive =
+    strataSiftRelocate || strataSinkPullIn || strataBlockClamp;
 
   const option = (
     label: string,
@@ -415,6 +421,33 @@ export const TerraformStrataSettings = ({
                     Primarily useful with <strong>Compact height</strong>{" "}
                     enabled — that pass is what strands sinks in far columns for
                     the pull-in to reclaim.
+                  </span>
+                </div>
+              )}
+            </div>
+            <div role="group" aria-label="Strata compact pure-sink accounts">
+              <span className="TerraformImportModal__controlLabel">
+                Compact pure-sink accounts{" "}
+                <span>
+                  pull a whole dead-end account left toward the resources it
+                  depends on
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option("Off", !strataBlockClamp, "strata.blockclamp.off", () =>
+                  setStrataBlockClamp(false),
+                )}
+                {option("On", strataBlockClamp, "strata.blockclamp.on", () =>
+                  setStrataBlockClamp(true),
+                )}
+              </div>
+              {strataBlockClamp && !strataRankSeparate && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Primarily useful with <strong>Compact height</strong>{" "}
+                    enabled — that pass is what strands whole accounts in the
+                    far-right columns for the clamp to pull back.
                   </span>
                 </div>
               )}
