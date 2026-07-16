@@ -193,6 +193,16 @@ export type TerraformStrataSceneOptions = {
    * arrows are byte-identical; flag-off the routing module never runs.
    */
   strataEdgeRouting?: boolean;
+  /**
+   * P3-pierce border-exit routing (default off): a post-geometry pass
+   * (terraformPipelineStrataBorderRoute.ts) that re-emits a TFD arrow leaving
+   * its OWN ancestor container as a long interior diagonal with a clean
+   * single-side exit waypoint. Orthogonal to `strataEdgeRouting` (disjoint edge
+   * sets) and to every SCORED objective — the win is un-scored readability
+   * (`strataBorderRouteInteriorLenSavedL1`). Placement is untouched; flag-off
+   * the module never runs (byte-identical).
+   */
+  strataBorderRoute?: boolean;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -300,6 +310,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataTranspose = options?.strataTranspose === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
+  // P3-pierce border-exit routing (scene-build), default off.
+  const strataBorderRoute = options?.strataBorderRoute === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
   // `strataBandDepth: "root"`; explicit `strataBandDepth` always wins, so the
   // alias only applies when the enum is absent. Default "account" = the frozen
@@ -323,6 +335,7 @@ export async function buildTerraformStrataExcalidrawScene(
       ? { strataPackedScoringEpsilon }
       : {}),
     ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
+    ...(strataBorderRoute ? { strataBorderRoute } : {}),
     // OD-15 relocate master flag echo — present only when live (flag-off meta
     // byte-identical).
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
@@ -637,6 +650,8 @@ export async function buildTerraformStrataExcalidrawScene(
       // Package C spike (W9): the key rides only when the flag is on so the
       // flag-off input literal (and the scene build) stay byte-identical.
       ...(strataEdgeRouting ? { edgeRouting: true } : {}),
+      // P3-pierce border-exit routing: key rides only when on (byte-identity).
+      ...(strataBorderRoute ? { borderRoute: true } : {}),
     });
 
     // Standing R2 invariant (S0b acceptance): any nonzero count is a failure.
@@ -725,6 +740,23 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeRoutingRouted: scene.edgeRouting.routed,
               strataEdgeRoutingUnroutable: scene.edgeRouting.unroutable,
               strataEdgeRoutingWaypoints: scene.edgeRouting.waypointsTotal,
+            }
+          : {}),
+        // P3-pierce border-exit observability — present only when flag-on. The
+        // scored terms (crossings/penetrations/lengthL1/pierce) are INVARIANT
+        // by design. `MaxWaypointPerpDev` is the FAITHFUL headline (how far the
+        // clean side-exit staircase pulls off the interior diagonal);
+        // `InteriorLenSavedL1` is a conservative lower-bound that under-reads it.
+        ...(scene.borderRoute
+          ? {
+              strataBorderRouteRouted: scene.borderRoute.routed,
+              strataBorderRouteUnclean: scene.borderRoute.unclean,
+              strataBorderRouteNoGain: scene.borderRoute.noGain,
+              strataBorderRouteWaypoints: scene.borderRoute.waypointsTotal,
+              strataBorderRouteMaxWaypointPerpDev:
+                scene.borderRoute.maxWaypointPerpDev,
+              strataBorderRouteInteriorLenSavedL1:
+                scene.borderRoute.interiorLenSavedL1,
             }
           : {}),
         // R2 evidence (all-zero on the success path).

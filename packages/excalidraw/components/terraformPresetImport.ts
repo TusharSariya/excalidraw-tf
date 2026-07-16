@@ -107,6 +107,8 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -166,6 +168,7 @@ export const runTerraformImportWithView = async ({
   strataBlockClamp,
   strataTranspose,
   strataEdgeRouting,
+  strataBorderRoute,
   strataBandCompact,
   strataBandDepth,
   strataSiftRelocate,
@@ -231,6 +234,7 @@ export const runTerraformImportWithView = async ({
           strataBlockClamp,
           strataTranspose,
           strataEdgeRouting,
+          strataBorderRoute,
           strataBandCompact,
           strataBandDepth,
           strataSiftRelocate,
@@ -290,6 +294,8 @@ export type RunTerraformPresetImportOptions = {
   /** P2 within-column transpose. Default off. */
   strataTranspose?: boolean;
   strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
@@ -372,6 +378,7 @@ export const runTerraformPresetImport = async (
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
     strataEdgeRouting: options.strataEdgeRouting,
+    strataBorderRoute: options.strataBorderRoute,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,
     strataSiftRelocate: options.strataSiftRelocate,

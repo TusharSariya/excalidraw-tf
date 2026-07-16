@@ -45,6 +45,27 @@ const geometryTuples = (elements: readonly ExcalidrawElement[]): string[] =>
     .map((el) => `${el.x},${el.y},${el.width},${el.height}`)
     .sort();
 
+/** Arrow polyline fingerprint: origin + every relative point + the routed
+ * marker. Stronger than geometryTuples (which sees only the bbox), so a
+ * default-off byte-identity check catches a mutated polyline that leaves the
+ * bounding box unchanged. */
+const arrowPolySignatures = (
+  elements: readonly ExcalidrawElement[],
+): string[] =>
+  elements
+    .filter((el) => !el.isDeleted && el.type === "arrow")
+    .map((el) => {
+      const pts =
+        (el as unknown as { points?: ReadonlyArray<readonly number[]> })
+          .points ?? [];
+      const cd = el.customData as Record<string, unknown> | undefined;
+      const marker = cd?.terraformRoutedPolyline === true ? "R" : "-";
+      return `${el.x},${el.y}|${pts
+        .map((p) => p.join(":"))
+        .join(";")}|${marker}`;
+    })
+    .sort();
+
 type Scene = { elements: ExcalidrawElement[]; meta: Record<string, unknown> };
 
 const buildStrata = async (opts: Record<string, unknown> = {}) => {
@@ -233,6 +254,87 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(off.meta.strataEdgeRoutingRouted).toBeUndefined();
       expect(off.meta.strataEdgeRoutingUnroutable).toBeUndefined();
       expect(off.meta.strataEdgeRoutingWaypoints).toBeUndefined();
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
+    "threads strataBorderRoute end-to-end (sceneContext literal -> scene build -> meta echo + P3 exit counts)",
+    async () => {
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBorderRoute: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataBorderRoute).toBe(true);
+      // The scene-build pass ran and reported its counters.
+      expect(typeof on.meta.strataBorderRouteRouted).toBe("number");
+      expect(typeof on.meta.strataBorderRouteUnclean).toBe("number");
+      expect(typeof on.meta.strataBorderRouteNoGain).toBe("number");
+      expect(typeof on.meta.strataBorderRouteWaypoints).toBe("number");
+      expect(typeof on.meta.strataBorderRouteInteriorLenSavedL1).toBe("number");
+      expect(typeof on.meta.strataBorderRouteMaxWaypointPerpDev).toBe("number");
+      // Some TFD arrow leaves its own container on this preset (region-level
+      // sinks fed from inside a VPC), so at least one edge is a candidate.
+      expect(
+        (on.meta.strataBorderRouteRouted as number) +
+          (on.meta.strataBorderRouteUnclean as number) +
+          (on.meta.strataBorderRouteNoGain as number),
+      ).toBeGreaterThan(0);
+      // Routed exits carry interior waypoints (>2 points), a positive saving,
+      // and the polyline marker — one multi-point arrow per routed edge.
+      if ((on.meta.strataBorderRouteRouted as number) > 0) {
+        expect(on.meta.strataBorderRouteWaypoints).toBeGreaterThan(0);
+        expect(
+          on.meta.strataBorderRouteInteriorLenSavedL1 as number,
+        ).toBeGreaterThan(0);
+        const routedPolys = on.elements.filter((el) => {
+          if (el.type !== "arrow") {
+            return false;
+          }
+          const cd = el.customData as Record<string, unknown> | undefined;
+          const rel = cd?.relationship as Record<string, unknown> | undefined;
+          return (
+            typeof rel?.source === "string" &&
+            rel?.aggregated !== true &&
+            cd?.terraformRoutedPolyline === true &&
+            ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
+          );
+        });
+        expect(routedPolys.length).toBeGreaterThanOrEqual(
+          on.meta.strataBorderRouteRouted as number,
+        );
+      }
+
+      // Flag off (default): no border-route meta keys.
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.strataBorderRoute).toBeUndefined();
+      expect(off.meta.strataBorderRouteRouted).toBeUndefined();
+      expect(off.meta.strataBorderRouteUnclean).toBeUndefined();
+      expect(off.meta.strataBorderRouteNoGain).toBeUndefined();
+      expect(off.meta.strataBorderRouteWaypoints).toBeUndefined();
+      expect(off.meta.strataBorderRouteInteriorLenSavedL1).toBeUndefined();
+      expect(off.meta.strataBorderRouteMaxWaypointPerpDev).toBeUndefined();
+
+      // Default-off byte-identity: flag ABSENT and flag explicit-false produce
+      // geometry identical to today's baseline (the module never runs). Checked
+      // at the bbox AND the polyline level so a mutated waypoint that preserved
+      // the bounding box could not slip through.
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBorderRoute: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );

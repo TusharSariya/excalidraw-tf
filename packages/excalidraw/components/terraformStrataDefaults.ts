@@ -26,6 +26,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** Package C spike (W9): post-A7 obstacle-avoiding edge routing — probe
    * lever, default off pending its gate battery. */
   strataEdgeRouting: false,
+  /** P3-pierce clean container-exit routing — probe lever, default off /
+   * byte-identical (NOT in the frozen measurement config). */
+  strataBorderRoute: false,
   /** W10 (SDEC-63): banded row-share compaction lever — probe lever, default
    * off pending owner adjudication (primarily effective with rankSeparate). */
   strataBandCompact: false,
@@ -75,6 +78,7 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedScoring?: boolean;
   strataPackedEps?: number;
   strataEdgeRouting?: boolean;
+  strataBorderRoute?: boolean;
   strataBandCompact?: boolean;
   /** Plain string union (not `StrataHullRole`) per the no-layout-import rule
    * above — mirrors the engine's `StrataHullRole` domain exactly. */
@@ -138,6 +142,9 @@ export const resolveStrataDemoOptions = (params: {
     strataEdgeRouting:
       params.strataEdgeRouting ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
+    strataBorderRoute:
+      params.strataBorderRoute ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute,
     strataBandCompact:
       params.strataBandCompact ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,

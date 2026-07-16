@@ -129,6 +129,9 @@ export type TerraformDemoUrlParams = {
   /** Package C spike (W9): post-A7 obstacle-avoiding edge routing
    * (`strataEdgeRouting=1/0`). Default off. */
   strataEdgeRouting?: boolean;
+  /** Strata P3-pierce clean container-exit routing (`strataBorderRoute=1/0`).
+   * Default off. */
+  strataBorderRoute?: boolean;
   /** W10 (SDEC-63): banded row-share compaction lever
    * (`strataBandCompact=1/0`). Default off; primarily effective with
    * rankSeparate. LEGACY ALIAS for `strataBandDepth: "root"` — kept for old
@@ -448,6 +451,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataEdgeRouting === null) {
     return null;
   }
+  const strataBorderRoute = parseBooleanParam("strataBorderRoute");
+  if (strataBorderRoute === null) {
+    return null;
+  }
   const strataBandCompact = parseBooleanParam("strataBandCompact");
   if (strataBandCompact === null) {
     return null;
@@ -696,6 +703,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
+    ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
     ...(strataSift != null ? { strataSift } : {}),
@@ -776,6 +784,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataPackedScoring", params.strataPackedScoring);
   setNum("strataPackedEps", params.strataPackedEps);
   setBool("strataEdgeRouting", params.strataEdgeRouting);
+  setBool("strataBorderRoute", params.strataBorderRoute);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
   setBool("strataSift", params.strataSift);
@@ -885,6 +894,7 @@ export type TerraformDemoSettingsSnapshot = {
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
+  strataBorderRoute: boolean;
   strataBandCompact: boolean;
   /** v3.2 band-depth slider. Optional (unlike the other Strata flags above)
    * so a snapshot literal that predates this field still type-checks;
@@ -1009,6 +1019,7 @@ export const collectTerraformDemoParams = (
         : {}),
       // Package C spike (W9): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
+      ...(snapshot.strataBorderRoute ? { strataBorderRoute: true } : {}),
       // W10 (SDEC-63): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataBandCompact ? { strataBandCompact: true } : {}),
       // v3.2 band-depth slider: emit only when it diverges from the default

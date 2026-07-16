@@ -81,6 +81,7 @@ export const TerraformStrataSettings = ({
   strataBlockClamp,
   strataTranspose,
   strataEdgeRouting,
+  strataBorderRoute,
   strataBandDepth,
   strataSiftRelocate,
   strataCrossWeightPenetration,
@@ -99,6 +100,7 @@ export const TerraformStrataSettings = ({
   setStrataBlockClamp,
   setStrataTranspose,
   setStrataEdgeRouting,
+  setStrataBorderRoute,
   setStrataBandDepth,
   setStrataSiftRelocate,
   setStrataCrossWeightPenetration,
@@ -116,6 +118,7 @@ export const TerraformStrataSettings = ({
   strataBlockClamp: boolean;
   strataTranspose: boolean;
   strataEdgeRouting: boolean;
+  strataBorderRoute: boolean;
   strataBandDepth: StrataHullRole;
   strataSiftRelocate: boolean;
   strataCrossWeightPenetration: number;
@@ -134,6 +137,7 @@ export const TerraformStrataSettings = ({
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
+  setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
   setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
@@ -764,6 +768,36 @@ export const TerraformStrataSettings = ({
                   setStrataEdgeRouting(true),
                 )}
               </div>
+            </div>
+            <div role="group" aria-label="Strata container-exit routing">
+              <span className="TerraformImportModal__controlLabel">
+                Exit containers through the nearest side{" "}
+                <span>
+                  route an edge leaving its own container out the facing side
+                  instead of slashing diagonally across the interior
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option(
+                  "Off",
+                  !strataBorderRoute,
+                  "strata.borderroute.off",
+                  () => setStrataBorderRoute(false),
+                )}
+                {option("On", strataBorderRoute, "strata.borderroute.on", () =>
+                  setStrataBorderRoute(true),
+                )}
+              </div>
+              {strataBorderRoute && strataEdgeRouting && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Composes with <strong>Route edges around boxes</strong> —
+                    they rewrite disjoint edge sets (own-container exits vs
+                    detours around unrelated boxes) and run in sequence.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <div className="TerraformImportModal__settingsSection">

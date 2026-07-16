@@ -183,6 +183,11 @@ export const useTerraformImportDialog = ({
   const [strataEdgeRouting, setStrataEdgeRouting] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting as boolean,
   );
+  // Strata P3-pierce (strata-only): clean single-side container-exit routing.
+  // Default OFF / byte-identical pending owner adjudication.
+  const [strataBorderRoute, setStrataBorderRoute] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute as boolean,
+  );
   // Strata band-depth slider (v3.2, strata-only): the deepest role still
   // banded — deeper roles pack X-disjoint siblings into shared rows. Default
   // "account" reproduces today's fixed role→policy map byte-identically.
@@ -527,6 +532,7 @@ export const useTerraformImportDialog = ({
         strataBlockClamp,
         strataTranspose,
         strataEdgeRouting,
+        strataBorderRoute,
         strataBandDepth,
         strataSiftRelocate,
         strataCrossWeightPenetration,
@@ -685,6 +691,7 @@ export const useTerraformImportDialog = ({
           strataBlockClamp,
           strataTranspose,
           strataEdgeRouting,
+          strataBorderRoute,
           strataBandDepth,
           strataSiftRelocate,
           strataCrossWeightPenetration,
@@ -806,6 +813,7 @@ export const useTerraformImportDialog = ({
         strataBlockClamp,
         strataTranspose,
         strataEdgeRouting,
+        strataBorderRoute,
         strataBandDepth,
         // Keep this handler's strata option shape identical to the regular
         // preset-import path above: the sift/sink-pull-in operators consume
@@ -1048,6 +1056,7 @@ export const useTerraformImportDialog = ({
         strataBlockClamp,
         strataTranspose,
         strataEdgeRouting,
+        strataBorderRoute,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
         // false so a new share URL never re-emits the old `strataBandCompact`
@@ -1094,6 +1103,7 @@ export const useTerraformImportDialog = ({
     strataBlockClamp,
     strataTranspose,
     strataEdgeRouting,
+    strataBorderRoute,
     strataBandDepth,
     strataSiftRelocate,
     strataCrossWeightPenetration,
@@ -1136,6 +1146,7 @@ export const useTerraformImportDialog = ({
     strataBlockClamp,
     strataTranspose,
     strataEdgeRouting,
+    strataBorderRoute,
     strataBandDepth,
     strataSiftRelocate,
     strataCrossWeightPenetration,
@@ -1200,6 +1211,7 @@ export const useTerraformImportDialog = ({
     setStrataBlockClamp,
     setStrataTranspose,
     setStrataEdgeRouting,
+    setStrataBorderRoute,
     setStrataBandDepth,
     setStrataSiftRelocate,
     setStrataCrossWeightPenetration,

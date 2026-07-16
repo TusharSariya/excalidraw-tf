@@ -92,6 +92,7 @@ const sessionToDemoSnapshot = (
   strataPackedScoring: session.strataPackedScoring ?? false,
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting ?? false,
+  strataBorderRoute: session.strataBorderRoute ?? false,
   strataBandCompact: session.strataBandCompact ?? false,
   // Raw forward — omit at default ("account")/absent so the demo snapshot (and
   // the URL built from it) never carries a default cut key, matching

@@ -486,6 +486,8 @@ type LayoutSceneContext = {
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
@@ -629,6 +631,7 @@ async function buildPipelineLayoutSceneBody(
           : {}),
         strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
         strataEdgeRouting: ctx.strataEdgeRouting,
+        strataBorderRoute: ctx.strataBorderRoute,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
         strataSiftRelocate: ctx.strataSiftRelocate,
@@ -1217,6 +1220,7 @@ export async function layoutTerraformFromSources(
       : {}),
     strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
     strataEdgeRouting: options?.strataEdgeRouting === true,
+    strataBorderRoute: options?.strataBorderRoute === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     strataSiftRelocate: options?.strataSiftRelocate === true,

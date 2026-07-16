@@ -46,6 +46,10 @@ import {
   routeStrataSkeletonEdges,
   type StrataEdgeRoutingMeta,
 } from "./terraformPipelineStrataEdgeRouting";
+import {
+  routeStrataBorderExits,
+  type StrataBorderRouteMeta,
+} from "./terraformPipelineStrataBorderRoute";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import { STRATA_ROOT_ID } from "./terraformPipelineStrataModel";
 import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
@@ -88,6 +92,14 @@ export type StrataSceneBuildInput = {
    * routing module never runs and the skeleton is byte-identical to today.
    */
   edgeRouting?: boolean;
+  /**
+   * P3-pierce border-exit routing (terraformPipelineStrataBorderRoute.ts): when
+   * true, a TFD arrow that leaves its own ancestor container as a long interior
+   * diagonal is re-emitted with a clean single-side exit waypoint. Orthogonal
+   * to `edgeRouting` (own-ancestor exits vs foreign-box detours — disjoint edge
+   * sets). Default off — absent, the module never runs (byte-identical).
+   */
+  borderRoute?: boolean;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
@@ -144,6 +156,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   frameEdgeCount: number;
   /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
   edgeRouting?: StrataEdgeRoutingMeta;
+  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
+  borderRoute?: StrataBorderRouteMeta;
 } {
   const { prep, model, placement, nodes } = input;
   const skeleton: ExcalidrawElementSkeleton[] = [];
@@ -302,6 +316,16 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     ? routeStrataSkeletonEdges(skeleton, input.model, input.placement)
     : undefined;
 
+  // ── P3-pierce border-exit routing (flag-gated). Runs AFTER edgeRouting and
+  // is kept DISJOINT from it: border-route SKIPS any arrow already stamped
+  // `terraformRoutedPolyline` by edgeRouting (it would otherwise re-derive
+  // [start,W,end] from the endpoints, discarding edgeRouting's foreign-detour
+  // waypoints). So each edge is owned by whichever pass fired first — no
+  // clobber, no re-pierce. Absent the flag this never runs. ──
+  const borderRoute = input.borderRoute
+    ? routeStrataBorderExits(skeleton, input.model, input.placement)
+    : undefined;
+
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
   const frameEdgeCount = appendCompoundTopologyFrameEdgeSkeletons(
@@ -317,6 +341,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
     frameEdgeCount,
     ...(edgeRouting ? { edgeRouting } : {}),
+    ...(borderRoute ? { borderRoute } : {}),
   };
 }
 
@@ -337,8 +362,10 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   frameEdgeCount: number;
   /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
   edgeRouting?: StrataEdgeRoutingMeta;
+  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
+  borderRoute?: StrataBorderRouteMeta;
 }> {
-  const { skeleton, frameEdgeCount, edgeRouting } =
+  const { skeleton, frameEdgeCount, edgeRouting, borderRoute } =
     assembleStrataSceneSkeleton(input);
   const converted = await convertPipelineSkeletonToElements(skeleton);
   const elements = finalizeStrataScene(converted, {
@@ -348,5 +375,6 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
     elements,
     frameEdgeCount,
     ...(edgeRouting ? { edgeRouting } : {}),
+    ...(borderRoute ? { borderRoute } : {}),
   };
 }

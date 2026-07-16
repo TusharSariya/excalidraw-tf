@@ -233,6 +233,8 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -310,6 +312,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
   | "strataEdgeRouting"
+  | "strataBorderRoute"
   | "strataBandCompact"
   | "strataBandDepth"
   | "strataSiftRelocate"
@@ -353,6 +356,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataPackedScoring: session.strataPackedScoring === true,
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting === true,
+  strataBorderRoute: session.strataBorderRoute === true,
   strataBandCompact: session.strataBandCompact === true,
   // Raw forward — omit at default ("account")/absent so a replayed session
   // never re-materializes a default cut. A bare `strataBandCompact` session
@@ -416,6 +420,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
   | "strataEdgeRouting"
+  | "strataBorderRoute"
   | "strataBandCompact"
   | "strataBandDepth"
   | "strataSiftRelocate"
@@ -470,6 +475,7 @@ function buildPipelineFamilyLayoutOptions(
     strataPackedScoring: options.strataPackedScoring === true,
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
     strataEdgeRouting: options.strataEdgeRouting === true,
+    strataBorderRoute: options.strataBorderRoute === true,
     strataBandCompact: options.strataBandCompact === true,
     // Raw forward — omit at default ("account")/absent so neither the engine
     // request nor the persisted session snapshot carries a default cut key.

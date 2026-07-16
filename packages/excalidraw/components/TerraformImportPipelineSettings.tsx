@@ -477,6 +477,26 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.borderroute.off": {
+    title: "Exit containers through the nearest side · Off",
+    body: "An arrow from a resource inside a container to a target outside it keeps its straight centre-to-centre line — a long diagonal slashing across the container interior on its way out (the P3-pierce look). Byte-identical scenes.",
+    dev: {
+      implements:
+        "strataBorderRoute=false: the border-exit module never runs; the scene build emits the legacy straight chords (byte-identical).",
+    },
+  },
+  "strata.borderroute.on": {
+    title: "Exit containers through the nearest side · On — P3-pierce",
+    body: "An arrow leaving its own container is re-drawn to exit cleanly at the side facing its target (a single boundary waypoint), so the interior diagonal becomes a short perpendicular exit. The boundary crossing itself cannot be removed (Jordan curve) — only made clean. Endpoints never move; an exit that would not shorten the interior span, or would re-enter a box, keeps its straight line. This is a purely visual win: it changes no scored metric (crossings, penetrations, edge length, and pierce.total all EXCLUDE own-container exits by design).",
+    dev: {
+      implements:
+        "strataBorderRoute=true: routeStrataBorderExits re-emits each TFD arrow whose ancestor exit set is non-empty with an inner→outer facing-side boundary waypoint per exited hull (≤6, clamped to the side inset by PIPELINE_FRAME_PAD/2, strict interior-span decrease + no-re-penetration + no-new-foreign guards, deterministic ties). Post-geometry realization of Sander border-node insertion; disjoint from strataEdgeRouting.",
+      refs: [
+        "Sander 1996 — Layout of Compound Directed Graphs",
+        "Bouts & Speckmann 2015 — Clustered Edge Routing",
+      ],
+    },
+  },
   "strata.banddepth": {
     title: "Band depth",
     body: "Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. Shallower cuts toward Root pack provider and account, which reclaims vertical height when Compact height (rankSeparate) is on. Region, VPC, and Zone cuts are experimental and usually make the canvas wider. Root is always banded — packing it would collapse the top-level providers side-by-side.",

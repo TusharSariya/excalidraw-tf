@@ -42,6 +42,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataPackedScoring: false,
   strataPackedScoringEpsilon: 0,
   strataEdgeRouting: false,
+  strataBorderRoute: false,
   strataBandCompact: false,
   strataSiftRelocate: false,
   strataCrossWeightPenetration: 1,

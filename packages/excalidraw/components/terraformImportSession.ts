@@ -85,6 +85,8 @@ export type TerraformImportSession = {
   strataPackedScoringEpsilon?: number;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing. */
   strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
