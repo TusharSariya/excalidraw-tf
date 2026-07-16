@@ -5,7 +5,7 @@ For each pair open `pairs/<pairId>/A.svg` and `pairs/<pairId>/B.svg` side by sid
 Proposition (per pair): Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)
 
 | # | pair | look at | choice (A/B/tie) | confidence (1-3) | notes |
-| - | ---- | ------- | ---------------- | ---------------- | ----- |
+| --- | --- | --- | --- | --- | --- |
 | 1 | P01 | account 000000000004 / region us-east-1 — row ordering inside this region differs |  |  |  |
 | 2 | P02 | account 000000000004 / region us-east-1 — row ordering inside this region differs |  |  |  |
 | 3 | P03 | account 000000000004 / region us-east-1 — row ordering inside this region differs |  |  |  |

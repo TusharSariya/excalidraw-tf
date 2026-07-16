@@ -65,12 +65,7 @@
         "bandsSkipped": {
           "n": 4,
           "mean": 0.5,
-          "distribution": [
-            1,
-            0,
-            0,
-            1
-          ]
+          "distribution": [1, 0, 0, 1]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -81,18 +76,13 @@
               "totalHeightPx": 5734
             },
             {
-              "hullPath": [
-                "aws"
-              ],
+              "hullPath": ["aws"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 5678
             },
             {
-              "hullPath": [
-                "aws",
-                "992382747916"
-              ],
+              "hullPath": ["aws", "992382747916"],
               "role": "account",
               "childCount": 4,
               "totalHeightPx": 9048
@@ -150,10 +140,7 @@
       "pipelineAncillaryStripCount": 0,
       "rcllDegraded": [],
       "rcllModules": {
-        "stages": [
-          "layering",
-          "placement"
-        ],
+        "stages": ["layering", "placement"],
         "fallback": "compound"
       }
     },
@@ -205,12 +192,7 @@
         "bandsSkipped": {
           "n": 4,
           "mean": 0.75,
-          "distribution": [
-            0,
-            1,
-            2,
-            0
-          ]
+          "distribution": [0, 1, 2, 0]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -221,18 +203,13 @@
               "totalHeightPx": 7442
             },
             {
-              "hullPath": [
-                "aws"
-              ],
+              "hullPath": ["aws"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 7386
             },
             {
-              "hullPath": [
-                "aws",
-                "992382747916"
-              ],
+              "hullPath": ["aws", "992382747916"],
               "role": "account",
               "childCount": 4,
               "totalHeightPx": 7160
@@ -295,10 +272,7 @@
       "pipelineLayoutProfile": "readable",
       "rcllDegraded": [],
       "rcllModules": {
-        "stages": [
-          "layering",
-          "placement"
-        ],
+        "stages": ["layering", "placement"],
         "fallback": "compound"
       }
     },
@@ -350,12 +324,7 @@
         "bandsSkipped": {
           "n": 4,
           "mean": 0.75,
-          "distribution": [
-            0,
-            1,
-            2,
-            0
-          ]
+          "distribution": [0, 1, 2, 0]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -366,18 +335,13 @@
               "totalHeightPx": 11017
             },
             {
-              "hullPath": [
-                "aws"
-              ],
+              "hullPath": ["aws"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 10961
             },
             {
-              "hullPath": [
-                "aws",
-                "992382747916"
-              ],
+              "hullPath": ["aws", "992382747916"],
               "role": "account",
               "childCount": 4,
               "totalHeightPx": 10736
@@ -443,10 +407,7 @@
       "pipelineColumnPacking": "compact",
       "rcllDegraded": [],
       "rcllModules": {
-        "stages": [
-          "layering",
-          "placement"
-        ],
+        "stages": ["layering", "placement"],
         "fallback": "compound"
       }
     },
@@ -498,12 +459,7 @@
         "bandsSkipped": {
           "n": 4,
           "mean": 0.75,
-          "distribution": [
-            0,
-            1,
-            2,
-            0
-          ]
+          "distribution": [0, 1, 2, 0]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -514,18 +470,13 @@
               "totalHeightPx": 7442
             },
             {
-              "hullPath": [
-                "aws"
-              ],
+              "hullPath": ["aws"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 7386
             },
             {
-              "hullPath": [
-                "aws",
-                "992382747916"
-              ],
+              "hullPath": ["aws", "992382747916"],
               "role": "account",
               "childCount": 4,
               "totalHeightPx": 7160
@@ -591,10 +542,7 @@
       "pipelineColumnPacking": "shorten",
       "rcllDegraded": [],
       "rcllModules": {
-        "stages": [
-          "layering",
-          "placement"
-        ],
+        "stages": ["layering", "placement"],
         "fallback": "compound"
       }
     },
@@ -646,12 +594,7 @@
         "bandsSkipped": {
           "n": 4,
           "mean": 0.75,
-          "distribution": [
-            0,
-            1,
-            2,
-            0
-          ]
+          "distribution": [0, 1, 2, 0]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -662,18 +605,13 @@
               "totalHeightPx": 7442
             },
             {
-              "hullPath": [
-                "aws"
-              ],
+              "hullPath": ["aws"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 7386
             },
             {
-              "hullPath": [
-                "aws",
-                "992382747916"
-              ],
+              "hullPath": ["aws", "992382747916"],
               "role": "account",
               "childCount": 4,
               "totalHeightPx": 7160
@@ -749,10 +687,7 @@
       "pipelineNetworkSimplexRankSuppressed": true,
       "rcllDegraded": [],
       "rcllModules": {
-        "stages": [
-          "layering",
-          "placement"
-        ],
+        "stages": ["layering", "placement"],
         "fallback": "compound"
       }
     },
@@ -804,40 +739,7 @@
         "bandsSkipped": {
           "n": 32,
           "mean": 3,
-          "distribution": [
-            0,
-            0,
-            2,
-            1,
-            1,
-            2,
-            10,
-            9,
-            7,
-            6,
-            5,
-            4,
-            3,
-            2,
-            11,
-            8,
-            5,
-            4,
-            0,
-            3,
-            2,
-            1,
-            1,
-            0,
-            3,
-            2,
-            0,
-            1,
-            0,
-            1,
-            2,
-            0
-          ]
+          "distribution": [0, 0, 2, 1, 1, 2, 10, 9, 7, 6, 5, 4, 3, 2, 11, 8, 5, 4, 0, 3, 2, 1, 1, 0, 3, 2, 0, 1, 0, 1, 2, 0]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -848,62 +750,43 @@
               "totalHeightPx": 19486
             },
             {
-              "hullPath": [
-                "992382747916"
-              ],
+              "hullPath": ["992382747916"],
               "role": "provider",
               "childCount": 4,
               "totalHeightPx": 20183
             },
             {
-              "hullPath": [
-                "unknown-account"
-              ],
+              "hullPath": ["unknown-account"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 139
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-east-1"
-              ],
+              "hullPath": ["992382747916", "us-east-1"],
               "role": "account",
               "childCount": 37,
               "totalHeightPx": 15783
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-east-2"
-              ],
+              "hullPath": ["992382747916", "us-east-2"],
               "role": "account",
               "childCount": 9,
               "totalHeightPx": 4349
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-west-1"
-              ],
+              "hullPath": ["992382747916", "us-west-1"],
               "role": "account",
               "childCount": 12,
               "totalHeightPx": 4939
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-west-2"
-              ],
+              "hullPath": ["992382747916", "us-west-2"],
               "role": "account",
               "childCount": 16,
               "totalHeightPx": 6983
             },
             {
-              "hullPath": [
-                "unknown-account",
-                "unknown-region"
-              ],
+              "hullPath": ["unknown-account", "unknown-region"],
               "role": "account",
               "childCount": 12,
               "totalHeightPx": 1668
@@ -1005,40 +888,7 @@
         "bandsSkipped": {
           "n": 32,
           "mean": 6.25,
-          "distribution": [
-            3,
-            3,
-            0,
-            5,
-            5,
-            0,
-            0,
-            8,
-            11,
-            15,
-            19,
-            26,
-            34,
-            35,
-            1,
-            9,
-            5,
-            4,
-            3,
-            2,
-            1,
-            0,
-            3,
-            2,
-            1,
-            0,
-            1,
-            0,
-            1,
-            0,
-            2,
-            1
-          ]
+          "distribution": [3, 3, 0, 5, 5, 0, 0, 8, 11, 15, 19, 26, 34, 35, 1, 9, 5, 4, 3, 2, 1, 0, 3, 2, 1, 0, 1, 0, 1, 0, 2, 1]
         },
         "stackedBandHeight": {
           "perHull": [
@@ -1049,62 +899,43 @@
               "totalHeightPx": 15429
             },
             {
-              "hullPath": [
-                "992382747916"
-              ],
+              "hullPath": ["992382747916"],
               "role": "provider",
               "childCount": 4,
               "totalHeightPx": 29916
             },
             {
-              "hullPath": [
-                "unknown-account"
-              ],
+              "hullPath": ["unknown-account"],
               "role": "provider",
               "childCount": 1,
               "totalHeightPx": 1932
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-east-1"
-              ],
+              "hullPath": ["992382747916", "us-east-1"],
               "role": "account",
               "childCount": 37,
               "totalHeightPx": 18851
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-east-2"
-              ],
+              "hullPath": ["992382747916", "us-east-2"],
               "role": "account",
               "childCount": 9,
               "totalHeightPx": 6041
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-west-1"
-              ],
+              "hullPath": ["992382747916", "us-west-1"],
               "role": "account",
               "childCount": 12,
               "totalHeightPx": 5853
             },
             {
-              "hullPath": [
-                "992382747916",
-                "us-west-2"
-              ],
+              "hullPath": ["992382747916", "us-west-2"],
               "role": "account",
               "childCount": 16,
               "totalHeightPx": 9097
             },
             {
-              "hullPath": [
-                "unknown-account",
-                "unknown-region"
-              ],
+              "hullPath": ["unknown-account", "unknown-region"],
               "role": "account",
               "childCount": 23,
               "totalHeightPx": 3197

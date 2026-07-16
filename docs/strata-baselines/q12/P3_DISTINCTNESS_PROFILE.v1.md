@@ -1,13 +1,9 @@
 # P3 distinctness profile (input-only, frozen in W12 WP1)
 
-REPORT-only, unregistered. P3 (`staging-heldout-mesh`) is SELF-AUTHORED
-(scripts/generate-heldout-plan.mjs, seed 20260704): out-of-tuning-distribution
-transfer material, NOT an independently sampled held-out plan — R8-F4 stays open.
-Scale counts as ONE dimension. Cycles/degrees/paths are measured on RESOLVED
-TFD flow endpoints (the layout substrate), not raw tfd text.
+REPORT-only, unregistered. P3 (`staging-heldout-mesh`) is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, seed 20260704): out-of-tuning-distribution transfer material, NOT an independently sampled held-out plan — R8-F4 stays open. Scale counts as ONE dimension. Cycles/degrees/paths are measured on RESOLVED TFD flow endpoints (the layout substrate), not raw tfd text.
 
 | axis | P1 (staging-extended-localstack-v2) | P2 (staging-localstack) | P3 (staging-heldout-mesh) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | resource_changes (scale — ONE dimension) | 1175 | 792 | 396 |
 | module depth max | 3 | 3 | 5 |
 | module depth histogram | {"0":298,"1":360,"2":424,"3":93} | {"0":116,"1":343,"2":240,"3":93} | {"1":157,"2":51,"3":112,"4":64,"5":12} |

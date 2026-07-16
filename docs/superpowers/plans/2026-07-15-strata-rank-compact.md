@@ -19,6 +19,7 @@
 - **Branch `strata-v3.2-w5-w10b`, commit there — NOT master (branch-protected).**
 
 **Reference implementations (proven in the M0 spike, preserved):**
+
 - Solver prototype: `scratchpad/m0-prototypes/terraformStrataRankCompactM0.probe.test.ts` — freezes band-sharing C2 pairs+orientation from the separated floor, builds the C1+C2+C3+C4 difference-constraint graph, solves via `computeNetworkSimplexDepths`, applies the 2-stage tiebreak. **Productionize this; do not re-derive.**
 - Evidence-gate harness: `scratchpad/m0-prototypes/terraformStrataM0EvidenceGate.probe.test.ts` — measures paired rt̂/cr-on-path + pixel width/height/L1 vs off through the full app path with `pairedPathMetricsCi`. **The M1 assertion test (Task 8) is this, hardened.**
 
@@ -27,7 +28,7 @@
 ## File structure
 
 | File | Responsibility | Phase |
-|---|---|---|
+| --- | --- | --- |
 | `terraformPipelineStrataRankCompact.ts` (**new**) | The solver: freeze C2 pairs+orientation, build difference-constraint graph, solve, 2-stage tiebreak. Pure function `computeStrataRankCompactFloor(...)`. | 1 |
 | `terraformPipelineStrataRank.ts` (modify) | Call the compact solver instead of the separated floor when `rankCompact` on; make the NS-drop guard (`:117-129`) conditional; `columnX` build (`:175-194`) reads the compact assignment. | 1 |
 | `terraformPipelineStrataRankSeparate.ts` (modify) | Export the band-sharing pair set + oriented sep-edges so the compact solver reuses them (don't duplicate). | 1 |
@@ -46,9 +47,11 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 ### Task 0: Over-constraint probe
 
 **Files:**
+
 - Create (scratch, uncommitted): `packages/excalidraw/components/terraformStrataRankCompactOverConstraint.probe.test.ts`
 
 **Interfaces:**
+
 - Consumes: the M0 formulation prototype's freeze + solve helpers (copy from `scratchpad/m0-prototypes/terraformStrataRankCompactM0.probe.test.ts`).
 - Produces: a **decision** — the C2 pair-membership rule Phase 1's solver uses (either "all baseline band-sharing pairs" or "band-sharing pairs whose relaxation raises pixel height / adds a pierce", i.e. a tightened set).
 
@@ -57,8 +60,7 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 - [ ] **Step 3:** Decide the rule. Expected outcomes: (a) if dropping the DLQ's band-sharing pair is height-safe (agent-2's measurement generalizes) → Phase 1 relaxes sink pairs → bigger DLQ win; (b) if it re-stacks taller (agent-1's pin is real) → Phase 1 keeps the full band-sharing set → moderate win. **Write the decision + numbers into the plan's Phase-1 solver task before building.**
 - [ ] **Step 4 (no commit — scratch probe):** Record findings in `scratchpad/strata-phase0-overconstraint.md`.
 
-**Run:** `node_modules/.bin/vitest run --cache=false packages/excalidraw/components/terraformStrataRankCompactOverConstraint.probe.test.ts` (needs a private `vitest.probe.config.mts` — see M0 harness notes).
-**Gate:** Phase 1's solver C2-set definition is FIXED by this result. Do not start Task 2 until Step 3 is written down.
+**Run:** `node_modules/.bin/vitest run --cache=false packages/excalidraw/components/terraformStrataRankCompactOverConstraint.probe.test.ts` (needs a private `vitest.probe.config.mts` — see M0 harness notes). **Gate:** Phase 1's solver C2-set definition is FIXED by this result. Do not start Task 2 until Step 3 is written down.
 
 ---
 
@@ -67,6 +69,7 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 ### Task 1: Thread `strataRankCompact` (inert)
 
 **Files (all modify — mirror `strataPackedConverge`, commit `e22e5c657`):**
+
 - `terraformPipelineStrataTypes.ts` — add `rankCompact?: boolean` to `StrataEngineOptions`.
 - `terraformDemoUrlParams.ts` — add `strataRankCompact?: boolean` to `TerraformDemoUrlParams`, parse via `parseBooleanParam`, spread in return, `setBool` emit for share URL.
 - `terraformStrataDefaults.ts` — `strataRankCompact: false` in `TERRAFORM_STRATA_LAYOUT_DEFAULTS`; resolve `?? false` in `resolveStrataDemoOptions`.
@@ -75,6 +78,7 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 - `terraformImportSession.ts`, `terraformCanvasShareUrl.ts`, `terraformSceneApply.ts` — session/share/persistence threading.
 
 **Interfaces:**
+
 - Produces: `options.rankCompact: boolean` readable in `terraformPipelineStrataRank.ts`; URL param `strataRankCompact=1`.
 
 - [ ] **Step 1:** Write the failing test in `terraformPipelineStrataRankCompact.test.ts`: an OFF arm and an OFF-explicit arm (`strataRankCompact:false`) on the preset; assert `sceneFingerprint(offExplicit) === sceneFingerprint(off)` (byte-identity) — this passes trivially now and guards the whole feature. Add a URL round-trip assertion (`strataRankCompact=1` parses to `true`).
@@ -86,10 +90,12 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 ### Task 2: The compaction solver
 
 **Files:**
+
 - Create: `terraformPipelineStrataRankCompact.ts` — export `computeStrataRankCompactFloor(units, edgesPrime, separatedFloor, options)`.
 - Modify: `terraformPipelineStrataRankSeparate.ts` — export the band-sharing pair set + oriented sep-edges (per Phase-0's C2-set rule) so this file reuses them.
 
 **Interfaces:**
+
 - Consumes: the separated-floor placement (baseline), the oriented C2 sep-edges (`terraformPipelineStrataRankSeparate.ts`), `buildSeparationConstraintGraph` + `computeNetworkSimplexDepths` (`terraformPipelineLayoutShared.ts`), the Phase-0 C2-set rule.
 - Produces: `computeStrataRankCompactFloor(...): { columnOf: Map<unitId, number>, fellBack: boolean }` — a per-unit column assignment minimizing Σ w_e|col_u − col_v| under C1+C2+C3+C4, or the separated floor with `fellBack:true` if infeasible/degenerate.
 
@@ -103,9 +109,11 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 ### Task 3: Wire the solver into rank assignment
 
 **Files:**
+
 - Modify: `terraformPipelineStrataRank.ts` — NS-drop guard `:117-129` becomes conditional on `!rankCompact`; when `rankCompact`, call `computeStrataRankCompactFloor` and feed its `columnOf` into the `columnX` build `:175-194`.
 
 **Interfaces:**
+
 - Consumes: `computeStrataRankCompactFloor` (Task 2), `options.rankCompact` (Task 1).
 - Produces: `columnX[rank]` derived from the compact assignment when on; unchanged when off.
 
@@ -118,9 +126,11 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 ### Task 8: M1 assertion gate (the real bar)
 
 **Files:**
+
 - Modify: `terraformPipelineStrataRankCompact.test.ts` — add the M1 arm, productionized from `scratchpad/m0-prototypes/terraformStrataM0EvidenceGate.probe.test.ts`.
 
 **Interfaces:**
+
 - Consumes: `pairedPathMetricsCi`, `computeStrataPathMetrics` (`terraformPipelineStrataPathMetrics.ts`), the full app path.
 
 - [ ] **Step 1:** Write the M1 assertions (ON vs OFF, `coordinateRefine` on, n≥31 for p90): **paired rt̂ p50/p90 CI not adverse** AND **cr-on-path p90 CI not adverse** (the W5b bar — this is the gate W5b failed); **pixel width ≤ W₀**, **pixel height ≤ H₀**; total L1 improves; DLQ edges shorten; `fellBack:false`.
@@ -130,9 +140,11 @@ The M0 tension: agent-2 measured the DLQ pulled all the way to source+1 (150px) 
 ### Task 9: Fixed-slot-width colX (heterogeneous-preset generality)
 
 **Files:**
+
 - Modify: `terraformPipelineLayoutShared.ts` and/or `terraformPipelineStrataRank.ts` — the `columnX` construction must use **fixed per-column slot widths established before the solve** so the pixel==column-span equivalence holds when cards are NOT uniform width.
 
 **Interfaces:**
+
 - Consumes: per-unit card widths.
 - Produces: a `columnX` whose pixel width the solver's C4 cap and L1 objective faithfully track.
 
@@ -158,6 +170,7 @@ MOVE-A (Account-04) is the bigger cross-account-edge win but its **rigid** trans
 ### Task 11: Containment-guarded Account-04 compaction
 
 **Files:**
+
 - Modify: `terraformPipelineStrataRankCompact.ts` — ensure C3 containment constraints bind for account/region hulls (child columns within parent bbox, parent border tightened).
 - Modify: `terraformPipelineStrataRankCompact.test.ts`.
 
@@ -170,12 +183,14 @@ MOVE-A (Account-04) is the bigger cross-account-edge win but its **rigid** trans
 ---
 
 ## NOT in scope (separate specs)
+
 - Freeing the sibling ordering (NP-hard MinLA) — order stays fixed.
 - A full 2D coupled solve (the Y-axis NO-GO) — X-only, Y frozen.
 - The #3 cosmetic natural-sort tiebreak for the loose column — trivial, ship separately.
 - Replacing the ε default / owner objective ruling on crossings-for-length — the flag exposes it; the default is conservative (crossings-not-worse).
 
 ## Self-review notes
+
 - Spec coverage: all 8 M0 formulation items map to Task 2 (solver) + Task 9 (pixel metric); Fable's W5b bar → Task 8; C2 over-constraint → Task 0; C3 pierces → Task 11; byte-identity/threading → Task 1; determinism → Task 2 Step 5.
 - The solver internals reference the **preserved M0 prototype** rather than fabricated code — the prototype is a proven, measured implementation; productionizing it (typed exports, off-branch byte-identity, NaN rule) is the work.
 - Phase 0 is a hard gate: its result changes Task 2's C2-set definition. Do not skip it.

@@ -35,11 +35,11 @@ Round-8 R8-F9: the v1 evidence (RFC DI-NS-4) only falsified the **sequential** c
 | J (+RS sequential) | 220 | 0.28 | 14,126 | 14,898 | — |
 | X (+jointNS) | 217 | 0.36 | 14,105 | 14,898 | applied; realSpan 544→509 |
 
-| Cell | extent p90 CI | rt̂ p50 CI | rt̂ p90 CI | cr p90 CI |
-| --- | --- | --- | --- | --- |
-| A vs J | [+1252, +3659] | [+0.06, +0.64] | [+4.26, +4.97] | [+6, +8] |
-| A vs X | [+1704, +5695] | [+0.62, +1.56] | [+5.02, +6.61] | [+8, +10] |
-| **J vs X** | **[+693, +2534]** | [0, +0.33] | [+4.47, +5.36] | [+6, +7] |
+| Cell       | extent p90 CI     | rt̂ p50 CI      | rt̂ p90 CI      | cr p90 CI |
+| ---------- | ----------------- | -------------- | -------------- | --------- |
+| A vs J     | [+1252, +3659]    | [+0.06, +0.64] | [+4.26, +4.97] | [+6, +8]  |
+| A vs X     | [+1704, +5695]    | [+0.62, +1.56] | [+5.02, +6.61] | [+8, +10] |
+| **J vs X** | **[+693, +2534]** | [0, +0.33]     | [+4.47, +5.36] | [+6, +7]  |
 
 **P1: the joint solve is strictly worse than sequential RS** on the extent tail, the M-RT median and tail, and crossings-on-path — despite achieving its own objective (real span −6.4%) and near-identical height. Compressing real rank spans packs more arrows into fewer columns, and the path metrics pay for it.
 
@@ -64,7 +64,7 @@ Round-8 R8-F9: the v1 evidence (RFC DI-NS-4) only falsified the **sequential** c
 
 **NO-GO on replacing sequential rankSeparate with the joint solve** — no dominance: P1 strictly worse on every path metric; P2 mixed (aggregate wins, per-path-tail losses). The sequential RS arm J stands as measured in W5.
 
-**But R8-F9's technical claim is CONFIRMED:** the joint constrained-NS formulation is viable — it solved on both presets, preserved every sibling-separation constraint (zero `constraint-violated` fallbacks), and minimized its objective. The current mutual-exclusion rule's *stated* justification ("cannot compose", DI-NS-4) should be corrected in a future amendment: the truth is "composes fine, doesn't help" — an evidence-based rejection, not an infeasibility. The deeper W5 lesson is reinforced: **rank-span compression (any NS objective) is the wrong lever for path readability** — shorter spans densify columns and put more crossings on traced paths. Closes the R8-F9 open item.
+**But R8-F9's technical claim is CONFIRMED:** the joint constrained-NS formulation is viable — it solved on both presets, preserved every sibling-separation constraint (zero `constraint-violated` fallbacks), and minimized its objective. The current mutual-exclusion rule's _stated_ justification ("cannot compose", DI-NS-4) should be corrected in a future amendment: the truth is "composes fine, doesn't help" — an evidence-based rejection, not an infeasibility. The deeper W5 lesson is reinforced: **rank-span compression (any NS objective) is the wrong lever for path readability** — shorter spans densify columns and put more crossings on traced paths. Closes the R8-F9 open item.
 
 Caveats: same two AWS presets as W5 (R8-F11 stands); the joint solve was seeded from the sequential floor (a cold-start joint solve could land elsewhere, but the simplex optimum for this objective is unique up to balance ties, so the seeding is not load-bearing).
 

@@ -21,20 +21,28 @@ The Strata layout engine places each nested container ("hull") using one of two 
 
 ## 2. Owner decisions (this session, plan `alright-we-are-implementing-imperative-axolotl`)
 
-- **Fully-generic model, no special-casing.** The cut resolves into `hull.policy` exactly once (`resolveStrataHullPolicy`, `terraformPipelineStrataTypes.ts`), and *every* consumer — A0 placement, A7 coordinate refinement, A2 sibling ordering, packed-scoring eligibility, slice-metrics diagnostics — reads that one resolved policy. A packed level is packed for everything, exactly like region/vpc/subnetZone always were; there is no `usesLegacyPackedOrdering`-style predicate anywhere in the consumer set. The rejected alternative was parity-preserving: keep `bandCompact` as a narrow special-case boolean threaded alongside the map so provider/account "look packed" for placement only, without touching A2 ordering or packed-scoring eligibility. The owner chose to **delete** the special-casing rather than add a third policy value next to it.
+- **Fully-generic model, no special-casing.** The cut resolves into `hull.policy` exactly once (`resolveStrataHullPolicy`, `terraformPipelineStrataTypes.ts`), and _every_ consumer — A0 placement, A7 coordinate refinement, A2 sibling ordering, packed-scoring eligibility, slice-metrics diagnostics — reads that one resolved policy. A packed level is packed for everything, exactly like region/vpc/subnetZone always were; there is no `usesLegacyPackedOrdering`-style predicate anywhere in the consumer set. The rejected alternative was parity-preserving: keep `bandCompact` as a narrow special-case boolean threaded alongside the map so provider/account "look packed" for placement only, without touching A2 ordering or packed-scoring eligibility. The owner chose to **delete** the special-casing rather than add a third policy value next to it.
 - **Root pinned banded.** The one structural exception (multi-provider seam, spec v3.1 §1.4): packing root would collapse top-level providers side-by-side and destroy the seam. Root is banded like any banded level; the slider's leftmost stop is "only root banded," and all-packed is unrepresentable.
 - **Real range slider, not segmented buttons.** `<input type="range" min=0 max=5 step=1>` with a "banded ← → packed" axis caption and a Root…Zone tick row. Codex's plan review flagged that a RadioGroup does not wrap gracefully at 6 stops; rather than work around the wrap, the owner chose a real slider, which also better matches the "one monotone cut" mental model than discrete buttons.
-- **Accepted cost, registered before build:** `strataBandCompact=true` output *changes* at the leftmost cut — provider/account gain packed A2 ordering and packed-scoring eligibility (SDEC-57/58), neither of which the old boolean touched. Acceptable because `bandCompact` is off-by-default (nothing shipped-by-default moves) and the real compatibility guarantee — default `"account"` byte-identical to today — holds by construction, not by parity-preservation of the legacy toggle's exact old behavior.
+- **Accepted cost, registered before build:** `strataBandCompact=true` output _changes_ at the leftmost cut — provider/account gain packed A2 ordering and packed-scoring eligibility (SDEC-57/58), neither of which the old boolean touched. Acceptable because `bandCompact` is off-by-default (nothing shipped-by-default moves) and the real compatibility guarantee — default `"account"` byte-identical to today — holds by construction, not by parity-preservation of the legacy toggle's exact old behavior.
 
 ## 3. Data model
 
 - `StrataHullRole` (already depth-ordered: root < provider < account < region < vpc < subnetZone) is reused as the cut type. `strataBandDepth?: StrataHullRole` was added to `StrataEngineOptions`.
 - One resolver, one home (`terraformPipelineStrataTypes.ts`, importing the role enum — the defaults module cannot host it under the no-layout-import rule):
   ```ts
-  const STRATA_ROLE_DEPTH: Record<StrataHullRole, number> =
-    { root: 0, provider: 1, account: 2, region: 3, vpc: 4, subnetZone: 5 };
+  const STRATA_ROLE_DEPTH: Record<StrataHullRole, number> = {
+    root: 0,
+    provider: 1,
+    account: 2,
+    region: 3,
+    vpc: 4,
+    subnetZone: 5,
+  };
   export const resolveStrataHullPolicy = (role, bandDepth): StrataHullPolicy =>
-    STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed";
+    STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth]
+      ? "banded"
+      : "packed";
   ```
   `resolveStrataHullPolicy(role, "account")` reproduces `STRATA_HULL_POLICY` element-for-element (the map stays exported as the default-cut constant and the slice-metrics fallback; a dev test pins map ≡ resolver at `"account"`).
 - **Alias fold-in:** `strataBandCompact === true ⇒ strataBandDepth: "root"`, but only when the enum is absent — an explicit `strataBandDepth` always wins. Encoded once in `resolveStrataDemoOptions` and once in the app-layer extraction in `terraformPipelineStrata.ts`.

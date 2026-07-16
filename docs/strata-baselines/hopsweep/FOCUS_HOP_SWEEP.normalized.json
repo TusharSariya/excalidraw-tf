@@ -1148,9 +1148,7 @@
     },
     "determinism": {
       "passes": 2,
-      "strippedKeys": [
-        "buildMs"
-      ],
+      "strippedKeys": ["buildMs"],
       "deterministic": true
     }
   },
@@ -2276,9 +2274,7 @@
     },
     "determinism": {
       "passes": 2,
-      "strippedKeys": [
-        "buildMs"
-      ],
+      "strippedKeys": ["buildMs"],
       "deterministic": true
     }
   },
@@ -3644,18 +3640,13 @@
     "confirmatoryOnly": "P3 cells are reported alongside and CANNOT select or veto the §7 recommendation (record §1); self-authored out-of-tuning-distribution material — W12 claim scoping, R8-F4 stays open",
     "determinism": {
       "passes": 2,
-      "strippedKeys": [
-        "buildMs"
-      ],
+      "strippedKeys": ["buildMs"],
       "deterministic": true
     }
   },
   "recommendation": {
     "rule": "per direction: smallest K with macro precision >= 0.9 AND macro recall >= 0.95 on BOTH P1 AND P2 (full-precision raw-count macros, record §5/§7); none => keep 3; P3 confirmatory-only, never selects",
-    "selectionPresets": [
-      "staging-extended-localstack-v2",
-      "staging-localstack"
-    ],
+    "selectionPresets": ["staging-extended-localstack-v2", "staging-localstack"],
     "perDirection": {
       "both": {
         "recommendedK": 3,

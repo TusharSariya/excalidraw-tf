@@ -1,76 +1,304 @@
-<!doctype html>
-<html><head><meta charset="utf-8"><title>Strata preference labeling (blinded)</title>
-<style>
-body{font-family:system-ui,sans-serif;margin:0;background:#f5f5f5}
-header{position:sticky;top:0;background:#222;color:#fff;padding:8px 16px;z-index:9;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-header input{padding:4px 8px}
-.pair{background:#fff;margin:16px;padding:12px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-.imgs{display:flex;gap:8px}
-.imgs figure{flex:1;margin:0;border:1px solid #ccc;overflow:auto;max-height:70vh}
-.imgs img{width:100%;height:auto;display:block}
-.imgs figcaption{text-align:center;font-weight:bold;padding:4px;background:#eee;position:sticky;top:0}
-.controls{margin-top:8px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-.warn{background:#fff3cd;border:1px solid #ffc107;padding:8px 16px;margin:16px;border-radius:6px}
-button{padding:8px 14px;font-size:14px;cursor:pointer}
-</style></head><body>
-<header>
-  <strong>Strata blinded preference labeling</strong>
-  <label>Rater name: <input id="rater" placeholder="e.g. owner"></label>
-  <button onclick="downloadLabels()">Download labels JSON</button>
-  <span id="progress"></span>
-</header>
-<div class="warn"><b>Blinded instrument.</b> Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)
-Judge readability only — do NOT open PREF_PAIRS_KEY.json or any score output
-until every rater has submitted labels. Zoom into the hinted area; the rest of
-the canvas may be identical or shift slightly.</div>
-<div id="pairs"></div>
-<script>
-const MANIFEST = [{"pairId":"P01","focusHint":"account 000000000004 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P01/A.svg","imgB":"pairs/P01/B.svg"},{"pairId":"P02","focusHint":"account 000000000004 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P02/A.svg","imgB":"pairs/P02/B.svg"},{"pairId":"P03","focusHint":"account 000000000004 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P03/A.svg","imgB":"pairs/P03/B.svg"},{"pairId":"P04","focusHint":"horizontal position of the whole account 000000000004 block (dead gap vs crossings)","imgA":"pairs/P04/A.svg","imgB":"pairs/P04/B.svg"},{"pairId":"P05","focusHint":"the ingress/egress DLQ queue cards (top area) — horizontal distance from their sources","imgA":"pairs/P05/A.svg","imgB":"pairs/P05/B.svg"},{"pairId":"P06","focusHint":"account 000000000001 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P06/A.svg","imgB":"pairs/P06/B.svg"},{"pairId":"P07","focusHint":"account 000000000002 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P07/A.svg","imgB":"pairs/P07/B.svg"},{"pairId":"P08","focusHint":"account 000000000003 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P08/A.svg","imgB":"pairs/P08/B.svg"},{"pairId":"P09","focusHint":"account 000000000003 / region us-east-1 — row ordering inside this region differs","imgA":"pairs/P09/A.svg","imgB":"pairs/P09/B.svg"},{"pairId":"P10","focusHint":"region us-west-2 — vertical order of the two VPCs and the S3 bucket differs","imgA":"pairs/P10/A.svg","imgB":"pairs/P10/B.svg"},{"pairId":"P11","focusHint":"region us-west-2 — vertical order of the two VPCs and the S3 bucket differs","imgA":"pairs/P11/A.svg","imgB":"pairs/P11/B.svg"},{"pairId":"P12","focusHint":"region us-west-2 — vertical order of the two VPCs and the S3 bucket differs","imgA":"pairs/P12/A.svg","imgB":"pairs/P12/B.svg"},{"pairId":"P13","focusHint":"region us-west-2 — position of the S3 bucket row differs","imgA":"pairs/P13/A.svg","imgB":"pairs/P13/B.svg"}];
-const state = {};
-const root = document.getElementById("pairs");
-for (const m of MANIFEST) {
-  const d = document.createElement("div");
-  d.className = "pair";
-  d.innerHTML =
-    '<h3>' + m.pairId + ' — look at: ' + m.focusHint + '</h3>' +
-    '<div class="imgs">' +
-    '<figure><figcaption>A</figcaption><img loading="lazy" src="' + m.imgA + '"></figure>' +
-    '<figure><figcaption>B</figcaption><img loading="lazy" src="' + m.imgB + '"></figure>' +
-    '</div><div class="controls">' +
-    '<span>Easier to read/trace:</span>' +
-    ['A','B','tie'].map(v => '<label><input type="radio" name="c-' + m.pairId + '" value="' + v + '"> ' + v + '</label>').join('') +
-    '<span>Confidence:</span>' +
-    [1,2,3].map(v => '<label><input type="radio" name="k-' + m.pairId + '" value="' + v + '"> ' + v + '</label>').join('') +
-    '<label>notes <input name="n-' + m.pairId + '" size="30"></label>' +
-    '</div>';
-  root.appendChild(d);
-}
-document.addEventListener("change", update);
-function update() {
-  let done = 0;
-  for (const m of MANIFEST) {
-    const c = document.querySelector('input[name="c-' + m.pairId + '"]:checked');
-    if (c) { done++; }
-  }
-  document.getElementById("progress").textContent = done + "/" + MANIFEST.length + " labeled";
-}
-function downloadLabels() {
-  const rater = document.getElementById("rater").value.trim();
-  if (!rater) { alert("Enter a rater name first."); return; }
-  const labels = [];
-  for (const m of MANIFEST) {
-    const c = document.querySelector('input[name="c-' + m.pairId + '"]:checked');
-    const k = document.querySelector('input[name="k-' + m.pairId + '"]:checked');
-    const n = document.querySelector('input[name="n-' + m.pairId + '"]');
-    labels.push({ pairId: m.pairId, choice: c ? c.value : "", confidence: k ? Number(k.value) : null, notes: n && n.value || "" });
-  }
-  const missing = labels.filter(l => !l.choice).length;
-  if (missing && !confirm(missing + " pairs unlabeled. Download anyway?")) { return; }
-  const blob = new Blob([JSON.stringify({ rater, generatedAt: new Date().toISOString(), seed: 20260715, labels }, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "labels-" + rater.replace(/[^a-z0-9_-]/gi, "_") + ".json";
-  a.click();
-}
-update();
-</script></body></html>
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Strata preference labeling (blinded)</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        background: #f5f5f5;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        background: #222;
+        color: #fff;
+        padding: 8px 16px;
+        z-index: 9;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      header input {
+        padding: 4px 8px;
+      }
+      .pair {
+        background: #fff;
+        margin: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      .imgs {
+        display: flex;
+        gap: 8px;
+      }
+      .imgs figure {
+        flex: 1;
+        margin: 0;
+        border: 1px solid #ccc;
+        overflow: auto;
+        max-height: 70vh;
+      }
+      .imgs img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .imgs figcaption {
+        text-align: center;
+        font-weight: bold;
+        padding: 4px;
+        background: #eee;
+        position: sticky;
+        top: 0;
+      }
+      .controls {
+        margin-top: 8px;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .warn {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        padding: 8px 16px;
+        margin: 16px;
+        border-radius: 6px;
+      }
+      button {
+        padding: 8px 14px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Strata blinded preference labeling</strong>
+      <label>Rater name: <input id="rater" placeholder="e.g. owner" /></label>
+      <button onclick="downloadLabels()">Download labels JSON</button>
+      <span id="progress"></span>
+    </header>
+    <div class="warn">
+      <b>Blinded instrument.</b> Which layout is easier to read and trace
+      dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong) Judge
+      readability only — do NOT open PREF_PAIRS_KEY.json or any score output
+      until every rater has submitted labels. Zoom into the hinted area; the
+      rest of the canvas may be identical or shift slightly.
+    </div>
+    <div id="pairs"></div>
+    <script>
+      const MANIFEST = [
+        {
+          pairId: "P01",
+          focusHint:
+            "account 000000000004 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P01/A.svg",
+          imgB: "pairs/P01/B.svg",
+        },
+        {
+          pairId: "P02",
+          focusHint:
+            "account 000000000004 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P02/A.svg",
+          imgB: "pairs/P02/B.svg",
+        },
+        {
+          pairId: "P03",
+          focusHint:
+            "account 000000000004 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P03/A.svg",
+          imgB: "pairs/P03/B.svg",
+        },
+        {
+          pairId: "P04",
+          focusHint:
+            "horizontal position of the whole account 000000000004 block (dead gap vs crossings)",
+          imgA: "pairs/P04/A.svg",
+          imgB: "pairs/P04/B.svg",
+        },
+        {
+          pairId: "P05",
+          focusHint:
+            "the ingress/egress DLQ queue cards (top area) — horizontal distance from their sources",
+          imgA: "pairs/P05/A.svg",
+          imgB: "pairs/P05/B.svg",
+        },
+        {
+          pairId: "P06",
+          focusHint:
+            "account 000000000001 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P06/A.svg",
+          imgB: "pairs/P06/B.svg",
+        },
+        {
+          pairId: "P07",
+          focusHint:
+            "account 000000000002 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P07/A.svg",
+          imgB: "pairs/P07/B.svg",
+        },
+        {
+          pairId: "P08",
+          focusHint:
+            "account 000000000003 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P08/A.svg",
+          imgB: "pairs/P08/B.svg",
+        },
+        {
+          pairId: "P09",
+          focusHint:
+            "account 000000000003 / region us-east-1 — row ordering inside this region differs",
+          imgA: "pairs/P09/A.svg",
+          imgB: "pairs/P09/B.svg",
+        },
+        {
+          pairId: "P10",
+          focusHint:
+            "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs",
+          imgA: "pairs/P10/A.svg",
+          imgB: "pairs/P10/B.svg",
+        },
+        {
+          pairId: "P11",
+          focusHint:
+            "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs",
+          imgA: "pairs/P11/A.svg",
+          imgB: "pairs/P11/B.svg",
+        },
+        {
+          pairId: "P12",
+          focusHint:
+            "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs",
+          imgA: "pairs/P12/A.svg",
+          imgB: "pairs/P12/B.svg",
+        },
+        {
+          pairId: "P13",
+          focusHint: "region us-west-2 — position of the S3 bucket row differs",
+          imgA: "pairs/P13/A.svg",
+          imgB: "pairs/P13/B.svg",
+        },
+      ];
+      const state = {};
+      const root = document.getElementById("pairs");
+      for (const m of MANIFEST) {
+        const d = document.createElement("div");
+        d.className = "pair";
+        d.innerHTML =
+          "<h3>" +
+          m.pairId +
+          " — look at: " +
+          m.focusHint +
+          "</h3>" +
+          '<div class="imgs">' +
+          '<figure><figcaption>A</figcaption><img loading="lazy" src="' +
+          m.imgA +
+          '"></figure>' +
+          '<figure><figcaption>B</figcaption><img loading="lazy" src="' +
+          m.imgB +
+          '"></figure>' +
+          '</div><div class="controls">' +
+          "<span>Easier to read/trace:</span>" +
+          ["A", "B", "tie"]
+            .map(
+              (v) =>
+                '<label><input type="radio" name="c-' +
+                m.pairId +
+                '" value="' +
+                v +
+                '"> ' +
+                v +
+                "</label>",
+            )
+            .join("") +
+          "<span>Confidence:</span>" +
+          [1, 2, 3]
+            .map(
+              (v) =>
+                '<label><input type="radio" name="k-' +
+                m.pairId +
+                '" value="' +
+                v +
+                '"> ' +
+                v +
+                "</label>",
+            )
+            .join("") +
+          '<label>notes <input name="n-' +
+          m.pairId +
+          '" size="30"></label>' +
+          "</div>";
+        root.appendChild(d);
+      }
+      document.addEventListener("change", update);
+      function update() {
+        let done = 0;
+        for (const m of MANIFEST) {
+          const c = document.querySelector(
+            'input[name="c-' + m.pairId + '"]:checked',
+          );
+          if (c) {
+            done++;
+          }
+        }
+        document.getElementById("progress").textContent =
+          done + "/" + MANIFEST.length + " labeled";
+      }
+      function downloadLabels() {
+        const rater = document.getElementById("rater").value.trim();
+        if (!rater) {
+          alert("Enter a rater name first.");
+          return;
+        }
+        const labels = [];
+        for (const m of MANIFEST) {
+          const c = document.querySelector(
+            'input[name="c-' + m.pairId + '"]:checked',
+          );
+          const k = document.querySelector(
+            'input[name="k-' + m.pairId + '"]:checked',
+          );
+          const n = document.querySelector('input[name="n-' + m.pairId + '"]');
+          labels.push({
+            pairId: m.pairId,
+            choice: c ? c.value : "",
+            confidence: k ? Number(k.value) : null,
+            notes: (n && n.value) || "",
+          });
+        }
+        const missing = labels.filter((l) => !l.choice).length;
+        if (
+          missing &&
+          !confirm(missing + " pairs unlabeled. Download anyway?")
+        ) {
+          return;
+        }
+        const blob = new Blob(
+          [
+            JSON.stringify(
+              {
+                rater,
+                generatedAt: new Date().toISOString(),
+                seed: 20260715,
+                labels,
+              },
+              null,
+              2,
+            ),
+          ],
+          { type: "application/json" },
+        );
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "labels-" + rater.replace(/[^a-z0-9_-]/gi, "_") + ".json";
+        a.click();
+      }
+      update();
+    </script>
+  </body>
+</html>

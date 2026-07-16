@@ -70,13 +70,8 @@
       },
       "armProvenance": "option objects copied VERBATIM from terraformPipelineStrataExtentGate.test.ts ARM_OPTIONS (F_v2_full_ancillary / H2 / I2 / J2, L110-147); every arm — baseline included — built through the SAME getTerraformImportPresetSourcesFromDb → resolveSourcesWithTfdComposition → layoutTerraformViaWorkers seam (plan D4; no buildV2)",
       "presets": {
-        "headline": [
-          "P1",
-          "P2"
-        ],
-        "stretch": [
-          "P3"
-        ]
+        "headline": ["P1", "P2"],
+        "stretch": ["P3"]
       },
       "contentParityCaveat": "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary (pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)",
       "voidExpectation": "extent/rt̂ statuses are taken VERBATIM from the frozen pairedBootstrapCi result (voided/status/nUnmatched) — expected to often VOID at full detail (W4 precedent); that is the honest outcome, not a failure",
@@ -175,10 +170,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -266,10 +258,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -358,10 +347,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -451,10 +437,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         }
@@ -915,10 +898,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -1006,10 +986,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -1098,10 +1075,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -1191,10 +1165,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         }
@@ -1655,10 +1626,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -1746,10 +1714,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -1838,10 +1803,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         },
@@ -1931,10 +1893,7 @@
                   "callCount": 1
                 }
               ],
-              "unclassifiedSpanNames": [
-                "skeleton.resourceRects",
-                "skeleton.satelliteBundles"
-              ]
+              "unclassifiedSpanNames": ["skeleton.resourceRects", "skeleton.satelliteBundles"]
             }
           }
         }

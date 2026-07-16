@@ -16,12 +16,12 @@ Canonical frozen Q2 audit JSON copies referenced by [`rcll-v2-spec-v3.1.md`](../
 
 ## Files
 
-| File | Preset |
-| --- | --- |
-| `Q2_AUDIT_REPORT_P1.json` | staging-extended-localstack-v2 |
-| `Q2_AUDIT_REPORT_P2.json` | staging-localstack |
-| `Q2_AUDIT_REPORT_P3_MULTISTATE.json` | staging-multi-state-expanded |
-| `Q2_AUDIT_REPORT_CYCLIC.json` | cyclic fixture |
+| File                                 | Preset                         |
+| ------------------------------------ | ------------------------------ |
+| `Q2_AUDIT_REPORT_P1.json`            | staging-extended-localstack-v2 |
+| `Q2_AUDIT_REPORT_P2.json`            | staging-localstack             |
+| `Q2_AUDIT_REPORT_P3_MULTISTATE.json` | staging-multi-state-expanded   |
+| `Q2_AUDIT_REPORT_CYCLIC.json`        | cyclic fixture                 |
 
 ## v3.2 frozen rows + gate register (R8-F3 repair)
 

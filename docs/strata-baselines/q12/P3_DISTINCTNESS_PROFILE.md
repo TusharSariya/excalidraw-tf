@@ -1,18 +1,11 @@
 # P3 distinctness profile (input-only, frozen in W12 WP1; v2 re-emitted under AMENDMENT-1)
 
-FIXTURE v2 (AMENDMENT-1, strata-view-w12-heldout-scale.md): v1 had a single
-provider/account/region band (generator artifact, zero slice-B edges); v2 adds
-3 account/region bands + cross-band fan-ins. v1 profile preserved at
-P3_DISTINCTNESS_PROFILE.v1.{json,md}. Thresholds/metrics/definitions unchanged.
+FIXTURE v2 (AMENDMENT-1, strata-view-w12-heldout-scale.md): v1 had a single provider/account/region band (generator artifact, zero slice-B edges); v2 adds 3 account/region bands + cross-band fan-ins. v1 profile preserved at P3_DISTINCTNESS_PROFILE.v1.{json,md}. Thresholds/metrics/definitions unchanged.
 
-REPORT-only, unregistered. P3 (`staging-heldout-mesh`) is SELF-AUTHORED
-(scripts/generate-heldout-plan.mjs, seed 20260704): out-of-tuning-distribution
-transfer material, NOT an independently sampled held-out plan — R8-F4 stays open.
-Scale counts as ONE dimension. Cycles/degrees/paths are measured on RESOLVED
-TFD flow endpoints (the layout substrate), not raw tfd text.
+REPORT-only, unregistered. P3 (`staging-heldout-mesh`) is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, seed 20260704): out-of-tuning-distribution transfer material, NOT an independently sampled held-out plan — R8-F4 stays open. Scale counts as ONE dimension. Cycles/degrees/paths are measured on RESOLVED TFD flow endpoints (the layout substrate), not raw tfd text.
 
 | axis | P1 (staging-extended-localstack-v2) | P2 (staging-localstack) | P3 (staging-heldout-mesh) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | resource_changes (scale — ONE dimension) | 1175 | 792 | 399 |
 | module depth max | 3 | 3 | 5 |
 | module depth histogram | {"0":298,"1":360,"2":424,"3":93} | {"0":116,"1":343,"2":240,"3":93} | {"1":160,"2":51,"3":112,"4":64,"5":12} |

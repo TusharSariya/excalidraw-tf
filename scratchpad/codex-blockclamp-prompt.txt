@@ -1,0 +1,32 @@
+You are performing an ADVERSARIAL static code review of an UNCOMMITTED working-tree change in this repo (branch strata-v3.2-w5-w10b). The feature is an opt-in Sugiyama-layout refinement pass "strataBlockClamp" for AWS Terraform diagrams (default OFF).
+
+HARD CONSTRAINTS:
+- Do NOT read anything under ~/.claude (forbidden).
+- Do NOT run the pipeline / tests / any build — bare node CANNOT boot this pipeline (native better-sqlite3 + browser globals). STATIC ANALYSIS ONLY: reason from `git diff`, the new files, and the surrounding source.
+- Read the diff with: git --no-pager diff  ;  and the two new files: packages/excalidraw/components/terraformPipelineStrataBlockClamp.ts and .test.ts (untracked — read directly).
+
+WHAT THE PASS DOES (per its header): post-A7, it enumerates every account-role hull, keeps only PURE-SINK account blocks (no effective edge leaves the block; >=1 effective edge enters it), computes the largest LR-feasible leftward column clamp = max(external source rank)+1, RIGIDLY translates the whole subtree (account box + descendant hull boxes + placed units + block leaf boxes) by a single ΔX in pixels (colSpan retained, never re-ranks, Y/width/height untouched), and adopts the largest move that survives a gate stack: X-containment, checkStrataStructure all-zero (R2), height maintain-or-decrease, and strataRelocateAdoptable (weighted-C + hard edge-cross cap + ε). Flag OFF => returns the input placement BY REFERENCE (byte-identical).
+
+REVIEW THESE DIMENSIONS, adversarially, and give concrete file:line findings:
+
+1. CORRECTNESS of the operator in terraformPipelineStrataBlockClamp.ts:
+   - pure-sink detection (outTargets/inSources built over edgesPrime, honoring pe.reversed effective direction) — can a non-sink block be misclassified, or a sink missed? Edge cases: self-loops, leaf appearing as both endpoint, edges among block leaves counted as external?
+   - clamp math: blockMinRank, kMaxRank = min over extPairs of (rl - rs - 1); destIndex = blockMinRank - k; dx = columnX[destIndex]-columnX[blockMinRank]. Under VARIABLE column widths is the "largest-move-first, first-that-passes" loop actually monotonic in width saved? Could a smaller k be a bigger leftward pixel move? Is dx>=0 skip correct?
+   - rigid translate: does translateBlock shift EVERY box that belongs to the block and NInterval leave the source placement unmutated? Any box that should move but doesn't (or vice versa)? placed units vs leafBoxes vs hull boxes coverage.
+   - blockMinRank uses min rank over ALL block leaves, but the clamp destination lands blockMinRank's column onto blockMinRank-k. If different block leaves sit in different columns, is a single rigid ΔX (computed from blockMinRank's column) correct for the binding pair which may involve a leaf NOT at blockMinRank? Verify the leaf in extPairs whose margin binds kMaxRank is consistent with a translate keyed off blockMinRank.
+
+2. DEFAULT-OFF BYTE-IDENTICAL: verify the flag-off early return is truly referential (line ~112). Verify no default-on threading anywhere flips it on. Verify the option is omitted from option literals when false (spread `...(x ? {k:true}:{})`) so flag-off engine input is byte-identical.
+
+3. THREADING / SILENT-DROP SEAM: this repo has a known bug class where a new pipeline* option must be forwarded in the sceneContext/builderOptions literal in terraformLayoutCore.ts or it is silently dropped on the real app path (GET /api/terraform-layout). Verify strataBlockClamp is forwarded at terraformLayoutCore.ts (~line 635 builderOptions literal) AND wherever else the ctx->engine hop happens. Trace the full chain: URL param (terraformDemoUrlParams.ts) -> session (terraformImportSession.ts) -> layoutCore ctx (line ~516) -> builderOptions (~635) -> terraformPipelineStrata options (~285/330/404) -> engineOptions -> refineStrataBlockClamp. Also preset path (terraformPresetImport.ts), sceneApply (terraformSceneApply.ts), canvas share url (terraformCanvasShareUrl.ts), defaults (terraformStrataDefaults.ts). Flag any hop where the field is dropped or defaulted inconsistently (e.g. `?? false` vs `=== true` vs `?? default`).
+
+4. GUARD / CONSTRAINT SUFFICIENCY:
+   - LR feasibility: is the pixel LR gate (leafCentre>=srcCentre) sufficient given rank-based kMaxRank? Are there external inbound pairs NOT in extPairs that could invert? Internal edges claimed inversion-proof — confirm.
+   - X-containment gate: minX/maxX computed from parentBh (immediate parent hull). Is the immediate parent the right containment box, or should it be checked against ALL ancestors? Could the account escape a grandparent while satisfying the parent? framePad read at call time — correct?
+   - height gate: maxBottomOf compares candidate vs incumbent — under a pure X translate it's trivially equal; is coding it as a live gate harmless or could it wrongly veto?
+   - the greedy per-block loop mutates `incumbent` and uses `incumbentScore` for adoption but `baselineScore` stays fixed — is strataRelocateAdoptable(cand, baseline, incumbent, weights) semantics correct across multiple blocks (does block N+1 get scored against a stale baseline)?
+
+5. UI CONTROL-FLOW FOOTGUNS in TerraformStrataSettings.tsx / useTerraformImportDialog.ts / TerraformImportDialog.tsx: the `strataBlockClamp && !strataRankSeparate` conditional (TerraformStrataSettings.tsx ~444) — what does it gate and is there a footgun where the toggle is on but ineffective/hidden, or state not reset? Any dependency-array omissions in useTerraformImportDialog hooks.
+
+6. TEST COVERAGE gaps in the .test.ts: what real-world failure modes are NOT covered (multi-column blocks where binding leaf != minRank leaf; reversed edges; a block that partially passes LR but fails R2; variable-width non-monotonic k; multiple external sources at different ranks)?
+
+OUTPUT: A one-line VERDICT (SHIP / SHIP-WITH-NITS / CHANGES-REQUIRED / NO-GO), then findings grouped by the 6 dimensions, each with file:line, severity (BLOCKER/MAJOR/MINOR/NIT), and a one-sentence concrete failure scenario. Be terse. Do not restate the design back to me. Only report defects and real risks.

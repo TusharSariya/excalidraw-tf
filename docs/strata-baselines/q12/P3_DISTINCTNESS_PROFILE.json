@@ -278,11 +278,7 @@
         },
         "scc": {
           "countGe2": 3,
-          "sizesGe2": [
-            2,
-            2,
-            4
-          ]
+          "sizesGe2": [2, 2, 4]
         },
         "pathLengths": {
           "samples": 152,
@@ -294,13 +290,7 @@
     }
   },
   "distinctness": {
-    "nonScaleAxesDistinctFromBoth": [
-      "moduleDepthMax",
-      "sccCountGe2",
-      "maxOutDegree",
-      "pathLengthP90",
-      "topTypeMixJaccard"
-    ],
+    "nonScaleAxesDistinctFromBoth": ["moduleDepthMax", "sccCountGe2", "maxOutDegree", "pathLengthP90", "topTypeMixJaccard"],
     "required": 3,
     "axes": {
       "moduleDepthMax": {

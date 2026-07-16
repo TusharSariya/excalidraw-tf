@@ -43,13 +43,13 @@ First task-grounded result: **I (K4+A7) is statistically BETTER than v2 at the m
 
 ### Scene scalars
 
-| Arm | crossings | sharpShare (<30°) | p10 θ | min θ |
-| --- | --- | --- | --- | --- |
-| v2 | 177 | 0.28 | 13.8° | 1.7° |
-| G (K0) | 273 | 0.66 | 8.7° | 1.3° |
-| H (K4) | 136 | 0.39 | 8.7° | 1.3° |
-| I (K4+A7) | 123 | 0.41 | 8.7° | 1.3° |
-| J (+RS) | 220 | 0.28 | 15.9° | 3.5° |
+| Arm       | crossings | sharpShare (<30°) | p10 θ | min θ |
+| --------- | --------- | ----------------- | ----- | ----- |
+| v2        | 177       | 0.28              | 13.8° | 1.7°  |
+| G (K0)    | 273       | 0.66              | 8.7°  | 1.3°  |
+| H (K4)    | 136       | 0.39              | 8.7°  | 1.3°  |
+| I (K4+A7) | 123       | 0.41              | 8.7°  | 1.3°  |
+| J (+RS)   | 220       | 0.28              | 15.9° | 3.5°  |
 
 Strata's ordering wins global crossings (123 vs 177) but its banded geometry makes the surviving crossings **sharper** (41% vs 28% below 30°). rankSeparate is the mirror image: more crossings (220) but much healthier angles.
 
@@ -74,7 +74,7 @@ Extent: all arms far worse (G p90 point +8180; J +3796), every quantile CI degen
 
 **(c) Do K=4 and A7 earn their keep? — SUPPORTED.** K=4 is the single biggest task-metric lever in the system: it converts the default arm's decisive loss (Δrt̂ p50 +2.68) into parity (−0.03), halving crossings (273→136). A7 adds a further consistent median gain (−0.03→−0.27) at zero component cost. This is the strongest empirical justification either optimization has received — and it damns the K=0 default (finding f).
 
-**(d) Does rankSeparate help or hurt the task? — HURTS (accepted on the wrong metric).** RS was accepted at V3 on extent alone. On path metrics it flips I's median win to a loss (−0.27→+0.25 P1; +0.98→+2.64 P2), nearly doubles crossings (123→220 P1; 39→104 P2), and puts +5…+8 on Δcr p90 — while genuinely improving the extent tail (+6726→+3161) and crossing angles (sharpShare 0.41→0.28; 0.95→0.15). RS is a *trade*, not a win: height and angles bought with tracing quality. Its "must ship WITH K=4" pairing and the V3 acceptance should be revisited once a joint constrained-NS formulation (round-8 R8-F9) is probed — the current sequential composition may be paying an avoidable crossings bill.
+**(d) Does rankSeparate help or hurt the task? — HURTS (accepted on the wrong metric).** RS was accepted at V3 on extent alone. On path metrics it flips I's median win to a loss (−0.27→+0.25 P1; +0.98→+2.64 P2), nearly doubles crossings (123→220 P1; 39→104 P2), and puts +5…+8 on Δcr p90 — while genuinely improving the extent tail (+6726→+3161) and crossing angles (sharpShare 0.41→0.28; 0.95→0.15). RS is a _trade_, not a win: height and angles bought with tracing quality. Its "must ship WITH K=4" pairing and the V3 acceptance should be revisited once a joint constrained-NS formulation (round-8 R8-F9) is probed — the current sequential composition may be paying an avoidable crossings bill.
 
 **(e) Crossing angles: banded geometry vs v2 — WEAKENED for Strata's shipped arms.** All non-RS Strata arms have sharper crossings than v2 (P1: 0.39–0.66 vs 0.28 sharpShare; P2: 0.95 vs 0.48). The band model compresses vertical room, forcing shallow-angle crossings — an effect the extent-centric family never saw. Only RS fixes it, at cost (d).
 
