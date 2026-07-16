@@ -533,6 +533,25 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataBlockClamp=true (P4, Lever A): a post-A7 pass clamps each pure-sink account block to max(source rank)+1 (decoupled from any single source — the anchors are multi-source fan-in hubs), rigid-translating the whole subtree left in pixels, gated by X-containment + checkStrataStructure all-zero + the weighted-C/ε machinery and the P5 height-maintained-or-decreased gate. Never re-ranks (preserves the rankSeparate height lever).",
     },
   },
+  "strata.transpose.off": {
+    title: "Transpose crossing reduction · Off",
+    body: "Layer ordering keeps the order the barycenter sweeps produced, with no adjacent-swap cleanup pass.",
+    dev: {
+      implements:
+        "strataTranspose=false: the post-A7 within-column transpose pass never runs; sibling Y-order is left exactly as ordering + placement produced it and the engine is byte-identical.",
+    },
+  },
+  "strata.transpose.on": {
+    title: "Transpose crossing reduction · On — P2",
+    body: "After Layer ordering runs, repeatedly swap neighbouring boxes within a band whenever the swap removes a crossing — catching crossings the barycenter sweeps leave behind, and only kept when it strictly improves.",
+    dev: {
+      implements:
+        "strataTranspose=true (P2): a post-A7 pass (transposeStrataColumns, terraformPipelineStrataTranspose.ts) that partitions each hull's placed siblings into X-column-overlap groups and iterates direction-alternating adjacent Y-exchanges of X-OVERLAPPING pairs (the complement of the X-DISJOINT vertical-relocate). The adjacent exchange is envelope-preserving (union span unchanged ⇒ hull height invariant), gated by checkStrataStructure all-zero + strataRelocateAdoptable (weighted-C + edge-cross cap + ε) scored on real leaf geometry. X untouched (CON-12-safe, no X-compaction); never re-ranks (preserves the rankSeparate height lever).",
+      refs: [
+        "Gansner, Koutsofios, North & Vo 1993 — A Technique for Drawing Directed Graphs (the transpose heuristic)",
+      ],
+    },
+  },
   "strata.crosspenweight": {
     title: "Penetration weight (penW)",
     body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",

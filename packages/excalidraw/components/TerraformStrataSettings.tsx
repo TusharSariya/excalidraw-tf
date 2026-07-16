@@ -79,6 +79,7 @@ export const TerraformStrataSettings = ({
   strataTransitiveAdopt,
   strataSinkPullIn,
   strataBlockClamp,
+  strataTranspose,
   strataEdgeRouting,
   strataBandDepth,
   strataSiftRelocate,
@@ -96,6 +97,7 @@ export const TerraformStrataSettings = ({
   setStrataTransitiveAdopt,
   setStrataSinkPullIn,
   setStrataBlockClamp,
+  setStrataTranspose,
   setStrataEdgeRouting,
   setStrataBandDepth,
   setStrataSiftRelocate,
@@ -112,6 +114,7 @@ export const TerraformStrataSettings = ({
   strataTransitiveAdopt: boolean;
   strataSinkPullIn: boolean;
   strataBlockClamp: boolean;
+  strataTranspose: boolean;
   strataEdgeRouting: boolean;
   strataBandDepth: StrataHullRole;
   strataSiftRelocate: boolean;
@@ -129,6 +132,7 @@ export const TerraformStrataSettings = ({
   setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
   setStrataSinkPullIn: (sinkPullIn: boolean) => void;
   setStrataBlockClamp: (blockClamp: boolean) => void;
+  setStrataTranspose: (transpose: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
@@ -148,13 +152,17 @@ export const TerraformStrataSettings = ({
   const activeKey = hoverKey ?? stickyKey;
   const activeHelp = OPTION_HELP[activeKey];
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
-  // The crossing objective weights + edge-crossing cap feed ALL THREE relocate
-  // operators — the OD-15 sift/vertical-relocate, the P1 leaf-sink pull-in, and
-  // the P4 pure-sink account block clamp — so the tuning disclosure is live
-  // whenever ANY is on (matching the engine, which forwards penW/crossW/cap when
-  // sift OR sink-pull-in OR block-clamp is enabled).
+  // The crossing objective weights + edge-crossing cap feed ALL FOUR relocate
+  // operators — the OD-15 sift/vertical-relocate, the P1 leaf-sink pull-in, the
+  // P4 pure-sink account block clamp, and the P2 within-column transpose — so the
+  // tuning disclosure is live whenever ANY is on (matching the engine, which
+  // forwards penW/crossW/cap when sift OR sink-pull-in OR block-clamp OR transpose
+  // is enabled).
   const weightsActive =
-    strataSiftRelocate || strataSinkPullIn || strataBlockClamp;
+    strataSiftRelocate ||
+    strataSinkPullIn ||
+    strataBlockClamp ||
+    strataTranspose;
 
   const option = (
     label: string,
@@ -209,6 +217,43 @@ export const TerraformStrataSettings = ({
                   setStrataSweeps(4),
                 )}
               </div>
+            </div>
+            <div role="group" aria-label="Strata transpose crossing reduction">
+              <span className="TerraformImportModal__controlLabel">
+                Transpose crossing reduction{" "}
+                <span>
+                  swap neighbouring boxes within a band to remove leftover
+                  crossings
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option("Off", !strataTranspose, "strata.transpose.off", () =>
+                  setStrataTranspose(false),
+                )}
+                {option("On", strataTranspose, "strata.transpose.on", () =>
+                  setStrataTranspose(true),
+                )}
+              </div>
+              {strataTranspose && strataSweeps !== 4 && (
+                <div
+                  className="TerraformImportModal__dependencyHint"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Turn on <strong>Layer ordering</strong> too — transpose
+                    refines the ordering pass and is most effective with it on.
+                  </span>
+                  <button
+                    type="button"
+                    className="TerraformImportModal__dependencyHintAction"
+                    onClick={() => setStrataSweeps(4)}
+                  >
+                    Turn on
+                  </button>
+                </div>
+              )}
             </div>
             <div role="group" aria-label="Strata straighten">
               <span className="TerraformImportModal__controlLabel">

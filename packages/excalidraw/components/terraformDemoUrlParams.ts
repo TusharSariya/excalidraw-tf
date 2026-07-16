@@ -160,6 +160,9 @@ export type TerraformDemoUrlParams = {
   /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
    * left toward its sources (`strataBlockClamp=1/0`). Default off. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
+   * remove leftover diagonal crossings (`strataTranspose=1/0`). Default off. */
+  strataTranspose?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -496,6 +499,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataBlockClamp === null) {
     return null;
   }
+  const strataTranspose = parseBooleanParam("strataTranspose");
+  if (strataTranspose === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -699,6 +706,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
     ...(strataSinkPullIn != null ? { strataSinkPullIn } : {}),
     ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
+    ...(strataTranspose != null ? { strataTranspose } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -778,6 +786,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
   setBool("strataSinkPullIn", params.strataSinkPullIn);
   setBool("strataBlockClamp", params.strataBlockClamp);
+  setBool("strataTranspose", params.strataTranspose);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -903,6 +912,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** P4 pure-sink account block clamp. Optional (default off) so pre-existing
    * snapshot literals still type-check. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose. Optional (default off) so pre-existing snapshot
+   * literals still type-check. */
+  strataTranspose?: boolean;
 };
 
 /**
@@ -1029,6 +1041,8 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataSinkPullIn ? { strataSinkPullIn: true } : {}),
       // P4 pure-sink account block clamp: default-off — truthy-only.
       ...(snapshot.strataBlockClamp ? { strataBlockClamp: true } : {}),
+      // P2 within-column transpose: default-off — truthy-only.
+      ...(snapshot.strataTranspose ? { strataTranspose: true } : {}),
     };
   }
 

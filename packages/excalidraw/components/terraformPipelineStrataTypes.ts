@@ -159,6 +159,19 @@ export type StrataEngineOptions = {
    * byte-identity) are unaffected.
    */
   strataBlockClamp?: boolean;
+  /**
+   * P2 within-column transpose (`strataTranspose`, default off, opt-in): a
+   * post-A7 pass that swaps Y-adjacent X-column-OVERLAPPING sibling pairs inside
+   * one hull (the complementary operator to the X-DISJOINT vertical-relocate) to
+   * remove diagonal crossings the barycenter sweeps leave in fan-in columns. The
+   * adjacent exchange is ENVELOPE-PRESERVING — the pair's union span is unchanged
+   * so hull height is invariant; never re-ranks (the -42% height lever is
+   * preserved) and never changes X (no grid X-compaction). Consumes the same
+   * weighted-C/ε machinery (penW/crossW/ε/cap through `strataRelocateAdoptable`)
+   * as the relocate passes, scored on real leaf geometry. Optional so existing
+   * option literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataTranspose?: boolean;
 };
 
 /**

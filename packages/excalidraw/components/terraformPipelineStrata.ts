@@ -16,6 +16,7 @@ import {
 } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
+import { transposeStrataColumns } from "./terraformPipelineStrataTranspose";
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { refineStrataSinkPullIn } from "./terraformPipelineStrataSinkPullIn";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
@@ -172,6 +173,18 @@ export type TerraformStrataSceneOptions = {
    */
   strataBlockClamp?: boolean;
   /**
+   * P2 within-column transpose (default off, opt-in): a post-A7 pass that swaps
+   * Y-adjacent X-column-OVERLAPPING sibling pairs (the complementary operator to
+   * the X-DISJOINT `strataSiftRelocate` vertical-relocate) to remove the diagonal
+   * crossings the barycenter sweeps leave in fan-in columns. Envelope-preserving
+   * (adjacent exchange keeps the pair's union span, so hull height is invariant);
+   * never re-ranks and never changes X. Reuses the relocate weighted-C/ε
+   * machinery (penW/crossW/ε/cap through `strataRelocateAdoptable`) — so those
+   * weights ride whenever this OR `strataSiftRelocate` is on. Threaded into
+   * `engineOptions.strataTranspose` only when on (byte-identity).
+   */
+  strataTranspose?: boolean;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -283,6 +296,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataSinkPullIn = options?.strataSinkPullIn === true;
   // P4 pure-sink account block clamp (post-A7), default off.
   const strataBlockClamp = options?.strataBlockClamp === true;
+  // P2 within-column transpose (post-A7), default off.
+  const strataTranspose = options?.strataTranspose === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
@@ -303,16 +318,21 @@ export async function buildTerraformStrataExcalidrawScene(
     strataRankSeparate,
     ...(strataJointNsRank ? { strataJointNsRank } : {}),
     ...(strataPackedScoring ? { strataPackedScoring } : {}),
-    ...((strataPackedScoring || strataSiftRelocate) &&
+    ...((strataPackedScoring || strataSiftRelocate || strataTranspose) &&
     strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
       : {}),
     ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
-    // OD-15 relocate echoes — present only when the master flag is live, so the
-    // flag-off meta is byte-identical (weights/cap echoed only when non-default).
-    ...(strataSiftRelocate
+    // OD-15 relocate master flag echo — present only when live (flag-off meta
+    // byte-identical).
+    ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
+    // P2 transpose echo — present only when on (byte-identity).
+    ...(strataTranspose ? { strataTranspose: true } : {}),
+    // Relocate objective weights/cap echoes — the OD-15 vertical-relocate AND the
+    // P2 transpose both consume penW/crossW/cap, so the echo rides when EITHER is
+    // on (weights/cap only when non-default, so both-off meta is byte-identical).
+    ...(strataSiftRelocate || strataTranspose
       ? {
-          strataSiftRelocate: true,
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
             : {}),
@@ -366,7 +386,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...((strataPackedScoring ||
       strataSiftRelocate ||
       strataSinkPullIn ||
-      strataBlockClamp) &&
+      strataBlockClamp ||
+      strataTranspose) &&
     strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
       : {}),
@@ -382,7 +403,10 @@ export async function buildTerraformStrataExcalidrawScene(
     // guardrails and the weight sliders for a sink-pull-in-only run. Weights
     // ride only when non-default, cap only when set, so the both-off shape is
     // byte-identical to today.
-    ...(strataSiftRelocate || strataSinkPullIn || strataBlockClamp
+    ...(strataSiftRelocate ||
+    strataSinkPullIn ||
+    strataBlockClamp ||
+    strataTranspose
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
@@ -402,6 +426,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
     // P4 block-clamp: rides ONLY when on (byte-identity).
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
+    // P2 transpose: rides ONLY when on (byte-identity).
+    ...(strataTranspose ? { strataTranspose: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -545,6 +571,22 @@ export async function buildTerraformStrataExcalidrawScene(
     // engineOptions the descent read (carries the relocate weights/cap).
     if (strataSiftRelocate) {
       placement = refineStrataVerticalSlots(
+        placement,
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
+    }
+
+    // P2 within-column transpose (post-A7, after vertical-relocate settles the
+    // X-disjoint blocks so transpose fixes the within-column Y-order on the
+    // settled layout — and BEFORE sinkPullIn changes any columns). Runs whenever
+    // its own master flag is on — independent of the relocate/packed/sink flags.
+    // Envelope-preserving (hull height invariant). Flag-off ⇒ the module is never
+    // called (byte-identical). The final structural check validates the result.
+    if (strataTranspose) {
+      placement = transposeStrataColumns(
         placement,
         model,
         repair.edgesPrime,

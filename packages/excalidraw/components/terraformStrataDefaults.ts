@@ -54,6 +54,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * subtree left toward its sources to shorten cross-account arrows and narrow
    * the diagram — probe lever, default off. */
   strataBlockClamp: false,
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
+   * remove diagonal crossings the barycenter sweeps leave in fan-in columns —
+   * probe lever, default off (envelope-preserving, byte-identical off). */
+  strataTranspose: false,
 } as const;
 
 /**
@@ -97,6 +101,8 @@ export const resolveStrataDemoOptions = (params: {
   strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose. */
+  strataTranspose?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -153,6 +159,9 @@ export const resolveStrataDemoOptions = (params: {
     strataBlockClamp:
       params.strataBlockClamp ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBlockClamp,
+    strataTranspose:
+      params.strataTranspose ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

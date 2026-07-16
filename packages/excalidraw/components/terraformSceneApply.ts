@@ -261,6 +261,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
    * left toward its sources. Default off. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
+   * remove leftover diagonal crossings. Default off. */
+  strataTranspose?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -317,6 +320,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataTransitiveAdopt"
   | "strataSinkPullIn"
   | "strataBlockClamp"
+  | "strataTranspose"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -370,6 +374,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataTransitiveAdopt: session.strataTransitiveAdopt === true,
   strataSinkPullIn: session.strataSinkPullIn === true,
   strataBlockClamp: session.strataBlockClamp === true,
+  strataTranspose: session.strataTranspose === true,
 });
 
 /**
@@ -421,6 +426,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataTransitiveAdopt"
   | "strataSinkPullIn"
   | "strataBlockClamp"
+  | "strataTranspose"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -484,6 +490,7 @@ function buildPipelineFamilyLayoutOptions(
     strataTransitiveAdopt: options.strataTransitiveAdopt === true,
     strataSinkPullIn: options.strataSinkPullIn === true,
     strataBlockClamp: options.strataBlockClamp === true,
+    strataTranspose: options.strataTranspose === true,
   };
 }
 

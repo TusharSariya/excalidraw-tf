@@ -514,6 +514,9 @@ type LayoutSceneContext = {
   /** P4 pure-sink account block clamp (post-A7): rigid-translate a whole
    * dead-end account subtree left toward its sources. Default off. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose (post-A7): swap Y-adjacent X-overlapping sibling
+   * pairs to remove leftover diagonal crossings. Default off. */
+  strataTranspose?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -633,6 +636,7 @@ async function buildPipelineLayoutSceneBody(
         strataTransitiveAdopt: ctx.strataTransitiveAdopt,
         strataSinkPullIn: ctx.strataSinkPullIn,
         strataBlockClamp: ctx.strataBlockClamp,
+        strataTranspose: ctx.strataTranspose,
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1220,6 +1224,7 @@ export async function layoutTerraformFromSources(
     strataTransitiveAdopt: options?.strataTransitiveAdopt === true,
     strataSinkPullIn: options?.strataSinkPullIn === true,
     strataBlockClamp: options?.strataBlockClamp === true,
+    strataTranspose: options?.strataTranspose === true,
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine

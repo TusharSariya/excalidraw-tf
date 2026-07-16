@@ -101,6 +101,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
    * left toward its sources. Default off. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs.
+   * Default off. */
+  strataTranspose?: boolean;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
@@ -161,6 +164,7 @@ export const runTerraformImportWithView = async ({
   strataTransitiveAdopt,
   strataSinkPullIn,
   strataBlockClamp,
+  strataTranspose,
   strataEdgeRouting,
   strataBandCompact,
   strataBandDepth,
@@ -225,6 +229,7 @@ export const runTerraformImportWithView = async ({
           strataTransitiveAdopt,
           strataSinkPullIn,
           strataBlockClamp,
+          strataTranspose,
           strataEdgeRouting,
           strataBandCompact,
           strataBandDepth,
@@ -282,6 +287,8 @@ export type RunTerraformPresetImportOptions = {
   strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp. Default off. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose. Default off. */
+  strataTranspose?: boolean;
   strataEdgeRouting?: boolean;
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
@@ -363,6 +370,7 @@ export const runTerraformPresetImport = async (
     strataTransitiveAdopt: options.strataTransitiveAdopt,
     strataSinkPullIn: options.strataSinkPullIn,
     strataBlockClamp: options.strataBlockClamp,
+    strataTranspose: options.strataTranspose,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,

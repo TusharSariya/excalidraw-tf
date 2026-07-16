@@ -114,6 +114,9 @@ export type TerraformImportSession = {
   /** P4 pure-sink account block clamp: rigid-translate a whole dead-end account
    * subtree left toward its sources. Default off. */
   strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
+   * remove leftover diagonal crossings. Default off. */
+  strataTranspose?: boolean;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;
