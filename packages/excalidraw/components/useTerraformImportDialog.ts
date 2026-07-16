@@ -162,11 +162,6 @@ export const useTerraformImportDialog = ({
   const [strataTransitiveAdopt, setStrataTransitiveAdopt] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt as boolean,
   );
-  // P1 leaf-sink pull-in (strata-only): post-A7 pass that pulls degree-1 sink
-  // leaves into the column right of their source. Default OFF (byte-identical).
-  const [strataSinkPullIn, setStrataSinkPullIn] = useState(
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkPullIn as boolean,
-  );
   // P4 pure-sink account block clamp (strata-only): post-A7 pass that rigid-
   // translates a whole dead-end account subtree left. Default OFF (byte-identical).
   const [strataBlockClamp, setStrataBlockClamp] = useState(
@@ -183,12 +178,6 @@ export const useTerraformImportDialog = ({
   // (inert under phase 1 — byte-identical).
   const [strataHeightGate, setStrataHeightGate] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate as boolean,
-  );
-  // Strata P5 (Lever A, strata-only): relax the sink-pull-in's single
-  // all-or-nothing target column into a capped leftmost-first column ladder.
-  // Default OFF (byte-identical).
-  const [strataSinkLadder, setStrataSinkLadder] = useState(
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkLadder as boolean,
   );
   // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
   // routing — penetrating edges only. Default OFF pending its gate battery.
@@ -540,11 +529,9 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataPackedConverge,
         strataTransitiveAdopt,
-        strataSinkPullIn,
         strataBlockClamp,
         strataTranspose,
         strataHeightGate,
-        strataSinkLadder,
         strataEdgeRouting,
         strataBorderRoute,
         strataBandDepth,
@@ -701,11 +688,9 @@ export const useTerraformImportDialog = ({
           strataPackedScoringEpsilon,
           strataPackedConverge,
           strataTransitiveAdopt,
-          strataSinkPullIn,
           strataBlockClamp,
           strataTranspose,
           strataHeightGate,
-          strataSinkLadder,
           strataEdgeRouting,
           strataBorderRoute,
           strataBandDepth,
@@ -825,11 +810,9 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataPackedConverge,
         strataTransitiveAdopt,
-        strataSinkPullIn,
         strataBlockClamp,
         strataTranspose,
         strataHeightGate,
-        strataSinkLadder,
         strataEdgeRouting,
         strataBorderRoute,
         strataBandDepth,
@@ -1070,11 +1053,9 @@ export const useTerraformImportDialog = ({
         strataPackedScoringEpsilon,
         strataPackedConverge,
         strataTransitiveAdopt,
-        strataSinkPullIn,
         strataBlockClamp,
         strataTranspose,
         strataHeightGate,
-        strataSinkLadder,
         strataEdgeRouting,
         strataBorderRoute,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
@@ -1119,11 +1100,9 @@ export const useTerraformImportDialog = ({
     strataPackedScoringEpsilon,
     strataPackedConverge,
     strataTransitiveAdopt,
-    strataSinkPullIn,
     strataBlockClamp,
     strataTranspose,
     strataHeightGate,
-    strataSinkLadder,
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
@@ -1164,11 +1143,9 @@ export const useTerraformImportDialog = ({
     strataPackedScoringEpsilon,
     strataPackedConverge,
     strataTransitiveAdopt,
-    strataSinkPullIn,
     strataBlockClamp,
     strataTranspose,
     strataHeightGate,
-    strataSinkLadder,
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
@@ -1231,11 +1208,9 @@ export const useTerraformImportDialog = ({
     setStrataPackedScoringEpsilon,
     setStrataPackedConverge,
     setStrataTransitiveAdopt,
-    setStrataSinkPullIn,
     setStrataBlockClamp,
     setStrataTranspose,
     setStrataHeightGate,
-    setStrataSinkLadder,
     setStrataEdgeRouting,
     setStrataBorderRoute,
     setStrataBandDepth,

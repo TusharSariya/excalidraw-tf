@@ -691,7 +691,6 @@ describe("terraformDemoUrlParams", () => {
         strataBandCompact: true,
         strataPackedConverge: true,
         strataTransitiveAdopt: true,
-        strataSinkPullIn: true,
         strataBlockClamp: true,
       };
       expect(

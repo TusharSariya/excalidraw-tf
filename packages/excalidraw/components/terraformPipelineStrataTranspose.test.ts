@@ -1,7 +1,7 @@
 /**
  * Strata P2 within-column transpose (`strataTranspose`, default off) — unit tests.
  *
- * Mirrors the synthetic-fixture toolkit of terraformPipelineStrataSinkPullIn.test.ts
+ * Mirrors the shared synthetic-fixture toolkit
  * (placement/frameCluster/edge/prep/rankStub/primeEdges over the real A0
  * `placeStrataHulls`). The transpose operator is the COMPLEMENT of the
  * vertical-relocate: it swaps Y-adjacent X-column-OVERLAPPING sibling pairs, so

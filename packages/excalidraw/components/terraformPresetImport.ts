@@ -96,8 +96,6 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata transitive-adopt: strict total-order adoption gate replacing the
    * ε adoption gate. Default off. */
   strataTransitiveAdopt?: boolean;
-  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
-  strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
    * left toward its sources. Default off. */
   strataBlockClamp?: boolean;
@@ -106,8 +104,6 @@ export type RunTerraformImportFromSourcesArgs = {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
-  /** P5 (Lever A) sink-pull-in column ladder. Default off. */
-  strataSinkLadder?: boolean;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
@@ -168,11 +164,9 @@ export const runTerraformImportWithView = async ({
   strataPackedScoringEpsilon,
   strataPackedConverge,
   strataTransitiveAdopt,
-  strataSinkPullIn,
   strataBlockClamp,
   strataTranspose,
   strataHeightGate,
-  strataSinkLadder,
   strataEdgeRouting,
   strataBorderRoute,
   strataBandCompact,
@@ -236,11 +230,9 @@ export const runTerraformImportWithView = async ({
           strataPackedScoringEpsilon,
           strataPackedConverge,
           strataTransitiveAdopt,
-          strataSinkPullIn,
           strataBlockClamp,
           strataTranspose,
           strataHeightGate,
-          strataSinkLadder,
           strataEdgeRouting,
           strataBorderRoute,
           strataBandCompact,
@@ -295,16 +287,12 @@ export type RunTerraformPresetImportOptions = {
   strataPackedConverge?: boolean;
   /** Strata transitive-adopt: strict total-order adoption gate. Default off. */
   strataTransitiveAdopt?: boolean;
-  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
-  strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp. Default off. */
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. Default off. */
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
-  /** P5 (Lever A) sink-pull-in column ladder. Default off. */
-  strataSinkLadder?: boolean;
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
@@ -386,11 +374,9 @@ export const runTerraformPresetImport = async (
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
     strataPackedConverge: options.strataPackedConverge,
     strataTransitiveAdopt: options.strataTransitiveAdopt,
-    strataSinkPullIn: options.strataSinkPullIn,
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
     strataHeightGate: options.strataHeightGate,
-    strataSinkLadder: options.strataSinkLadder,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBorderRoute: options.strataBorderRoute,
     strataBandCompact: options.strataBandCompact,

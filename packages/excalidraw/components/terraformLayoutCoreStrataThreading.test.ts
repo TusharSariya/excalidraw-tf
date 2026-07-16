@@ -520,42 +520,6 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "threads strataSinkPullIn end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
-    async () => {
-      // Silent-drop guard for the RCLL boundary: the flag must survive the
-      // sceneContext literal AND the builderOptions fan-in in
-      // terraformLayoutCore.ts, or it is dropped on the real
-      // `layoutTerraformFromSources` app path while looking wired in the dialog.
-      // The engine echoes `strataSinkPullIn: true` in flagMeta only when on, so
-      // the meta echo is the app-observable end-to-end proof.
-      const off = await buildStrata({
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-      });
-      expect(off.meta.rcllV2Degraded).toBeUndefined();
-      // Default-off: the echo key is ABSENT (not present-with-false), so the
-      // flag-off meta is byte-identical to pre-change.
-      expect(off.meta.strataSinkPullIn).toBeUndefined();
-
-      const on = await buildStrata({
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataSinkPullIn: true,
-      });
-      expect(on.meta.rcllV2Degraded).toBeUndefined();
-      expect(on.meta.strataSinkPullIn).toBe(true);
-      expect(on.elements.length).toBeGreaterThan(0);
-      // Structural invariant still holds after the post-A7 pull-in pass.
-      expect(on.meta.strataStructural).toEqual({
-        nonAncestorOverlaps: 0,
-        titleCollisions: 0,
-        contiguityViolations: 0,
-      });
-    },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
-  );
-
-  it(
     "threads strataBlockClamp end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
     async () => {
       // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading
@@ -618,7 +582,7 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
         strataRankSeparate: true,
         strataSweeps: 4,
         strataCoordinateRefine: true,
-        strataSinkPullIn: true,
+        strataBlockClamp: true,
       });
       expect(off.meta.rcllV2Degraded).toBeUndefined();
       // Default-off: the echo key is ABSENT (not present-with-false), so the
@@ -629,7 +593,7 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
         strataRankSeparate: true,
         strataSweeps: 4,
         strataCoordinateRefine: true,
-        strataSinkPullIn: true,
+        strataBlockClamp: true,
         strataHeightGate: true,
       });
       expect(on.meta.rcllV2Degraded).toBeUndefined();
@@ -641,73 +605,19 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
         contiguityViolations: 0,
       });
 
-      // MEASURED inertness AT THIS PRESET — deliberately not a construction
-      // claim. The gate CAN change geometry (the maxTop clamp does not subsume
-      // it: clamp = absolute vs the stored frame, gate = relative vs rolling
-      // implied height; see the ratchet suite in
-      // terraformPipelineStrataSinkPullIn.test.ts, which exhibits a layout where
-      // gate-on and gate-off diverge). It simply does not fire on this scene.
-      // This assertion is therefore a TRIPWIRE, not a theorem: if it fails, the
-      // gate has started refereeing real moves here and the change must be
-      // measured and justified deliberately — not deleted to make it green.
+      // Inert under phase 1: the block clamp is a rigid X-only translate, so
+      // no implied height can change and the gate has nothing to referee. This
+      // assertion is a TRIPWIRE, not a theorem: if it fails, the gate has
+      // started refereeing real moves here and the change must be measured and
+      // justified deliberately — not deleted to make it green.
       expect(geometryTuples(on.elements)).toEqual(geometryTuples(off.elements));
 
       const explicitFalse = await buildStrata({
         strataRankSeparate: true,
         strataSweeps: 4,
         strataCoordinateRefine: true,
-        strataSinkPullIn: true,
+        strataBlockClamp: true,
         strataHeightGate: false,
-      });
-      expect(geometryTuples(explicitFalse.elements)).toEqual(
-        geometryTuples(off.elements),
-      );
-    },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
-  );
-
-  it(
-    "threads strataSinkLadder end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
-    async () => {
-      // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading
-      // boundary'): the flag must survive the sceneContext literal AND the
-      // builderOptions fan-in in terraformLayoutCore.ts, or it is dropped on the
-      // real `layoutTerraformFromSources` app path while looking wired in the
-      // dialog. The engine echoes `strataSinkLadder: true` in flagMeta only when
-      // on, so the meta echo is the app-observable end-to-end proof.
-      const off = await buildStrata({
-        strataRankSeparate: true,
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataSinkPullIn: true,
-      });
-      expect(off.meta.rcllV2Degraded).toBeUndefined();
-      expect(off.meta.strataSinkLadder).toBeUndefined();
-
-      const on = await buildStrata({
-        strataRankSeparate: true,
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataSinkPullIn: true,
-        strataSinkLadder: true,
-      });
-      expect(on.meta.rcllV2Degraded).toBeUndefined();
-      expect(on.meta.strataSinkLadder).toBe(true);
-      expect(on.elements.length).toBeGreaterThan(0);
-      // The ladder adds candidate COLUMNS; it removes no gate, so the standing
-      // structural invariant must still hold on the real app path.
-      expect(on.meta.strataStructural).toEqual({
-        nonAncestorOverlaps: 0,
-        titleCollisions: 0,
-        contiguityViolations: 0,
-      });
-
-      const explicitFalse = await buildStrata({
-        strataRankSeparate: true,
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataSinkPullIn: true,
-        strataSinkLadder: false,
       });
       expect(geometryTuples(explicitFalse.elements)).toEqual(
         geometryTuples(off.elements),

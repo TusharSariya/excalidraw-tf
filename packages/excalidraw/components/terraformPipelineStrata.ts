@@ -18,7 +18,6 @@ import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
 import { transposeStrataColumns } from "./terraformPipelineStrataTranspose";
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
-import { refineStrataSinkPullIn } from "./terraformPipelineStrataSinkPullIn";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
@@ -156,14 +155,6 @@ export type TerraformStrataSceneOptions = {
    */
   strataTransitiveAdopt?: boolean;
   /**
-   * P1 leaf-sink pull-in (default off, opt-in): a post-A7 pass that pulls each
-   * degree-1 sink leaf into the on-grid column right of its source to collapse
-   * long near-horizontal connectors. Never re-ranks; parent hull box held fixed
-   * (height invariant). Threaded into `engineOptions.strataSinkPullIn` only when
-   * on (byte-identity).
-   */
-  strataSinkPullIn?: boolean;
-  /**
    * P4 pure-sink account block clamp (default off, opt-in): a post-A7 pass that
    * rigid-translates a whole dead-end account subtree left toward the resources
    * it depends on (the multi-source generalization of the leaf-sink pull-in).
@@ -195,15 +186,6 @@ export type TerraformStrataSceneOptions = {
    * (byte-identity).
    */
   strataHeightGate?: boolean;
-  /**
-   * P5 / Lever A sink ladder (default off, opt-in): relaxes the sink-pull-in's
-   * all-or-nothing single target column into a capped leftmost-first ladder of
-   * candidate columns, so a stranded sink whose fully-pulled-in column fails
-   * X-containment can still take a partial pull instead of not moving at all.
-   * Removes no gate; never re-ranks. Threaded into
-   * `engineOptions.strataSinkLadder` only when on (byte-identity).
-   */
-  strataSinkLadder?: boolean;
   /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
@@ -322,16 +304,12 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataPackedConverge = options?.strataPackedConverge === true;
   // P0.2: transitive adoption relation, default off.
   const strataTransitiveAdopt = options?.strataTransitiveAdopt === true;
-  // P1 leaf-sink pull-in (post-A7), default off.
-  const strataSinkPullIn = options?.strataSinkPullIn === true;
   // P4 pure-sink account block clamp (post-A7), default off.
   const strataBlockClamp = options?.strataBlockClamp === true;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
   // P5 (Lever C) per-hull height maintain-or-decrease gate, default off.
   const strataHeightGate = options?.strataHeightGate === true;
-  // P5 (Lever A) sink-pull-in column ladder, default off.
-  const strataSinkLadder = options?.strataSinkLadder === true;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // P3-pierce border-exit routing (scene-build), default off.
@@ -381,13 +359,10 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataPackedConverge ? { strataPackedConverge: true } : {}),
     // P0.2 transitive-adoption echo — present only when on (byte-identity).
     ...(strataTransitiveAdopt ? { strataTransitiveAdopt: true } : {}),
-    // P1 leaf-sink pull-in echo — present only when on (byte-identity).
-    ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
     // P4 block-clamp echo — present only when on (byte-identity).
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
-    // P5 height-gate / sink-ladder echoes — present only when on (byte-identity).
+    // P5 height-gate echo — present only when on (byte-identity).
     ...(strataHeightGate ? { strataHeightGate: true } : {}),
-    ...(strataSinkLadder ? { strataSinkLadder: true } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -418,14 +393,13 @@ export async function buildTerraformStrataExcalidrawScene(
     sweeps: strataSweeps,
     coordinateRefine: strataCoordinateRefine,
     ...(strataPackedScoring ? { packedScoring: true } : {}),
-    // W8b: epsilon rides when the packed scorer OR the OD-15 relocate OR the P1
-    // leaf-sink pull-in is on AND it is nonzero. All three read ε/cap from
-    // engineOptions INDEPENDENTLY of packed scoring, so gating ε on packed
+    // W8b: epsilon rides when the packed scorer OR the OD-15 relocate OR the
+    // block clamp / transpose is on AND it is nonzero. All of them read ε/cap
+    // from engineOptions INDEPENDENTLY of packed scoring, so gating ε on packed
     // scoring alone would silently run those passes with ε=0/cap=0. Still
     // byte-identical for existing option literals and epsilon-0 callers.
     ...((strataPackedScoring ||
       strataSiftRelocate ||
-      strataSinkPullIn ||
       strataBlockClamp ||
       strataTranspose) &&
     strataPackedScoringEpsilon !== 0
@@ -436,17 +410,14 @@ export async function buildTerraformStrataExcalidrawScene(
     // shape on every default run and break the flag-off byte-identity — the
     // `!== "account"` guard is load-bearing.
     ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
-    // Relocate objective weights/cap: these ride when EITHER relocate operator
-    // is on — the OD-15 sift/vertical-relocate OR the P1 leaf-sink pull-in —
-    // because BOTH consume penW/crossW/cap through `strataRelocateAdoptable`.
-    // Gating them on strataSiftRelocate alone would neuter the ε/cap owner
-    // guardrails and the weight sliders for a sink-pull-in-only run. Weights
-    // ride only when non-default, cap only when set, so the both-off shape is
-    // byte-identical to today.
-    ...(strataSiftRelocate ||
-    strataSinkPullIn ||
-    strataBlockClamp ||
-    strataTranspose
+    // Relocate objective weights/cap: these ride when ANY relocate-family
+    // operator is on — the OD-15 sift/vertical-relocate, the block clamp, or
+    // the transpose — because ALL consume penW/crossW/cap through
+    // `strataRelocateAdoptable`. Gating them on strataSiftRelocate alone would
+    // neuter the ε/cap owner guardrails and the weight sliders for the other
+    // runs. Weights ride only when non-default, cap only when set, so the
+    // all-off shape is byte-identical to today.
+    ...(strataSiftRelocate || strataBlockClamp || strataTranspose
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
@@ -462,17 +433,13 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataPackedConverge ? { packedConverge: true } : {}),
     // P0.2 transitive adoption: rides ONLY when on (byte-identity).
     ...(strataTransitiveAdopt ? { transitiveAdopt: true } : {}),
-    // P1 leaf-sink pull-in: rides ONLY when on (byte-identity).
-    ...(strataSinkPullIn ? { strataSinkPullIn: true } : {}),
     // P4 block-clamp: rides ONLY when on (byte-identity).
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
     // P2 transpose: rides ONLY when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
-    // P5 height gate / sink ladder: ride ONLY when on (byte-identity). Both are
-    // consumed INSIDE the sink-pull-in / block-clamp operators, so the pipeline
-    // stage order below is unchanged.
+    // P5 height gate: rides ONLY when on (byte-identity). Consumed INSIDE the
+    // block-clamp operator, so the pipeline stage order below is unchanged.
     ...(strataHeightGate ? { strataHeightGate: true } : {}),
-    ...(strataSinkLadder ? { strataSinkLadder: true } : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -626,7 +593,7 @@ export async function buildTerraformStrataExcalidrawScene(
 
     // P2 within-column transpose (post-A7, after vertical-relocate settles the
     // X-disjoint blocks so transpose fixes the within-column Y-order on the
-    // settled layout — and BEFORE sinkPullIn changes any columns). Runs whenever
+    // settled layout). Runs whenever
     // its own master flag is on — independent of the relocate/packed/sink flags.
     // Envelope-preserving (hull height invariant). Flag-off ⇒ the module is never
     // called (byte-identical). The final structural check validates the result.
@@ -640,27 +607,10 @@ export async function buildTerraformStrataExcalidrawScene(
       );
     }
 
-    // P1 leaf-sink pull-in (post-A7, after vertical-relocate so it operates on
-    // settled Y). Runs whenever its own master flag is on — independent of the
-    // relocate/packed flags. Flag-off ⇒ the module is never called
-    // (byte-identical). The final structural check validates the result.
-    if (strataSinkPullIn) {
-      placement = refineStrataSinkPullIn(
-        placement,
-        model,
-        repair.edgesPrime,
-        rank,
-        engineOptions,
-      );
-    }
-
-    // P4 pure-sink account block clamp (post-A7, after the leaf-sink pull-in).
-    // A block whose leaf the pull-in nudged OFF its grid column is conservatively
-    // skipped by the clamp's on-grid landing gate (a rigid grid-ΔX cannot re-land
-    // a perturbed leaf on-grid), so the two passes compose safely rather than the
-    // clamp translating an off-grid block. Runs whenever its own master flag is
-    // on — independent of the relocate/packed/sink flags. Flag-off ⇒ the module
-    // is never called (byte-identical). The final structural check validates it.
+    // P4 pure-sink account block clamp (post-A7). Runs whenever its own master
+    // flag is on — independent of the relocate/packed flags. Flag-off ⇒ the
+    // module is never called (byte-identical). The final structural check
+    // validates it.
     if (strataBlockClamp) {
       placement = refineStrataBlockClamp(
         placement,

@@ -521,22 +521,6 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataSiftRelocate=true (OD-15): the external-incidence SIFT rides the packed-scoring descent (so it needs strataPackedScoring); the post-A7 RELOCATION runs regardless. Both minimise the weighted crossing cost C = penW·penetrations + crossW·edgeEdge.",
     },
   },
-  "strata.sinkpullin.off": {
-    title: "Pull leaf sinks toward source · Off",
-    body: "Terminal resources keep the far-right column their longest-path rank assigned them, so their connector arrows stay long and their region boxes stay wide.",
-    dev: {
-      implements:
-        "strataSinkPullIn=false: the post-A7 leaf-sink pull-in pass never runs; degree-1 sink leaves keep their rankSeparate column and the engine is byte-identical.",
-    },
-  },
-  "strata.sinkpullin.on": {
-    title: "Pull leaf sinks toward source · On — P1",
-    body: "Pulls dead-end resources back into a column nearer the resources they depend on, shortening their long connector arrows — but only when doing so doesn't make the diagram taller.",
-    dev: {
-      implements:
-        "strataSinkPullIn=true (P1, Lever A): a post-A7 pass translates each effective degree-1 sink leaf (in-deg 1, out-deg 0 over E′, honoring A3 reversed) onto columnX[srcRank+1] paired with a bounded candidate-Y set; the parent hull box is held fixed (P5 height gate = containment clamp) and each trial is gated by checkStrataStructure all-zero + strataRelocateAdoptable (weighted-C + edge-cross cap + ε). Never re-ranks (preserves the rankSeparate height lever). Phase 1 = P1 + P3-left; box-width reclaim (P4) is a deferred phase 2.",
-    },
-  },
   "strata.blockclamp.off": {
     title: "Compact pure-sink accounts · Off",
     body: "A whole dead-end account (one that only receives connections, like an org audit/security account) keeps the far-right columns its longest-path rank assigned it, so its inbound arrows stay long and the diagram stays wide.",
@@ -553,40 +537,20 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataBlockClamp=true (P4, Lever A): a post-A7 pass clamps each pure-sink account block to max(source rank)+1 (decoupled from any single source — the anchors are multi-source fan-in hubs), rigid-translating the whole subtree left in pixels, gated by X-containment + checkStrataStructure all-zero + the weighted-C/ε machinery, plus gate (d), the P5 height-maintained-or-decreased check (opt-in via strataHeightGate). NOTE gate (d) is INERT under phase 1 — a rigid X-only translate touches no box's y/height — so it cannot referee anything today; it exists so a phase-2 box-recompute inherits a live, per-hull gate (it previously compared a scene-global maxBottom scalar, which was vacuous-by-construction: blind to any non-tallest hull growing). This pass's measured null result at the frozen preset is scorer-vetoed, not height-vetoed: k=2 is +4 crossings/+2 penetrations against −23.8k px length. Never re-ranks (preserves the rankSeparate height lever).",
     },
   },
-  "strata.sinkladder.off": {
-    title: "Allow partial sink pull-ins · Off",
-    body: "A dead-end resource is only ever offered ONE spot: the column immediately right of what feeds it. If it can't fit there — most often because it lives in a different container than its source — it doesn't move at all, even when a nearer column would still shorten its connector.",
-    dev: {
-      implements:
-        "strataSinkLadder=false: refineStrataSinkPullIn offers exactly one candidate column, columnX[srcRank+1], and the X-containment failure `continue`s the whole SINK. Byte-identical to the committed pass.",
-    },
-  },
-  "strata.sinkladder.on": {
-    title: "Allow partial sink pull-ins · On — P5 (Lever A)",
-    body: "Offers a dead-end resource each column between its source and its current spot, nearest-to-the-source first, and takes the first one that fits and doesn't make the picture worse. This is what lets a resource that can't reach its source's neighbouring column still move part of the way instead of staying stranded.",
-    dev: {
-      implements:
-        "strataSinkLadder=true (P5, Lever A — the mover): in refineStrataSinkPullIn, the single target column becomes a leftmost-first rung ladder k ∈ [srcRank+1, sinkRank), capped at STRATA_SINK_LADDER_BUDGET=6, break-on-first-adopt. The X-containment rejection becomes PER-COLUMN instead of per-sink. Removes no gate: every rung still faces X-containment + checkStrataStructure all-zero + strataRelocateAdoptable (weighted-C + edge-cross cap + ε), retains colSpan (never re-ranks, preserving the rankSeparate height lever), and is LR-safe by construction (every rung k > srcRank ⇒ the sink's single edge cannot invert). Lands on-grid (columnX[k]) so refineStrataBlockClamp's on-grid landing gate still composes. Motivation: P3's stranded rank-26 sinks are region-level (vpc=none) while their sources sit inside vpc-5b587, so columnX[srcRank+1] is derived from a left-lying foreign hull and can never satisfy the sink's own parent-box containment — the pass gives up on them entirely today.",
-      refs: [
-        "docs/strata-problems/P1-dlq-stranding.md",
-        "docs/strata-problems/P3-uswest2-region-size.md",
-      ],
-    },
-  },
   "strata.heightgate.off": {
     title: "Keep containers from growing taller · Off",
-    body: "The pull-in and clamp passes stay inside each container's existing rows, so they only make moves that need no extra vertical room — a container's height cannot change, and the layout is identical to today's.",
+    body: "The clamp pass stays inside each container's existing rows, so it only makes moves that need no extra vertical room — a container's height cannot change, and the layout is identical to today's.",
     dev: {
       implements:
-        "strataHeightGate=false: phase-1 behavior, byte-identical. refineStrataSinkPullIn keeps the containment clamp maxTop = parentBox.y + parentBox.height − framePad() − sinkH, which bounds candidates against the STORED frame — that is NOT a height gate and does not subsume this one: the gate compares ROLLING IMPLIED height, so a candidate inside the stored frame can still re-grow a hull's implied height after an earlier adoption shrank it, and gate-off adopts exactly those. refineStrataBlockClamp's gate (d) is skipped (it is a rigid X-only translate, so no implied height can change either way).",
+        "strataHeightGate=false: phase-1 behavior, byte-identical. refineStrataBlockClamp's gate (d) is skipped (it is a rigid X-only translate, so no implied height can change either way).",
     },
   },
   "strata.heightgate.on": {
     title: "Keep containers from growing taller · On — P5 (Lever C)",
-    body: "Checks every pull-in and clamp move against each container it touches and throws the move away unless every one of them ends up the same height or shorter. Expect no visible change on this diagram — measured, not guaranteed: the moves these passes happen to make here are all height-safe already, so the check has nothing to catch. On other diagrams it can genuinely reject a move that would have made a container taller. It is the referee a later pass needs, the one that will move neighbours aside to make room.",
+    body: "Checks every clamp move against each container it touches and throws the move away unless every one of them ends up the same height or shorter. Expect no visible change on this diagram — measured, not guaranteed: the moves these passes happen to make here are all height-safe already, so the check has nothing to catch. On other diagrams it can genuinely reject a move that would have made a container taller. It is the referee a later pass needs, the one that will move neighbours aside to make room.",
     dev: {
       implements:
-        "strataHeightGate=true (P5, Lever C): applies strataHeightGateAdmits (terraformPipelineStrataHeightGate.ts) as a conjunct on every adoption in refineStrataSinkPullIn (before r2Valid — O(Σ|placed|) vs O(entries²)/O(E²), so it saves work on rejects) and as gate (d) in refineStrataBlockClamp. Metric = per-hull IMPLIED content height, ∀-quantified: maxBottom(h) = max(topInset(h), max over placed of (box.y + box.height − hull.box.y)); impliedHeight = maxBottom + FRAME_PAD — mirroring placeStrataHulls step 5 (terraformPipelineStrataPlacement.ts:346-360) verbatim, pinned by an anchor test asserting it reproduces box.height exactly. NOT the stored box.height (both passes hold hull boxes fixed ⇒ a gate over stored heights is provably vacuous) and NOT a scene-global scalar (the shipped bug this replaces: max(y+height) is dominated by the tallest/root extent and blind to a non-tallest hull growing). Height is a GATE only — never a term in the packed objective ({crossings, penetrations, lengthL1} unchanged), never a trade, never a tiebreak. Compared against the ROLLING incumbent ⇒ per-hull height non-increasing by induction ⇒ provably cannot regress rankSeparate's −42% height win (bounds HEIGHT only; greedy adoption means crossings/length are NOT monotone — vetoing a candidate changes the adoption trajectory, so gate-on must be evaluated on crossings explicitly, not only on height). LIVE (not inert) in refineStrataSinkPullIn: maxTop clamps against the STORED frame while the gate compares ROLLING IMPLIED height, so the gate vetoes candidates the clamp admits (pinned by the ratchet suite). INERT in refineStrataBlockClamp under phase 1 (rigid X-only translate). EMPIRICALLY inert at the frozen preset — measured, not a theorem. KNOWN RATCHET COST (open phase-2 decision): the rolling comparison is stronger than the contract needs (final ≤ BASELINE), so one early shrink can lock out later length wins that never exceed baseline. Applies to strataSinkPullIn + strataBlockClamp only — strataTranspose is envelope-preserving and needs no gate. Stage 2 (not built): occupant displacement + VPSC slack-aware Y-repair + box recompute.",
+        "strataHeightGate=true (P5, Lever C): applies strataHeightGateAdmits (terraformPipelineStrataHeightGate.ts) as gate (d) in refineStrataBlockClamp. Metric = per-hull IMPLIED content height, ∀-quantified: maxBottom(h) = max(topInset(h), max over placed of (box.y + box.height − hull.box.y)); impliedHeight = maxBottom + FRAME_PAD — mirroring placeStrataHulls step 5 (terraformPipelineStrataPlacement.ts:346-360) verbatim, pinned by an anchor test asserting it reproduces box.height exactly. NOT the stored box.height (the pass holds hull boxes fixed ⇒ a gate over stored heights is provably vacuous) and NOT a scene-global scalar (the shipped bug this replaces: max(y+height) is dominated by the tallest/root extent and blind to a non-tallest hull growing). Height is a GATE only — never a term in the packed objective ({crossings, penetrations, lengthL1} unchanged), never a trade, never a tiebreak. INERT in refineStrataBlockClamp under phase 1 (rigid X-only translate); it ships as the referee a phase-2 occupant-displacement relaxation needs. strataTranspose is envelope-preserving and needs no gate. Stage 2 (not built): occupant displacement + VPSC slack-aware Y-repair + box recompute.",
       refs: [
         "Jabrayilov, Mallach, Mutzel, Rüegg & Wagner 2016 — Compact Layered Drawings of General Directed Graphs (bound one dimension, optimize the other)",
         "Dwyer, Marriott & Stuckey 2006 — Fast Node Overlap Removal / IPSep-CoLa (VPSC gradient projection — Stage 2)",

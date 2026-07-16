@@ -8,19 +8,17 @@
  *   subtree. When an entire account only RECEIVES cross-account edges (an org
  *   audit/security account whose resources are pure sinks) and its inbound edges
  *   fan in from multiple sources (e.g. `sns.ops` with 8 sources), no single
- *   upstream co-moves it — the leaf-sink pull-in (which relocates ONE degree-1
- *   leaf toward ITS single source) cannot help. The block is stranded +N columns
+ *   upstream co-moves it. The block is stranded +N columns
  *   to the far RIGHT, so every cross-account arrow feeding it is a long chord and
  *   the diagram is needlessly wide.
  *
- * WHAT IT DOES: a near-clone of `refineStrataSinkPullIn`, generalized from
- * "translate one leaf" to "rigid-translate a whole account subtree LEFT." It
+ * WHAT IT DOES: rigid-translates a whole account subtree LEFT. It
  * enumerates every account-role hull, keeps only PURE-SINK blocks (no effective
  * edge leaves the block; ≥1 effective edge enters it), clamps the block to
  * `max(external source rank) + 1` (the largest LR-feasible leftward move),
  * rigidly translates the entire subtree (account box + every descendant hull box
  * + every internal placed unit + every block leaf box) by a single ΔX in pixels,
- * and adopts the largest move that survives the SAME gate stack the sink-pull-in
+ * and adopts the largest move that survives the SAME gate stack the relocate
  * uses (X-containment, R2 `checkStrataStructure` all-zero, height maintain-or-
  * decrease, weighted-C + hard edge-cross cap + ε via `strataRelocateAdoptable`).
  *
@@ -33,7 +31,7 @@
  * preserved, nothing else reflowed. Because every block node shifts by the same
  * ΔX, all INTERNAL block edges are inversion-proof by construction; only EXTERNAL
  * inbound edges constrain the move, and (pure-sink) there are no external
- * outbound edges. There is no Y-candidate search (unlike the sink pull-in): the
+ * outbound edges. There is no Y-candidate search: the
  * block moves as a rigid unit, so the only free parameter is k (columns left).
  *
  * FLAG OFF ⇒ the input `placement` is returned by reference (byte-identical).
@@ -53,7 +51,7 @@
  * CORRECTNESS INVARIANT (on-grid landing, gate a0): the pass only ever adopts a
  * move where EVERY block leaf lands exactly on an existing grid column
  * (columnX[rank − k]). A block whose leaves were perturbed off their columns by
- * an upstream pass (e.g. `refineStrataSinkPullIn`, which moves a leaf's pixel box
+ * an upstream pass (e.g. a leaf-relocating pass, which moves a leaf's pixel box
  * without changing its rank), or a block spanning non-uniform column widths, is
  * conservatively SKIPPED rather than translated off-grid. This keeps the rigid
  * pixel translate exact and guarantees checkStrataStructure's exact-`box.x`-keyed
@@ -390,7 +388,7 @@ export function refineStrataBlockClamp(
       // Gate (a0): ON-GRID LANDING. Every block leaf must land EXACTLY on an
       // existing grid column (columnX[rank − k]) after the rigid shift. This
       // closes three overlapping hazards at once:
-      //   • composition (an upstream pass such as `refineStrataSinkPullIn` moves
+      //   • composition (an upstream pass moves
       //     a block leaf's pixel box WITHOUT changing its rank; a grid-derived ΔX
       //     applied to that perturbed box lands it off-grid);
       //   • variable column widths (a single pixel ΔX keyed off blockMinRank does
@@ -490,7 +488,7 @@ export function refineStrataBlockClamp(
       }
 
       // Gate (e): SCORER — the identical weighted-C + hard edge-cross cap + ε
-      // gate the sink-pull-in / vertical-relocate passes use.
+      // gate the vertical-relocate pass uses.
       const candScore = scoreStrataPlacementGeometry(
         candidate,
         model,

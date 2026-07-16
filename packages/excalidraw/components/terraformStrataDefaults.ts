@@ -50,9 +50,6 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * feasibility crossing-cap — probe lever, default off (byte-identical
    * off). */
   strataTransitiveAdopt: false,
-  /** P1 leaf-sink pull-in: pull degree-1 sink leaves into the column right of
-   * their source to shorten long connectors — probe lever, default off. */
-  strataSinkPullIn: false,
   /** P4 pure-sink account block clamp: rigid-translate a whole dead-end account
    * subtree left toward its sources to shorten cross-account arrows and narrow
    * the diagram — probe lever, default off. */
@@ -62,16 +59,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * probe lever, default off (envelope-preserving, byte-identical off). */
   strataTranspose: false,
   /** P5 (Lever C) per-hull implied-height maintain-or-decrease acceptance gate
-   * for the sink-pull-in / block-clamp passes — probe lever, default off.
-   * Measured inert at the frozen preset (not inert by construction: it can veto
-   * real sink-pull-in moves — see that module's ratchet note). It is the referee
-   * a phase-2 occupant-displacement relaxation needs, not a height win today. */
+   * for the block-clamp pass — probe lever, default off. Measured inert at the
+   * frozen preset. It is the referee a phase-2 occupant-displacement relaxation
+   * needs, not a height win today. */
   strataHeightGate: false,
-  /** P5 (Lever A) sink-pull-in column ladder: relax the all-or-nothing single
-   * target column into a capped leftmost-first rung ladder so partial pull-ins
-   * are attempted — probe lever, default off. Measured NULL at the frozen preset
-   * (−0.37% lengthL1; zero crossings/height/width change). */
-  strataSinkLadder: false,
 } as const;
 
 /**
@@ -112,16 +103,12 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedConverge?: boolean;
   /** Transitive-adopt remedy: strict total-order adoption gate. */
   strataTransitiveAdopt?: boolean;
-  /** P1 leaf-sink pull-in. */
-  strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp. */
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. */
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate. */
   strataHeightGate?: boolean;
-  /** P5 (Lever A) sink-pull-in column ladder. */
-  strataSinkLadder?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -175,9 +162,6 @@ export const resolveStrataDemoOptions = (params: {
     strataTransitiveAdopt:
       params.strataTransitiveAdopt ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt,
-    strataSinkPullIn:
-      params.strataSinkPullIn ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkPullIn,
     strataBlockClamp:
       params.strataBlockClamp ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBlockClamp,
@@ -187,9 +171,6 @@ export const resolveStrataDemoOptions = (params: {
     strataHeightGate:
       params.strataHeightGate ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate,
-    strataSinkLadder:
-      params.strataSinkLadder ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSinkLadder,
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

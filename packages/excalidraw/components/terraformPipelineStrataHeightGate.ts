@@ -27,7 +27,7 @@
  *
  * WHY PER-HULL IMPLIED, NOT THE STORED BOX, AND NOT A SCENE SCALAR:
  *   • The stored `box.height` is USELESS here: both consuming operators hold hull
- *     boxes FIXED (sink-pull-in copies `box: bh.box`; block-clamp shifts x only),
+ *     boxes FIXED (block-clamp shifts x only),
  *     so no stored height can change today and a gate over stored heights is
  *     provably vacuous. The metric must read what the box WOULD be, recomputed
  *     from the candidate's contents.

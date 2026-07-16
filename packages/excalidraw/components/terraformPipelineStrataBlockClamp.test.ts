@@ -2,7 +2,7 @@
  * Strata P4 pure-sink account block clamp (`strataBlockClamp`, default off) —
  * unit tests.
  *
- * Mirrors the synthetic-fixture toolkit of terraformPipelineStrataSinkPullIn.test.ts
+ * Mirrors the shared synthetic-fixture toolkit
  * (placement/frameCluster/edge/prep/rankStub/primeEdges over the real A0
  * `placeStrataHulls`). Covers:
  *   (a) flag-off referential identity (byte-identical proof)
@@ -512,7 +512,7 @@ describe("blockClamp no-slack — adjacent source ⇒ kMaxRank < 1 ⇒ skip", ()
 
 describe("blockClamp on-grid gate — a leaf nudged off its column is not carried off-grid", () => {
   it("skips a block whose leaf an upstream pass moved off its grid column", () => {
-    // Happy-path geometry, but simulate `refineStrataSinkPullIn` having nudged
+    // Happy-path geometry, but simulate an upstream pass having nudged
     // leaf `a` +7px off columnX[3] WITHOUT changing its rank. A rigid grid-ΔX
     // would then land it at columnX[1]+7 (off-grid), where checkStrataStructure's
     // exact-`box.x`-keyed contiguity referee could miss an interleave — so the

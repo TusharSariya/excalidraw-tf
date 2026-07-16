@@ -258,8 +258,6 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Transitive-adopt remedy: strict total-order adoption gate replacing the
    * ε adoption gate. Default off. */
   strataTransitiveAdopt?: boolean;
-  /** P1 leaf-sink pull-in: pull degree-1 sink leaves toward source. Default off. */
-  strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
    * left toward its sources. Default off. */
   strataBlockClamp?: boolean;
@@ -269,8 +267,6 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P5 (Lever C) per-hull height maintain-or-decrease gate for the sink-pull-in
    * / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
-  /** P5 (Lever A) sink-pull-in column ladder. Default off. */
-  strataSinkLadder?: boolean;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -326,11 +322,9 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataEdgeCrossCap"
   | "strataPackedConverge"
   | "strataTransitiveAdopt"
-  | "strataSinkPullIn"
   | "strataBlockClamp"
   | "strataTranspose"
   | "strataHeightGate"
-  | "strataSinkLadder"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -383,11 +377,9 @@ export const terraformPipelineReplayOptionsFromSession = (
     : {}),
   strataPackedConverge: session.strataPackedConverge === true,
   strataTransitiveAdopt: session.strataTransitiveAdopt === true,
-  strataSinkPullIn: session.strataSinkPullIn === true,
   strataBlockClamp: session.strataBlockClamp === true,
   strataTranspose: session.strataTranspose === true,
   strataHeightGate: session.strataHeightGate === true,
-  strataSinkLadder: session.strataSinkLadder === true,
 });
 
 /**
@@ -438,11 +430,9 @@ function buildPipelineFamilyLayoutOptions(
   | "strataEdgeCrossCap"
   | "strataPackedConverge"
   | "strataTransitiveAdopt"
-  | "strataSinkPullIn"
   | "strataBlockClamp"
   | "strataTranspose"
   | "strataHeightGate"
-  | "strataSinkLadder"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -505,11 +495,9 @@ function buildPipelineFamilyLayoutOptions(
       : {}),
     strataPackedConverge: options.strataPackedConverge === true,
     strataTransitiveAdopt: options.strataTransitiveAdopt === true,
-    strataSinkPullIn: options.strataSinkPullIn === true,
     strataBlockClamp: options.strataBlockClamp === true,
     strataTranspose: options.strataTranspose === true,
     strataHeightGate: options.strataHeightGate === true,
-    strataSinkLadder: options.strataSinkLadder === true,
   };
 }
 

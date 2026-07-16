@@ -136,22 +136,9 @@ export type StrataEngineOptions = {
    */
   transitiveAdopt?: boolean;
   /**
-   * P1 leaf-sink pull-in (`strataSinkPullIn`, default off, opt-in): a post-A7
-   * pass that translates each effective degree-1 sink LEAF (in-degree 1,
-   * out-degree 0 over E′) to the on-grid column immediately right of its
-   * source, shortening its long near-horizontal connector, gated by the same
-   * structural + weighted-C/ε machinery as the vertical-relocate pass. Never
-   * touches ranks (the -42% height lever is preserved); the parent hull box is
-   * held fixed so hull height is invariant. Optional so existing option
-   * literals (flag-OFF byte-identity) are unaffected.
-   */
-  strataSinkPullIn?: boolean;
-  /**
    * P4 pure-sink account block clamp (`strataBlockClamp`, default off, opt-in):
    * a post-A7 pass that rigid-translates a whole DEAD-END account subtree LEFT
-   * to `max(external source rank) + 1` — the multi-source fan-in generalization
-   * of the leaf-sink pull-in (which co-moves only a single degree-1 leaf).
-   * Consumes the same weighted-C/ε machinery (penW/crossW/ε/cap through
+   * to `max(external source rank) + 1`. Consumes the same weighted-C/ε machinery (penW/crossW/ε/cap through
    * `strataRelocateAdoptable`) plus X-containment, R2, and an explicit height
    * gate. Never re-ranks (the -42% height lever is preserved) and never runs
    * grid X-compaction — a single rigid per-block pixel translate onto one
@@ -176,20 +163,14 @@ export type StrataEngineOptions = {
    * P5 / Lever C height gate (`strataHeightGate`, default off, opt-in): applies
    * the per-hull implied-height maintain-or-decrease referee
    * (`strataHeightGateAdmits`) as a conjunct on every adoption in
-   * `refineStrataSinkPullIn` and `refineStrataBlockClamp`. A pure boolean
+   * `refineStrataBlockClamp`. A pure boolean
    * PRECONDITION — height never enters the packed objective ({crossings,
    * penetrations, lengthL1}), never trades, and is never a tiebreak. Compared
    * against the rolling incumbent, so per-hull height is non-increasing by
    * induction ⇒ it provably cannot regress rankSeparate's -42% height win.
    *
    * HONEST STATUS: provably inert for the block clamp (a rigid X-only translate
-   * moves no Y, so no implied height can change), but LIVE for the sink pull-in,
-   * where an early adoption can shrink a hull and the gate then vetoes a later
-   * candidate that re-grows it — the `maxTop` clamp does NOT subsume the gate
-   * (clamp = absolute vs the stored frame; gate = relative vs rolling implied
-   * height). It is nonetheless EMPIRICALLY inert at the frozen preset (measured:
-   * gate-on is geometrically identical to gate-off, gate-only byte-identical to
-   * baseline) — a fact about that scene, not a theorem.
+   * moves no Y, so no implied height can change).
    *
    * It unlocks nothing on its own: nothing currently proposes height-growing
    * candidates, and the phase-2 occupant-displacement + VPSC relaxation it exists
@@ -198,19 +179,6 @@ export type StrataEngineOptions = {
    * option literals (flag-OFF byte-identity) are unaffected.
    */
   strataHeightGate?: boolean;
-  /**
-   * P5 / Lever A ladder (`strataSinkLadder`, default off, opt-in): in
-   * `refineStrataSinkPullIn`, relaxes the ALL-OR-NOTHING single-column cliff
-   * (`columnX[srcRank + 1]` only) into a capped leftmost-first ladder of
-   * candidate columns, so the X-containment rejection becomes per-column instead
-   * of per-sink and every partial pull-in is attempted. Adds no new move class
-   * and removes no gate: each rung still faces X-containment, R2 all-zero, the
-   * weighted-C/ε + edge-cross cap gate, colSpan retention (never re-ranks), and
-   * LR-by-construction. Lands on-grid, so the block clamp's on-grid landing gate
-   * still composes. Optional so existing option literals (flag-OFF
-   * byte-identity) are unaffected.
-   */
-  strataSinkLadder?: boolean;
 };
 
 /**

@@ -77,11 +77,9 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon,
   strataPackedConverge,
   strataTransitiveAdopt,
-  strataSinkPullIn,
   strataBlockClamp,
   strataTranspose,
   strataHeightGate,
-  strataSinkLadder,
   strataEdgeRouting,
   strataBorderRoute,
   strataBandDepth,
@@ -98,11 +96,9 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon,
   setStrataPackedConverge,
   setStrataTransitiveAdopt,
-  setStrataSinkPullIn,
   setStrataBlockClamp,
   setStrataTranspose,
   setStrataHeightGate,
-  setStrataSinkLadder,
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataBandDepth,
@@ -118,11 +114,9 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon: number;
   strataPackedConverge: boolean;
   strataTransitiveAdopt: boolean;
-  strataSinkPullIn: boolean;
   strataBlockClamp: boolean;
   strataTranspose: boolean;
   strataHeightGate: boolean;
-  strataSinkLadder: boolean;
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
   strataBandDepth: StrataHullRole;
@@ -139,11 +133,9 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataPackedConverge: (packedConverge: boolean) => void;
   setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
-  setStrataSinkPullIn: (sinkPullIn: boolean) => void;
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
   setStrataHeightGate: (heightGate: boolean) => void;
-  setStrataSinkLadder: (sinkLadder: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
@@ -165,24 +157,19 @@ export const TerraformStrataSettings = ({
   const activeHelp = OPTION_HELP[activeKey];
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
   // The crossing objective weights + edge-crossing cap feed ALL FOUR relocate
-  // operators — the OD-15 sift/vertical-relocate, the P1 leaf-sink pull-in, the
+  // operators — the OD-15 sift/vertical-relocate, the
   // P4 pure-sink account block clamp, and the P2 within-column transpose — so the
   // tuning disclosure is live whenever ANY is on (matching the engine, which
-  // forwards penW/crossW/cap when sift OR sink-pull-in OR block-clamp OR transpose
+  // forwards penW/crossW/cap when sift OR block-clamp OR transpose
   // is enabled).
   const weightsActive =
-    strataSiftRelocate ||
-    strataSinkPullIn ||
-    strataBlockClamp ||
-    strataTranspose;
-  // The height gate is refereed INSIDE the sink-pull-in and block-clamp passes
-  // only, so its hint keys off those two alone. This DELIBERATELY differs from
-  // `weightsActive` above — do not "unify" them: the P2 transpose is
-  // envelope-preserving (an adjacent exchange keeps the pair's union span, so
-  // hull height is invariant), which makes the gate a provable no-op for it.
-  // Reusing `weightsActive` would light this row for transpose-only users and
-  // imply an effect that cannot exist. The OD-15 sift is likewise not a consumer.
-  const heightGateMoversActive = strataSinkPullIn || strataBlockClamp;
+    strataSiftRelocate || strataBlockClamp || strataTranspose;
+  // The height gate is refereed INSIDE the block-clamp pass, so its hint
+  // lights only when that consumer is on. The OD-15 sift and the transpose are
+  // not consumers (transpose is envelope-preserving — hull height is
+  // invariant), so reusing `weightsActive` would imply an effect that cannot
+  // exist.
+  const heightGateMoversActive = strataBlockClamp;
 
   const option = (
     label: string,
@@ -464,59 +451,6 @@ export const TerraformStrataSettings = ({
                 </label>
               </div>
             </details>
-            <div role="group" aria-label="Strata pull leaf sinks toward source">
-              <span className="TerraformImportModal__controlLabel">
-                Pull leaf sinks toward source{" "}
-                <span>
-                  move dead-end resources back next to what feeds them
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option("Off", !strataSinkPullIn, "strata.sinkpullin.off", () =>
-                  setStrataSinkPullIn(false),
-                )}
-                {option("On", strataSinkPullIn, "strata.sinkpullin.on", () =>
-                  setStrataSinkPullIn(true),
-                )}
-              </div>
-              {strataSinkPullIn && !strataRankSeparate && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Primarily useful with <strong>Compact height</strong>{" "}
-                    enabled — that pass is what strands sinks in far columns for
-                    the pull-in to reclaim.
-                  </span>
-                </div>
-              )}
-            </div>
-            <div role="group" aria-label="Strata allow partial sink pull-ins">
-              <span className="TerraformImportModal__controlLabel">
-                Allow partial sink pull-ins{" "}
-                <span>
-                  when a dead-end resource can&rsquo;t move all the way back to
-                  its source, move it as far as it can go instead of not at all
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option("Off", !strataSinkLadder, "strata.sinkladder.off", () =>
-                  setStrataSinkLadder(false),
-                )}
-                {option("On", strataSinkLadder, "strata.sinkladder.on", () =>
-                  setStrataSinkLadder(true),
-                )}
-              </div>
-              {strataSinkLadder && !strataSinkPullIn && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Does nothing on its own — turn on{" "}
-                    <strong>Pull leaf sinks toward source</strong>, the pass
-                    this widens.
-                  </span>
-                </div>
-              )}
-            </div>
             <div role="group" aria-label="Strata compact pure-sink accounts">
               <span className="TerraformImportModal__controlLabel">
                 Compact pure-sink accounts{" "}
@@ -576,8 +510,8 @@ export const TerraformStrataSettings = ({
               <span className="TerraformImportModal__controlLabel">
                 Keep containers from growing taller{" "}
                 <span>
-                  check each pull-in and clamp move against every container it
-                  touches, and keep it only if nothing ends up taller
+                  check each clamp move against every container it touches, and
+                  keep it only if nothing ends up taller
                 </span>
               </span>
               <div className="TerraformImportModal__segmentedControl">
@@ -593,8 +527,7 @@ export const TerraformStrataSettings = ({
                   <span aria-hidden="true">ⓘ</span>
                   <span>
                     Does nothing on its own — turn on{" "}
-                    <strong>Pull leaf sinks toward source</strong> or{" "}
-                    <strong>Compact pure-sink accounts</strong>, the passes it
+                    <strong>Compact pure-sink accounts</strong>, the pass it
                     referees.
                   </span>
                 </div>
@@ -604,10 +537,8 @@ export const TerraformStrataSettings = ({
                   <span aria-hidden="true">ⓘ</span>
                   <span>
                     Usually no visible change: nothing yet makes a container
-                    taller, so this check rarely has anything to catch. It can
-                    still hold a resource back where an earlier move already
-                    made its container shorter. Mainly groundwork for a later
-                    pass.
+                    taller, so this check rarely has anything to catch. Mainly
+                    groundwork for a later pass.
                   </span>
                 </div>
               )}

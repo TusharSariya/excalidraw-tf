@@ -510,9 +510,6 @@ type LayoutSceneContext = {
   strataPackedConverge?: boolean;
   /** P0.2: transitive adoption relation for the packed descent. Default off. */
   strataTransitiveAdopt?: boolean;
-  /** P1 leaf-sink pull-in (post-A7): pull each degree-1 sink leaf into the
-   * column right of its source to shorten long connectors. Default off. */
-  strataSinkPullIn?: boolean;
   /** P4 pure-sink account block clamp (post-A7): rigid-translate a whole
    * dead-end account subtree left toward its sources. Default off. */
   strataBlockClamp?: boolean;
@@ -522,9 +519,6 @@ type LayoutSceneContext = {
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * sink-pull-in / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
-  /** P5 (Lever A) sink-pull-in column ladder: attempt partial pull-ins instead
-   * of the single all-or-nothing target column. Default off. */
-  strataSinkLadder?: boolean;
   colorMode?: TerraformColorMode;
 };
 
@@ -643,11 +637,9 @@ async function buildPipelineLayoutSceneBody(
         strataSiftRelocate: ctx.strataSiftRelocate,
         strataPackedConverge: ctx.strataPackedConverge,
         strataTransitiveAdopt: ctx.strataTransitiveAdopt,
-        strataSinkPullIn: ctx.strataSinkPullIn,
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
         strataHeightGate: ctx.strataHeightGate,
-        strataSinkLadder: ctx.strataSinkLadder,
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1234,11 +1226,9 @@ export async function layoutTerraformFromSources(
     strataSiftRelocate: options?.strataSiftRelocate === true,
     strataPackedConverge: options?.strataPackedConverge === true,
     strataTransitiveAdopt: options?.strataTransitiveAdopt === true,
-    strataSinkPullIn: options?.strataSinkPullIn === true,
     strataBlockClamp: options?.strataBlockClamp === true,
     strataTranspose: options?.strataTranspose === true,
     strataHeightGate: options?.strataHeightGate === true,
-    strataSinkLadder: options?.strataSinkLadder === true,
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine
