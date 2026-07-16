@@ -9,18 +9,29 @@ Frozen measurement preset: **staging-extended-localstack-v2**, `view=strata`, se
 - **1 deferred / not built** (`strataYCompact` — no-op risk + wrong-problem for P3).
 - **Biggest readability win of the night: `strataTranspose`** — rendered crossings **173→132 (−41, ~24%)**, envelope-preserving (width/height Δ0). Keep it.
 
+> **⚠️ CORRECTION (2026-07-16, post-hoc measurement).** This report **under-sold `strataSinkPullIn`**. It was
+> scored only on width/height — which ARE byte-identical — so it was written up as "no size/crossing win /
+> marginal / structural". A dedicated fidelity-green A/B on the real app path then measured what was never
+> checked: **edge-length L1 −17,656 (−2.41%)** and **penetrations/pierce 66→64**. Both P1 DLQs move to
+> `srcRank+1` on-grid (ingress col 15→9, own-edge L1 7175→992; egress col 15→11, 5191→992), plus three SSM
+> sinks (api8 −3,062, api9 −3,596, api11 −616). Per-sink attribution is exact (Σ per-sink ΔL1 = whole-scene
+> ΔL1, verified). **P1 is substantially fixed — the win was real and simply unmeasured.** Rows below are
+> corrected; the lesson is that *width/height alone is not a measurement* — length/pierce must be scored too.
+
 ## Summary table
 
 | Experiment | Toggle | Status | Crossings on→off | Edge-len / pierce | Height | Width | Review verdict | Improves layout? |
 |---|---|---|---|---|---|---|---|---|
-| Sink pull-in | `strataSinkPullIn` | committed | no change (byte-identical W/H) | pierce n/a; ~8 sinks / 40 elems move | Δ0 (byte-identical) | Δ0 (byte-identical) | fix-then-ship; all findings addressed + codex static pass clean | Marginal / structural (no crossing win at frozen preset) |
+| Sink pull-in | `strataSinkPullIn` | committed | rendered **173→174 (+1)**; chord 204→204 (flat) | **L1 −17,656 (−2.41%)**; **pierce 66→64** | Δ0 (byte-identical) | Δ0 (byte-identical) | fix-then-ship; all findings addressed + codex static pass clean | **Yes — real L1/pierce win (corrected; originally mis-reported as null)** |
 | Block clamp | `strataBlockClamp` | null-result | 0 (byte-identical A/B) | — | inert (phase-1) | frames held fixed | SHIP as opt-in null-result; codex CHANGES addressed | **No (null)** |
 | Transpose | `strataTranspose` | committed | **173→132 (−41, ~24%)** | pierce 66→61 (−5) | Δ0 | Δ0 | SHIP (codex re-derived independently) | **Yes — biggest win** |
 | Y-compaction | `strataYCompact` | deferred | n/a | n/a | n/a | n/a | Not built (see risks) | Deferred |
 | Border route | `strataBorderRoute` | committed | 123→118 (−5) | pierce 115→115 (invariant); maxWaypointPerpDev 19.6px | — | — | fix-then-ship; committed green | Yes — modest, routing-only |
 
 Notes on the table:
-- `strataSinkPullIn` deltas are measured in the **rankSeparate-ON (stranding) regime** — that is the regime it targets. In the default (rankSeparate-OFF) regime the pass is inert (0 elements move). Width/height are byte-identical off-vs-on even when 40 elements move (X-containment guard holds; zero frame escapes).
+- `strataSinkPullIn` deltas are measured in the **rankSeparate-ON (stranding) regime** — that is the regime it targets. In the default (rankSeparate-OFF) regime the pass is inert (0 elements move). Width/height are byte-identical off-vs-on even when 40 elements move (X-containment guard holds; zero frame escapes) — **but width/height byte-identity is NOT "no effect": L1 −17,656 and pierce 66→64. See the correction above.**
+- `strataSinkPullIn` caveat: rendered crossings tick **+1 (173→174)** while chord crossings stay flat (204→204). This is the known **chord-vs-rendered proxy inversion** (see `docs/strata-pipeline-objective-audit-2026-07-15.md`) — the scorer structurally cannot see the crossing it adds. Pierce −2 nets it favorably, but the pass is **not strictly free** on the top-ranked metric.
+- **5 of 27 stranded sinks move** (6 with `strataSinkLadder`). The other 22 are blocked by the X-containment cliff / scorer veto — a known limitation, not a regression. Measured 2026-07-16: **height rejects NOTHING** across all 27 sinks × all rungs × all candidate tops; the binding wall is `nonAncestorOverlaps` (100% of R2 rejections).
 - `strataBorderRoute` pierce is invariant **by design** (it routes around borders, it doesn't change penetration counts); the both-flags-on compose proof shows no penetration regression (both-on pierce 59 == edgeRouting-alone 59).
 
 ## How to try each committed experiment
@@ -50,7 +61,7 @@ Load-bearing fixes made during the build:
 
 Verification: typecheck PASS; operator+defaults+threading 33/33; dialog 50/50. Fresh codex static pass on the two load-bearing fixes (X-containment guard, colSpan) found no correctness hole.
 
-**Keep vs drop: KEEP (opt-in).** No crossing/size win at the frozen preset, but it is a correct, guarded structural pass that targets the rankSeparate stranding regime the owner cares about; it is a no-op elsewhere and byte-identical when off. Low risk to keep behind the flag; do not default-on.
+**Keep vs drop: KEEP (opt-in) — CORRECTED, this is a real win.** Originally written up as "no crossing/size win" because only width/height were scored. Post-hoc fidelity-green A/B: **L1 −17,656 (−2.41%), pierce 66→64**, 5 of 27 stranded sinks move (both P1 DLQs pulled to `srcRank+1` on-grid). Rolling-greedy adoption cost nothing — the sinks are geometrically independent, so per-sink ΔL1 sums exactly to the scene ΔL1. **Caveat before default-on:** rendered crossings +1 (173→174) while the chord proxy reads flat — the scorer cannot see the crossing it adds (chord-vs-rendered inversion). Pierce −2 nets favorably, but resolve the proxy before defaulting on.
 
 ### 2. `strataBlockClamp` — null-result, shipped opt-in (`7c7e2dc`)
 
@@ -97,7 +108,14 @@ Analysis concluded it should not be a same-night drop-in. Reasons:
 6. **Threading silent-drop:** per the RCLL boundary memory, forgetting the `layoutTerraformFromSources` sceneContext forward makes the flag inert on the real `/api/terraform-layout` path while pipeline-direct tests pass (false green). The threading test is mandatory.
 7. **Scope-creep guard:** must stay strictly Y-only; do NOT let a "fit" search nudge X — global/grid X-compaction was removed and must not return (`docs/strata-xcompact-removed-findings.md`).
 
-**Recommendation: keep deferred until the P5 height gate lands.** Then build only the gap-backfill variant, gated on P5 + a crossing cap, Y-only, with a mandatory threading test.
+**Recommendation: keep deferred — and the reason is now STRONGER, not weaker.** The P5 height gate landed
+(`4abdc08e2`) as an honest null, and a follow-up measurement then showed **height rejects nothing** across all
+27 stranded sinks × all rungs × all candidate tops (the binding wall is `nonAncestorOverlaps`, 100% of R2
+rejections). So a Y-slack reclaimer solves a problem this preset does not have. P5 Stage 2 (occupant
+displacement + VPSC) was **refused at research** for the same reason, plus: displacing the blocking occupant
+means translating a whole VPC subtree (which the gate then correctly vetoes), and the box-recompute it would
+need to clear the X-containment cliff leads straight back to the removed X-compaction failure with no X gate
+to stop it. See `docs/strata-view-improvement-synthesis-2026-07-16.md`.
 
 ## Keep-vs-drop scorecard
 
@@ -105,9 +123,10 @@ Analysis concluded it should not be a same-night drop-in. Reasons:
 |---|---|---|
 | `strataTranspose` | **KEEP — best; candidate for default-on** | −41 crossings (~24%), envelope-preserving; resolve non-transitive adoption gate + build-cost before default-on |
 | `strataBorderRoute` | **KEEP (opt-in)** | −5 crossings, composes cleanly with edgeRouting, no penetration regression |
-| `strataSinkPullIn` | **KEEP (opt-in)** | Correct guarded structural pass for the rankSeparate stranding regime; no size/crossing win at frozen preset; no-op elsewhere |
-| `strataBlockClamp` | **KEEP dormant; no further phase-1 invest** | Null at frozen preset; payoff gated on phase-2 frame-extent moves (walled-width territory) |
-| `strataYCompact` | **DEFER** | No-op-or-not-free; wrong problem for P3; needs unbuilt P5 gate |
+| `strataSinkPullIn` | **KEEP — 2nd-best; CORRECTED from "null"** | **L1 −17,656 (−2.41%), pierce 66→64**; both P1 DLQs pulled to `srcRank+1`. Was mis-reported as no-win because only width/height were scored. Resolve the chord-vs-rendered proxy (+1 rendered crossing the scorer can't see) before default-on |
+| `strataBlockClamp` | **KEEP dormant; no further phase-1 invest** | Null at frozen preset; **scorer-driven** (+4 crossings/+2 pen), explicitly NOT height-vetoed — so the height gate does nothing for it |
+| `strataYCompact` | **DEFER — reason now stronger** | Height rejects nothing (measured, all 27 sinks); the wall is structural overlap. A Y-slack reclaimer solves a problem this preset lacks |
+| `strataHeightGate` | **KEEP dormant (honest null)** | Correct per-hull referee but nothing proposes height-growing candidates (consumers pin `box: bh.box`) → inert. Its real value: it **repaired a vacuity bug** — blockClamp's old scene-global `maxBottomOf` guard was blind to non-tallest hulls growing, silently passing the moves it existed to reject |
 
 ## Ship state
 All four committed toggles are on `strata-v3.2-w5-w10b`, committed `--no-verify` (per push-gotchas memory — husky pre-push reflows unrelated files), **not pushed**. Each commit was scoped to only its intended feature files; the ~50 pre-existing unrelated dirty docs/.mcp/scratchpad/baseline changes on the branch were left untouched. Throwaway A/B probes created, run, and deleted; the frozen readability harness is untouched.
