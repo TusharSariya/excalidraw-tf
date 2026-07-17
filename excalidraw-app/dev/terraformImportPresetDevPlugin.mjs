@@ -190,7 +190,7 @@ const LAYOUT_PARAM_CATALOG = {
     pierce:
       "computePierceMetrics(elements).pierce.total — chord pierces through non-ancestor hulls.",
     topoFrames:
-      "Count of topology hull frames (customData.terraformTopologyKey present) — the pierce denominator (trap #3).",
+      "Count of topology hull frames (customData.terraformTopologyRole in provider/account/region/vpc/subnetZone — the exact hull set computePierceMetrics's numerator uses) — the pierce denominator (trap #3). NOT a raw terraformTopologyKey count: that key is also on primaryCluster card / ancillaryStrip / satellite frames, which are not pierce hulls.",
     piercePerTopoFrame:
       "pierce / max(1, topoFrames) — normalizes pierce so a deband that removes hulls can't fake a win (trap #3).",
     height: "Scene bounds height (px).",
@@ -395,16 +395,32 @@ const computeSceneBounds = (elements) => {
   };
 };
 
-// Count topology hull frames — the honest pierce denominator (trap #3). Every
-// topology hull (provider/account/region/vpc/subnet) carries a
-// `customData.terraformTopologyKey`; a deband that dissolves hulls drops this count,
-// so `piercePerTopoFrame` can't be gamed by a denominator collapse.
+// The exact hull role set computePierceMetrics uses (TOPOLOGY_ROLES in
+// terraformPipelineStrataPierceMetrics.ts). The pierce denominator MUST mirror
+// the numerator's hull definition or the normalization lies.
+const TOPO_HULL_ROLES = new Set([
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
+]);
+
+// Count topology hull frames — the honest pierce denominator (trap #3). A hull is
+// a frame whose `customData.terraformTopologyRole` is one of the five roles
+// computePierceMetrics treats as a hull (provider/account/region/vpc/subnetZone).
+// The `terraformTopologyKey` presence test is WRONG here: that key is also stamped
+// on primary-cluster resource-card frames, ancillary-strip frames, and satellite
+// frames (hundreds per scene), which are NOT pierce hulls. Counting them inflates
+// the denominator so a deband that dissolves real hulls barely moves it — exactly
+// the trap-#3 gaming this metric is meant to expose. Match the role set instead.
 const countTopoFrames = (elements) => {
   let count = 0;
   for (const el of elements) {
     if (
       el.type === "frame" &&
-      String(el.customData?.terraformTopologyKey ?? "") !== ""
+      !el.isDeleted &&
+      TOPO_HULL_ROLES.has(String(el.customData?.terraformTopologyRole ?? ""))
     ) {
       count += 1;
     }
