@@ -235,6 +235,10 @@ export type TerraformPlanParsingOptions = {
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
   strataHeightGate?: boolean;
+  /** §3o ancillary greedy right-slack allocator. Default ON; inert unless
+   *  `pipelineIncludeAncillary` is also on, so it cannot affect the default
+   *  ("Connected only") scene. */
+  strataAncillaryAllocator?: boolean;
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build (structure phase). Default "none" (byte-identical).
    * Suppressed when the absorbing parent stays banded under `strataBandDepth`. */

@@ -24,6 +24,7 @@ import {
   countAncillaryCards,
 } from "./terraformPipelineLayoutAncillary";
 import {
+  buildValidatedStrataAncillaryInsertion,
   checkStrataAncillaryContainment,
   injectStrataAncillaryBands,
   type StrataAncillaryBand,
@@ -174,6 +175,13 @@ export type TerraformStrataSceneOptions = {
    * when on (byte-identity).
    */
   strataBlockClamp?: boolean;
+  /**
+   * §3o greedy right-slack allocator for ancillary bands. Default ON; inert
+   * unless `includeAncillary` is also on, so flag-off byte-identity is
+   * unaffected. Exists as a switch so the probe can measure the allocator
+   * against the §3f host-interior baseline it falls back to.
+   */
+  strataAncillaryAllocator?: boolean;
   /**
    * P2 within-column transpose (default off, opt-in): a post-A7 pass that swaps
    * Y-adjacent X-column-OVERLAPPING sibling pairs (the complementary operator to
@@ -334,6 +342,10 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataTransitiveAdopt = options?.strataTransitiveAdopt === true;
   // P4 pure-sink account block clamp (post-A7), default off.
   const strataBlockClamp = options?.strataBlockClamp === true;
+  // Default ON (contrast with every other strata toggle): this one is already
+  // gated behind `includeAncillary`, and it strictly improves on the baseline it
+  // degrades to.
+  const strataAncillaryAllocator = options?.strataAncillaryAllocator !== false;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
   // P5 (Lever C) per-hull height maintain-or-decrease gate, default off.
@@ -711,11 +723,17 @@ export async function buildTerraformStrataExcalidrawScene(
       // (honest-meta). This catch is INSIDE the engine's outer try on purpose.
       try {
         const strips = buildAncillaryStrips(nodes, plan, prep, { compact });
-        const injected = injectStrataAncillaryBands({
-          model,
-          placement,
-          strips,
-        });
+        // §3o — the greedy right-slack allocator. It widens each band into
+        // PRE-EXISTING right slack to cut band height, validates every grant
+        // end-to-end, and degrades to the §3f host-interior baseline (which
+        // always applies) one lowest-benefit grant at a time. Default ON: the
+        // whole feature is already opt-in behind `includeAncillary`, so flag-off
+        // byte-identity is unaffected, and the allocator can only improve on the
+        // baseline it falls back to. The OFF arm exists so the probe can measure
+        // the baseline and the allocator against each other.
+        const injected = strataAncillaryAllocator
+          ? buildValidatedStrataAncillaryInsertion({ model, placement, strips })
+          : injectStrataAncillaryBands({ model, placement, strips });
         // §3g — bands are INVISIBLE to `checkStrataStructure` (it walks the
         // model). Without this check a band/leaf overlap is silent, green and
         // invisible — the exact `skeleton: []` failure class, and precisely the
@@ -745,8 +763,17 @@ export async function buildTerraformStrataExcalidrawScene(
           strataAncillaryNestDepthMax: injected.maxNestDepth,
           strataAncillaryRelocatedStripCount: injected.relocatedStripCount,
           strataAncillaryContainment: containment,
-          ...(injected.hostWidenedCount > 0
-            ? { strataAncillaryHostWidenedCount: injected.hostWidenedCount }
+          // P1-B: bands dropped rather than widen a hull (an over-wide single
+          // card). Rides only when non-empty.
+          ...(injected.suppressedHostIds.length > 0
+            ? {
+                strataAncillarySuppressedBandCount:
+                  injected.suppressedHostIds.length,
+                strataAncillarySuppressedHostIds: injected.suppressedHostIds,
+              }
+            : {}),
+          ...("allocatorMeta" in injected
+            ? { strataAncillaryAllocator: injected.allocatorMeta }
             : {}),
         };
       } catch (err) {

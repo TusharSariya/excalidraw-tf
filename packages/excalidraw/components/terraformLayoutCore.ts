@@ -519,6 +519,9 @@ type LayoutSceneContext = {
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * sink-pull-in / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
+  /** §3o ancillary greedy right-slack allocator. Default ON; inert unless
+   *  `pipelineIncludeAncillary` is also on. */
+  strataAncillaryAllocator?: boolean;
   /** OD-15 de-band: dissolve this hierarchy level and every deeper one at the
    * Strata model build. Default `"none"` (byte-identical). */
   strataDeBandLevel?: DeBandLevel;
@@ -643,6 +646,7 @@ async function buildPipelineLayoutSceneBody(
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
         strataHeightGate: ctx.strataHeightGate,
+        strataAncillaryAllocator: ctx.strataAncillaryAllocator,
         // OD-15 de-band — SEAM 2. This fan-in is a second silent-drop point the
         // trap-#4 comment on the sceneContext literal does not mention: a key
         // present there but missing HERE never reaches the builder, and this
@@ -1242,6 +1246,11 @@ export async function layoutTerraformFromSources(
     strataBlockClamp: options?.strataBlockClamp === true,
     strataTranspose: options?.strataTranspose === true,
     strataHeightGate: options?.strataHeightGate === true,
+    // Default ON (`!== false`), unlike every neighbour here: the allocator is
+    // already gated behind `pipelineIncludeAncillary`. Must be listed in THIS
+    // literal — an option absent from the sceneContext is silently dropped on
+    // the real app path, however correctly it is threaded everywhere else.
+    strataAncillaryAllocator: options?.strataAncillaryAllocator !== false,
     // OD-15 de-band — SEAM 1 (this literal; see the trap-#4 note above). Omit at
     // the default `"none"` / when absent, so the literal never materializes a
     // default own key. `"none"` is a TRUTHY string: an `&&`-truthy gate here

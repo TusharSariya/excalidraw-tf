@@ -1,3 +1,7 @@
+/* eslint-disable max-lines -- One module's contract belongs in one spec file, and
+ * this one is long because the suite has a PROVEN blind spot (23 green tests
+ * alongside 54 real band overlaps): the F1 transpose/coordRefine arms and the
+ * non-vacuity tests are the cure, not padding. */
 /**
  * Unit tests for the Strata ancillary ("All resources") band injector
  * (terraformPipelineStrataAncillary.ts; plan §3a-§3n). Synthetic, fast, no preset.
@@ -17,10 +21,14 @@ import { describe, expect, it } from "vitest";
 
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
 import {
+  buildValidatedStrataAncillaryInsertion,
   checkStrataAncillaryContainment,
   injectStrataAncillaryBands,
 } from "./terraformPipelineStrataAncillary";
-import { buildStrataModel } from "./terraformPipelineStrataModel";
+import {
+  buildStrataModel,
+  STRATA_ROOT_ID,
+} from "./terraformPipelineStrataModel";
 import {
   checkStrataStructure,
   placeStrataHulls,
@@ -158,9 +166,15 @@ function strip(
  * X-OVERLAP and the packed region stacks them with dropY. See the header.
  */
 function twoVpcFixture(deBandLevel: DeBandLevel = "none") {
+  // 420px leaves (vs the 200px default card): each NESTING level costs 2*PAD, so
+  // a hull sized tight around a 300px leaf cannot hold its own 200px card once
+  // that card nests one level down — the band is then correctly dropped for want
+  // of slack, and every nesting assertion below would test nothing. The real
+  // preset is nowhere near that regime (346px cards in 2386-14842px hosts, so
+  // nesting pad is ~2%); 420 puts the fixture on the right side of the same line.
   const clusters = [
-    frameCluster("c-a", place("aws", "1", "us-east-1", "vpc-a"), 300, 100),
-    frameCluster("c-b", place("aws", "1", "us-east-1", "vpc-b"), 300, 100),
+    frameCluster("c-a", place("aws", "1", "us-east-1", "vpc-a"), 420, 100),
+    frameCluster("c-b", place("aws", "1", "us-east-1", "vpc-b"), 420, 100),
   ];
   const model = buildStrataModel(prepOf(clusters), {
     ...OPTS,
@@ -170,6 +184,35 @@ function twoVpcFixture(deBandLevel: DeBandLevel = "none") {
   const placement = placeStrataHulls(model, NO_EDGES, rank, OPTS);
   return { model, placement, rank };
 }
+
+/**
+ * TWO REGIONS under one account: `us-east-1` narrow (one column), `us-east-2`
+ * wide (two columns). The account is BANDED, so the regions stack vertically and
+ * are Y-DISJOINT — which means the narrow region has real RIGHT SLACK out to the
+ * account's interior edge, with no vertically-overlapping right sibling to stop
+ * it.
+ *
+ * This is not a contrived shape: it is exactly the mechanism the Step 0 census
+ * measured on the real preset (median right slack 1194px ≈ 3 card widths). The
+ * `twoVpcFixture` above CANNOT test the allocator — both its vpc hulls sit in
+ * one column inside a hull sized to fit them, so the slack there is zero by
+ * construction and every allocator assertion on it would pass vacuously.
+ */
+function slackFixture() {
+  const clusters = [
+    frameCluster("c-a", place("aws", "1", "us-east-1", "vpc-a"), 300, 100),
+    frameCluster("c-b", place("aws", "1", "us-east-2", "vpc-b"), 300, 100),
+    frameCluster("c-c", place("aws", "1", "us-east-2", "vpc-c"), 300, 100),
+  ];
+  const model = buildStrataModel(prepOf(clusters), OPTS);
+  const rank = rankStub({ "c-a": 0, "c-b": 0, "c-c": 1 });
+  const placement = placeStrataHulls(model, NO_EDGES, rank, OPTS);
+  return { model, placement, rank };
+}
+
+const SLACK_PATHS = {
+  vpcA: ["aws", "1", "us-east-1", "vpc-a"],
+};
 
 const PATHS = {
   provider: ["aws"],
@@ -292,8 +335,11 @@ describe("nesting — one band per host, groups per de-banded level", () => {
   });
 
   it("nests 3 levels deep at bandDepth=root + deBand=account (the owner's config)", () => {
+    // Wider than `twoVpcFixture`'s 420 for the same reason it uses 420 at all,
+    // and it bites hardest here: this is the DEEPEST nesting case — 3 levels ⇒
+    // 6*PAD of nesting pad alone before a single card is drawn.
     const clusters = [
-      frameCluster("c-a", place("aws", "1", "us-east-1", "vpc-a"), 300, 100),
+      frameCluster("c-a", place("aws", "1", "us-east-1", "vpc-a"), 520, 100),
     ];
     const model = buildStrataModel(prepOf(clusters), {
       ...OPTS,
@@ -703,7 +749,7 @@ describe("§3f — wrap width comes from the HOST'S INTERIOR, never the 1268px c
     const { model, placement } = twoVpcFixture();
     const host = placement.boxedHulls.get(keyOf(PATHS.vpcA))!;
     const interior = host.box.width - 2 * PIPELINE_FRAME_PAD;
-    const { bands, hostWidenedCount } = injectStrataAncillaryBands({
+    const { bands, suppressedHostIds } = injectStrataAncillaryBands({
       model,
       placement,
       strips: [
@@ -720,19 +766,302 @@ describe("§3f — wrap width comes from the HOST'S INTERIOR, never the 1268px c
     expect(bands.get(keyOf(PATHS.vpcA))!.box.width).toBeLessThanOrEqual(
       interior + 0.5,
     );
-    expect(hostWidenedCount).toBe(0);
+    expect(suppressedHostIds).toEqual([]);
   });
 
-  it("counts the one irreducible case: a single card wider than the host interior", () => {
+  // 🔴 P1-B — THIS TEST USED TO ENSHRINE A CONTRACT VIOLATION. It asserted that a
+  // single over-wide card WIDENS its host (`hostWidenedCount === 1`, band wider
+  // than the host), which `reboundHull` then propagates through every ancestor
+  // INCLUDING THE ROOT — while the no-movement test below asserts root width is
+  // unchanged, and the allocator's slack ceiling is FLOORED on a fixed root right
+  // edge. The plan called it "the one documented exception"; an invariant with an
+  // exception is not an invariant, and a ceiling floored at a movable root is
+  // unsound. The invariant wins: the band is dropped and counted, and no hull
+  // width is written on the baseline path at all.
+  it("drops (never widens the host for) a single card wider than the host interior", () => {
     const { model, placement } = twoVpcFixture();
     const host = placement.boxedHulls.get(keyOf(PATHS.vpcA))!;
+    const rootWidthBefore = placement.boxedHulls.get(STRATA_ROOT_ID)!.box.width;
     const tooWide = host.box.width + 500;
-    const { hostWidenedCount, bands } = injectStrataAncillaryBands({
+    const {
+      suppressedHostIds,
+      bands,
+      placement: after,
+    } = injectStrataAncillaryBands({
       model,
       placement,
       strips: [strip("vpc", PATHS.vpcA, [card("s3.huge", tooWide)])],
     });
-    expect(hostWidenedCount).toBe(1);
-    expect(bands.get(keyOf(PATHS.vpcA))!.box.width).toBeGreaterThan(tooWide);
+    expect(suppressedHostIds).toEqual([keyOf(PATHS.vpcA)]);
+    expect(bands.has(keyOf(PATHS.vpcA))).toBe(false);
+    // The point of the fix: no hull width moved, least of all the root's.
+    expect(after.boxedHulls.get(keyOf(PATHS.vpcA))!.box.width).toBe(
+      host.box.width,
+    );
+    expect(after.boxedHulls.get(STRATA_ROOT_ID)!.box.width).toBe(
+      rootWidthBefore,
+    );
+  });
+});
+
+// ── F1: the re-settle vs the refinement passes ───────────────────────────────
+//
+// 🔴 THE SUITE'S PROVEN BLIND SPOT. Every fixture above builds via
+// `placeStrataHulls` with `coordinateRefine: false` and no transpose / relocate /
+// blockClamp — so NOTHING in this file ever combined a refinement pass with
+// `includeAncillary`, and 23 green tests coexisted with a real preset emitting
+// `{bandEscapesHost: 6, bandOverlaps: 54, bandTitleCollisions: 9}`.
+//
+// Injection is wired FIVE stages downstream of placement. Every one of those
+// passes rewrites box Y while PRESERVING `placed` array order (transpose is
+// literally "an ENVELOPE-PRESERVING adjacent Y-exchange"). A re-settle driven off
+// array order therefore re-imposes the pre-transpose Y order and undoes them.
+
+/** Exactly what `transposeStrataColumns` does: swap two units' Y, leave `placed`
+ *  array order alone. */
+const transposeStyleYExchange = (
+  placement: StrataPlacementResult,
+  hullId: string,
+): StrataPlacementResult => {
+  const bh = placement.boxedHulls.get(hullId)!;
+  const [a, b] = bh.placed;
+  const aY = a!.box.y;
+  const bY = b!.box.y;
+  const shift = (pu: typeof a, dy: number): void => {
+    pu!.box.y += dy;
+    if (pu!.unit.kind === "leaf") {
+      const leaf = placement.leafBoxes.get(pu!.unit.clusterId);
+      // ⚠️ `placeStrataHulls` ALIASES a leaf's `placed` box object with its
+      // `leafBoxes` entry (the aliasing `cloneStrataPlacement` deliberately does
+      // NOT reproduce). Shifting both unconditionally double-shifts every leaf —
+      // which silently builds a BROKEN fixture rather than failing, and then
+      // reads as a bug in the code under test.
+      if (leaf && leaf !== pu!.box) {
+        (leaf as { y: number }).y += dy;
+      }
+      return;
+    }
+    const sub = placement.boxedHulls.get(pu!.unit.hullId)!;
+    sub.box.y += dy;
+    for (const child of sub.placed) {
+      shift(child, dy);
+    }
+  };
+  // Swap a and b's tops (each subtree moves rigidly), as transpose does.
+  shift(a, bY - aY);
+  shift(b, aY - bY);
+  return placement;
+};
+
+describe("F1 — the re-settle must not undo transpose/relocate/A7", () => {
+  it("a band injected after a transpose-style Y-exchange keeps containment AND structure clean", () => {
+    const { model, placement } = twoVpcFixture();
+    const regionId = keyOf(PATHS.region);
+
+    // Precondition: the fixture is clean, and STAYS clean after the exchange —
+    // so any violation below is injection's fault, not the fixture's.
+    expect(checkStrataStructure(placement, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
+    const exchanged = transposeStyleYExchange(placement, regionId);
+    expect(checkStrataStructure(exchanged, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
+
+    const { bands, placement: after } = injectStrataAncillaryBands({
+      model,
+      placement: exchanged,
+      strips: [strip("vpc", PATHS.vpcA, [card("s3.a")])],
+    });
+
+    // Before the F1 fix this measured {bandOverlaps: 2, bandTitleCollisions: 1}
+    // and {nonAncestorOverlaps: 3, titleCollisions: 2}, with one vpc hull nested
+    // inside the other — i.e. every band silently dropped in the owner's config.
+    expect(checkStrataAncillaryContainment(bands, after, model)).toEqual({
+      bandEscapesHost: 0,
+      bandOverlaps: 0,
+      bandTitleCollisions: 0,
+    });
+    expect(checkStrataStructure(after, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
+  });
+
+  it("is an IDENTITY on a collision-free placement whose Y order is not its placed order", () => {
+    // The property the F1 fix buys that array order never had: re-settling a
+    // Y-exchanged placement with NO band moves nothing at all.
+    const { model, placement } = twoVpcFixture();
+    const exchanged = transposeStyleYExchange(placement, keyOf(PATHS.region));
+    const snapshot = [...exchanged.boxedHulls].map(([id, bh]) => [
+      id,
+      bh.box.y,
+    ]);
+    const { placement: after } = injectStrataAncillaryBands({
+      model,
+      placement: exchanged,
+      strips: [],
+    });
+    expect([...after.boxedHulls].map(([id, bh]) => [id, bh.box.y])).toEqual(
+      snapshot,
+    );
+  });
+
+  it("holds with coordinateRefine ON (no test combined a refinement pass with ancillary)", () => {
+    const { model } = twoVpcFixture();
+    const refined = placeStrataHulls(
+      model,
+      NO_EDGES,
+      rankStub({ "c-a": 0, "c-b": 0 }),
+      { ...OPTS, coordinateRefine: true },
+    );
+    const { bands, placement: after } = injectStrataAncillaryBands({
+      model,
+      placement: refined,
+      strips: [strip("vpc", PATHS.vpcA, [card("s3.a")])],
+    });
+    expect(checkStrataAncillaryContainment(bands, after, model)).toEqual({
+      bandEscapesHost: 0,
+      bandOverlaps: 0,
+      bandTitleCollisions: 0,
+    });
+    expect(checkStrataStructure(after, model)).toEqual({
+      nonAncestorOverlaps: 0,
+      titleCollisions: 0,
+      contiguityViolations: 0,
+    });
+  });
+});
+
+// ── P1-C: prove the title counter can actually fire ──────────────────────────
+
+describe("P1-C — bandTitleCollisions is not a vacuous counter", () => {
+  it("CATCHES a band forced onto its own host's title strip", () => {
+    // The counter the plan calls "exactly the class the measured dead end
+    // tripped" had NO non-vacuity test, and the check skipped the host and every
+    // ancestor — so it was structurally incapable of firing for the band's own
+    // host. Drive a band onto the host's title strip directly.
+    const { model, placement } = twoVpcFixture();
+    const hostId = keyOf(PATHS.vpcA);
+    const host = placement.boxedHulls.get(hostId)!;
+    const bands = new Map([
+      [
+        hostId,
+        {
+          hullId: hostId,
+          box: { x: host.box.x + 1, y: host.box.y + 1, width: 10, height: 10 },
+          skeleton: [],
+          frameId: "f",
+          stripCount: 1,
+          cardCount: 1,
+          nestDepth: 0,
+        },
+      ],
+    ]);
+    const got = checkStrataAncillaryContainment(bands, placement, model);
+    expect(got.bandTitleCollisions).toBeGreaterThan(0);
+  });
+});
+
+// ── §3o: the greedy right-slack allocator ────────────────────────────────────
+
+describe("§3o — the greedy right-slack allocator", () => {
+  it("widens a band into real right slack and cuts its height, without moving root width or any leaf", () => {
+    const { model, placement } = slackFixture();
+    const hostId = keyOf(SLACK_PATHS.vpcA);
+    const strips = [
+      strip(
+        "vpc",
+        SLACK_PATHS.vpcA,
+        Array.from({ length: 8 }, (_, i) => card(`s3.${i}`, 200, 80)),
+      ),
+    ];
+    const base = injectStrataAncillaryBands({ model, placement, strips });
+    const allocated = buildValidatedStrataAncillaryInsertion({
+      model,
+      placement,
+      strips,
+    });
+
+    const rootWidth = placement.boxedHulls.get(STRATA_ROOT_ID)!.box.width;
+    // The invariants that survive §3o (see `classifyStrataAncillaryCandidate`):
+    // root width is a HARD cap, and leaves are frozen.
+    expect(allocated.placement.boxedHulls.get(STRATA_ROOT_ID)!.box.width).toBe(
+      rootWidth,
+    );
+    for (const [id, before] of placement.leafBoxes) {
+      const after = allocated.placement.leafBoxes.get(id)!;
+      expect(after.x).toBeCloseTo(before.x, 1);
+      expect(after.width).toBeCloseTo(before.width, 1);
+      expect(after.height).toBeCloseTo(before.height, 1);
+      expect(after.y).toBeGreaterThanOrEqual(before.y - 0.5);
+    }
+    expect(
+      checkStrataAncillaryContainment(
+        allocated.bands,
+        allocated.placement,
+        model,
+      ),
+    ).toEqual({
+      bandEscapesHost: 0,
+      bandOverlaps: 0,
+      bandTitleCollisions: 0,
+    });
+
+    // The point of the port: a shorter band than the baseline's.
+    expect(allocated.allocatorMeta.rowSavings).toBeGreaterThan(0);
+    expect(allocated.allocatorMeta.widenedHullCount).toBeGreaterThan(0);
+    expect(allocated.bands.get(hostId)!.box.height).toBeLessThan(
+      base.bands.get(hostId)!.box.height,
+    );
+    expect(allocated.bands.get(hostId)!.box.width).toBeGreaterThan(
+      base.bands.get(hostId)!.box.width,
+    );
+  });
+
+  it("allocates nothing when there is no slack, and degrades to the exact baseline", () => {
+    // A root-hosted band: root is the hard cap, so the ceiling equals the
+    // baseline wrap and no candidate can ever be admitted.
+    const { model, placement } = twoVpcFixture("account");
+    const strips = [strip("vpc", PATHS.vpcA, [card("s3.a"), card("s3.b")])];
+    const allocated = buildValidatedStrataAncillaryInsertion({
+      model,
+      placement,
+      strips,
+    });
+    const base = injectStrataAncillaryBands({ model, placement, strips });
+    expect(allocated.allocatorMeta.allocationCount).toBe(0);
+    expect(allocated.allocatorMeta.rowSavings).toBe(0);
+    // "Degrades to the baseline" is a byte claim, not a vibe.
+    expect([...allocated.bands].map(([k, b]) => [k, b.box])).toEqual(
+      [...base.bands].map(([k, b]) => [k, b.box]),
+    );
+  });
+
+  it("is deterministic", () => {
+    const { model, placement } = slackFixture();
+    const strips = [
+      strip(
+        "vpc",
+        SLACK_PATHS.vpcA,
+        Array.from({ length: 8 }, (_, i) => card(`s3.${i}`, 200, 80)),
+      ),
+    ];
+    const a = buildValidatedStrataAncillaryInsertion({
+      model,
+      placement,
+      strips,
+    });
+    const b = buildValidatedStrataAncillaryInsertion({
+      model,
+      placement,
+      strips,
+    });
+    expect(a.allocatorMeta).toEqual(b.allocatorMeta);
   });
 });
