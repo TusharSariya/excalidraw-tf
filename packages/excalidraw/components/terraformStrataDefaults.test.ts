@@ -7,7 +7,7 @@ import {
 } from "./terraformStrataDefaults";
 
 describe("resolveStrataDemoOptions", () => {
-  it("resolves a bare view=strata URL to the SDEC-54 validated defaults (K=4 + A7), not K=0", () => {
+  it("resolves a bare view=strata URL to the post-owner-flip defaults (K=4 + A7 + transpose/sift/packedScoring ON, ε=1; owner-decisions.md 2026-07-17), not K=0", () => {
     const params = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata",
     );
@@ -17,18 +17,18 @@ describe("resolveStrataDemoOptions", () => {
       strataSweeps: 4,
       strataCoordinateRefine: true,
       strataRankSeparate: false,
-      strataPackedScoring: false,
-      strataPackedScoringEpsilon: 0,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 1,
       strataEdgeRouting: false,
       strataBorderRoute: false,
       strataBandCompact: false,
-      strataSiftRelocate: false,
+      strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
       strataPackedConverge: false,
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
-      strataTranspose: false,
+      strataTranspose: true,
       strataHeightGate: false,
       strataLeafShift: false,
       // The default cut ("account") is OMITTED (raw-forward discipline): no
@@ -75,33 +75,33 @@ describe("resolveStrataDemoOptions", () => {
       strataSweeps: 4,
       strataCoordinateRefine: true,
       strataRankSeparate: true,
-      strataPackedScoring: false,
-      strataPackedScoringEpsilon: 0,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 1,
       strataEdgeRouting: false,
       strataBorderRoute: false,
       strataBandCompact: false,
-      strataSiftRelocate: false,
+      strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
       strataPackedConverge: false,
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
-      strataTranspose: false,
+      strataTranspose: true,
       strataHeightGate: false,
       strataLeafShift: false,
       // Default cut omitted — see the bare-URL test above.
     });
   });
 
-  it("resolves strataPackedScoring: default false, explicit URL param wins", () => {
+  it("resolves strataPackedScoring: default true (owner flip 2026-07-17), explicit opt-out wins", () => {
     const bare = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata",
     );
-    expect(resolveStrataDemoOptions(bare!).strataPackedScoring).toBe(false);
-    const on = parseTerraformDemoUrlParams(
-      "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1",
+    expect(resolveStrataDemoOptions(bare!).strataPackedScoring).toBe(true);
+    const off = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=0",
     );
-    expect(resolveStrataDemoOptions(on!).strataPackedScoring).toBe(true);
+    expect(resolveStrataDemoOptions(off!).strataPackedScoring).toBe(false);
   });
 
   it("resolves strataEdgeRouting: default false, explicit URL param wins", () => {
@@ -167,11 +167,11 @@ describe("resolveStrataDemoOptions", () => {
     expect(resolveStrataDemoOptions(off!).strataBandDepth).toBeUndefined();
   });
 
-  it("resolves strataPackedScoringEpsilon: default 0, explicit strataPackedEps wins (incl. relative)", () => {
+  it("resolves strataPackedScoringEpsilon: default 1 (owner flip 2026-07-17), explicit strataPackedEps wins (incl. relative)", () => {
     const bare = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata",
     );
-    expect(resolveStrataDemoOptions(bare!).strataPackedScoringEpsilon).toBe(0);
+    expect(resolveStrataDemoOptions(bare!).strataPackedScoringEpsilon).toBe(1);
     const abs = parseTerraformDemoUrlParams(
       "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=1&strataPackedEps=2",
     );
