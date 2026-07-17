@@ -64,10 +64,11 @@ describe("terraformStackAddress", () => {
   // O4 floor memo (Track B, overnight-20260717): behavioral-identity gate for the
   // module-level `parseStackAddress` cache. Proves the memo is byte-identical to a
   // fresh recompute for a battery of inputs (positive, negative, whitespace,
-  // instance-index, root-level), and that a second call returns the SAME reference
-  // (i.e. the cache is actually hit — no silent per-call recompute) without any
-  // behavioral drift.
-  it("memoizes parseStackAddress byte-identically and reuses the reference", () => {
+  // instance-index, root-level), AND that the memo preserves the pre-memo
+  // return-value protocol: every call materializes a FRESH result object, so a
+  // caller mutating the returned result can never poison the cache or a later
+  // parse of the same string.
+  it("memoizes parseStackAddress byte-identically without sharing mutable result objects", () => {
     const recompute = (full: string) => {
       const trimmed = full.trim();
       const sepIndex = trimmed.indexOf("::");
@@ -95,11 +96,25 @@ describe("terraformStackAddress", () => {
 
     for (const input of inputs) {
       const first = parseStackAddress(input);
-      const second = parseStackAddress(input);
       // byte-identical to a fresh recompute
       expect(first).toEqual(recompute(input));
-      // cache hit: the second call returns the identical reference (or null)
-      expect(second).toBe(first);
+
+      if (first === null) {
+        // negatives stay null on every call
+        expect(parseStackAddress(input)).toBeNull();
+        continue;
+      }
+
+      // Each call returns a distinct object (no shared reference).
+      const second = parseStackAddress(input);
+      expect(second).not.toBe(first);
+      expect(second).toEqual(recompute(input));
+
+      // Mutating a returned result must NOT poison the cache: a later parse of
+      // the same string still yields the unmutated, byte-identical value.
+      first.stackId = "MUTATED";
+      first.address = "MUTATED";
+      expect(parseStackAddress(input)).toEqual(recompute(input));
     }
   });
 });

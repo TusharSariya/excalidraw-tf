@@ -117,14 +117,16 @@ export function getResourceTypeFromPath(
  * Module-level memo: `terraformModulePrefixForAddress` is a pure function of the
  * address STRING alone — no config, no preset state — so the same input string
  * always maps to the same output regardless of which preset is being imported.
- * The keyspace is string→string, bounded by the finite set of distinct plan
- * addresses across all presets re-imported in one process, so the cache is safe
- * to persist for the process lifetime without a per-import reset. The function is
- * called O(nodes × candidates) inside IAM-link building (1.99s self on the
- * canonical trace); the memo collapses the repeated split/join. Byte-identical by
- * construction (pure function, no lifecycle coupling). See
- * scratchpad/overnight-20260717 O4 (floor memos).
+ * The function is called O(nodes × candidates) inside IAM-link building (1.99s
+ * self on the canonical trace); the memo collapses the repeated split/join.
+ * Values are immutable strings, so returning a cached value is byte-identical.
+ *
+ * The layout path reuses this module across jobs/runs, so the cache is BOUNDED
+ * (oldest-key eviction on overflow) to prevent a slow cross-run leak of every
+ * distinct address ever imported. Eviction only forces a recompute of the same
+ * value, so it stays byte-identical. See scratchpad/overnight-20260717 O4.
  */
+const MODULE_PREFIX_CACHE_MAX_ENTRIES = 50_000;
 const terraformModulePrefixCache = new Map<string, string>();
 
 export function terraformModulePrefixForAddress(address: string): string {
@@ -143,6 +145,15 @@ export function terraformModulePrefixForAddress(address: string): string {
     }
   }
   const result = segments.join(".");
+  if (
+    terraformModulePrefixCache.size >= MODULE_PREFIX_CACHE_MAX_ENTRIES &&
+    !terraformModulePrefixCache.has(address)
+  ) {
+    const oldest = terraformModulePrefixCache.keys().next().value;
+    if (oldest !== undefined) {
+      terraformModulePrefixCache.delete(oldest);
+    }
+  }
   terraformModulePrefixCache.set(address, result);
   return result;
 }

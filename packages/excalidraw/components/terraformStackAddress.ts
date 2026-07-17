@@ -41,20 +41,44 @@ export function prefixStackAddress(stackId: string, address: string): string {
 type ParsedStackAddress = { stackId: string; address: string } | null;
 
 /**
+ * Hard upper bound on entries retained by the pure-string memo caches in this
+ * module. `parseStackAddress` is a pure function of its input string, so the
+ * cache is a lossless accelerator: on a miss we recompute, and evicting any
+ * entry can never change an output. The layout path reuses this module across
+ * jobs/runs, so an unbounded Map would retain every distinct raw address (and
+ * invalid string cached as `null`) for the whole process lifetime — a slow
+ * cross-run leak. Capping the cache and evicting the oldest entry on overflow
+ * keeps memory bounded while staying byte-identical (eviction only forces a
+ * recompute of the same value). ~50k distinct addresses comfortably covers the
+ * largest single preset; overflow only bites pathological multi-plan sessions,
+ * exactly the leak we are bounding.
+ */
+const MEMO_CACHE_MAX_ENTRIES = 50_000;
+
+/** Bounded FIFO set for a pure-string memo cache: evict the oldest key on overflow. */
+const setBoundedMemo = <V>(cache: Map<string, V>, key: string, value: V): void => {
+  if (cache.size >= MEMO_CACHE_MAX_ENTRIES && !cache.has(key)) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) {
+      cache.delete(oldest);
+    }
+  }
+  cache.set(key, value);
+};
+
+/**
  * O4 floor memo (Track B, overnight-20260717). `parseStackAddress` is a pure
  * function of its raw input string — no config, no preset, no external state —
- * so the same input always maps to the same result regardless of which preset
- * is being imported. The keyspace is string→(object|null), bounded by the finite
- * set of distinct plan addresses / node keys across all presets re-imported in
- * one process, so the cache safely persists for the process lifetime with no
- * per-import reset (CACHE LIFECYCLE RULE: pure-input-keyed module-level Map with
- * a bounded, provably preset-agnostic keyspace — same input string always yields
- * the same output). The parsed result object is only ever READ by callers
- * (`.stackId` / `.address`); no caller mutates it, so returning a shared
- * reference is byte-identical to returning a fresh object. This function sits on
- * both the plan-parse head (~2s) and the scene-apply tail (~2s) of the canonical
- * trace — the same address strings recur across both, so one warmed cache pays
- * twice. See scratchpad/overnight-20260717 O4.
+ * so the same input always maps to the same result. This function sits on both
+ * the plan-parse head (~2s) and the scene-apply tail (~2s) of the canonical
+ * trace, where the same address strings recur, so one warmed cache pays twice.
+ *
+ * The cache stores only the immutable SCALAR fields of the parse (or `null`);
+ * every call materializes a FRESH result object from those scalars. This
+ * preserves the pre-memo return-value protocol — each call returns a distinct
+ * object — so a caller that mutates the returned result can never poison the
+ * cache or a later parse of the same string. The cache is bounded via
+ * {@link setBoundedMemo}.
  */
 const parseStackAddressCache = new Map<string, ParsedStackAddress>();
 
@@ -73,13 +97,14 @@ function computeParseStackAddress(full: string): ParsedStackAddress {
 }
 
 export function parseStackAddress(full: string): ParsedStackAddress {
-  const cached = parseStackAddressCache.get(full);
-  if (cached !== undefined) {
-    return cached;
+  let cached = parseStackAddressCache.get(full);
+  if (cached === undefined) {
+    cached = computeParseStackAddress(full);
+    setBoundedMemo(parseStackAddressCache, full, cached);
   }
-  const result = computeParseStackAddress(full);
-  parseStackAddressCache.set(full, result);
-  return result;
+  // Materialize a fresh object per call so a caller mutating the result can
+  // never poison the cache (the cached record is never handed out directly).
+  return cached === null ? null : { stackId: cached.stackId, address: cached.address };
 }
 
 /** Strip stack prefix before Terraform module-path parsing (`module.foo.bar`). */
