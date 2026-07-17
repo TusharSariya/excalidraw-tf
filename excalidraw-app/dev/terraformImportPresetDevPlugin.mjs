@@ -32,6 +32,26 @@ const LAYOUT_CORE_MODULE = path.resolve(
   PLUGIN_DIR,
   "../../packages/excalidraw/components/terraformLayoutCore.ts",
 );
+// Rendered-metric + fingerprint + profiler modules, loaded headlessly the same way
+// (ssrLoadModule). We surface RENDERED metrics (diagnosePipelineScene /
+// computePierceMetrics), never chord proxies (trap #2), and the SHARED geometry
+// fingerprint (do NOT invent a second canonicalization).
+const COLLISION_DIAGNOSTICS_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts",
+);
+const PIERCE_METRICS_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformPipelineStrataPierceMetrics.ts",
+);
+const GEOMETRY_HASH_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformStrataGeometryHash.ts",
+);
+const IMPORT_PROFILER_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformImportProfiler.ts",
+);
 
 // RCLL pipeline toggles → `TerraformLayoutOptions` keys. Param names mirror the
 // `/demo` URL API (terraformDemoUrlParams.ts); `compact` is endpoint-only.
@@ -63,6 +83,12 @@ const LAYOUT_BOOLEAN_PARAMS = [
   ["strataNetworkSimplexRank", "strataNetworkSimplexRank"],
   ["strataCoordRefine", "strataCoordinateRefine"],
   ["strataCoordinateRefine", "strataCoordinateRefine"],
+  // OD-14 height lever — the demo URL parses it as `strataRankSep`
+  // (terraformDemoUrlParams.ts) mapping to option key `strataRankSeparate`. Both
+  // the URL param name and the canonical option name are accepted here (dual-alias
+  // pattern), last-present-wins like the URL.
+  ["strataRankSep", "strataRankSeparate"],
+  ["strataRankSeparate", "strataRankSeparate"],
 ];
 
 // Enum (non-boolean) layout params: [paramName, optionKey, allowedValues].
@@ -148,10 +174,34 @@ const LAYOUT_PARAM_CATALOG = {
       "alias of strataCoordinateRefine (A7) — Strata coordinate refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
     strataCoordinateRefine:
       "A7 flag — Strata coordinate refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataRankSep:
+      "alias of strataRankSeparate (OD-14) — whole-model sibling-separation ranking (the height lever). Threaded to the engine (sceneContext), active under layoutMode=strata.",
+    strataRankSeparate:
+      "OD-14 flag — Strata whole-model sibling-separation ranking (the height lever). Threaded to the engine (sceneContext), active under layoutMode=strata.",
   },
   ints: {
     strataSweeps:
       "Strata sweep count K for coordinate refinement (0 = off / M1a default, 4 planned for M1b); scaffold-only (passthrough to rcll v2) until the strata engine lands",
+  },
+  metrics: {
+    note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2).",
+    renderedCrossings:
+      "diagnosePipelineScene(elements).dataflow.crossings — polyline-aware rendered dataflow crossings.",
+    pierce:
+      "computePierceMetrics(elements).pierce.total — chord pierces through non-ancestor hulls.",
+    topoFrames:
+      "Count of topology hull frames (customData.terraformTopologyKey present) — the pierce denominator (trap #3).",
+    piercePerTopoFrame:
+      "pierce / max(1, topoFrames) — normalizes pierce so a deband that removes hulls can't fake a win (trap #3).",
+    height: "Scene bounds height (px).",
+    width: "Scene bounds width (px).",
+    elementCount: "Non-deleted element count.",
+    geometryHash:
+      "strataGeometryHash(elements) from the shared terraformStrataGeometryHash helper — `<count>:<fnv1a32hex>` of the canonical rounded geometry. Deterministic: same request ⇒ same hash.",
+  },
+  timings: {
+    param: "timings",
+    note: 'Set `?timings=1` (alias `?profileTimings=1`) to include a `timings` array (terraformImportProfiler spans, sorted by selfMs). NOTE: the profiler toggle is `timings`, NOT `profile` — `profile` is the layout-profile enum (readable|balanced|compact). All layout requests are serialized through a single queue so the module-global profiler never interleaves spans across concurrent requests.',
   },
   responseShape: [
     "requested",
@@ -159,6 +209,9 @@ const LAYOUT_PARAM_CATALOG = {
     "applied",
     "suppressions",
     "bounds",
+    "metrics",
+    "geometryHash",
+    "timings (only when ?timings=1)",
     "rcll",
     "regions",
   ],
@@ -342,6 +395,61 @@ const computeSceneBounds = (elements) => {
   };
 };
 
+// Count topology hull frames — the honest pierce denominator (trap #3). Every
+// topology hull (provider/account/region/vpc/subnet) carries a
+// `customData.terraformTopologyKey`; a deband that dissolves hulls drops this count,
+// so `piercePerTopoFrame` can't be gamed by a denominator collapse.
+const countTopoFrames = (elements) => {
+  let count = 0;
+  for (const el of elements) {
+    if (
+      el.type === "frame" &&
+      String(el.customData?.terraformTopologyKey ?? "") !== ""
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+};
+
+/**
+ * Rendered metrics + shared geometry fingerprint. Uses RENDERED signals only
+ * (diagnosePipelineScene / computePierceMetrics), never chord proxies (trap #2).
+ * `helpers` carries the ssr-loaded functions so this stays pure/testable.
+ */
+const buildSceneMetrics = (elements, bounds, helpers) => {
+  const { diagnosePipelineScene, computePierceMetrics, strataGeometryHash } =
+    helpers;
+  let renderedCrossings = null;
+  try {
+    renderedCrossings =
+      diagnosePipelineScene(elements)?.dataflow?.crossings ?? null;
+  } catch {
+    renderedCrossings = null;
+  }
+  let pierceTotal = null;
+  try {
+    pierceTotal = computePierceMetrics(elements)?.pierce?.total ?? null;
+  } catch {
+    pierceTotal = null;
+  }
+  const topoFrames = countTopoFrames(elements);
+  const piercePerTopoFrame =
+    pierceTotal == null
+      ? null
+      : Math.round((pierceTotal / Math.max(1, topoFrames)) * 1000) / 1000;
+  return {
+    renderedCrossings,
+    pierce: pierceTotal,
+    topoFrames,
+    piercePerTopoFrame,
+    height: bounds?.height ?? null,
+    width: bounds?.width ?? null,
+    elementCount: elements.length,
+    geometryHash: strataGeometryHash(elements),
+  };
+};
+
 const REGION_KEY_PATTERN = /^tf-pipeline:region:aws%00(\d+)%00(.+)$/;
 
 /** Region frames keyed by `customData.terraformTopologyKey`, sorted account→x. */
@@ -438,7 +546,13 @@ const summarizeAncillaryAllocator = (allocator) => {
  *     (rankSeparate-needs-rise, column-packing-conflict) AND measured no-ops (a compaction
  *     that moved zero columns on this preset). The honest "why it didn't change" list.
  */
-const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
+const buildLayoutProofPayload = (
+  presetId,
+  requested,
+  scene,
+  layoutMode,
+  extras = {},
+) => {
   const elements = (scene.elements ?? []).filter((el) => !el.isDeleted);
   const meta = scene.meta ?? {};
   const placement = meta.rcllStageMeta?.placement ?? {};
@@ -514,6 +628,14 @@ const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
     resolved: {
       profile: meta.pipelineLayoutProfile ?? requested.profile ?? "balanced",
       flags: resolvedFlags,
+      // Strata engine flags the layout actually ran (from the strata flagMeta echo).
+      // All default off/0 on non-strata runs (meta omits them). Additive.
+      strata: {
+        networkSimplexRank: meta.strataNetworkSimplexRank ?? false,
+        rankSeparate: meta.strataRankSeparate ?? false,
+        coordinateRefine: meta.strataCoordinateRefine ?? false,
+        sweeps: meta.strataSweeps ?? 0,
+      },
     },
     applied: {
       pipelineRankSeparate: meta.pipelineRankSeparate ?? false,
@@ -537,10 +659,22 @@ const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
       // request" (C6′) discipline. `null`/`false` until that wiring lands.
       pipelineLayoutVariant: meta.pipelineLayoutVariant ?? null,
       strataPassthrough: meta.strataPassthrough ?? false,
+      // Strata engine flag echoes (from scene.meta flagMeta) — additive; default
+      // off/0 on non-strata runs. Proves a requested strata param was applied.
+      strataNetworkSimplexRank: meta.strataNetworkSimplexRank ?? false,
+      strataRankSeparate: meta.strataRankSeparate ?? false,
+      strataCoordinateRefine: meta.strataCoordinateRefine ?? false,
+      strataSweeps: meta.strataSweeps ?? 0,
     },
     suppressions,
     bounds: computeSceneBounds(elements),
     elementCount: elements.length,
+    // Rendered metrics + shared geometry fingerprint (additive; always present).
+    ...(extras.metrics
+      ? { metrics: extras.metrics, geometryHash: extras.metrics.geometryHash }
+      : {}),
+    // Profiler spans, only when ?timings=1 (additive; absent otherwise).
+    ...(extras.timings ? { timings: extras.timings } : {}),
     rcll: {
       rankSeparateApplied: placement.rankSeparateApplied ?? null,
       rankSeparatePairCount: placement.rankSeparatePairCount ?? null,
@@ -632,6 +766,22 @@ const parseCompositionRoute = (url) => {
     compositionId: decodeURIComponent(match[1]),
     suffix: match[2] ?? "",
   };
+};
+
+// The terraformImportProfiler is MODULE-GLOBAL (one span stack, one totals map).
+// Two concurrent `/api/terraform-layout` requests would interleave their spans and
+// corrupt every timing. Serialize ALL layout work through a single promise chain so
+// each request runs to completion before the next begins. Applied unconditionally
+// (also stabilizes the numbers even when ?timings is off). A rejection never breaks
+// the chain — the tail always resolves.
+let layoutRequestQueue = Promise.resolve();
+const enqueueLayout = (task) => {
+  const run = layoutRequestQueue.then(task, task);
+  layoutRequestQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 };
 
 export const terraformImportPresetDevPlugin = () => ({
@@ -727,32 +877,87 @@ export const terraformImportPresetDevPlugin = () => ({
           }
         }
 
+        // Profiler toggle. NOTE: the param is `timings` (alias `profileTimings`),
+        // NOT `profile` — `profile` is the layout-profile enum (readable/balanced/
+        // compact) parsed above. `?timings=1` adds the profiler-span array.
+        const timingsParsed =
+          parseLayoutBooleanParam(params.get("timings")) ??
+          parseLayoutBooleanParam(params.get("profileTimings"));
+        if (timingsParsed === null) {
+          sendJson(res, 400, {
+            error: "Invalid boolean for ?timings (use 1/0/true/false).",
+          });
+          return;
+        }
+        const timingsRequested = timingsParsed === true;
+
         try {
-          const sources = getTerraformImportPresetSourcesFromDb(presetId);
-          if (!sources) {
-            sendJson(res, 404, { error: `Preset "${presetId}" not found.` });
-            return;
-          }
-          await ensureLayoutDomGlobals();
-          const core = await server.ssrLoadModule(LAYOUT_CORE_MODULE);
-          const result = await core.layoutTerraformFromSources(
-            sources,
-            options,
-          );
-          if (!result.ok) {
-            sendJson(res, result.status ?? 422, { error: result.error });
-            return;
-          }
-          sendJson(
-            res,
-            200,
-            buildLayoutProofPayload(
-              presetId,
-              requested,
-              result.scene,
-              layoutMode,
-            ),
-          );
+          // All layout work is serialized through a single queue: the profiler is
+          // module-global, so concurrent requests must never interleave spans.
+          const outcome = await enqueueLayout(async () => {
+            const sources = getTerraformImportPresetSourcesFromDb(presetId);
+            if (!sources) {
+              return {
+                status: 404,
+                body: { error: `Preset "${presetId}" not found.` },
+              };
+            }
+            await ensureLayoutDomGlobals();
+            const [core, diagnosticsMod, pierceMod, hashMod, profilerMod] =
+              await Promise.all([
+                server.ssrLoadModule(LAYOUT_CORE_MODULE),
+                server.ssrLoadModule(COLLISION_DIAGNOSTICS_MODULE),
+                server.ssrLoadModule(PIERCE_METRICS_MODULE),
+                server.ssrLoadModule(GEOMETRY_HASH_MODULE),
+                server.ssrLoadModule(IMPORT_PROFILER_MODULE),
+              ]);
+
+            // reset → enable → layout → summary → restore prior enabled-state.
+            // Safe because we hold the queue lock (no interleaving possible).
+            const priorEnabled =
+              profilerMod.isTerraformImportProfilerEnabled();
+            let timingsSummary = null;
+            if (timingsRequested) {
+              profilerMod.terraformImportProfilerReset();
+              profilerMod.setTerraformImportProfilerEnabled(true);
+            }
+            let result;
+            try {
+              result = await core.layoutTerraformFromSources(sources, options);
+            } finally {
+              if (timingsRequested) {
+                timingsSummary =
+                  profilerMod.terraformImportProfilerSummary();
+                profilerMod.setTerraformImportProfilerEnabled(priorEnabled);
+              }
+            }
+            if (!result.ok) {
+              return {
+                status: result.status ?? 422,
+                body: { error: result.error },
+              };
+            }
+            const elements = (result.scene.elements ?? []).filter(
+              (el) => !el.isDeleted,
+            );
+            const bounds = computeSceneBounds(elements);
+            const metrics = buildSceneMetrics(elements, bounds, {
+              diagnosePipelineScene: diagnosticsMod.diagnosePipelineScene,
+              computePierceMetrics: pierceMod.computePierceMetrics,
+              strataGeometryHash: hashMod.strataGeometryHash,
+            });
+            return {
+              status: 200,
+              body: buildLayoutProofPayload(
+                presetId,
+                requested,
+                result.scene,
+                layoutMode,
+                { metrics, timings: timingsSummary },
+              ),
+            };
+          });
+          sendJson(res, outcome.status, outcome.body);
         } catch (error) {
           // eslint-disable-next-line no-console
           console.error("[terraform-layout] failed:", error);
