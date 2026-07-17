@@ -768,6 +768,101 @@ describe("blockClamp non-uniform — a leaf nudged off its column skips the bloc
   });
 });
 
+// ── (v) wider destination band ⇒ frame overhang vetoed by gate (a1) ───────────
+
+describe("blockClamp non-uniform — wider destination band spill is contained-gated", () => {
+  it("no-ops when a rigid-width frame cannot hold leaves re-spread across wider dest columns", () => {
+    // Account 4 is a pure sink of a@r3, b@r4, c@r5 (one subnet); external s→a
+    // only (s@r0, account 1) ⇒ kMaxRank = 3−0−1 = 2. The ORIGIN band (cols 3,4,5)
+    // is TIGHT (spacing 150/150); the DESTINATION band (cols 1,2,3 for k=2, or
+    // 2,3,4 for k=1) is WIDE. The account/subnet frame retains its origin-spacing
+    // WIDTH, so after the per-rank snap the block's own leaves land far outside
+    // that rigid frame. checkStrataStructure CANNOT see this (it exempts
+    // ancestor↔descendant overlaps), so without gate (a1) the pass would adopt a
+    // shorter-chord candidate that renders b and c outside their account frame.
+    const src = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const sink = placement("aws", "4", "us-east-1", "vpc-4", "subZ");
+    const clusters = [
+      frameCluster("s", src, "aws.1.s", 150, 60),
+      frameCluster("a", sink, "aws.4.a", 150, 60),
+      frameCluster("b", sink, "aws.4.b", 150, 60),
+      frameCluster("c", sink, "aws.4.c", 150, 60),
+    ];
+    const model = buildStrataModel(prep(clusters, [edge("s", "a")]), OPTS);
+    const primes = primeEdges([["s", "a"]]);
+    // indices:      0    1     2      3      4      5   (dest wide, origin tight)
+    const columnX = [0, 300, 1300, 2300, 2450, 2600];
+    const rank = rankStubX({ s: 0, a: 3, b: 4, c: 5 }, columnX);
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+
+    // MECHANISM PROOF: R2 is BLIND to a block leaf escaping its own ancestor
+    // frame. Shove leaf `c` 5000px right, far past its subnet/account frame —
+    // checkStrataStructure still reports fully clean (ancestor↔descendant
+    // overlaps are exempt). So gate (c) alone cannot veto the wider-destination
+    // spill; only the descendant-containment gate (a1) can.
+    const escaped = new Map(a0.leafBoxes);
+    const cBox = a0.leafBoxes.get("c")!;
+    escaped.set("c", { ...cBox, x: cBox.x + 5000 });
+    expect(
+      checkStrataStructure(
+        { boxedHulls: a0.boxedHulls, leafBoxes: escaped },
+        model,
+      ),
+    ).toEqual(R2_CLEAN);
+
+    // sanity: the same block over a UNIFORM grid (no spill) DOES adopt — proving
+    // this fixture's no-op is the containment veto, not an unrelated skip.
+    const uniform = rankStub({ s: 0, a: 3, b: 4, c: 5 });
+    const a0u = placeStrataHulls(model, primes, uniform, OPTS);
+    expect(
+      refineStrataBlockClamp(a0u, model, primes, uniform, OPTS_ON),
+    ).not.toBe(a0u);
+
+    // Every feasible k (2 then 1) overhangs the retained-width frame ⇒ gate (a1)
+    // vetoes both ⇒ honest no-op (referential identity), never an adopted spill.
+    const out = refineStrataBlockClamp(a0, model, primes, rank, OPTS_ON);
+    expect(out).toBe(a0);
+  });
+});
+
+// ── (vi) sub-0.5px residual no longer leaks off-grid (strict on-grid gate) ─────
+
+describe("blockClamp on-grid gate — a sub-0.5px residual is rejected, not carried", () => {
+  it("skips a block whose leaf sits 0.25px off its column (the old 0.5px gate admitted it)", () => {
+    const src = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const sink = placement("aws", "4", "us-east-1", "vpc-4", "subZ");
+    const clusters = [
+      frameCluster("s", src, "aws.1.s", 200, 60),
+      frameCluster("a", sink, "aws.4.a", 200, 60),
+    ];
+    const model = buildStrataModel(prep(clusters, [edge("s", "a")]), OPTS);
+    const primes = primeEdges([["s", "a"]]);
+    const rank = rankStub({ s: 0, a: 3 });
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+
+    // sanity: the on-grid block WOULD move (isolates the gate as the cause).
+    expect(refineStrataBlockClamp(a0, model, primes, rank, OPTS_ON)).not.toBe(
+      a0,
+    );
+
+    // nudge leaf `a` +0.25px — WITHIN the previous 0.5px tolerance, so the old
+    // gate admitted it and the offset-preserving snap carried the 0.25 residual
+    // to columnX[1]+0.25 (off-grid), where checkStrataStructure's exact-`box.x`
+    // contiguity referee buckets it alone (hidden interleave). The strict FP-only
+    // tolerance now rejects the perturbed block outright.
+    const aBox = a0.leafBoxes.get("a")!;
+    const leafBoxes = new Map(a0.leafBoxes);
+    leafBoxes.set("a", { ...aBox, x: aBox.x + 0.25 });
+    const perturbed: StrataPlacementResult = {
+      boxedHulls: a0.boxedHulls,
+      leafBoxes,
+    };
+    expect(refineStrataBlockClamp(perturbed, model, primes, rank, OPTS_ON)).toBe(
+      perturbed,
+    );
+  });
+});
+
 // ── (iv) toggle-off byte-identity under non-uniform columns ───────────────────
 
 describe("blockClamp non-uniform — flag off is byte-identical", () => {

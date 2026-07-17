@@ -64,14 +64,18 @@
  * exact-`box.x`-keyed contiguity referee always sees every block leaf in its true
  * rank column (no hidden interleave). Hull/frame/placed anchors are recovered by
  * nearest-column rounding (they sit FRAME_PAD left of a column origin); a mis-
- * round (pathologically deep nesting under tight columns) can only fail
- * containment and be VETOED by R2 — never a silent off-grid leaf. Also: because
- * it never re-derives ancestor frame extents (phase 1 holds provider/region boxes
- * fixed) and retains each hull's pixel WIDTH, the snap shortens the long inbound
- * chords but does NOT itself reclaim overall diagram width, and a hull spanning a
- * destination band WIDER than its origin band would overhang its leaves and be
- * R2-vetoed — width reclaim + the wider-destination case are a deferred phase-2
- * box-recompute (sub-flag `strataBlockClampReframe`, not built here).
+ * round (pathologically deep nesting under tight columns) can only fail the
+ * DESCENDANT-CONTAINMENT gate (a1) and be vetoed there — never a silent off-grid
+ * leaf. Also: because it never re-derives ancestor frame extents (phase 1 holds
+ * provider/region boxes fixed) and retains each hull's pixel WIDTH, the snap
+ * shortens the long inbound chords but does NOT itself reclaim overall diagram
+ * width; and a hull spanning a destination band WIDER than its origin band would
+ * overhang its leaves — that spill is NOT R2-visible (checkStrataStructure
+ * exempts ancestor↔descendant overlaps, placement :480), so it is caught by gate
+ * (a1) `blockContainmentOk`, which rejects any candidate where a block leaf or
+ * child frame lands outside its own ancestor frame. Width reclaim + actually
+ * SUPPORTING the wider-destination case (rather than vetoing it) are a deferred
+ * phase-2 box-recompute (sub-flag `strataBlockClampReframe`, not built here).
  *
  * Import-cycle rule (SDEC NaN): no module-level consts derived from
  * terraformPipelineLayoutShared — `PIPELINE_FRAME_PAD` is read at call time.
@@ -101,15 +105,25 @@ import type {
 const framePad = (): number => PIPELINE_FRAME_PAD;
 
 /**
- * Float tolerance for the on-grid landing gate. A rigid pixel translate is exact
- * arithmetic (destColumnX − originColumnX added back to a column-aligned box), so
- * the residual is 0 in practice; a sub-pixel epsilon only absorbs FP noise.
+ * Float tolerance for the on-grid gates. A block leaf is placed EXACTLY on its
+ * `columnX[rank]` (placement :400 `x0`, no FP arithmetic) and the snap lands it
+ * EXACTLY on `columnX[rank − k]` (see `shiftLeaf`), so the true residual is 0.
+ * This tolerance therefore only absorbs pure FP dust — it must NOT be loose
+ * enough to admit a genuinely off-grid leaf. A larger value (the previous 0.5px)
+ * silently accepted a leaf at `columnX[r] + 0.25`: the input pre-gate passed it,
+ * the offset-preserving snap carried the 0.25 residual through, and — because
+ * checkStrataStructure keys column contiguity by EXACT `box.x` (placement :540) —
+ * that off-grid leaf landed in its own column bucket, hiding exactly the
+ * interleave the gate exists to catch. Keep this at true FP-noise scale.
  */
-const ON_GRID_EPS = 0.5;
+const ON_GRID_EPS = 1e-6;
 
 /** A candidate account block: the account hull + its whole subtree membership. */
 type StrataBlock = {
   accountId: string;
+  /** the account hull node itself (root of the block subtree — walked by the
+   * descendant-containment gate to check every frame contains its own leaves). */
+  accountNode: StrataHullNode;
   /** account hull id + every descendant hull id (region/vpc/subnetZone). */
   hullIds: Set<string>;
   /** union of leafClusterIds over the whole subtree. */
@@ -236,7 +250,7 @@ export function refineStrataBlockClamp(
   const collectAccounts = (node: StrataHullNode): void => {
     if (node.role === "account") {
       const { hullIds, leafIds } = collectBlock(node);
-      blocks.push({ accountId: node.id, hullIds, leafIds });
+      blocks.push({ accountId: node.id, accountNode: node, hullIds, leafIds });
       return; // accounts do not nest — no need to descend past one.
     }
     for (const child of node.children) {
@@ -276,6 +290,73 @@ export function refineStrataBlockClamp(
   };
 
   /**
+   * Sub-pixel tolerance for the descendant-containment gate. Real spill (a leaf
+   * re-spread across a WIDER destination band than a rigid-width hull frame can
+   * hold) is tens–hundreds of px; this only forgives FP dust at the frame edge
+   * (in a well-formed block the leftmost leaf sits EXACTLY at `hull.x + PAD` and
+   * the rightmost leaf right edge at `hull.x + width − PAD`, so equality is the
+   * baseline and must not be a false veto).
+   */
+  const CONTAIN_EPS = 1;
+
+  /**
+   * Gate (a1): DESCENDANT CONTAINMENT. `checkStrataStructure`'s overlap referee
+   * EXEMPTS ancestor↔descendant pairs (placement :480 `containsRel`), so R2 does
+   * NOT veto a block whose per-rank snap spread its leaves BEYOND their own
+   * retained-width ancestor frames — the width the snap keeps is measured at the
+   * ORIGIN column spacing, so a destination band whose columns are wider-spaced
+   * than the origin band overhangs a rigid-width hull (leaf right edge > frame
+   * right edge) while the referee stays silent. Verify, over the whole block
+   * subtree, that every hull frame horizontally contains its own direct leaves
+   * (PAD-inset interior) and its own child hull boxes (raw nesting). Any spill —
+   * or a mis-rounded hull anchor, which manifests the same way — is vetoed here
+   * rather than adopting geometry that renders leaves outside their frames.
+   */
+  const blockContainmentOk = (
+    candidate: StrataPlacementResult,
+    accountNode: StrataHullNode,
+  ): boolean => {
+    const pad = framePad();
+    const check = (node: StrataHullNode): boolean => {
+      const hb = candidate.boxedHulls.get(node.id)?.box;
+      if (hb === undefined) {
+        return false; // a block hull with no box — cannot verify ⇒ veto.
+      }
+      const interiorLeft = hb.x + pad;
+      const interiorRight = hb.x + hb.width - pad;
+      for (const leafId of node.leafClusterIds) {
+        const lb = candidate.leafBoxes.get(leafId);
+        if (lb === undefined) {
+          return false;
+        }
+        if (
+          lb.x < interiorLeft - CONTAIN_EPS ||
+          lb.x + lb.width > interiorRight + CONTAIN_EPS
+        ) {
+          return false; // this leaf spilled outside its own frame.
+        }
+      }
+      for (const child of node.children) {
+        const cb = candidate.boxedHulls.get(child.id)?.box;
+        if (cb === undefined) {
+          return false;
+        }
+        if (
+          cb.x < hb.x - CONTAIN_EPS ||
+          cb.x + cb.width > hb.x + hb.width + CONTAIN_EPS
+        ) {
+          return false; // a child frame overhangs its parent frame.
+        }
+        if (!check(child)) {
+          return false;
+        }
+      }
+      return true;
+    };
+    return check(accountNode);
+  };
+
+  /**
    * Build a fresh placement rigidly translating the whole block subtree LEFT by
    * `k` grid columns via PER-RANK COLUMN-SNAP. Each block box's left edge moves
    * from its anchor column `columnX[i]` (i = `colIndexOf(box.x)`) onto
@@ -298,6 +379,9 @@ export function refineStrataBlockClamp(
     k: number,
   ): StrataPlacementResult | null => {
     let snapOk = true;
+    // Offset-preserving snap for HULL/FRAME boxes: they sit `PIPELINE_FRAME_PAD`
+    // (×nesting depth) LEFT of their anchor column origin, so their intra-column
+    // offset is meaningful and must be carried onto the destination column.
     const shift = (box: StrataBox): StrataBox => {
       const i = colIndexOf(box.x);
       const dest = i - k;
@@ -312,10 +396,26 @@ export function refineStrataBlockClamp(
         height: box.height,
       };
     };
+    // EXACT snap for LEAF boxes: a leaf is placed with offset 0 on its own
+    // column, so it must land EXACTLY on `columnX[dest]` (x set to the column
+    // origin, not offset-preserved). This normalizes away any sub-pixel residual
+    // an upstream pass may have left, guaranteeing checkStrataStructure's
+    // exact-`box.x`-keyed contiguity referee (placement :540) buckets every block
+    // leaf in its true rank column — no off-grid landing can leak through the
+    // arithmetic even if the (now strict) input pre-gate is FP-tolerant.
+    const shiftLeaf = (box: StrataBox): StrataBox => {
+      const i = colIndexOf(box.x);
+      const dest = i - k;
+      if (i < 0 || dest < 0 || dest >= columnX.length) {
+        snapOk = false;
+        return box;
+      }
+      return { x: columnX[dest]!, y: box.y, width: box.width, height: box.height };
+    };
 
     const leafBoxes = new Map<string, StrataBox>();
     for (const [id, box] of from.leafBoxes) {
-      leafBoxes.set(id, block.leafIds.has(id) ? shift(box) : box);
+      leafBoxes.set(id, block.leafIds.has(id) ? shiftLeaf(box) : box);
     }
 
     const boxedHulls = new Map<string, StrataBoxedHull>();
@@ -326,7 +426,9 @@ export function refineStrataBlockClamp(
           box: shift(bh.box),
           placed: bh.placed.map((pu) => ({
             unit: pu.unit,
-            box: shift(pu.box),
+            // leaf placed-units mirror `leafBoxes` (exact snap); hull units
+            // mirror `boxedHulls[].box` (offset-preserving snap).
+            box: pu.unit.kind === "leaf" ? shiftLeaf(pu.box) : shift(pu.box),
             colSpan: pu.colSpan, // rank span retained — never re-ranks.
           })),
         });
@@ -348,7 +450,14 @@ export function refineStrataBlockClamp(
             box: bh.box, // this hull is outside the block — its own box is fixed.
             placed: bh.placed.map((pu) =>
               inBlockUnit(pu)
-                ? { unit: pu.unit, box: shift(pu.box), colSpan: pu.colSpan }
+                ? {
+                    unit: pu.unit,
+                    box:
+                      pu.unit.kind === "leaf"
+                        ? shiftLeaf(pu.box)
+                        : shift(pu.box),
+                    colSpan: pu.colSpan,
+                  }
                 : pu,
             ),
           });
@@ -531,6 +640,17 @@ export function refineStrataBlockClamp(
       const maxX =
         parentBh.box.x + parentBh.box.width - pad - accountBh.box.width;
       if (newAccountX < minX || newAccountX > maxX) {
+        continue;
+      }
+
+      // Gate (a1): DESCENDANT CONTAINMENT — every block frame must still contain
+      // its own leaves and child frames after the per-rank snap. R2 (gate c)
+      // cannot see this: it exempts ancestor↔descendant overlaps, so a leaf
+      // re-spread beyond its rigid-width ancestor frame (wider destination band)
+      // would otherwise be adopted as a shorter-chord win with a leaf rendered
+      // outside its frame. This is the veto the header formerly (wrongly)
+      // attributed to R2.
+      if (!blockContainmentOk(candidate, block.accountNode)) {
         continue;
       }
 
