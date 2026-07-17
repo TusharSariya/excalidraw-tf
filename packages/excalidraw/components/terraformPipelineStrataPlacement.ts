@@ -50,6 +50,84 @@ import type {
   StrataUnit,
 } from "./terraformPipelineStrataTypes";
 
+/**
+ * O1 per-descent candidate-sequence memo (import-speed, purely additive).
+ *
+ * A single descent (`placeStrataHullsPackedScored`) re-invokes `placeStrataHulls`
+ * up to `2 × Σ_hull candidateCount` times, and each `layoutHull(h)` regenerates
+ * hull `h`'s FULL `strataPackedCandidateSequences` list from scratch — an O(n²)
+ * (candidates) × O(n·idlen) (join) rebuild that the trace attributes ~85% of the
+ * deband=vpc felt import to. The candidate list of a packed hull `h` depends ONLY
+ * on `h`'s `orderParams`, and for a fixed `(model, edgesPrime, rank, options)`
+ * quadruple — all frozen for the descent's lifetime — the ONLY trial-varying
+ * inputs are the child-hull unit extents (`x0`, `x1`, `height`) carried in
+ * `infos`. Everything else `strataPackedCandidateSequences` reads
+ * (contentKey / colSpan / liftedEdges / membership / policy / sweeps /
+ * siftRelocate / edgesPrime) is a pure function of that frozen quadruple. So a
+ * `Map` keyed on `hull.id` + the per-unit `(unitId, x0, x1, height)` extents is a
+ * SOUND, staleness-proof memo: same key ⇒ byte-identical output of a deterministic
+ * pure function. The cache is passed in by the descent and scoped to that single
+ * invocation (dies on return ⇒ no cross-import leakage), and `undefined` ⇒ the
+ * legacy code path runs verbatim (byte-identical). See
+ * scratchpad/overnight-20260717/research/b01-trace-analysis.md (O1) +
+ * b09-memo-key-audit.md.
+ */
+export type StrataCandidateCache = Map<
+  string,
+  readonly (readonly StrataUnit[])[]
+>;
+
+// Env-gated false-green tripwire (default OFF ⇒ zero cost — a single boolean read
+// on cache hits). When enabled, every candidate-cache hit recomputes the
+// sequences from scratch and asserts byte-equality with the cached value, so a
+// key that silently missed a real input (a stale hit) throws deterministically
+// instead of surfacing as a luck-dependent geometry drift. Enabled by
+// `STRATA_CANDIDATE_MEMO_DEBUG=1` at module init, or per-test via the exported
+// setter below (used by the memo transparency test to exercise the assertion on
+// a real descent's cache hits).
+let strataCandidateMemoDebug =
+  typeof process !== "undefined" &&
+  process.env?.STRATA_CANDIDATE_MEMO_DEBUG === "1";
+
+/** TEST-ONLY: toggle the candidate-memo recompute-and-assert tripwire at runtime
+ * (production leaves it at the env-derived default). Returns the prior value so a
+ * test can restore it in a `finally`. */
+export const __setStrataCandidateMemoDebug = (on: boolean): boolean => {
+  const prev = strataCandidateMemoDebug;
+  strataCandidateMemoDebug = on;
+  return prev;
+};
+
+// Field delimiter for the O1 candidate-memo key: NUL, which cannot occur in a
+// terraform-derived hull/cluster id or in a numeric extent. This makes the key
+// encoding INJECTIVE — two distinct (hull, extents) states can never collide to
+// one key — so a false cache hit (which would return the wrong candidate list
+// and break byte-identity) is impossible, not merely improbable.
+const STRATA_CANDIDATE_MEMO_KEY_SEP = String.fromCharCode(0);
+
+/** Structural equality of two candidate-sequence lists by unit id, order-exact. */
+const strataCandidateListsEqual = (
+  a: readonly (readonly StrataUnit[])[],
+  b: readonly (readonly StrataUnit[])[],
+): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i++) {
+    const ca = a[i]!;
+    const cb = b[i]!;
+    if (ca.length !== cb.length) {
+      return false;
+    }
+    for (let j = 0; j < ca.length; j++) {
+      if (strataUnitId(ca[j]!) !== strataUnitId(cb[j]!)) {
+        return false;
+      }
+    }
+  }
+  return true;
+};
+
 // The three derived spacing values are CALL-TIME reads, never module-level
 // consts: this module sits inside the repo's pre-existing
 // terraformPlanParsing→terraformLayoutCore import cycle (via the Strata engine
@@ -167,6 +245,15 @@ export function placeStrataHulls(
    * generation per packed hull on the reporting run only.
    */
   onPackedCandidateCount?: (hullId: string, count: number) => void,
+  /**
+   * ADDITIVE-OPTIONAL (O1 import-speed memo): a per-descent cache of packed-hull
+   * candidate sequences keyed by `hull.id` + child-unit extents. When supplied,
+   * `layoutHull` reuses an already-generated candidate list instead of rebuilding
+   * it (the descent regenerates the same lists across most trials). `undefined` ⇒
+   * every candidate list is regenerated exactly as before (byte-identical). The
+   * cache is descent-scoped, so a stale hit is impossible (see the type doc).
+   */
+  candidateCache?: StrataCandidateCache,
 ): StrataPlacementResult {
   const rankOf = (clusterId: string): number => {
     const r = rank.rank.get(clusterId);
@@ -315,14 +402,43 @@ export function placeStrataHulls(
         : typeof packedCandidateIndex === "number"
         ? packedCandidateIndex
         : packedCandidateIndex.get(hull.id);
+    // O1 memo: `strataPackedCandidateSequences(orderParams)` is a pure function
+    // of `orderParams`, whose only descent-varying inputs (the child-unit x0/x1/
+    // height extents) are folded into `key` alongside `hull.id`; everything else
+    // is frozen for the descent. So a cache hit returns the identical list. When
+    // `candidateCache` is undefined the call is verbatim (byte-identical).
+    const packedCandidates = (): readonly (readonly StrataUnit[])[] => {
+      if (candidateCache === undefined) {
+        return strataPackedCandidateSequences(orderParams);
+      }
+      const S = STRATA_CANDIDATE_MEMO_KEY_SEP;
+      let key = hull.id;
+      for (const info of infos) {
+        key += `${S}${info.unitId}${S}${info.x0}${S}${info.x1}${S}${info.height}`;
+      }
+      const cached = candidateCache.get(key);
+      if (cached !== undefined) {
+        if (strataCandidateMemoDebug) {
+          const fresh = strataPackedCandidateSequences(orderParams);
+          if (!strataCandidateListsEqual(cached, fresh)) {
+            throw new Error(
+              `Strata O1 candidate-memo FALSE HIT for hull ${hull.id}: the ` +
+                `cached candidate sequences differ from a fresh recompute — a ` +
+                `keyed input changed but the cache key did not (stale hit).`,
+            );
+          }
+        }
+        return cached;
+      }
+      const fresh = strataPackedCandidateSequences(orderParams);
+      candidateCache.set(key, fresh);
+      return fresh;
+    };
     if (hull.policy === "packed" && onPackedCandidateCount) {
-      onPackedCandidateCount(
-        hull.id,
-        strataPackedCandidateSequences(orderParams).length,
-      );
+      onPackedCandidateCount(hull.id, packedCandidates().length);
     }
     if (packedIndexForHull !== undefined && hull.policy === "packed") {
-      const cands = strataPackedCandidateSequences(orderParams);
+      const cands = packedCandidates();
       ordered = cands[Math.min(packedIndexForHull, cands.length - 1)]!;
     } else {
       ordered = orderStrataUnits(orderParams);

@@ -75,6 +75,8 @@
  */
 import { placeStrataHulls } from "./terraformPipelineStrataPlacement";
 
+import type { StrataCandidateCache } from "./terraformPipelineStrataPlacement";
+
 import type {
   StrataBox,
   StrataEngineOptions,
@@ -823,6 +825,15 @@ export function placeStrataHullsPackedScored(
   onPackedTrial?: (record: StrataPackedTrialRecord) => void,
 ): StrataPackedScoredPlacement {
   const candidateCounts = new Map<string, number>();
+  // O1 per-descent candidate-sequence memo (import-speed, pure cost removal). The
+  // packed-hull candidate lists a trial regenerates depend only on child-hull
+  // geometry + the frozen (model, edgesPrime, rank, options) quadruple, so a hull
+  // whose descendants didn't move between trials reuses its already-generated
+  // list instead of paying the O(n²) rebuild. Scoped to THIS descent (dies on
+  // return ⇒ no cross-import staleness) and passed unconditionally to every
+  // placeStrataHulls call ⇒ byte-identical output. See
+  // scratchpad/overnight-20260717/research/b01-trace-analysis.md (O1).
+  const candidateCache: StrataCandidateCache = new Map();
   const baselinePlacement = placeStrataHulls(
     model,
     edgesPrime,
@@ -830,6 +841,7 @@ export function placeStrataHullsPackedScored(
     options,
     new Map<string, number>(),
     (hullId, count) => candidateCounts.set(hullId, count),
+    candidateCache,
   );
   const baselineScore = scoreStrataPlacementGeometry(
     baselinePlacement,
@@ -1026,6 +1038,8 @@ export function placeStrataHullsPackedScored(
             rank,
             options,
             trial,
+            undefined,
+            candidateCache,
           );
           trialCount += 1;
           // OD-15 dedup reuses the cached score (skips re-scoring only); the
@@ -1058,6 +1072,8 @@ export function placeStrataHullsPackedScored(
             rank,
             options,
             trial,
+            undefined,
+            candidateCache,
           );
           trialCount += 1;
           // OD-15 dedup (see the c-loop site above): cached score, adoption
