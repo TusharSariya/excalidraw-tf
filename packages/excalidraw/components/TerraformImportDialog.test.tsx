@@ -698,6 +698,53 @@ describe("TerraformImportModal", () => {
     );
   });
 
+  // The strata twin of the RCLL case above. The engine seam is already proven
+  // (terraformLayoutCoreStrataThreading.test.ts: layoutMode "strata" +
+  // pipelineIncludeAncillary → pipelineAncillaryCount > 0); what was missing is
+  // the UI seam, and it was BROKEN: the control was gated to pipeline/rcll and
+  // never passed to TerraformStrataSettings, so under strata the flag was
+  // reachable only via sticky state carried from another view or a ?ancillary=1
+  // URL — and could never be turned back off. This is the regression guard.
+  it("strata view: 'All resources' is clickable and included in import", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const resources = screen.getByRole("group", {
+      name: /strata resource scope/i,
+    });
+    const allResources = within(resources).getByRole("button", {
+      name: /^all resources$/i,
+    });
+    const dataflowOnly = within(resources).getByRole("button", {
+      name: /^dataflow only$/i,
+    });
+    // Default is the cheap arm — the +66% height is opt-in, never seeded.
+    expect(dataflowOnly).toHaveAttribute("aria-pressed", "true");
+    expect(allResources).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(allResources);
+    expect(allResources).toHaveAttribute("aria-pressed", "true");
+    // …and it turns back OFF from this panel, which was impossible before.
+    fireEvent.click(dataflowOnly);
+    expect(dataflowOnly).toHaveAttribute("aria-pressed", "true");
+    expect(allResources).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(allResources);
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "strata",
+        pipelineIncludeAncillary: true,
+      }),
+    );
+  });
+
   it("passes semanticLayout false for module view", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],

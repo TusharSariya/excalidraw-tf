@@ -667,6 +667,29 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "pipelinePrivateApiRegional=true (strata-only): private execute-api endpoints are hoisted to an account/region hull instead of a VPC hull; the strata builder honours it via preparePipelineLayout. View-scoped to strata — every other view forces it false.",
     },
   },
+  // Resources help is keyed SEPARATELY for strata rather than reusing
+  // "resources.all": the content filter is the same, but strata's cost is not.
+  // The generic entry says "collected into an 'Unconnected' strip … works in
+  // all three layouts" and states no price; in strata the bands are the LAST
+  // geometry stage and are invisible to every optimizer, so they buy that
+  // inventory with substantial scene height. One shared key would make that
+  // cost structurally unstatable — the same reason de-band is keyed per rung.
+  "strata.resources.dataflow": {
+    title: "Resources · Dataflow only",
+    body: "Draw only resources connected by a .tfd dataflow edge. Keeps the diagram focused on the actual flow; standalone resources (IAM roles, log groups, …) are omitted. The default, and the shorter canvas — see All resources for what the inventory costs.",
+    dev: {
+      implements:
+        "pipelineIncludeAncillary=false (default): the strata engine never calls buildAncillaryStrips, so no strips are built, no bands are injected and the scene is byte-identical to today. Off by construction, not by guard.",
+    },
+  },
+  "strata.resources.all": {
+    title: "Resources · All resources — costs substantial height",
+    body: "Also draw the unconnected resources, collected into an 'Unconnected' band per scope so they don't clutter the flow. Primary resources (Lambda, S3, ECS, …) keep their full cluster grouping there — category color, nested satellites, expandable — so the band is an inventory, not a pile of bare boxes. Under Dissolve containers the bands relocate to the surviving ancestor hull and NEST, so you can still see which VPC or region each unconnected resource came from. COSTS SUBSTANTIAL SCENE HEIGHT — MEASURED at Band depth = Root with Transpose on: with Dissolve containers off, 8,692 → 14,465px (+66%); with Dissolve containers = VPCs, 8,013 → 15,106px (+88%). Your dataflow diagram is never moved sideways to make room: X and width are frozen and the canvas may only grow downward, so the flow you were reading keeps its shape — you just scroll further.",
+    dev: {
+      implements:
+        'pipelineIncludeAncillary=true. Ancillary resources are grouped into per-scope strips (buildAncillaryStrips), each card built by the same primary-cluster builder as connected primaries (never the bare fallback), then injected as bands in the LAST geometry stage (plan §3d) — after A7/relocate/transpose/blockClamp, which score over model UNITS and cannot see bands, and BEFORE checkStrataStructure, which re-validates model geometry post-growth for free. §3o greedy right-slack allocator ON by default: widens each band into PRE-EXISTING right slack to cut band height, validates every grant end-to-end, and degrades to the §3f host-interior baseline one lowest-benefit grant at a time. STATED COST: bands get no crossing-min, no height gate and no compaction — they are invisible to every optimizer and can create a tall dead zone no pass reclaims; the allocator is the only lever that reclaims it. INVARIANT: injection only grows Y downward (X/width frozen), so dataflow geometry is never displaced laterally. §3g containment check (checkStrataAncillaryContainment) is the ONLY check that sees bands — any band/leaf overlap, host escape or title collision drops the bands and keeps the strata scene (strataAncillaryDegraded), never degrading to v2. MEASUREMENT PROVENANCE: N=1, frozen preset staging-extended-localstack-v2, strataBandDepth="root", strataTranspose on, real app path, rendered extent.',
+    },
+  },
 };
 
 export type OptionHelpKey = keyof typeof OPTION_HELP;

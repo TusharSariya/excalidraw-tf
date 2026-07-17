@@ -667,6 +667,7 @@ terraform show -json tfplan > plan.json`}</code>
               strataBandDepth={strataBandDepth}
               strataDeBandLevel={strataDeBandLevel}
               pipelineCompact={pipelineCompact}
+              pipelineIncludeAncillary={pipelineIncludeAncillary}
               strataSiftRelocate={strataSiftRelocate}
               strataCrossWeightPenetration={strataCrossWeightPenetration}
               strataCrossWeightEdge={strataCrossWeightEdge}
@@ -692,6 +693,7 @@ terraform show -json tfplan > plan.json`}</code>
               setStrataBandDepth={dialog.setStrataBandDepth}
               setStrataDeBandLevel={dialog.setStrataDeBandLevel}
               setPipelineCompact={dialog.setPipelineCompact}
+              setPipelineIncludeAncillary={dialog.setPipelineIncludeAncillary}
               setStrataSiftRelocate={dialog.setStrataSiftRelocate}
               setStrataCrossWeightPenetration={
                 dialog.setStrataCrossWeightPenetration

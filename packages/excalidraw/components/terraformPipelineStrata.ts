@@ -717,11 +717,17 @@ export async function buildTerraformStrataExcalidrawScene(
     let ancillaryMeta: Record<string, unknown> = {};
     if (includeAncillary) {
       stage = "ancillary";
-      gate("ancillary");
       // A failed band is NOT a failed layout: never degrade the whole scene to
       // v2 over one: drop the bands, keep the strata scene, echo the reason
       // (honest-meta). This catch is INSIDE the engine's outer try on purpose.
       try {
+        // INSIDE the try, deliberately: the fault-injection gate must fail the
+        // way a real band failure fails. Outside it, `__testForceStageError:
+        // "ancillary"` escapes to the engine's outer catch and degrades the
+        // WHOLE scene to v2 — the exact contract this block exists to deny, and
+        // it would make the test that asserts the §3m contract prove its
+        // opposite.
+        gate("ancillary");
         const strips = buildAncillaryStrips(nodes, plan, prep, { compact });
         // §3o — the greedy right-slack allocator. It widens each band into
         // PRE-EXISTING right slack to cut band height, validates every grant

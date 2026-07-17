@@ -60,6 +60,7 @@ export const TerraformStrataSettings = ({
   strataBandDepth,
   strataDeBandLevel,
   pipelineCompact,
+  pipelineIncludeAncillary,
   strataSiftRelocate,
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
@@ -81,6 +82,7 @@ export const TerraformStrataSettings = ({
   setStrataBandDepth,
   setStrataDeBandLevel,
   setPipelineCompact,
+  setPipelineIncludeAncillary,
   setStrataSiftRelocate,
   setStrataCrossWeightPenetration,
   setStrataCrossWeightEdge,
@@ -103,6 +105,12 @@ export const TerraformStrataSettings = ({
   /** Content filter, not an engine pass — already honored end-to-end by the
    * strata engine; this component only renders the control. */
   pipelineCompact: boolean;
+  /** Content filter, not an engine pass. Honored end-to-end by the strata
+   * engine since the §3d band-injection stage landed (it used to reach only the
+   * builder, which hardcoded includeAncillary:false); this component only
+   * renders the control. Costs substantial scene height — see
+   * OPTION_HELP["strata.resources.all"]. */
+  pipelineIncludeAncillary: boolean;
   strataSiftRelocate: boolean;
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
@@ -124,6 +132,7 @@ export const TerraformStrataSettings = ({
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
   setPipelineCompact: (compact: boolean) => void;
+  setPipelineIncludeAncillary: (includeAncillary: boolean) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
   setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
   setStrataCrossWeightEdge: (edgeWeight: number) => void;
@@ -194,10 +203,11 @@ export const TerraformStrataSettings = ({
               Placement. `compact` is already honored end-to-end by the strata
               engine (terraformPipelineStrata.ts: `options?.compact !== false`
               → preparePipelineLayout); this control is pure exposure.
-              NOT exposed here: Resources · All resources. The strata engine
-              hardcodes includeAncillary:false and echoes strataAncillaryDeferred
-              (SDEC-29, M3 port), so the button would thread correctly through
-              every layer and still do nothing. */}
+              Resources sits directly under Detail — the same content pair, in
+              the same order, as the RCLL branch's detailGroup + resourcesGroup.
+              It is authored locally rather than imported: that component's
+              `resourcesGroup` is function-local and closes over its own state.
+              Both arms are content filters; neither is a layout pass. */}
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">
               Content
@@ -212,6 +222,25 @@ export const TerraformStrataSettings = ({
                 )}
                 {option("Full", !pipelineCompact, "detail.full", () =>
                   setPipelineCompact(false),
+                )}
+              </div>
+            </div>
+            <div role="group" aria-label="Strata resource scope">
+              <span className="TerraformImportModal__controlLabel">
+                Resources <span>which resources appear in the diagram</span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option(
+                  "Dataflow only",
+                  !pipelineIncludeAncillary,
+                  "strata.resources.dataflow",
+                  () => setPipelineIncludeAncillary(false),
+                )}
+                {option(
+                  "All resources",
+                  pipelineIncludeAncillary,
+                  "strata.resources.all",
+                  () => setPipelineIncludeAncillary(true),
                 )}
               </div>
             </div>

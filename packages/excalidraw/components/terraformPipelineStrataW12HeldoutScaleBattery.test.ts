@@ -66,9 +66,8 @@
  *   (voided/status/nUnmatched — voids EXPECTED at full detail, W4 precedent:
  *   the honest outcome, never adjudicated away) plus a slice-classification-
  *   asymmetry DIAGNOSTIC number (never determines status). Content-parity
- *   caveat recorded per cell (F_v2 includes ancillary; strata full arms defer
- *   it via strataAncillaryDeferred — element populations differ by
- *   construction). Cells that exceed the WP1-smoke-derived soft budget or
+ *   caveat recorded per cell (F_v2 includes ancillary; the strata full arms do
+ *   not request it — element populations differ by construction). Cells that exceed the WP1-smoke-derived soft budget or
  *   throw on the full-detail path are stamped TIMEOUT/INCOMPLETE or
  *   LAYOUT-THROW and the matrix is NEVER reshaped (no dropped arms).
  *   Timing split (plan D6): terraformImportProfiler enabled+reset per cell;
@@ -667,8 +666,8 @@ function sliceAsymmetryDiagnostic(
 
 const FULL_DETAIL_CONTENT_PARITY_CAVEAT =
   "content parity differs BY CONSTRUCTION: F_v2_full_ancillary includes ancillary " +
-  "(pipelineIncludeAncillary:true); strata full arms defer it (strataAncillaryDeferred, " +
-  "unbuilt M3 port) — element populations differ; paired CIs pair only canonical-key-matched " +
+  "(pipelineIncludeAncillary:true); the strata full arms do not request it " +
+  "(pipelineIncludeAncillary unset) — element populations differ; paired CIs pair only canonical-key-matched " +
   "edges and the frozen void rule reports the mismatch honestly (voids EXPECTED, W4 precedent)";
 
 // ─────────────────────────────────────────────────────────────────────────────
