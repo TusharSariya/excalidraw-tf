@@ -204,6 +204,32 @@ export function resolveStrataPackedEpsilonDelta(
 }
 
 /**
+ * S1-1 FIX — resolve the raw edge-edge crossing HARD CAP that the relocate /
+ * transitive descent (and the post-A7 guard) enforce, honouring the documented
+ * "blank inherits ε" contract WITHOUT the relative-mode ~0 bug:
+ *  - an EXPLICIT `strataEdgeCrossCap` (including a deliberate 0) is an absolute
+ *    integer crossings budget and is returned as-is;
+ *  - a BLANK cap inherits the SAME resolved integer δ the descent's ε-band uses
+ *    (`resolveStrataPackedEpsilonDelta(epsilon, baselineCrossings)`), NEVER the
+ *    raw fractional epsilon.
+ * The old sites did `strataEdgeCrossCap ?? packedScoringEpsilon ?? 0`, so a
+ * relative-mode ε (0<ε<1) became a fractional (~0) absolute cap that vetoed
+ * exactly the crossings-band trades the ε-band was configured to admit — the
+ * hard cap is compared against INTEGER crossings, so +0.5 ≡ +0. At integer ε
+ * `resolveStrataPackedEpsilonDelta(ε)===ε`, so this is byte-identical there;
+ * only fractional ε (URL-set) changes, and only under flags that read the cap.
+ */
+export function resolveInheritedEdgeCrossCap(
+  explicitCap: number | undefined,
+  epsilon: number,
+  baselineCrossings: number,
+): number {
+  return (
+    explicitCap ?? resolveStrataPackedEpsilonDelta(epsilon, baselineCrossings)
+  );
+}
+
+/**
  * ε-constraint adoption rule (W8b). A trial is adopted iff EITHER
  *  (a) it wins under the strict lexicographic rule vs the incumbent
  *      (unchanged, `strataPackedScoreLess`), OR
@@ -698,6 +724,17 @@ export function scoreStrataPlacementGeometry(
  * on weightedCross — so a strictly-better pre-A7 arm is preserved rather than
  * discarded wholesale (the measured all-or-nothing failure). Ties keep the
  * scored arm. `relocate` absent ⇒ the flag-off path above is byte-identical.
+ *
+ * O4-3 FIX (`transitive` provided ⇒ `transitiveAdopt` on): the descent selected
+ * under the transitive integer key `(weightedC, lengthL1, crossings,
+ * penetrations)`, so the post-A7 guard MUST rank the two arms under that SAME
+ * order — otherwise a transitive-selected arm (better weightedC, more crossings)
+ * would be discarded by the crossings-first default, undoing end-to-end the one
+ * coherent order the descent established. Checked FIRST, mirroring
+ * `decideAdoption`'s precedence (transitive before relocate before the gate).
+ * Keep the scored arm iff it is within the raw-crossing feasibility cap vs the
+ * legacy arm AND no worse than legacy under the transitive key (ties keep
+ * scored — the descent's diff-stability convention).
  */
 export function chooseStrataRefinedPlacement(
   scoredFinal: StrataPlacementResult,
@@ -711,6 +748,11 @@ export function chooseStrataRefinedPlacement(
     epsilon: number;
     edgeCrossCap: number;
   },
+  transitive?: {
+    penW: number;
+    crossW: number;
+    cap: number;
+  },
 ): { placement: StrataPlacementResult; fellBack: boolean } {
   const scoredScore = scoreStrataPlacementGeometry(
     scoredFinal,
@@ -722,6 +764,21 @@ export function chooseStrataRefinedPlacement(
     model,
     edgesPrime,
   );
+  if (transitive) {
+    const w = { penW: transitive.penW, crossW: transitive.crossW };
+    // Same raw-crossing feasibility cap the descent enforced, relative to the
+    // legacy (baseline) arm — mirrors the relocate guardrail (1).
+    const withinCap = strataTransitiveEligible(
+      scoredScore,
+      legacyScore.crossings,
+      transitive.cap,
+    );
+    // No worse than legacy under the transitive key (ties keep scored).
+    const noWorse = !strataTransitiveLess(legacyScore, scoredScore, w);
+    return withinCap && noWorse
+      ? { placement: scoredFinal, fellBack: false }
+      : { placement: legacyFinal, fellBack: true };
+  }
   if (relocate) {
     const w = { penW: relocate.penW, crossW: relocate.crossW };
     // Guardrail (1): hard cap on raw edge-edge crossings vs the legacy arm.
@@ -876,8 +933,13 @@ export function placeStrataHullsPackedScored(
     penW: options.strataCrossWeightPenetration ?? 1,
     crossW: options.strataCrossWeightEdge ?? 1,
     epsilon,
-    edgeCrossCap:
-      options.strataEdgeCrossCap ?? options.packedScoringEpsilon ?? 0,
+    // S1-1 FIX: blank inherits the RESOLVED δ (== effectiveDelta here), not the
+    // raw fractional ε that previously collapsed to a ~0 absolute cap.
+    edgeCrossCap: resolveInheritedEdgeCrossCap(
+      options.strataEdgeCrossCap,
+      epsilon,
+      baselineScore.crossings,
+    ),
   };
   // Cheap deterministic geometry fingerprint: sorted leaf + hull box extents.
   // Score depends only on leaf centres (crossings/length) and hull boxes
@@ -924,9 +986,14 @@ export function placeStrataHullsPackedScored(
   // gate enforced: the relocate hard cap when siftRelocate is on, else the
   // resolved ε delta.
   const transitiveAdopt = options.transitiveAdopt === true;
-  const transitiveCap = siftRelocate
-    ? relocateCfg.edgeCrossCap
-    : effectiveDelta;
+  // S1-1 FIX: ONE feasibility cap for both sift arms — the resolved crossing
+  // budget (explicit `strataEdgeCrossCap`, else `effectiveDelta`), which
+  // `relocateCfg.edgeCrossCap` now equals in both. Previously the sift arm used
+  // the RAW-ε cap (~0 in relative mode) while the non-sift arm used the resolved
+  // δ — two different feasible sets for the SAME transitive flag. With no
+  // explicit cap this is `effectiveDelta` (byte-identical to the old non-sift
+  // arm); an explicit cap is now honoured under both arms.
+  const transitiveCap = relocateCfg.edgeCrossCap;
   const transitiveW = { penW: relocateCfg.penW, crossW: relocateCfg.crossW };
   // Unified adoption decision (returns the observability tag). Flag-off routes
   // to the untouched `strataPackedScoreAdoptable`; flag-on to the relocate rule.

@@ -13,6 +13,7 @@ import {
 import {
   chooseStrataRefinedPlacement,
   placeStrataHullsPackedScored,
+  resolveInheritedEdgeCrossCap,
 } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
@@ -748,13 +749,33 @@ export async function buildTerraformStrataExcalidrawScene(
           packedScored.effectiveDelta,
           // OD-15: when the master flag is on the guard uses the SAME weighted
           // objective + hard cap as the descent (absent ⇒ flag-off rule).
+          // S1-1 FIX: inherit the descent's RESOLVED δ budget, not raw ε.
           strataSiftRelocate
             ? {
                 penW: strataCrossWeightPenetration,
                 crossW: strataCrossWeightEdge,
                 epsilon: strataPackedScoringEpsilon,
-                edgeCrossCap:
-                  strataEdgeCrossCap ?? strataPackedScoringEpsilon ?? 0,
+                edgeCrossCap: resolveInheritedEdgeCrossCap(
+                  strataEdgeCrossCap,
+                  strataPackedScoringEpsilon,
+                  packedScored.baselineScore.crossings,
+                ),
+              }
+            : undefined,
+          // O4-3 FIX: when transitiveAdopt is on the descent selected under the
+          // transitive integer key — thread that SAME comparator into the guard
+          // (cap = the descent's transitiveCap: explicit cap else resolved δ) so
+          // one order decides adoption end-to-end. The guard checks this arm
+          // before relocate, matching the descent's decideAdoption precedence.
+          strataTransitiveAdopt
+            ? {
+                penW: strataCrossWeightPenetration,
+                crossW: strataCrossWeightEdge,
+                cap: resolveInheritedEdgeCrossCap(
+                  strataEdgeCrossCap,
+                  strataPackedScoringEpsilon,
+                  packedScored.baselineScore.crossings,
+                ),
               }
             : undefined,
         );
