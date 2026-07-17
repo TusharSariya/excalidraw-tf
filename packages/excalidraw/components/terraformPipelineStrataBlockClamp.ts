@@ -17,22 +17,26 @@
  * edge leaves the block; ≥1 effective edge enters it), clamps the block to
  * `max(external source rank) + 1` (the largest LR-feasible leftward move),
  * rigidly translates the entire subtree (account box + every descendant hull box
- * + every internal placed unit + every block leaf box) by a single ΔX in pixels,
- * and adopts the largest move that survives the SAME gate stack the relocate
- * uses (X-containment, R2 `checkStrataStructure` all-zero, height maintain-or-
- * decrease, weighted-C + hard edge-cross cap + ε via `strataRelocateAdoptable`).
+ * + every internal placed unit + every block leaf box) LEFT by k grid columns via
+ * PER-RANK COLUMN-SNAP (each box's anchor column columnX[i] → columnX[i − k],
+ * intra-column offset preserved), and adopts the largest move that survives the
+ * SAME gate stack the relocate uses (X-containment, R2 `checkStrataStructure`
+ * all-zero, height maintain-or-decrease, weighted-C + hard edge-cross cap + ε via
+ * `strataRelocateAdoptable`).
  *
- * WHY RIGID BLOCK TRANSLATE, NOT RANK REASSIGNMENT OR GRID X-COMPACTION: it
+ * WHY RIGID RANK-SPACE TRANSLATE, NOT RANK REASSIGNMENT OR GRID X-COMPACTION: it
  * NEVER re-ranks (colSpan retained on every placed unit ⇒ the -42% height lever
  * is preserved), NEVER re-runs dropY (Y/width/height untouched — a pure X
  * translate), and does NOT reintroduce grid X-compaction (forbidden by
- * docs/strata-xcompact-removed-findings.md) — it is a single per-block rigid
- * pixel translate onto ONE existing on-grid left column, internal spacing
+ * docs/strata-xcompact-removed-findings.md) — it snaps each block box onto an
+ * EXISTING on-grid column k ranks to its left, internal rank-space spacing
  * preserved, nothing else reflowed. Because every block node shifts by the same
- * ΔX, all INTERNAL block edges are inversion-proof by construction; only EXTERNAL
- * inbound edges constrain the move, and (pure-sink) there are no external
- * outbound edges. There is no Y-candidate search: the
- * block moves as a rigid unit, so the only free parameter is k (columns left).
+ * k RANKS (a fixed pixel ΔX only under uniform columns — the per-rank snap makes
+ * k reachable for ANY column-width profile), all INTERNAL block edges are
+ * inversion-proof by construction; only EXTERNAL inbound edges constrain the
+ * move, and (pure-sink) there are no external outbound edges. There is no
+ * Y-candidate search: the block moves as a rigid unit, so the only free parameter
+ * is k (columns left).
  *
  * FLAG OFF ⇒ the input `placement` is returned by reference (byte-identical).
  *
@@ -48,18 +52,26 @@
  * safe no-op. It fires only where a block's leftward move is a net win under the
  * active guardrail.
  *
- * CORRECTNESS INVARIANT (on-grid landing, gate a0): the pass only ever adopts a
- * move where EVERY block leaf lands exactly on an existing grid column
- * (columnX[rank − k]). A block whose leaves were perturbed off their columns by
- * an upstream pass (e.g. a leaf-relocating pass, which moves a leaf's pixel box
- * without changing its rank), or a block spanning non-uniform column widths, is
- * conservatively SKIPPED rather than translated off-grid. This keeps the rigid
- * pixel translate exact and guarantees checkStrataStructure's exact-`box.x`-keyed
- * contiguity referee still sees every block leaf in its true rank column (no
- * hidden interleave). Also: because it never re-derives ancestor frame extents
- * (phase 1 holds provider/region boxes fixed), the pass shortens the long inbound
- * chords but does NOT itself reclaim overall diagram width — width reclaim is a
- * deferred phase-2 box-recompute.
+ * CORRECTNESS INVARIANT (on-grid landing): the pass only ever adopts a move where
+ * EVERY block leaf lands exactly on an existing grid column (columnX[rank − k]).
+ * The per-rank snap makes this exact for ANY column-width profile (a leaf at rank
+ * r snaps from its own on-grid column columnX[r] to columnX[r − k], offset 0), so
+ * NON-UNIFORM column spans are now handled rather than skipped — the single
+ * remaining skip is a block whose leaf was perturbed OFF its grid column by an
+ * upstream pass (e.g. a leaf-relocate that moves a pixel box without changing its
+ * rank); such a block has no clean anchor column and is conservatively left put.
+ * A post-snap assert re-verifies exact on-grid landing so checkStrataStructure's
+ * exact-`box.x`-keyed contiguity referee always sees every block leaf in its true
+ * rank column (no hidden interleave). Hull/frame/placed anchors are recovered by
+ * nearest-column rounding (they sit FRAME_PAD left of a column origin); a mis-
+ * round (pathologically deep nesting under tight columns) can only fail
+ * containment and be VETOED by R2 — never a silent off-grid leaf. Also: because
+ * it never re-derives ancestor frame extents (phase 1 holds provider/region boxes
+ * fixed) and retains each hull's pixel WIDTH, the snap shortens the long inbound
+ * chords but does NOT itself reclaim overall diagram width, and a hull spanning a
+ * destination band WIDER than its origin band would overhang its leaves and be
+ * R2-vetoed — width reclaim + the wider-destination case are a deferred phase-2
+ * box-recompute (sub-flag `strataBlockClampReframe`, not built here).
  *
  * Import-cycle rule (SDEC NaN): no module-level consts derived from
  * terraformPipelineLayoutShared — `PIPELINE_FRAME_PAD` is read at call time.
@@ -129,6 +141,52 @@ export function refineStrataBlockClamp(
   const weights = { penW, crossW, epsilon, edgeCrossCap };
 
   const columnX = rank.columnX;
+
+  /**
+   * Nearest grid-column index for a pixel x (binary search over the strictly
+   * increasing `columnX`, rounding to the closest column).
+   *
+   * WHY NEAREST (rounding), NOT nearest-≤: a block leaf sits EXACTLY on
+   * `columnX[rank]` (offset 0 ⇒ rounds to its own rank, exact), but a hull /
+   * frame / placed-hull left edge sits `PIPELINE_FRAME_PAD` (×nesting depth) to
+   * the LEFT of its anchor column origin (`boxXLeft = minX0 − FRAME_PAD`,
+   * placement :374). nearest-≤ would resolve that inset edge to the PREVIOUS
+   * column and, under NON-UNIFORM column spacing, snap the hull by a different
+   * rank-delta than its own leftmost leaf — reintroducing exactly the
+   * variable-width scatter this rewrite exists to kill. Rounding recovers the
+   * true anchor column so long as the PAD inset is < half the column gap (always
+   * true for the real grid: gap ≥ minColWidth + PIPELINE_COLUMN_GAP ≫ 2·PAD).
+   * When it is not (pathologically deep nesting under tight columns) the hull
+   * snaps a column off, the account subtree fails to contain its leaves, and
+   * gate (c) R2 VETOES — an honest no-op, never a silent off-grid corruption
+   * (block leaves are re-asserted exactly on-grid post-snap independently).
+   */
+  const colIndexOf = (x: number): number => {
+    const n = columnX.length;
+    if (n === 0) {
+      return -1;
+    }
+    if (x <= columnX[0]!) {
+      return 0;
+    }
+    if (x >= columnX[n - 1]!) {
+      return n - 1;
+    }
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (columnX[mid]! < x) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    // `lo` = smallest index with columnX[lo] ≥ x; compare it with its predecessor.
+    const hiIdx = lo;
+    const loIdx = lo - 1;
+    return x - columnX[loIdx]! <= columnX[hiIdx]! - x ? loIdx : hiIdx;
+  };
 
   // Effective-direction adjacency over E′ (honor A3 `reversed`: a reversed edge
   // participates with source/target swapped, matching the ranker's effective
@@ -218,22 +276,42 @@ export function refineStrataBlockClamp(
   };
 
   /**
-   * Build a fresh placement rigidly translating the whole block subtree by ΔX.
-   * Every box in `hullIds`/`leafIds` shifts by ΔX (x only); colSpan retained on
-   * every placed unit (NEVER re-rank). Everything else copied by reference; the
-   * source placement is never mutated. Y/width/height untouched.
+   * Build a fresh placement rigidly translating the whole block subtree LEFT by
+   * `k` grid columns via PER-RANK COLUMN-SNAP. Each block box's left edge moves
+   * from its anchor column `columnX[i]` (i = `colIndexOf(box.x)`) onto
+   * `columnX[i − k]`, preserving its intra-column pixel offset
+   * (`box.x − columnX[i]`). Unlike the previous single-fixed-ΔX translate, this
+   * lands EVERY block leaf exactly on `columnX[rank − k]` for ANY k even when
+   * column widths are non-uniform (the old translate only did so for the
+   * smallest feasible k / uniform spans). colSpan retained on every placed unit
+   * (NEVER re-rank); Y/width/height untouched; everything outside the block
+   * copied by reference; the source placement is never mutated.
+   *
+   * Returns `null` if any block box would snap to an out-of-range column
+   * (`i − k < 0`), so the caller can skip that k. Under the loop's `destIndex ≥
+   * 0` bound this cannot fire for on-grid leaves/anchors, but the guard keeps the
+   * snap total.
    */
   const translateBlock = (
     from: StrataPlacementResult,
     block: StrataBlock,
-    dx: number,
-  ): StrataPlacementResult => {
-    const shift = (box: StrataBox): StrataBox => ({
-      x: box.x + dx,
-      y: box.y,
-      width: box.width,
-      height: box.height,
-    });
+    k: number,
+  ): StrataPlacementResult | null => {
+    let snapOk = true;
+    const shift = (box: StrataBox): StrataBox => {
+      const i = colIndexOf(box.x);
+      const dest = i - k;
+      if (i < 0 || dest < 0 || dest >= columnX.length) {
+        snapOk = false;
+        return box;
+      }
+      return {
+        x: box.x - columnX[i]! + columnX[dest]!,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+      };
+    };
 
     const leafBoxes = new Map<string, StrataBox>();
     for (const [id, box] of from.leafBoxes) {
@@ -280,6 +358,9 @@ export function refineStrataBlockClamp(
       }
     }
 
+    if (!snapOk) {
+      return null;
+    }
     return { boxedHulls, leafBoxes };
   };
 
@@ -367,48 +448,65 @@ export function refineStrataBlockClamp(
       continue; // no legal leftward slack — leave the block put.
     }
 
-    // Candidate ΔX set, largest-move-first: adopt the FIRST k that passes every
-    // gate (maximizes width shortening). ΔX(k) shifts the block's leftmost
-    // column onto columnX[blockMinRank − k] (negative — moving left).
-    const originX = columnX[blockMinRank];
-    if (originX === undefined) {
+    // Gate (a0-pre): PERTURBED-INPUT SKIP (k-independent). Per-rank snap can only
+    // land a leaf exactly on `columnX[rank − k]` if the leaf STARTS on its own
+    // grid column. An upstream pass (e.g. a leaf-relocate) can move a leaf's
+    // pixel box WITHOUT changing its rank, leaving it off-grid; a snap keyed off
+    // its nearest column would then carry it off-grid, where
+    // checkStrataStructure's exact-`box.x`-keyed contiguity referee could miss a
+    // real interleave. If ANY block leaf is off its grid column, conservatively
+    // skip the whole block (referential identity preserved for it). Unlike the
+    // OLD single-ΔX on-grid gate, this no longer rejects non-uniform column
+    // spans — the per-rank snap handles those exactly (that was the whole point).
+    let blockOnGrid = true;
+    for (const leafId of block.leafIds) {
+      const box = incumbent.leafBoxes.get(leafId);
+      if (box === undefined) {
+        blockOnGrid = false;
+        break;
+      }
+      const i = colIndexOf(box.x);
+      if (i < 0 || Math.abs(box.x - columnX[i]!) > ON_GRID_EPS) {
+        blockOnGrid = false;
+        break;
+      }
+    }
+    if (!blockOnGrid) {
       continue;
     }
+
+    // Candidate set, largest-move-first: adopt the FIRST k that passes every gate
+    // (maximizes width shortening). k shifts the block LEFT by k grid columns via
+    // per-rank column-snap (every leaf at rank r lands on columnX[r − k]).
     for (let k = kMaxRank; k >= 1; k--) {
       const destIndex = blockMinRank - k;
       if (destIndex < 0 || destIndex >= columnX.length) {
         continue;
       }
-      const destX = columnX[destIndex]!;
-      const dx = destX - originX;
-      if (dx >= 0) {
-        continue; // not a leftward move (variable column widths) — skip.
+
+      const candidate = translateBlock(incumbent, block, k);
+      if (candidate === null) {
+        continue; // some block box could not snap (out-of-range column).
       }
 
-      // Gate (a0): ON-GRID LANDING. Every block leaf must land EXACTLY on an
-      // existing grid column (columnX[rank − k]) after the rigid shift. This
-      // closes three overlapping hazards at once:
-      //   • composition (an upstream pass moves
-      //     a block leaf's pixel box WITHOUT changing its rank; a grid-derived ΔX
-      //     applied to that perturbed box lands it off-grid);
-      //   • variable column widths (a single pixel ΔX keyed off blockMinRank does
-      //     NOT carry a higher-rank leaf onto columnX[r−k] unless the span is
-      //     uniform — otherwise non-min leaves scatter off-grid);
-      //   • the R2 blind spot — checkStrataStructure keys its contiguity columns
-      //     by EXACT `leafBox.x`, so an off-grid leaf silently shares no column
-      //     with its true rank-mates and a real interleave would evade the check.
-      // Any off-grid landing is therefore conservatively rejected (the block is
-      // left put rather than risk a hidden interleave). Under the common uniform-
-      // width, unperturbed case this is a strict pass (residual 0).
+      // Gate (a0): POST-SNAP ON-GRID DEV-ASSERT. Every block leaf must land
+      // EXACTLY on columnX[rank − k] after the snap. This is invariant-by-
+      // construction (each leaf snaps from its own on-grid column, offset 0), and
+      // it is re-verified here because it is the load-bearing correctness
+      // property: it guarantees checkStrataStructure's exact-`box.x`-keyed
+      // contiguity referee still sees every block leaf in its true rank column
+      // (no hidden interleave), INDEPENDENT of how hull/frame anchors rounded.
+      // A violation (impossible unless colIndexOf mis-rounds a leaf) skips the
+      // candidate rather than ever adopting an off-grid landing.
       let onGrid = true;
       for (const leafId of block.leafIds) {
         const r = rank.rank.get(leafId)!; // every block leaf validated finite.
         const destCol = columnX[r - k];
-        const box = incumbent.leafBoxes.get(leafId);
+        const box = candidate.leafBoxes.get(leafId);
         if (
           destCol === undefined ||
           box === undefined ||
-          Math.abs(box.x + dx - destCol) > ON_GRID_EPS
+          Math.abs(box.x - destCol) > ON_GRID_EPS
         ) {
           onGrid = false;
           break;
@@ -418,14 +516,16 @@ export function refineStrataBlockClamp(
         continue;
       }
 
-      const candidate = translateBlock(incumbent, block, dx);
-
-      // Gate (a): X-CONTAINMENT — the translated account box must stay inside
-      // its parent hull box horizontally (checkStrataStructure exempts
+      // Gate (a): X-CONTAINMENT — the snapped account box must stay inside its
+      // parent hull box horizontally (checkStrataStructure exempts
       // ancestor↔descendant overlaps, so an escaped subtree would pass R2 yet
-      // render outside its frame). Moving left keeps a far-right block inside,
-      // but guard explicitly.
-      const newAccountX = accountBh.box.x + dx;
+      // render outside its frame). Uses the account frame's ACTUAL snapped left
+      // edge (per-rank snap ⇒ NOT a single fixed ΔX off blockMinRank).
+      const snappedAccountBox = candidate.boxedHulls.get(block.accountId)?.box;
+      if (snappedAccountBox === undefined) {
+        continue;
+      }
+      const newAccountX = snappedAccountBox.x;
       const pad = framePad();
       const minX = parentBh.box.x + pad;
       const maxX =
@@ -434,18 +534,18 @@ export function refineStrataBlockClamp(
         continue;
       }
 
-      // Gate (b): PIXEL LR feasibility — for every external (leaf, source)
-      // pair, the translated leaf centre must stay ≥ its source centre (reject
-      // any inversion the rank arithmetic missed under variable column widths).
+      // Gate (b): PIXEL LR feasibility — for every external (leaf, source) pair,
+      // the SNAPPED leaf centre must stay ≥ its source centre (reject any
+      // inversion the rank arithmetic missed under variable column widths).
       let lrOk = true;
       for (const { leafId, sourceId } of extPairs) {
-        const leafBox = incumbent.leafBoxes.get(leafId);
+        const leafBox = candidate.leafBoxes.get(leafId);
         const srcBox = incumbent.leafBoxes.get(sourceId);
         if (leafBox === undefined || srcBox === undefined) {
           lrOk = false;
           break;
         }
-        const leafCentre = leafBox.x + dx + leafBox.width / 2;
+        const leafCentre = leafBox.x + leafBox.width / 2;
         const srcCentre = srcBox.x + srcBox.width / 2;
         if (leafCentre < srcCentre) {
           lrOk = false;

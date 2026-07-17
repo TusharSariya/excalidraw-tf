@@ -136,6 +136,25 @@ function rankStub(ranks: Record<string, number>): StrataRankResult {
   };
 }
 
+/**
+ * Non-uniform-column rank stub: `columnX` is supplied explicitly so a block can
+ * span a destination band whose cumulative spacing differs from its origin band.
+ * This is the fixture geometry the uniform `rankStub` (constant COL_GAP) is
+ * structurally BLIND to — under uniform columns a per-rank snap and the old
+ * single-fixed-ΔX translate are identical, so the entire uniform suite is vacuous
+ * for the variable-width bug (a02-xshift-block.md §1d, a13-fixture-skeptic.md).
+ */
+function rankStubX(
+  ranks: Record<string, number>,
+  columnX: number[],
+): StrataRankResult {
+  return {
+    rank: new Map(Object.entries(ranks)),
+    columnX,
+    networkSimplexApplied: false,
+  };
+}
+
 function primeEdges(pairs: [string, string][]): StrataPrimeEdge[] {
   return pairs.map(([source, target]) => ({
     edge: {
@@ -590,5 +609,182 @@ describe("blockClamp reversed prime — effective sink still clamps", () => {
     const out = refineStrataBlockClamp(a0, model, primes, rank, OPTS_ON);
     expect(out.leafBoxes.get("a")!.x).toBe(rank.columnX[1]); // clamped to src+1.
     expect(checkStrataStructure(out, model)).toEqual(R2_CLEAN);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// NON-UNIFORM COLUMN FIXTURES (a02-xshift-block.md §5, a13-fixture-skeptic.md F4)
+// The uniform COL_GAP suite above is VACUOUS for the variable-width bug: under
+// uniform columns per-rank snap ≡ single-fixed-ΔX. These fixtures give the block
+// a destination band whose cumulative spacing differs from the origin band, the
+// growth-path the frozen preset actually exercises, so k>smallest becomes
+// reachable exactly where the old translate scattered non-min leaves off-grid.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Packed-provider option: bandDepth "root" ⇒ provider/account/… all PACKED, so
+// sibling account hulls share a dropY Y-row (banded accounts each own a Y-band
+// and can NEVER Y-overlap, making the R2 wall structurally unreachable for a
+// whole-account X-move — the honest reason blockClamp's real-preset veto is the
+// SCORER, not R2). Only under a packed provider can an occupied destination
+// column actually collide, so fixture (ii) needs it.
+const OPTS_ROOT_ON: StrataEngineOptions = {
+  ...OPTS,
+  strataBandDepth: "root",
+  strataBlockClamp: true,
+};
+
+// ── (i) headline: 3-rank block, non-uniform columns, empty dest ⇒ k=3 on-grid ─
+
+describe("blockClamp non-uniform — per-rank snap reaches k=3 where fixed-ΔX cannot", () => {
+  it("lands every leaf of a 3-rank block exactly on columnX[rank−3] and adopts", () => {
+    // Account 4 is a pure sink of THREE leaves a@r5, b@r6, c@r7 (one shared
+    // subnet). Sole external inbound s→a (s@r1, account 1) ⇒ kMaxRank = 5−1−1 =3.
+    // Columns are NON-UNIFORM: destination band (cols 2,3,4) is NARROWER than the
+    // origin band (cols 5,6,7), so a rigid-width account hull still contains its
+    // snapped leaves (overhang) and R2 stays clean. A single fixed ΔX keyed off
+    // blockMinRank (=col2−col5) would carry b to col5+ΔX and c to col6+ΔX — both
+    // OFF-grid under non-uniform spacing (asserted below) — which the old on-grid
+    // gate rejected. The per-rank snap lands all three exactly.
+    const src = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const sink = placement("aws", "4", "us-east-1", "vpc-4", "subZ");
+    const clusters = [
+      frameCluster("s", src, "aws.1.s", 150, 60),
+      frameCluster("a", sink, "aws.4.a", 150, 60),
+      frameCluster("b", sink, "aws.4.b", 150, 60),
+      frameCluster("c", sink, "aws.4.c", 150, 60),
+    ];
+    const model = buildStrataModel(prep(clusters, [edge("s", "a")]), OPTS);
+    const primes = primeEdges([["s", "a"]]);
+    // indices:      0    1     2     3      4      5      6      7
+    const columnX = [0, 300, 700, 950, 1200, 1900, 2500, 3100];
+    const rank = rankStubX({ s: 1, a: 5, b: 6, c: 7 }, columnX);
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+
+    // NON-VACUITY / regression pin: a single fixed ΔX (= col2 − col5) applied to
+    // b and c would NOT land them on their true destination columns.
+    const fixedDx = columnX[2] - columnX[5];
+    expect(a0.leafBoxes.get("b")!.x + fixedDx).not.toBeCloseTo(columnX[3], 1);
+    expect(a0.leafBoxes.get("c")!.x + fixedDx).not.toBeCloseTo(columnX[4], 1);
+
+    const beforeScore = scoreStrataPlacementGeometry(a0, model, primes);
+    const out = refineStrataBlockClamp(a0, model, primes, rank, OPTS_ON);
+
+    // (a) EVERY block leaf lands EXACTLY on columnX[rank−3] — the assertion the
+    //     old single-ΔX path fails for b and c under non-uniform columns.
+    expect(out.leafBoxes.get("a")!.x).toBe(columnX[2]);
+    expect(out.leafBoxes.get("b")!.x).toBe(columnX[3]);
+    expect(out.leafBoxes.get("c")!.x).toBe(columnX[4]);
+    // pure X translate — Y untouched for every block leaf.
+    expect(out.leafBoxes.get("a")!.y).toBe(a0.leafBoxes.get("a")!.y);
+    expect(out.leafBoxes.get("c")!.y).toBe(a0.leafBoxes.get("c")!.y);
+    // (b) structurally clean + (c) adopted (shorter chord, no crossing regress).
+    expect(checkStrataStructure(out, model)).toEqual(R2_CLEAN);
+    const afterScore = scoreStrataPlacementGeometry(out, model, primes);
+    expect(afterScore.lengthL1).toBeLessThan(beforeScore.lengthL1);
+    expect(afterScore.crossings).toBeLessThanOrEqual(beforeScore.crossings);
+    expect(afterScore.penetrations).toBeLessThanOrEqual(
+      beforeScore.penetrations,
+    );
+    expect(out).not.toBe(a0); // a real adoption, not a no-op.
+  });
+});
+
+// ── (ii) occupied destination (packed provider) ⇒ R2 vetoes ⇒ honest no-op ────
+
+describe("blockClamp non-uniform — occupied destination column is R2-vetoed", () => {
+  it("no-ops (byte-identical) when the sole feasible snap lands on an occupied column", () => {
+    // Packed provider (bandDepth root) ⇒ account hulls are placed by dropY, so
+    // when their padded hulls are X-disjoint they share ONE Y-row. Columns are
+    // spaced wide enough (>~290, the padded account-hull width) that s@col2,
+    // o@col3, a@col4 all land on row 0 (same Y). Account 4 (a@r4) is a pure sink
+    // of s→a (s@r2, account 1); kMaxRank = 4−2−1 = 1, so the ONLY candidate is
+    // k=1 landing a on col3 — exactly where account 3's isolated leaf `o` already
+    // sits, in the SAME row ⇒ the snapped subtree X/Y-overlaps `o`,
+    // nonAncestorOverlaps>0, gate (c) vetoes, and — no smaller k exists — the pass
+    // is a genuine no-op (referential identity). This is the honest R2 wall (and
+    // proves a whole-account X-move CAN be R2-vetoed only when accounts co-habit a
+    // packed row; under the default banded provider each account owns its Y-band).
+    const acc1 = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const acc3 = placement("aws", "3", "us-east-1", "vpc-3", "subM");
+    const acc4 = placement("aws", "4", "us-east-1", "vpc-4", "subZ");
+    const clusters = [
+      frameCluster("s", acc1, "aws.1.s", 150, 60),
+      frameCluster("o", acc3, "aws.3.o", 150, 60),
+      frameCluster("a", acc4, "aws.4.a", 150, 60),
+    ];
+    // Model built with the PACKED-provider option so its accounts share dropY rows
+    // (the model's resolved policy — not placeStrataHulls — decides banded/packed).
+    const model = buildStrataModel(
+      prep(clusters, [edge("s", "a")]),
+      OPTS_ROOT_ON,
+    );
+    const primes = primeEdges([["s", "a"]]);
+    // indices:      0    1      2      3      4     (spacing 400 > padded hull ~374)
+    const columnX = [0, 400, 800, 1200, 1600];
+    const rank = rankStubX({ s: 2, o: 3, a: 4 }, columnX);
+    const a0 = placeStrataHulls(model, primes, rank, OPTS_ROOT_ON);
+
+    // sanity: `o` sits on col3 = a's sole destination column (the collision).
+    expect(a0.leafBoxes.get("o")!.x).toBe(columnX[3]);
+
+    const out = refineStrataBlockClamp(a0, model, primes, rank, OPTS_ROOT_ON);
+    expect(out).toBe(a0); // R2 veto on the only k ⇒ referential identity.
+  });
+});
+
+// ── (iii) perturbed input under non-uniform columns ⇒ skip ────────────────────
+
+describe("blockClamp non-uniform — a leaf nudged off its column skips the block", () => {
+  it("returns referential identity when an upstream pass moved a block leaf off-grid", () => {
+    const src = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const sink = placement("aws", "4", "us-east-1", "vpc-4", "subZ");
+    const clusters = [
+      frameCluster("s", src, "aws.1.s", 150, 60),
+      frameCluster("a", sink, "aws.4.a", 150, 60),
+      frameCluster("b", sink, "aws.4.b", 150, 60),
+    ];
+    const model = buildStrataModel(prep(clusters, [edge("s", "a")]), OPTS);
+    const primes = primeEdges([["s", "a"]]);
+    const columnX = [0, 300, 700, 950, 1200, 1900, 2500];
+    const rank = rankStubX({ s: 1, a: 5, b: 6 }, columnX);
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+
+    // sanity: the UN-perturbed non-uniform block WOULD move (isolates the gate).
+    expect(refineStrataBlockClamp(a0, model, primes, rank, OPTS_ON)).not.toBe(
+      a0,
+    );
+
+    // nudge leaf `b` +9px off its (non-uniform) grid column, rank unchanged.
+    const bBox = a0.leafBoxes.get("b")!;
+    const leafBoxes = new Map(a0.leafBoxes);
+    leafBoxes.set("b", { ...bBox, x: bBox.x + 9 });
+    const perturbed: StrataPlacementResult = {
+      boxedHulls: a0.boxedHulls,
+      leafBoxes,
+    };
+    expect(
+      refineStrataBlockClamp(perturbed, model, primes, rank, OPTS_ON),
+    ).toBe(perturbed);
+  });
+});
+
+// ── (iv) toggle-off byte-identity under non-uniform columns ───────────────────
+
+describe("blockClamp non-uniform — flag off is byte-identical", () => {
+  it("returns the input placement by reference on a non-uniform block when the flag is off", () => {
+    const src = placement("aws", "1", "us-east-1", "vpc-1", "subA");
+    const sink = placement("aws", "4", "us-east-1", "vpc-4", "subZ");
+    const clusters = [
+      frameCluster("s", src, "aws.1.s", 150, 60),
+      frameCluster("a", sink, "aws.4.a", 150, 60),
+      frameCluster("b", sink, "aws.4.b", 150, 60),
+    ];
+    const model = buildStrataModel(prep(clusters, [edge("s", "a")]), OPTS);
+    const primes = primeEdges([["s", "a"]]);
+    const columnX = [0, 300, 700, 950, 1200, 1900, 2500];
+    const rank = rankStubX({ s: 1, a: 5, b: 6 }, columnX);
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+
+    expect(refineStrataBlockClamp(a0, model, primes, rank, OPTS)).toBe(a0);
   });
 });
