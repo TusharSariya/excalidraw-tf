@@ -28,6 +28,7 @@ import {
   topologyRoleAndKeyFromPath,
 } from "./terraformPipelineTopologyFrames";
 
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type {
   PipelineCluster,
   PipelineLayoutPrep,
@@ -54,11 +55,19 @@ export const STRATA_ROOT_ID = "__strata_root__";
  * pinned content comparator on canonical addresses (C4′). Each hull's `policy`
  * is resolved from the monotone band-depth cut `bandDepth` (default `"account"`
  * reproduces `STRATA_HULL_POLICY` element-for-element).
+ *
+ * `deBandLevel` (OD-15, default `"none"`) dissolves a level and everything
+ * deeper. Strata needs NO `collapseTreeForDeBand` analog: this tree is
+ * PATH-DRIVEN, so truncating the path IS the collapse — the dissolved prefixes
+ * are never walked, their hulls are never created, and the leaf lands directly
+ * in the absorbing parent's `leafClusterIds`. `"none"` returns the full path
+ * unchanged, so the off path is byte-identical by construction.
  */
 function buildStrataHullTree(
   clusters: readonly PipelineCluster[],
   addressOf: (clusterId: string) => string,
   bandDepth: StrataHullRole,
+  deBandLevel: DeBandLevel,
 ): StrataHullNode {
   const root: StrataHullNode = {
     id: STRATA_ROOT_ID,
@@ -71,7 +80,7 @@ function buildStrataHullTree(
   const byId = new Map<string, StrataHullNode>([[STRATA_ROOT_ID, root]]);
 
   for (const cluster of clusters) {
-    const path = topologyPathForCluster(cluster);
+    const path = topologyPathForCluster(cluster, deBandLevel);
     let parent = root;
     for (let len = 1; len <= path.length; len++) {
       const rk = topologyRoleAndKeyFromPath(path.slice(0, len));
@@ -249,10 +258,13 @@ function buildStrataEdges(
 
 /**
  * Build the Strata model from prep. `options` is validated here (this is the
- * first engine phase) but otherwise not consumed at model build — `compact` is
- * already reflected in the prep skeleton sizes and `includeAncillary` is deferred
- * to the M3 port (honest-meta echo, SDEC-26). Deterministic: same prep ⇒ deeply
- * equal hull tree + edge set (only object identity of `addressOf` differs).
+ * first engine phase). `strataBandDepth` and `strataDeBandLevel` ARE consumed
+ * here — both rewrite the hull tree, and this is the STRUCTURE phase, so rank /
+ * ordering / placement / A7 / transpose all re-run over the resulting model. The
+ * rest is not: `compact` is already reflected in the prep skeleton sizes and
+ * `includeAncillary` is deferred to the M3 port (honest-meta echo, SDEC-26).
+ * Deterministic: same prep ⇒ deeply equal hull tree + edge set (only object
+ * identity of `addressOf` differs).
  */
 export function buildStrataModel(
   prep: PipelineLayoutPrep,
@@ -276,7 +288,16 @@ export function buildStrataModel(
 
   // Monotone band-depth cut → hull policy (default "account" = the frozen map).
   const bandDepth: StrataHullRole = options.strataBandDepth ?? "account";
-  const hullRoot = buildStrataHullTree(prep.clusters, addressOf, bandDepth);
+  // OD-15 de-band (default "none" ⇒ full path ⇒ byte-identical). Feasibility vs
+  // the cut is adjudicated at the S0a option surface (terraformPipelineStrata),
+  // which suppresses an infeasible level before it reaches the engine.
+  const deBandLevel: DeBandLevel = options.strataDeBandLevel ?? "none";
+  const hullRoot = buildStrataHullTree(
+    prep.clusters,
+    addressOf,
+    bandDepth,
+    deBandLevel,
+  );
   assertStrataBandRowInvariant(hullRoot, bandDepth);
   const { edges, selfLoops } = buildStrataEdges(prep.collapsedEdges);
 

@@ -61,6 +61,7 @@ import {
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
 
 import type { TerraformDependencyLayoutBox } from "./terraformElkLayout";
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type {
   PipelineCluster,
   PipelineLayoutPrep,
@@ -100,6 +101,15 @@ export type StrataSceneBuildInput = {
    * sets). Default off — absent, the module never runs (byte-identical).
    */
   borderRoute?: boolean;
+  /**
+   * OD-15 de-band level (default `"none"`). MUST be the same level the model
+   * tree was built with: this input drives the `terraformTopologyPath` stamped
+   * on every leaf cluster frame, and T9 slice classification reconstructs the
+   * hull tree read-only FROM that stamp (v3.1 §2.6). A stamp that disagrees with
+   * the tree mis-slices A/B silently — the layout looks right and every metric
+   * downstream is garbage. Pinned by a test asserting the two agree.
+   */
+  deBandLevel?: DeBandLevel;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
@@ -175,7 +185,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     const rect = clusterFrameLocalRect(cluster);
     const dx = box.x - rect.x;
     const dy = box.y - rect.y;
-    const path = topologyPathForCluster(cluster);
+    const path = topologyPathForCluster(cluster, input.deBandLevel ?? "none");
     const translated = translateSkeleton(cluster.build.skeleton, dx, dy).map(
       (el) =>
         el.id === cluster.build.clusterFrameId

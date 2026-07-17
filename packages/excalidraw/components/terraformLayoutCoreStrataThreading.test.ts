@@ -66,6 +66,11 @@ const arrowPolySignatures = (
     })
     .sort();
 
+/** Container-frame count. De-band's whole mechanism is that a dissolved hull is
+ * never created, so no frame is ever emitted for it. */
+const frameCount = (elements: readonly ExcalidrawElement[]): number =>
+  elements.filter((el) => !el.isDeleted && el.type === "frame").length;
+
 type Scene = { elements: ExcalidrawElement[]; meta: Record<string, unknown> };
 
 const buildStrata = async (opts: Record<string, unknown> = {}) => {
@@ -670,6 +675,185 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(geometryTuples(explicitFalse.elements)).toEqual(
         geometryTuples(off.elements),
       );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "threads strataDeBandLevel end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
+    async () => {
+      // Same silent-drop guard as the transpose case above, with the enum trap
+      // on top: `"none"` is a TRUTHY string, so a truthy-gated spread at ANY of
+      // the five guarded sites would materialize the key on every default run.
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default "none": the echo key is ABSENT (not present-with-"none").
+      expect(off.meta.strataDeBandLevel).toBeUndefined();
+      expect(off.meta.strataToggleSuppressions).toBeUndefined();
+
+      // `subnet` is legal at the default cut ("account"): the absorbing parent
+      // is the vpc hull, which resolves packed.
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataDeBandLevel: "subnet",
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataDeBandLevel).toBe("subnet");
+      expect(on.meta.strataToggleSuppressions).toBeUndefined();
+      expect(on.elements.length).toBeGreaterThan(0);
+      expect(on.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
+      // The lever's actual mechanism: the dissolved level's frames are never
+      // emitted, because the hull never enters the model tree.
+      expect(frameCount(on.elements)).toBeLessThan(frameCount(off.elements));
+
+      // Default-off byte-identity, on BOTH fingerprints: geometryTuples alone
+      // cannot see a mutated polyline inside an unchanged bbox.
+      const explicitNone = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataDeBandLevel: "none",
+      });
+      expect(geometryTuples(explicitNone.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitNone.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "suppresses an infeasible strataDeBandLevel instead of stacking every lifted leaf on its own band-row",
+    async () => {
+      // `region` de-band absorbs into the account hull, which is BANDED at the
+      // default cut — every lifted leaf would become its own band-row (one tall
+      // stack). The engine drops the level and says so; band depth wins.
+      const suppressed = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataDeBandLevel: "region",
+      });
+      expect(suppressed.meta.rcllV2Degraded).toBeUndefined();
+      expect(suppressed.meta.strataDeBandLevel).toBeUndefined();
+      expect(suppressed.meta.strataToggleSuppressions).toEqual([
+        "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded",
+      ]);
+
+      // Suppressed ⇒ the layout is the plain baseline, byte-for-byte.
+      const baseline = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(geometryTuples(suppressed.elements)).toEqual(
+        geometryTuples(baseline.elements),
+      );
+
+      // `provider` absorbs into the root, which is PINNED banded at every cut —
+      // so it is suppressed even at the shallowest cut. No cut rescues it.
+      const providerAtRootCut = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "root",
+        strataDeBandLevel: "provider",
+      });
+      expect(providerAtRootCut.meta.strataDeBandLevel).toBeUndefined();
+      expect(providerAtRootCut.meta.strataToggleSuppressions).toEqual([
+        "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded",
+      ]);
+
+      // ...and the same `region` level DOES apply once the cut is shallow enough
+      // that its absorbing parent (account) packs — proving the gate is the
+      // feasibility predicate, not a blanket rejection.
+      const feasible = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBandDepth: "provider",
+        strataDeBandLevel: "region",
+      });
+      expect(feasible.meta.strataDeBandLevel).toBe("region");
+      expect(feasible.meta.strataToggleSuppressions).toBeUndefined();
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "stamps terraformTopologyPath at the SAME de-band level the hull tree was built with",
+    async () => {
+      // The two `topologyPathForCluster` call sites — the model tree
+      // (terraformPipelineStrataModel) and the customData stamp
+      // (terraformPipelineStrataSceneBuild) — must never diverge. Threading only
+      // the first leaves the layout and frames correct while T9 slice
+      // classification (which reconstructs the tree read-only FROM this stamp)
+      // is silently wrong forever. Tests would otherwise pass.
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataDeBandLevel: "subnet",
+      });
+      const stamped = on.elements
+        .map(
+          (el) =>
+            (el.customData as { terraformTopologyPath?: string[] } | undefined)
+              ?.terraformTopologyPath,
+        )
+        .filter((p): p is string[] => Array.isArray(p));
+      expect(stamped.length).toBeGreaterThan(0);
+      // subnet de-band ⇒ DEBAND_PATH_KEEP 4 ⇒ no stamped path keeps a subnet
+      // segment. The un-truncated baseline HAS 5-segment paths, so this
+      // assertion is falsifiable (it fails if the scene-build site is missed).
+      expect(Math.max(...stamped.map((p) => p.length))).toBeLessThanOrEqual(4);
+
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      const offStamped = off.elements
+        .map(
+          (el) =>
+            (el.customData as { terraformTopologyPath?: string[] } | undefined)
+              ?.terraformTopologyPath,
+        )
+        .filter((p): p is string[] => Array.isArray(p));
+      expect(Math.max(...offStamped.map((p) => p.length))).toBe(5);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "honors pipelineCompact=false on the strata engine path (the Detail -> Full control is pure UI exposure)",
+    async () => {
+      // Ask B: the engine already reads `options?.compact !== false` and threads
+      // it into preparePipelineLayout; every layer between the dialog and the
+      // engine already forwards it. This pins that claim so the new Detail
+      // control in TerraformStrataSettings cannot be the thing that breaks.
+      const compact = await buildStrata({ strataSweeps: 4 });
+      expect(compact.meta.pipelineCompact).toBe(true);
+
+      const full = await buildStrata({
+        strataSweeps: 4,
+        pipelineCompact: false,
+      });
+      expect(full.meta.rcllV2Degraded).toBeUndefined();
+      expect(full.meta.pipelineCompact).toBe(false);
+      // Full mode expands every cluster's contents. Assert the INEQUALITY, not a
+      // literal count — the exact number is a snapshot of cluster contents.
+      expect(full.elements.length).toBeGreaterThan(compact.elements.length);
+      // A passing structural check is a correctness proof here: the engine
+      // THROWS on any nonzero (terraformPipelineStrata.ts).
+      expect(full.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );

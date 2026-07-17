@@ -19,10 +19,11 @@ import {
   type TerraformRuntimePerformanceSettings,
 } from "./terraformRuntimePerformance";
 
+import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
+
 import type { TerraformImportSession } from "./terraformImportSession";
 import type { TerraformLodPreset } from "./terraformLod";
 import type { TerraformView } from "./terraformImportDialogUtils";
-import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
 
 import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
 
@@ -112,6 +113,13 @@ const sessionToDemoSnapshot = (
   strataBlockClamp: session.strataBlockClamp ?? false,
   strataTranspose: session.strataTranspose ?? false,
   strataHeightGate: session.strataHeightGate ?? false,
+  // De-band ladder: omit at the default `"none"` (a TRUTHY string — the
+  // explicit compare is load-bearing) so a shared URL of a default scene is
+  // byte-identical to today's.
+  ...(session.strataDeBandLevel !== undefined &&
+  session.strataDeBandLevel !== "none"
+    ? { strataDeBandLevel: session.strataDeBandLevel }
+    : {}),
   moduleLayoutMode: session.moduleLayoutOptions.mode,
 });
 

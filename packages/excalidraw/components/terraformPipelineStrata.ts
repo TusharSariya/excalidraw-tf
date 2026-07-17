@@ -19,7 +19,9 @@ import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelo
 import { transposeStrataColumns } from "./terraformPipelineStrataTranspose";
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
+import { strataDeBandFeasible } from "./terraformPipelineStrataTypes";
 
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
 import type {
   StrataDegradedMeta,
@@ -187,6 +189,19 @@ export type TerraformStrataSceneOptions = {
    */
   strataHeightGate?: boolean;
   /**
+   * OD-15 de-band port (default `"none"`, opt-in): dissolve this hierarchy level
+   * and every deeper one so the subtree's resources share one packed hull. Runs
+   * in the STRUCTURE phase (model build, before rank/ordering/placement) as pure
+   * topology-path truncation, so every downstream pass re-runs over the
+   * collapsed model.
+   *
+   * SUPPRESSED (not applied, echoed in `strataToggleSuppressions`) when the
+   * absorbing parent would still be BANDED under the active `strataBandDepth`
+   * cut — see `strataDeBandFeasible`. Threaded into
+   * `engineOptions.strataDeBandLevel` only when non-`"none"` (byte-identity).
+   */
+  strataDeBandLevel?: DeBandLevel;
+  /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
    * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
@@ -322,6 +337,32 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataBandDepth: StrataHullRole =
     options?.strataBandDepth ?? (strataBandCompact ? "root" : "account");
 
+  // OD-15 de-band ⟂ band-depth mutual exclusion (same shape as the OD-14 block
+  // above). Both levers rewrite the hull-tree band axis: `strataBandDepth`
+  // chooses each SURVIVING hull's arrangement policy, de-band chooses which
+  // hulls EXIST. They compose only in one direction — a de-band whose absorbing
+  // parent is still BANDED gives every lifted leaf its own band-row (one
+  // vertical stack of every resource, a height regression that throws nothing
+  // and renders like a bug). `strataBandDepth` WINS: it is the shipped, measured
+  // height lever and the frozen measurement config pins it, whereas de-band is
+  // an unmeasured port — so an infeasible de-band is DROPPED, not silently
+  // repaired by moving the user's cut under them. Surfaced observably; the
+  // ECHOED level below is the post-suppression (effective) one (honest meta).
+  const strataDeBandLevelRequested: DeBandLevel =
+    options?.strataDeBandLevel ?? "none";
+  const strataDeBandFeasibleHere = strataDeBandFeasible(
+    strataDeBandLevelRequested,
+    strataBandDepth,
+  );
+  const strataDeBandLevel: DeBandLevel = strataDeBandFeasibleHere
+    ? strataDeBandLevelRequested
+    : "none";
+  if (!strataDeBandFeasibleHere) {
+    strataToggleSuppressions.push(
+      "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded",
+    );
+  }
+
   // The engine flag/input echoes + the honest ancillary-deferred marker,
   // merged into BOTH the success and the degraded meta. `strataGeneration` is
   // an input echo like the flags; on the DEGRADED path the fallback v2 scene
@@ -363,6 +404,12 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
     // P5 height-gate echo — present only when on (byte-identity).
     ...(strataHeightGate ? { strataHeightGate: true } : {}),
+    // OD-15 de-band echo — the EFFECTIVE (post-suppression) level, present only
+    // when non-default. `"none"` is a TRUTHY string, so an `&&`-truthy gate here
+    // would materialize the key on every default run and break flag-off meta
+    // byte-identity — the `!== "none"` guard is load-bearing (same trap the
+    // `!== "account"` band-depth guard below documents).
+    ...(strataDeBandLevel !== "none" ? { strataDeBandLevel } : {}),
     // Legacy-alias echo: `strataBandCompact` now maps to `strataBandDepth:
     // "root"`, but old links still request it — echo the intent (rides the
     // v2-fallback path too). The resolved cut's own meta echo is owned by the
@@ -410,6 +457,10 @@ export async function buildTerraformStrataExcalidrawScene(
     // shape on every default run and break the flag-off byte-identity — the
     // `!== "account"` guard is load-bearing.
     ...(strataBandDepth !== "account" ? { strataBandDepth } : {}),
+    // OD-15 de-band: the EFFECTIVE level, spread ONLY when non-default. Same
+    // truthy-string trap as the cut above — `"none"` is truthy, so the
+    // `!== "none"` guard is load-bearing for flag-off byte-identity.
+    ...(strataDeBandLevel !== "none" ? { strataDeBandLevel } : {}),
     // Relocate objective weights/cap: these ride when ANY relocate-family
     // operator is on — the OD-15 sift/vertical-relocate, the block clamp, or
     // the transpose — because ALL consume penW/crossW/cap through
@@ -634,6 +685,15 @@ export async function buildTerraformStrataExcalidrawScene(
       ...(strataEdgeRouting ? { edgeRouting: true } : {}),
       // P3-pierce border-exit routing: key rides only when on (byte-identity).
       ...(strataBorderRoute ? { borderRoute: true } : {}),
+      // OD-15 de-band: the scene build's `topologyPathForCluster` call stamps
+      // `customData.terraformTopologyPath`, which T9 slice classification
+      // reconstructs the hull tree from. It MUST see the same EFFECTIVE level
+      // `buildStrataModel` built the tree with, or the stamp and the tree
+      // disagree and every slice-keyed metric is silently wrong. Key rides only
+      // when non-default (byte-identity).
+      ...(strataDeBandLevel !== "none"
+        ? { deBandLevel: strataDeBandLevel }
+        : {}),
     });
 
     // Standing R2 invariant (S0b acceptance): any nonzero count is a failure.

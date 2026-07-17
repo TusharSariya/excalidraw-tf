@@ -10,13 +10,14 @@ import {
   type TerraformRuntimePerformanceSettings,
 } from "./terraformRuntimePerformance";
 
+import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
+
 import type {
   PipelineLayoutVariant,
   TerraformView,
 } from "./terraformImportDialogUtils";
 import type { ModulePackingMode } from "./terraformModuleLayoutOptions";
 import type { TerraformLodPreset } from "./terraformLod";
-import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
 
 import type { TerraformFocusDirection } from "./terraformRelationshipFocus";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
@@ -141,6 +142,12 @@ export type TerraformDemoUrlParams = {
    * account | region | vpc | subnetZone`). Default `"account"` (today's fixed
    * role→policy map, byte-identical). */
   strataBandDepth?: StrataHullRole;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one
+   * (`strataDeBand=none|subnet|vpc|region|account|provider`). Default `"none"`
+   * (byte-identical). Suppressed by the engine when the absorbing parent stays
+   * banded under `strataBandDepth` (`provider` never composes — the root is
+   * pinned banded). */
+  strataDeBandLevel?: DeBandLevel;
   /** OD-15 crossings-≻-length relocate lever (`strataSift=1/0`). Default off. */
   strataSift?: boolean;
   /** Relocate objective weight on penetrations (`strataPenW`). Default 1. */
@@ -471,6 +478,17 @@ export const parseTerraformDemoUrlParams = (
     }
     strataBandDepth = normalized;
   }
+  // De-band ladder enum. Hard-fail on an invalid value (same contract as the
+  // band-depth cut above); `isDeBandLevel` is the shipped v1 guard.
+  const strataDeBandRaw = params.get("strataDeBand");
+  let strataDeBandLevel: DeBandLevel | undefined;
+  if (strataDeBandRaw != null && strataDeBandRaw.trim() !== "") {
+    const normalized = strataDeBandRaw.trim();
+    if (!isDeBandLevel(normalized)) {
+      return null;
+    }
+    strataDeBandLevel = normalized;
+  }
   const strataPackedEpsRaw = params.get("strataPackedEps");
   let strataPackedEps: number | undefined;
   if (strataPackedEpsRaw != null && strataPackedEpsRaw.trim() !== "") {
@@ -706,6 +724,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
+    ...(strataDeBandLevel != null ? { strataDeBandLevel } : {}),
     ...(strataSift != null ? { strataSift } : {}),
     ...(strataPenW != null ? { strataPenW } : {}),
     ...(strataCrossW != null ? { strataCrossW } : {}),
@@ -787,6 +806,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataBorderRoute", params.strataBorderRoute);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
+  setEnum("strataDeBand", params.strataDeBandLevel);
   setBool("strataSift", params.strataSift);
   setNum("strataPenW", params.strataPenW);
   setNum("strataCrossW", params.strataCrossW);
@@ -925,6 +945,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** P5 (Lever C) height gate. Optional (default off) so pre-existing snapshot
    * literals still type-check. */
   strataHeightGate?: boolean;
+  /** OD-15 de-band ladder. Optional (default `"none"`) so pre-existing snapshot
+   * literals still type-check. */
+  strataDeBandLevel?: DeBandLevel;
 };
 
 /**
@@ -1054,6 +1077,13 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataTranspose ? { strataTranspose: true } : {}),
       // P5 height gate: default-off — truthy-only.
       ...(snapshot.strataHeightGate ? { strataHeightGate: true } : {}),
+      // OD-15 de-band ladder: emit only when it diverges from the default.
+      // `strataDeBandLevel` is a TRUTHY string at every value (including the
+      // default `"none"`), so — like the band-depth cut above — this must
+      // compare explicitly to the default, never `&&`-truthy-gate.
+      ...((snapshot.strataDeBandLevel ?? "none") !== "none"
+        ? { strataDeBandLevel: snapshot.strataDeBandLevel }
+        : {}),
     };
   }
 

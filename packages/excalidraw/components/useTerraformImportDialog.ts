@@ -198,6 +198,13 @@ export const useTerraformImportDialog = ({
   const [strataBandDepth, setStrataBandDepth] = useState<StrataHullRole>(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth as StrataHullRole,
   );
+  // OD-15 de-band ladder (strata-only): dissolve this hierarchy level and every
+  // deeper one at the model build. Default "none" (byte-identical). Coupled to
+  // `strataBandDepth` — the engine suppresses a level whose absorbing parent is
+  // still banded, and the settings panel mirrors that gate.
+  const [strataDeBandLevel, setStrataDeBandLevel] = useState<DeBandLevel>(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataDeBandLevel as DeBandLevel,
+  );
   // OD-15 crossings-≻-length relocate (strata-only). Default OFF pending its
   // gate battery.
   const [strataSiftRelocate, setStrataSiftRelocate] = useState(
@@ -535,6 +542,7 @@ export const useTerraformImportDialog = ({
         strataEdgeRouting,
         strataBorderRoute,
         strataBandDepth,
+        strataDeBandLevel,
         strataSiftRelocate,
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
@@ -694,6 +702,7 @@ export const useTerraformImportDialog = ({
           strataEdgeRouting,
           strataBorderRoute,
           strataBandDepth,
+          strataDeBandLevel,
           strataSiftRelocate,
           strataCrossWeightPenetration,
           strataCrossWeightEdge,
@@ -816,6 +825,7 @@ export const useTerraformImportDialog = ({
         strataEdgeRouting,
         strataBorderRoute,
         strataBandDepth,
+        strataDeBandLevel,
         // Keep this handler's strata option shape identical to the regular
         // preset-import path above: the sift/sink-pull-in operators consume
         // these weights + cap, so dropping them here would make the same UI
@@ -1064,6 +1074,7 @@ export const useTerraformImportDialog = ({
         // param (the required-legacy-field snapshot shape is unchanged here).
         strataBandCompact: false,
         strataBandDepth,
+        strataDeBandLevel,
         strataSiftRelocate,
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
@@ -1106,6 +1117,7 @@ export const useTerraformImportDialog = ({
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
+    strataDeBandLevel,
     strataSiftRelocate,
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
@@ -1149,6 +1161,7 @@ export const useTerraformImportDialog = ({
     strataEdgeRouting,
     strataBorderRoute,
     strataBandDepth,
+    strataDeBandLevel,
     strataSiftRelocate,
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
@@ -1214,6 +1227,7 @@ export const useTerraformImportDialog = ({
     setStrataEdgeRouting,
     setStrataBorderRoute,
     setStrataBandDepth,
+    setStrataDeBandLevel,
     setStrataSiftRelocate,
     setStrataCrossWeightPenetration,
     setStrataCrossWeightEdge,

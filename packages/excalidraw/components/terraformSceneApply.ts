@@ -267,6 +267,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P5 (Lever C) per-hull height maintain-or-decrease gate for the sink-pull-in
    * / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build. Default "none" (byte-identical). */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -325,6 +328,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataBlockClamp"
   | "strataTranspose"
   | "strataHeightGate"
+  | "strataDeBandLevel"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -380,6 +384,12 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataBlockClamp: session.strataBlockClamp === true,
   strataTranspose: session.strataTranspose === true,
   strataHeightGate: session.strataHeightGate === true,
+  // Raw forward — omit at default ("none")/absent so a replayed session never
+  // re-materializes a default level ("none" is a TRUTHY string).
+  ...(session.strataDeBandLevel !== undefined &&
+  session.strataDeBandLevel !== "none"
+    ? { strataDeBandLevel: session.strataDeBandLevel }
+    : {}),
 });
 
 /**
@@ -433,6 +443,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataBlockClamp"
   | "strataTranspose"
   | "strataHeightGate"
+  | "strataDeBandLevel"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -498,6 +509,12 @@ function buildPipelineFamilyLayoutOptions(
     strataBlockClamp: options.strataBlockClamp === true,
     strataTranspose: options.strataTranspose === true,
     strataHeightGate: options.strataHeightGate === true,
+    // Raw forward — omit at default ("none")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default level key.
+    ...(options.strataDeBandLevel !== undefined &&
+    options.strataDeBandLevel !== "none"
+      ? { strataDeBandLevel: options.strataDeBandLevel }
+      : {}),
   };
 }
 

@@ -5,6 +5,9 @@ import {
   type OptionHelpKey,
 } from "./TerraformImportPipelineSettings";
 
+import { strataDeBandFeasible } from "./terraformPipelineStrataTypes";
+
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 
 /** Depth order for the band-depth slider, shallowest (root, always banded) to
@@ -44,6 +47,37 @@ const STRATA_BAND_DEPTH_READOUT: Record<StrataHullRole, string> = {
   subnetZone: "Every level stays a full-width band.",
 };
 
+/** The de-band ladder rungs the slider offers, deepest first (dissolving a level
+ * cascades to every deeper one, so deepest = smallest change). `provider` is
+ * deliberately ABSENT: it absorbs into the root, which is pinned banded at every
+ * cut (v3.1 §1.4), so it can only ever produce one vertical stack of every
+ * resource — shipping it would be a trap, not a rung. */
+export const STRATA_DEBAND_ORDER: readonly Exclude<
+  DeBandLevel,
+  "none" | "provider"
+>[] = ["subnet", "vpc", "region", "account"];
+
+const STRATA_DEBAND_LABELS: Record<
+  Exclude<DeBandLevel, "none" | "provider">,
+  string
+> = {
+  subnet: "Zones",
+  vpc: "VPCs",
+  region: "Regions",
+  account: "Accounts",
+};
+
+/** The container that ABSORBS the lifted resources, in user words — mirrors the
+ * engine's `STRATA_DEBAND_ABSORBING_ROLE` for the suppression hint. */
+const STRATA_DEBAND_ABSORBING_LABELS: Record<DeBandLevel, string> = {
+  none: "parent",
+  subnet: "VPC",
+  vpc: "region",
+  region: "account",
+  account: "provider",
+  provider: "canvas root",
+};
+
 /**
  * Strata (rcll-v2) view settings — WP-4-UI.
  *
@@ -66,8 +100,9 @@ const STRATA_BAND_DEPTH_READOUT: Record<StrataHullRole, string> = {
  * path-tracing trade). This component only renders the control; it does not
  * change any default.
  *
- * Future OD-15 ("de-band") strata toggle lands as an additional `role="group"`
- * block in the same `__layoutSettingsGrid`, below the three here.
+ * The OD-15 "de-band" toggle landed as an additional `role="group"` block in the
+ * same `__layoutSettingsGrid`, beside Band depth (the two rewrite the same
+ * axis). Any further toggle lands the same way.
  */
 export const TerraformStrataSettings = ({
   strataSweeps,
@@ -83,6 +118,8 @@ export const TerraformStrataSettings = ({
   strataEdgeRouting,
   strataBorderRoute,
   strataBandDepth,
+  strataDeBandLevel,
+  pipelineCompact,
   strataSiftRelocate,
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
@@ -102,6 +139,8 @@ export const TerraformStrataSettings = ({
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataBandDepth,
+  setStrataDeBandLevel,
+  setPipelineCompact,
   setStrataSiftRelocate,
   setStrataCrossWeightPenetration,
   setStrataCrossWeightEdge,
@@ -120,6 +159,10 @@ export const TerraformStrataSettings = ({
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
   strataBandDepth: StrataHullRole;
+  strataDeBandLevel: DeBandLevel;
+  /** Content filter, not an engine pass — already honored end-to-end by the
+   * strata engine; this component only renders the control. */
+  pipelineCompact: boolean;
   strataSiftRelocate: boolean;
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
@@ -139,6 +182,8 @@ export const TerraformStrataSettings = ({
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
+  setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
+  setPipelineCompact: (compact: boolean) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
   setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
   setStrataCrossWeightEdge: (edgeWeight: number) => void;
@@ -156,6 +201,14 @@ export const TerraformStrataSettings = ({
   const activeKey = hoverKey ?? stickyKey;
   const activeHelp = OPTION_HELP[activeKey];
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
+  // Mirror of the engine's own gate (same predicate, imported — not re-derived)
+  // so the panel tells the user the level will be dropped BEFORE they import and
+  // wonder why nothing changed. The engine suppresses regardless; this is the
+  // visible half of the honest-meta contract.
+  const deBandSuppressed = !strataDeBandFeasible(
+    strataDeBandLevel,
+    strataBandDepth,
+  );
   // The crossing objective weights + edge-crossing cap feed ALL FOUR relocate
   // operators — the OD-15 sift/vertical-relocate, the
   // P4 pure-sink account block clamp, and the P2 within-column transpose — so the
@@ -208,6 +261,36 @@ export const TerraformStrataSettings = ({
       </div>
       <div className="TerraformImportModal__layoutSettingsBody">
         <div className="TerraformImportModal__layoutSettingsGrid">
+          {/* Content filters come FIRST, above every engine-pass section —
+              mirroring the RCLL branch of TerraformImportPipelineSettings, which
+              puts phaseHeader("Content", "how much to draw") + the detail group
+              ahead of every layout phase. Detail is a content filter, not a
+              layout pass; it must not sit among Readability/Height/Edges/
+              Placement. `compact` is already honored end-to-end by the strata
+              engine (terraformPipelineStrata.ts: `options?.compact !== false`
+              → preparePipelineLayout); this control is pure exposure.
+              NOT exposed here: Resources · All resources. The strata engine
+              hardcodes includeAncillary:false and echoes strataAncillaryDeferred
+              (SDEC-29, M3 port), so the button would thread correctly through
+              every layer and still do nothing. */}
+          <div className="TerraformImportModal__settingsSection">
+            <div className="TerraformImportModal__settingsSectionHeader">
+              Content
+            </div>
+            <div role="group" aria-label="Strata detail level">
+              <span className="TerraformImportModal__controlLabel">
+                Detail <span>how much of each cluster to draw</span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option("Compact", pipelineCompact, "detail.compact", () =>
+                  setPipelineCompact(true),
+                )}
+                {option("Full", !pipelineCompact, "detail.full", () =>
+                  setPipelineCompact(false),
+                )}
+              </div>
+            </div>
+          </div>
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">
               Readability
@@ -629,6 +712,60 @@ export const TerraformStrataSettings = ({
                   <span>
                     Packing provider and account only reclaims height when{" "}
                     <strong>Compact height</strong> is on.
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* De-band sits beside Band depth deliberately: the two rewrite the
+                SAME axis (band depth picks each surviving hull's policy, de-band
+                picks which hulls exist) and the engine suppresses an infeasible
+                pairing. `provider` is omitted from the ladder — it absorbs into
+                the root, which is pinned banded, so it is dead at every cut. */}
+            <div role="group" aria-label="Strata dissolve containers">
+              <span className="TerraformImportModal__controlLabel">
+                Dissolve containers{" "}
+                <span>
+                  drop this level's boxes and pack its resources straight into
+                  the parent
+                </span>
+              </span>
+              <div className="TerraformImportModal__segmentedControl">
+                {option(
+                  "Off",
+                  strataDeBandLevel === "none",
+                  "strata.deband.none",
+                  () => setStrataDeBandLevel("none"),
+                )}
+                {/* `option` returns a bare <button>, so the list needs its own
+                    key wrapper — every other segmented control in this file is
+                    a fixed pair and never hit this. */}
+                {STRATA_DEBAND_ORDER.map((level) => (
+                  <React.Fragment key={level}>
+                    {option(
+                      STRATA_DEBAND_LABELS[level],
+                      strataDeBandLevel === level,
+                      // Per-rung help key: the rungs' measured costs differ
+                      // (subnet wins, vpc regresses height/pierce, region and
+                      // account are unmeasured), so they cannot share one key.
+                      `strata.deband.${level}`,
+                      () => setStrataDeBandLevel(level),
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+              {deBandSuppressed && (
+                <div
+                  className="TerraformImportModal__dependencyHint"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Ignored at this <strong>Band depth</strong> — the{" "}
+                    {STRATA_DEBAND_ABSORBING_LABELS[strataDeBandLevel]} that
+                    would absorb these resources is still a full-width band, so
+                    each one would land on its own row (one tall stack). Move
+                    Band depth shallower, or pick a deeper level to dissolve.
                   </span>
                 </div>
               )}

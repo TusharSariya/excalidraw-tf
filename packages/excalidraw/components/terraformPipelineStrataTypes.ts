@@ -12,6 +12,7 @@
  *  - The engine computes its own ranks over E′ (prep depths are pre-A3).
  */
 import type { PipelineCluster } from "./terraformPipelineLayoutShared";
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 
 /** Engine options, threaded from S0a plumbing (all opt-in, default off). */
 export type StrataEngineOptions = {
@@ -179,6 +180,29 @@ export type StrataEngineOptions = {
    * option literals (flag-OFF byte-identity) are unaffected.
    */
   strataHeightGate?: boolean;
+  /**
+   * OD-15 de-band port (`strataDeBandLevel`, default `"none"`, opt-in): the v1
+   * hierarchy ladder, ported into Strata's STRUCTURE phase. Dissolving level L
+   * (and every deeper level) is expressed ENTIRELY as topology-path truncation
+   * at model build — `topologyPathForCluster(cluster, level)` — so the dissolved
+   * hulls are never created, their frames are never emitted (Strata emits frames
+   * off the model tree, unlike v1 which needed a separate suppression pass), and
+   * every leaf lands directly in the absorbing parent's `leafClusterIds`. That
+   * reproduces v1's `collapseTreeForDeBand` exactly, at the one site that runs
+   * BEFORE rank/ordering/placement — so every downstream pass re-runs over the
+   * collapsed model for free.
+   *
+   * COUPLED TO `strataBandDepth`, and the coupling is load-bearing: lifting N
+   * leaves into a still-BANDED absorbing parent makes each its own band-row
+   * (see the band-row invariant below) ⇒ one vertical stack ⇒ a catastrophic
+   * height REGRESSION, the exact opposite of the lever's purpose. The S0a option
+   * surface therefore SUPPRESSES a de-band whose absorbing parent resolves
+   * "banded" under the active cut (`provider` de-band absorbs into the root,
+   * which is pinned banded, so it is never legal). Optional so existing option
+   * literals (flag-OFF byte-identity) are unaffected; `"none"` also truncates
+   * nothing, so the off path is byte-identical by construction, not by guard.
+   */
+  strataDeBandLevel?: DeBandLevel;
 };
 
 /**
@@ -257,6 +281,45 @@ export const resolveStrataHullPolicy = (
   bandDepth: StrataHullRole,
 ): StrataHullPolicy =>
   STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed";
+
+/**
+ * De-band absorbing parent (the Strata mirror of v1's `ABSORBING_PARENT_ROLE`,
+ * terraformPipelineRcllPlacement.ts): dissolving level L lifts its leaves into
+ * the surviving hull one level shallower. Verified against the path-truncation
+ * collapse: `subnet` ⇒ `DEBAND_PATH_KEEP` 4 ⇒ path `[provider,account,region,
+ * vpc]` ⇒ leaves attach to the vpc hull, exactly v1's absorbing parent for
+ * `subnet`.
+ */
+const STRATA_DEBAND_ABSORBING_ROLE: Readonly<
+  Record<Exclude<DeBandLevel, "none">, StrataHullRole>
+> = {
+  subnet: "vpc",
+  vpc: "region",
+  region: "account",
+  account: "provider",
+  provider: "root",
+};
+
+/**
+ * Is de-banding `level` feasible under the band-depth cut `bandDepth`?
+ *
+ * De-band lifts leaves into the absorbing parent. If that parent is BANDED the
+ * band-row invariant below gives every lifted leaf its own singleton band-row —
+ * a single vertical stack of every resource, i.e. a catastrophic height
+ * REGRESSION, silently, with no assert firing. So the lever is only legal when
+ * the absorbing parent resolves PACKED. `provider` de-band absorbs into the
+ * root, which is pinned banded at every cut (v3.1 §1.4), so it is never legal —
+ * the top rung is structurally dead and is rejected here rather than shipped as
+ * a trap. At the DEFAULT cut ("account") only `subnet` and `vpc` are legal;
+ * `region`/`account` need a shallower cut.
+ */
+export const strataDeBandFeasible = (
+  level: DeBandLevel,
+  bandDepth: StrataHullRole,
+): boolean =>
+  level === "none" ||
+  resolveStrataHullPolicy(STRATA_DEBAND_ABSORBING_ROLE[level], bandDepth) ===
+    "packed";
 
 /**
  * Hull tree node. Band-row invariant (v3.1 §2.2, S0b assert): every child of

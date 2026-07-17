@@ -75,6 +75,14 @@ const LAYOUT_ENUM_PARAMS = [
     "pipelineDeBandLevel",
     ["none", "subnet", "vpc", "region", "account", "provider"],
   ],
+  // Strata de-band ladder (OD-15 port) — dissolve the chosen level + all deeper
+  // levels at the strata model build. `none` = byte-identical. Distinct from
+  // `deBandLevel` above, which is the RCLL/v1 lever.
+  [
+    "strataDeBand",
+    "strataDeBandLevel",
+    ["none", "subnet", "vpc", "region", "account", "provider"],
+  ],
   // Outcome-first "Layout" profile — expands into the RCLL flags in the core.
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
 ];
@@ -111,10 +119,13 @@ const LAYOUT_PARAM_CATALOG = {
   enums: {
     columnPacking: ["spread", "none", "compact"],
     deBandLevel: ["none", "subnet", "vpc", "region", "account", "provider"],
+    strataDeBand: ["none", "subnet", "vpc", "region", "account", "provider"],
   },
   enumNotes: {
     deBandLevel:
       "Dissolve the chosen container level AND every deeper level into one shared column stack (cascades downward). `none` = today's boxed layout (byte-identical).",
+    strataDeBand:
+      "layoutMode=strata only. Dissolve the chosen level + every deeper one at the model build (structure phase), so ordering/transpose/A7 re-run over the collapsed model. `none` = byte-identical. SUPPRESSED (scene meta strataToggleSuppressions, and strataDeBandLevel absent from meta) when the absorbing parent is still banded under strataBandDepth — `provider` absorbs into the root, pinned banded, so it is never applied.",
   },
   booleans: {
     compact: "detail: collapse clusters to a representative",

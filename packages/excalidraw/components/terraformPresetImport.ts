@@ -104,6 +104,10 @@ export type RunTerraformImportFromSourcesArgs = {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build (structure phase). Default "none" (byte-identical);
+   * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
   /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
    * Default off. */
   strataEdgeRouting?: boolean;
@@ -167,6 +171,7 @@ export const runTerraformImportWithView = async ({
   strataBlockClamp,
   strataTranspose,
   strataHeightGate,
+  strataDeBandLevel,
   strataEdgeRouting,
   strataBorderRoute,
   strataBandCompact,
@@ -233,6 +238,7 @@ export const runTerraformImportWithView = async ({
           strataBlockClamp,
           strataTranspose,
           strataHeightGate,
+          strataDeBandLevel,
           strataEdgeRouting,
           strataBorderRoute,
           strataBandCompact,
@@ -293,6 +299,10 @@ export type RunTerraformPresetImportOptions = {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build (structure phase). Default "none" (byte-identical);
+   * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
@@ -377,6 +387,7 @@ export const runTerraformPresetImport = async (
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
     strataHeightGate: options.strataHeightGate,
+    strataDeBandLevel: options.strataDeBandLevel,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBorderRoute: options.strataBorderRoute,
     strataBandCompact: options.strataBandCompact,

@@ -63,6 +63,11 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * frozen preset. It is the referee a phase-2 occupant-displacement relaxation
    * needs, not a height win today. */
   strataHeightGate: false,
+  /** OD-15 de-band ladder port: dissolve this hierarchy level and every deeper
+   * one at the Strata model build — probe lever, default `"none"` (byte-
+   * identical: `"none"` truncates no topology path). Plain string literal (not
+   * `DeBandLevel`) per the no-layout-import rule above. */
+  strataDeBandLevel: "none",
 } as const;
 
 /**
@@ -109,6 +114,15 @@ export const resolveStrataDemoOptions = (params: {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate. */
   strataHeightGate?: boolean;
+  /** OD-15 de-band ladder. Plain string union (not `DeBandLevel`) per the
+   * no-layout-import rule above — mirrors the engine's domain exactly. */
+  strataDeBandLevel?:
+    | "none"
+    | "subnet"
+    | "vpc"
+    | "region"
+    | "account"
+    | "provider";
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -171,6 +185,18 @@ export const resolveStrataDemoOptions = (params: {
     strataHeightGate:
       params.strataHeightGate ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate,
+    // De-band ladder: forward RAW and omit at the default `"none"` (never
+    // materialize a default own key). `"none"` is a TRUTHY string, so the
+    // explicit `!== "none"` compare is load-bearing — an `&&`-truthy gate would
+    // materialize the key on every default run, exactly as for the cut above.
+    ...((params.strataDeBandLevel ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataDeBandLevel) !== "none"
+      ? {
+          strataDeBandLevel:
+            params.strataDeBandLevel ??
+            TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataDeBandLevel,
+        }
+      : {}),
     strataCrossWeightPenetration:
       params.strataPenW ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration,

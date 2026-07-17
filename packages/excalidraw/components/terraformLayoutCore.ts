@@ -519,6 +519,9 @@ type LayoutSceneContext = {
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * sink-pull-in / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
+  /** OD-15 de-band: dissolve this hierarchy level and every deeper one at the
+   * Strata model build. Default `"none"` (byte-identical). */
+  strataDeBandLevel?: DeBandLevel;
   colorMode?: TerraformColorMode;
 };
 
@@ -640,6 +643,16 @@ async function buildPipelineLayoutSceneBody(
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
         strataHeightGate: ctx.strataHeightGate,
+        // OD-15 de-band — SEAM 2. This fan-in is a second silent-drop point the
+        // trap-#4 comment on the sceneContext literal does not mention: a key
+        // present there but missing HERE never reaches the builder, and this
+        // object is a `const` precisely to defeat TS's excess-property check, so
+        // the miss compiles green. Omit at the default/absent so no explicit
+        // `"none"` is ever carried in (byte-identity).
+        ...(ctx.strataDeBandLevel !== undefined &&
+        ctx.strataDeBandLevel !== "none"
+          ? { strataDeBandLevel: ctx.strataDeBandLevel }
+          : {}),
         strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
         strataCrossWeightEdge: ctx.strataCrossWeightEdge,
         // Optional-only forward: no default materialized (absent ⇒ engine
@@ -1229,6 +1242,14 @@ export async function layoutTerraformFromSources(
     strataBlockClamp: options?.strataBlockClamp === true,
     strataTranspose: options?.strataTranspose === true,
     strataHeightGate: options?.strataHeightGate === true,
+    // OD-15 de-band — SEAM 1 (this literal; see the trap-#4 note above). Omit at
+    // the default `"none"` / when absent, so the literal never materializes a
+    // default own key. `"none"` is a TRUTHY string: an `&&`-truthy gate here
+    // would change the sceneContext shape on every default run.
+    ...(options?.strataDeBandLevel !== undefined &&
+    options?.strataDeBandLevel !== "none"
+      ? { strataDeBandLevel: options.strataDeBandLevel }
+      : {}),
     strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
     strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
     // Optional-only forward: no default materialized (absent ⇒ engine
