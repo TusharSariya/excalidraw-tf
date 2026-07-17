@@ -24,10 +24,20 @@
  * now differs — the engine suppresses rankSeparate. That is an intended,
  * owner-adjudicated change (line 12 exclusion + line 14 "re-freeze the
  * measurement config at the new default"). The audit query is kept verbatim as a
- * historical parse/resolve fixture; the engine-geometry re-freeze is pinned (with
- * the owner cite) in the slow geometry-regression harness. The
- * `evaluateStrataRules` adjudication test below makes that suppression explicit
- * and testable here WITHOUT running the engine.
+ * historical parse/resolve fixture.
+ *
+ * WHAT IS AND IS NOT PINNED (honest status, 2026-07-17). The RESOLVE BAG for this
+ * audit query IS pinned byte-identical here (the parse/resolve test below). The
+ * audit-config GEOMETRY is NOT hash-pinned in any running harness: the only cell
+ * the quick geometry-regression harness pins is the cheap `strata-default` cell;
+ * the audit-config cells (audit-minus-deband / audit-with-deband-vpc) live in the
+ * EXCLUDED slow `*.probe.test.ts` and are deliberately left un-hashed. This audit
+ * config collapses NONDETERMINISTICALLY headless (the edge-collapse finding —
+ * scratchpad/overnight-20260717/logs/collapse-rootcause.md), so a geometry hash
+ * for it would be flaky; we do NOT force one. The `evaluateStrataRules`
+ * adjudication test below instead makes the rankSeparate suppression explicit and
+ * testable here WITHOUT running the engine — that is the load-bearing pin for the
+ * owner-adjudicated behavior change, not a geometry hash.
  */
 import { describe, expect, it } from "vitest";
 
@@ -126,7 +136,9 @@ describe("archived-URL corpus (c08 guards 2–3): every historical shape still p
   const CORPUS: ReadonlyArray<{
     label: string;
     query: string;
-    check: (p: NonNullable<ReturnType<typeof parseTerraformDemoUrlParams>>) => void;
+    check: (
+      p: NonNullable<ReturnType<typeof parseTerraformDemoUrlParams>>,
+    ) => void;
   }> = [
     {
       label: "rcll aliases laneRise/laneSplit/cycleRise",
@@ -158,7 +170,8 @@ describe("archived-URL corpus (c08 guards 2–3): every historical shape still p
       check: (p) => expect(p.strataRankSeparate).toBe(true),
     },
     {
-      label: "strataBandCompact legacy boolean (parses; folds to root downstream)",
+      label:
+        "strataBandCompact legacy boolean (parses; folds to root downstream)",
       query: "?preset=demo&view=strata&strataBandCompact=1",
       check: (p) => expect(p.strataBandCompact).toBe(true),
     },
@@ -198,7 +211,9 @@ describe("archived-URL corpus (c08 guards 2–3): every historical shape still p
   }
 
   it("legacy strataRankSep and full strataRankSeparate resolve identically", () => {
-    const a = parseTerraformDemoUrlParams("?preset=demo&view=strata&strataRankSep=1");
+    const a = parseTerraformDemoUrlParams(
+      "?preset=demo&view=strata&strataRankSep=1",
+    );
     const b = parseTerraformDemoUrlParams(
       "?preset=demo&view=strata&strataRankSeparate=1",
     );

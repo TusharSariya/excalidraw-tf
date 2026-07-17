@@ -50,8 +50,6 @@ export const TerraformStrataSettings = ({
   strataRankSeparate,
   strataPackedScoring,
   strataPackedScoringEpsilon,
-  strataPackedConverge,
-  strataTransitiveAdopt,
   strataBlockClamp,
   strataTranspose,
   strataHeightGate,
@@ -72,8 +70,6 @@ export const TerraformStrataSettings = ({
   setStrataRankSeparate,
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
-  setStrataPackedConverge,
-  setStrataTransitiveAdopt,
   setStrataBlockClamp,
   setStrataTranspose,
   setStrataHeightGate,
@@ -93,8 +89,6 @@ export const TerraformStrataSettings = ({
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
-  strataPackedConverge: boolean;
-  strataTransitiveAdopt: boolean;
   strataBlockClamp: boolean;
   strataTranspose: boolean;
   strataHeightGate: boolean;
@@ -122,8 +116,6 @@ export const TerraformStrataSettings = ({
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
-  setStrataPackedConverge: (packedConverge: boolean) => void;
-  setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
   setStrataHeightGate: (heightGate: boolean) => void;
@@ -488,33 +480,47 @@ export const TerraformStrataSettings = ({
                 </label>
               </div>
             </details>
-            <div role="group" aria-label="Strata compact pure-sink accounts">
-              <span className="TerraformImportModal__controlLabel">
-                Compact pure-sink accounts{" "}
-                <span>
-                  pull a whole dead-end account left toward the resources it
-                  depends on
+            {/* Advanced (owner-decisions.md 2026-07-17 declutter): niche
+                structural pass (A1 honest-null on P2), behind a collapsed
+                disclosure rather than the always-visible Standard surface. */}
+            <details className="TerraformImportModal__advancedDisclosure">
+              <summary
+                className="TerraformImportModal__advancedSummary"
+                aria-label="Advanced pure-sink packing"
+              >
+                Advanced: pure-sink packing
+              </summary>
+              <div role="group" aria-label="Strata compact pure-sink accounts">
+                <span className="TerraformImportModal__controlLabel">
+                  Compact pure-sink accounts{" "}
+                  <span>
+                    pull a whole dead-end account left toward the resources it
+                    depends on
+                  </span>
                 </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option("Off", !strataBlockClamp, "strata.blockclamp.off", () =>
-                  setStrataBlockClamp(false),
-                )}
-                {option("On", strataBlockClamp, "strata.blockclamp.on", () =>
-                  setStrataBlockClamp(true),
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataBlockClamp,
+                    "strata.blockclamp.off",
+                    () => setStrataBlockClamp(false),
+                  )}
+                  {option("On", strataBlockClamp, "strata.blockclamp.on", () =>
+                    setStrataBlockClamp(true),
+                  )}
+                </div>
+                {strataBlockClamp && !strataRankSeparate && (
+                  <div className="TerraformImportModal__couplingHint">
+                    <span aria-hidden="true">ⓘ</span>
+                    <span>
+                      Primarily useful with <strong>Compact height</strong>{" "}
+                      enabled — that pass is what strands whole accounts in the
+                      far-right columns for the clamp to pull back.
+                    </span>
+                  </div>
                 )}
               </div>
-              {strataBlockClamp && !strataRankSeparate && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Primarily useful with <strong>Compact height</strong>{" "}
-                    enabled — that pass is what strands whole accounts in the
-                    far-right columns for the clamp to pull back.
-                  </span>
-                </div>
-              )}
-            </div>
+            </details>
           </div>
           <TerraformStrataSettingsHeight
             option={option}
@@ -527,70 +533,84 @@ export const TerraformStrataSettings = ({
             strataDeBandLevel={strataDeBandLevel}
             strataPackedScoring={strataPackedScoring}
             strataPackedScoringEpsilon={strataPackedScoringEpsilon}
-            strataPackedConverge={strataPackedConverge}
-            strataTransitiveAdopt={strataTransitiveAdopt}
             setStrataRankSeparate={setStrataRankSeparate}
             setStrataHeightGate={setStrataHeightGate}
             setStrataBandDepth={setStrataBandDepth}
             setStrataDeBandLevel={setStrataDeBandLevel}
             setStrataPackedScoring={setStrataPackedScoring}
             setStrataPackedScoringEpsilon={setStrataPackedScoringEpsilon}
-            setStrataPackedConverge={setStrataPackedConverge}
-            setStrataTransitiveAdopt={setStrataTransitiveAdopt}
           />
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">
               Edges
             </div>
-            <div role="group" aria-label="Strata edge routing">
-              <span className="TerraformImportModal__controlLabel">
-                Route edges around boxes{" "}
-                <span>
-                  detour arrows that would tunnel through unrelated boxes
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option(
-                  "Off",
-                  !strataEdgeRouting,
-                  "strata.edgerouting.off",
-                  () => setStrataEdgeRouting(false),
-                )}
-                {option("On", strataEdgeRouting, "strata.edgerouting.on", () =>
-                  setStrataEdgeRouting(true),
-                )}
-              </div>
-            </div>
-            <div role="group" aria-label="Strata container-exit routing">
-              <span className="TerraformImportModal__controlLabel">
-                Exit containers through the nearest side{" "}
-                <span>
-                  route an edge leaving its own container out the facing side
-                  instead of slashing diagonally across the interior
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option(
-                  "Off",
-                  !strataBorderRoute,
-                  "strata.borderroute.off",
-                  () => setStrataBorderRoute(false),
-                )}
-                {option("On", strataBorderRoute, "strata.borderroute.on", () =>
-                  setStrataBorderRoute(true),
-                )}
-              </div>
-              {strataBorderRoute && strataEdgeRouting && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
+            {/* Advanced (owner-decisions.md 2026-07-17): edge routing is a niche
+                +192cr/−140pierce trade (SDEC-61 closed-adverse), so both edge
+                passes live behind a collapsed disclosure — off the always-visible
+                Standard surface. */}
+            <details className="TerraformImportModal__advancedDisclosure">
+              <summary
+                className="TerraformImportModal__advancedSummary"
+                aria-label="Advanced edge routing"
+              >
+                Advanced: edge routing
+              </summary>
+              <div role="group" aria-label="Strata edge routing">
+                <span className="TerraformImportModal__controlLabel">
+                  Route edges around boxes{" "}
                   <span>
-                    Composes with <strong>Route edges around boxes</strong> —
-                    they rewrite disjoint edge sets (own-container exits vs
-                    detours around unrelated boxes) and run in sequence.
+                    detour arrows that would tunnel through unrelated boxes
                   </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataEdgeRouting,
+                    "strata.edgerouting.off",
+                    () => setStrataEdgeRouting(false),
+                  )}
+                  {option(
+                    "On",
+                    strataEdgeRouting,
+                    "strata.edgerouting.on",
+                    () => setStrataEdgeRouting(true),
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+              <div role="group" aria-label="Strata container-exit routing">
+                <span className="TerraformImportModal__controlLabel">
+                  Exit containers through the nearest side{" "}
+                  <span>
+                    route an edge leaving its own container out the facing side
+                    instead of slashing diagonally across the interior
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataBorderRoute,
+                    "strata.borderroute.off",
+                    () => setStrataBorderRoute(false),
+                  )}
+                  {option(
+                    "On",
+                    strataBorderRoute,
+                    "strata.borderroute.on",
+                    () => setStrataBorderRoute(true),
+                  )}
+                </div>
+                {strataBorderRoute && strataEdgeRouting && (
+                  <div className="TerraformImportModal__couplingHint">
+                    <span aria-hidden="true">ⓘ</span>
+                    <span>
+                      Composes with <strong>Route edges around boxes</strong> —
+                      they rewrite disjoint edge sets (own-container exits vs
+                      detours around unrelated boxes) and run in sequence.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </details>
           </div>
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">

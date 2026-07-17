@@ -5,14 +5,20 @@
  * legacy aliases, resolved option key, default, value kind, UI surface
  * (basic / advanced / hidden / engine-only), and share-URL emission class.
  *
- * SCOPE (C19): this is a REVIEWED DESCRIPTION of today's surface, not yet a
- * wired consumer. Nothing reads it yet — the parser, the panel IA, the
- * share-URL emitter, the proof-API `?describe` catalog, and the dependency-rule
- * module all still maintain their own hand-kept lists. The `surface`
- * (basic/advanced/hidden) column is therefore METADATA ONLY: it does NOT hide
- * or disclose any control today. The intent is that these sites eventually read
- * this table so an option's disposition is stated exactly once; wiring them
- * (replacing the hand-maintained lists) is the incremental follow-up.
+ * SCOPE (C19 + owner-decisions.md 2026-07-17): this is a REVIEWED DESCRIPTION
+ * of today's surface, still NOT a wired consumer. Nothing reads this table yet —
+ * the parser, the panel IA, the share-URL emitter, the proof-API `?describe`
+ * catalog, and the dependency-rule module all still maintain their own hand-kept
+ * lists. The panel now DOES implement a basic/advanced disclosure split (the
+ * 2026-07-17 declutter: edgeRouting, borderRoute, blockClamp, and heightGate
+ * moved into collapsed advanced `<details>` disclosures; packedConverge and
+ * transitiveAdopt controls removed entirely), but that split is HAND-CODED in
+ * `TerraformStrataSettings.tsx` / `TerraformStrataSettingsHeight.tsx` — it merely
+ * AGREES with the `surface` column below, it is not driven by it. So the
+ * `surface` column remains METADATA that this table does not itself enforce. The
+ * intent is that these sites eventually read this table so an option's
+ * disposition is stated exactly once; wiring the panel to consume this column
+ * (replacing the hand-maintained static split) is the incremental follow-up.
  *
  * Because it must survive that rewire byte-identically, every row's `default`
  * and `emitClass` are pinned to the LIVE resolver/serializer (the anti-drift
@@ -30,8 +36,10 @@
  *   C4 = parse-only legacy alias (parser accepts forever; emitter never writes)
  *
  * Surface:
- *   basic       = visible on the primary strata panel
- *   advanced    = behind `advanced=1` disclosure
+ *   basic       = visible on the primary (Standard) strata panel surface
+ *   advanced    = behind a collapsed advanced `<details>` disclosure in the panel
+ *                 (a hand-coded static split today; there is no `advanced=1` URL
+ *                 flag — the disclosure is always present, just collapsed)
  *   hidden      = URL/session-threaded, no UI control (parser keeps it forever)
  *   engine-only = never a URL/UI option (harness/internal)
  */
@@ -155,7 +163,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "advanced",
     emitClass: "C2",
     decidedNow: true,
-    note: "M2 'Route edges' with borderRoute; owner-decisions.md 2026-07-17: ADVANCED-ONLY (SDEC-61 closed-adverse +192cr/−140pierce); moved into the advanced=1 disclosure",
+    note: "M2 'Route edges' with borderRoute; owner-decisions.md 2026-07-17: ADVANCED-ONLY (SDEC-61 closed-adverse +192cr/−140pierce). SHIPPED: the 'Route edges around boxes' control now renders inside the panel's collapsed 'Advanced: edge routing' <details> disclosure (with borderRoute) — off the always-visible Standard surface",
   },
   {
     urlParam: "strataBorderRoute",
@@ -165,7 +173,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "advanced",
     emitClass: "C2",
     decidedNow: false,
-    note: "M2 'Route edges'; composes with edgeRouting; parses independently forever",
+    note: "M2 'Route edges'; composes with edgeRouting; owner-decisions.md 2026-07-17 declutter: SHIPPED into the same collapsed 'Advanced: edge routing' <details> disclosure as edgeRouting; parses independently forever",
   },
   {
     urlParam: "strataBandCompact",
@@ -259,7 +267,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "hidden",
     emitClass: "C2",
     decidedNow: true,
-    note: "owner-decisions.md 2026-07-17: REMOVED/LEGACY — byte-identical no-op (matrix-inert). UI control removed; parser keeps accepting the legacy param as an inert no-op for old URLs (never errors)",
+    note: "owner-decisions.md 2026-07-17: REMOVED/LEGACY — byte-identical no-op (matrix-inert). SHIPPED: the 'Keep best order found' control is deleted from TerraformStrataSettingsHeight.tsx; the state still round-trips (useTerraformImportDialog) and the parser keeps accepting the legacy param as an inert no-op for old URLs (never errors)",
   },
   {
     urlParam: "strataTransitiveAdopt",
@@ -269,7 +277,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "hidden",
     emitClass: "C2",
     decidedNow: true,
-    note: "owner-decisions.md 2026-07-17: REMOVED/LEGACY — byte-identical no-op (wasted ~8.6s/layout). UI control removed; parser keeps accepting the legacy param as an inert no-op for old URLs (never errors)",
+    note: "owner-decisions.md 2026-07-17: REMOVED/LEGACY — byte-identical no-op (wasted ~8.6s/layout). SHIPPED: the 'Stable adoption rule' control is deleted from TerraformStrataSettingsHeight.tsx; the state still round-trips (useTerraformImportDialog) and the parser keeps accepting the legacy param as an inert no-op for old URLs (never errors)",
   },
   {
     urlParam: "strataBlockClamp",
@@ -279,7 +287,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "advanced",
     emitClass: "C2",
     decidedNow: true,
-    note: "KEPT in advanced: A1 changed its behavior post-matrix (snap fix, honest-null on P2); delete-from-UI slot no longer decidable",
+    note: "advanced: A1 changed its behavior post-matrix (snap fix, honest-null on P2); delete-from-UI slot no longer decidable. owner-decisions.md 2026-07-17 declutter: SHIPPED — 'Compact pure-sink accounts' moved out of the always-visible Readability surface into a collapsed 'Advanced: pure-sink packing' <details> disclosure",
   },
   {
     urlParam: "strataTranspose",
@@ -299,7 +307,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "advanced",
     emitClass: "C2",
     decidedNow: true,
-    note: "single consumer = blockClamp; measured inert; hidden to advanced (delete-from-UI is matrix cell M3a)",
+    note: "single consumer = blockClamp; measured inert; delete-from-UI is matrix cell M3a. owner-decisions.md 2026-07-17 declutter: SHIPPED — 'Keep containers from growing taller' moved out of the always-visible Height & packing surface into a collapsed 'Advanced: height gate' <details> disclosure",
   },
   {
     urlParam: "strataLeafShift",

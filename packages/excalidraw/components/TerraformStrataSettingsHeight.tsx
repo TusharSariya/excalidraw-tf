@@ -102,16 +102,12 @@ export const TerraformStrataSettingsHeight = ({
   strataDeBandLevel,
   strataPackedScoring,
   strataPackedScoringEpsilon,
-  strataPackedConverge,
-  strataTransitiveAdopt,
   setStrataRankSeparate,
   setStrataHeightGate,
   setStrataBandDepth,
   setStrataDeBandLevel,
   setStrataPackedScoring,
   setStrataPackedScoringEpsilon,
-  setStrataPackedConverge,
-  setStrataTransitiveAdopt,
 }: {
   /** The parent's segmented-button factory — a closure over its hover/sticky
    * help state, passed down so this section drives the same shared panel. */
@@ -132,16 +128,12 @@ export const TerraformStrataSettingsHeight = ({
   strataDeBandLevel: DeBandLevel;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
-  strataPackedConverge: boolean;
-  strataTransitiveAdopt: boolean;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
   setStrataHeightGate: (heightGate: boolean) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
   setStrataPackedScoring: (packedScoring: boolean) => void;
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
-  setStrataPackedConverge: (packedConverge: boolean) => void;
-  setStrataTransitiveAdopt: (transitiveAdopt: boolean) => void;
 }) => {
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
   // Mirror of the engine's own gate (same predicate, imported — not re-derived)
@@ -185,42 +177,58 @@ export const TerraformStrataSettingsHeight = ({
           })}
         </div>
       </div>
-      <div role="group" aria-label="Strata keep containers from growing taller">
-        <span className="TerraformImportModal__controlLabel">
-          Keep containers from growing taller{" "}
-          <span>
-            check each clamp move against every container it touches, and keep
-            it only if nothing ends up taller
+      {/* Advanced (owner-decisions.md 2026-07-17 declutter): the height gate is
+          inert groundwork with a single consumer (block clamp), so it lives
+          behind a collapsed disclosure rather than the always-visible Standard
+          surface. */}
+      <details className="TerraformImportModal__advancedDisclosure">
+        <summary
+          className="TerraformImportModal__advancedSummary"
+          aria-label="Advanced height gate"
+        >
+          Advanced: height gate
+        </summary>
+        <div
+          role="group"
+          aria-label="Strata keep containers from growing taller"
+        >
+          <span className="TerraformImportModal__controlLabel">
+            Keep containers from growing taller{" "}
+            <span>
+              check each clamp move against every container it touches, and keep
+              it only if nothing ends up taller
+            </span>
           </span>
-        </span>
-        <div className="TerraformImportModal__segmentedControl">
-          {option("Off", !strataHeightGate, "strata.heightgate.off", () =>
-            setStrataHeightGate(false),
+          <div className="TerraformImportModal__segmentedControl">
+            {option("Off", !strataHeightGate, "strata.heightgate.off", () =>
+              setStrataHeightGate(false),
+            )}
+            {option("On", strataHeightGate, "strata.heightgate.on", () =>
+              setStrataHeightGate(true),
+            )}
+          </div>
+          {strataHeightGate && !heightGateMoversActive && (
+            <div className="TerraformImportModal__couplingHint">
+              <span aria-hidden="true">ⓘ</span>
+              <span>
+                Does nothing on its own — turn on{" "}
+                <strong>Compact pure-sink accounts</strong>, the pass it
+                referees.
+              </span>
+            </div>
           )}
-          {option("On", strataHeightGate, "strata.heightgate.on", () =>
-            setStrataHeightGate(true),
+          {strataHeightGate && heightGateMoversActive && (
+            <div className="TerraformImportModal__couplingHint">
+              <span aria-hidden="true">ⓘ</span>
+              <span>
+                Usually no visible change: nothing yet makes a container taller,
+                so this check rarely has anything to catch. Mainly groundwork
+                for a later pass.
+              </span>
+            </div>
           )}
         </div>
-        {strataHeightGate && !heightGateMoversActive && (
-          <div className="TerraformImportModal__couplingHint">
-            <span aria-hidden="true">ⓘ</span>
-            <span>
-              Does nothing on its own — turn on{" "}
-              <strong>Compact pure-sink accounts</strong>, the pass it referees.
-            </span>
-          </div>
-        )}
-        {strataHeightGate && heightGateMoversActive && (
-          <div className="TerraformImportModal__couplingHint">
-            <span aria-hidden="true">ⓘ</span>
-            <span>
-              Usually no visible change: nothing yet makes a container taller,
-              so this check rarely has anything to catch. Mainly groundwork for
-              a later pass.
-            </span>
-          </div>
-        )}
-      </div>
+      </details>
       <div role="group" aria-label="Strata band depth">
         <span className="TerraformImportModal__controlLabel">
           Band depth{" "}
@@ -411,68 +419,14 @@ export const TerraformStrataSettingsHeight = ({
           </select>
         </div>
       )}
-      {strataPackedScoring && (
-        <div role="group" aria-label="Strata keep best order found">
-          <span className="TerraformImportModal__controlLabel">
-            Keep best order found{" "}
-            <span>
-              return the best order the packed scorer found, not the last one it
-              tried
-            </span>
-          </span>
-          <div className="TerraformImportModal__segmentedControl">
-            {option("Off", !strataPackedConverge, "strata.converge.off", () =>
-              setStrataPackedConverge(false),
-            )}
-            {option("On", strataPackedConverge, "strata.converge.on", () =>
-              setStrataPackedConverge(true),
-            )}
-          </div>
-          {strataPackedConverge && strataPackedScoringEpsilon === 0 && (
-            <div
-              className="TerraformImportModal__dependencyHint"
-              role="status"
-              aria-live="polite"
-            >
-              <span aria-hidden="true">ⓘ</span>
-              <span>
-                Only changes the layout when the{" "}
-                <strong>crossing budget (ε)</strong> is 1 or more.
-              </span>
-              <button
-                type="button"
-                className="TerraformImportModal__dependencyHintAction"
-                onClick={() => setStrataPackedScoringEpsilon(1)}
-              >
-                Set ε to 1
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      {strataPackedScoring && (
-        <div role="group" aria-label="Strata stable adoption order">
-          <span className="TerraformImportModal__controlLabel">
-            Stable adoption rule{" "}
-            <span>
-              compare layouts with one strict order so the scorer can't accept a
-              layout then drop it for a worse one (fixes rare oscillation;
-              experimental)
-            </span>
-          </span>
-          <div className="TerraformImportModal__segmentedControl">
-            {option(
-              "Off",
-              !strataTransitiveAdopt,
-              "strata.transitive.off",
-              () => setStrataTransitiveAdopt(false),
-            )}
-            {option("On", strataTransitiveAdopt, "strata.transitive.on", () =>
-              setStrataTransitiveAdopt(true),
-            )}
-          </div>
-        </div>
-      )}
+      {/* 'Keep best order found' (strataPackedConverge) and 'Stable adoption
+          rule' (strataTransitiveAdopt) were REMOVED from the panel
+          (owner-decisions.md 2026-07-17): both are byte-identical no-ops
+          (transitiveAdopt also wasted ~8.6s/layout) and their packedScoring
+          render-gate is now default-ON, so they would render for every user.
+          The URL parser + preset bridge keep accepting the legacy params as
+          inert no-ops for old URLs (state still round-trips in
+          useTerraformImportDialog); only the controls are gone. */}
       {/* The former W8 "Measured to conflict … prefer one or the other" advisory
           is gone: rankSeparate × packedScoring is now a HARD exclusion enforced
           at both toggle handlers (owner-decisions.md 2026-07-17 line 12), so the

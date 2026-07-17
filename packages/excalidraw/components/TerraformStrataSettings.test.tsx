@@ -27,8 +27,6 @@ const baseProps = (): Props => ({
   strataRankSeparate: false,
   strataPackedScoring: false,
   strataPackedScoringEpsilon: 0,
-  strataPackedConverge: false,
-  strataTransitiveAdopt: false,
   strataBlockClamp: false,
   strataTranspose: false,
   strataHeightGate: false,
@@ -49,8 +47,6 @@ const baseProps = (): Props => ({
   setStrataRankSeparate: vi.fn(),
   setStrataPackedScoring: vi.fn(),
   setStrataPackedScoringEpsilon: vi.fn(),
-  setStrataPackedConverge: vi.fn(),
-  setStrataTransitiveAdopt: vi.fn(),
   setStrataBlockClamp: vi.fn(),
   setStrataTranspose: vi.fn(),
   setStrataHeightGate: vi.fn(),
@@ -126,15 +122,48 @@ describe("TerraformStrataSettings DOM identity", () => {
   });
 
   it("renders the packed scoring sub-controls and the epsilon dependency hint", () => {
-    // packedScoring on reveals epsilon + converge + transitive; converge on with
-    // epsilon 0 adds the "Set ε to 1" dependency hint.
+    // packedScoring on reveals the epsilon crossing-budget control. The former
+    // 'Keep best order found' (packedConverge) and 'Stable adoption rule'
+    // (transitiveAdopt) sub-controls were REMOVED from the panel
+    // (owner-decisions.md 2026-07-17 — byte-identical no-ops); see the explicit
+    // absence guard below.
     const { container } = renderPanel({
       strataPackedScoring: true,
       strataPackedScoringEpsilon: 0,
-      strataPackedConverge: true,
-      strataTransitiveAdopt: true,
     });
     expect(container.innerHTML).toMatchSnapshot();
+  });
+
+  it("does NOT render the removed no-op controls even with packed scoring on", () => {
+    // owner-decisions.md 2026-07-17: 'Keep best order found' (strataPackedConverge)
+    // and 'Stable adoption rule' (strataTransitiveAdopt) are byte-identical no-ops
+    // and were deleted from the panel. Their packedScoring render-gate is now
+    // default-ON, so their absence must hold in the packedScoring-on state.
+    renderPanel({ strataPackedScoring: true, strataPackedScoringEpsilon: 1 });
+    expect(screen.queryByText(/Keep best order found/i)).toBeNull();
+    expect(screen.queryByText(/Stable adoption rule/i)).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Strata keep best order found" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Strata stable adoption order" }),
+    ).toBeNull();
+  });
+
+  it("keeps edge routing off the always-visible Standard surface (advanced disclosure)", () => {
+    // owner-decisions.md 2026-07-17: 'Route edges around boxes' (strataEdgeRouting)
+    // is advanced-only. It still renders (inside a collapsed <details>) so its URL
+    // param round-trips, but it must sit within an advanced disclosure, not the
+    // Standard flow.
+    renderPanel();
+    const edgeGroup = screen.getByRole("group", {
+      name: "Strata edge routing",
+    });
+    expect(edgeGroup.closest("details")).not.toBeNull();
+    const disclosure = edgeGroup.closest("details");
+    expect(
+      within(disclosure as HTMLElement).getByText(/Advanced: edge routing/i),
+    ).toBeTruthy();
   });
 
   it("renders a custom epsilon option carried in from a URL", () => {
@@ -165,8 +194,6 @@ describe("TerraformStrataSettings DOM identity", () => {
       strataRankSeparate: true,
       strataPackedScoring: true,
       strataPackedScoringEpsilon: 2,
-      strataPackedConverge: true,
-      strataTransitiveAdopt: true,
       strataBlockClamp: true,
       strataTranspose: true,
       strataHeightGate: true,

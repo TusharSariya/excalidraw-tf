@@ -75,8 +75,6 @@ export const TerraformImportModal = ({
     strataRankSeparate,
     strataPackedScoring,
     strataPackedScoringEpsilon,
-    strataPackedConverge,
-    strataTransitiveAdopt,
     strataBlockClamp,
     strataTranspose,
     strataHeightGate,
@@ -657,8 +655,6 @@ terraform show -json tfplan > plan.json`}</code>
               strataRankSeparate={strataRankSeparate}
               strataPackedScoring={strataPackedScoring}
               strataPackedScoringEpsilon={strataPackedScoringEpsilon}
-              strataPackedConverge={strataPackedConverge}
-              strataTransitiveAdopt={strataTransitiveAdopt}
               strataBlockClamp={strataBlockClamp}
               strataTranspose={strataTranspose}
               strataHeightGate={strataHeightGate}
@@ -683,8 +679,6 @@ terraform show -json tfplan > plan.json`}</code>
               setStrataPackedScoringEpsilon={
                 dialog.setStrataPackedScoringEpsilon
               }
-              setStrataPackedConverge={dialog.setStrataPackedConverge}
-              setStrataTransitiveAdopt={dialog.setStrataTransitiveAdopt}
               setStrataBlockClamp={dialog.setStrataBlockClamp}
               setStrataTranspose={dialog.setStrataTranspose}
               setStrataHeightGate={dialog.setStrataHeightGate}
