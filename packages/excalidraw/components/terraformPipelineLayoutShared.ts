@@ -1289,7 +1289,7 @@ export function ancillaryStripFrameId(scopeKey: string): string {
   return `tf-pipeline:ancillaryStrip:${encodeURIComponent(scopeKey)}`;
 }
 
-function ancillaryStripRows(
+export function ancillaryStripRows(
   strip: AncillaryStrip,
   wrapWidth: number,
 ): {
