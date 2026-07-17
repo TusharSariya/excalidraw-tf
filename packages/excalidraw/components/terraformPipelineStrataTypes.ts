@@ -18,9 +18,13 @@ import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 export type StrataEngineOptions = {
   compact: boolean;
   /**
-   * NOT consumed in M1 (ancillary strips port at M3) — when requested, the
-   * scene meta echoes `strataAncillaryDeferred: true` (honest-meta pattern,
-   * SDEC-26/SDEC-29); never silently ignored.
+   * "All resources": hydrate non-TFD resources as per-scope "Unconnected" bands.
+   *
+   * Consumed POST-LAYOUT (terraformPipelineStrataAncillary.ts), never in-model:
+   * the engine runs on a model with no ancillary in it and bands are injected
+   * into the finished placement. That routes around all three SDEC-29 blockers
+   * (rank pile-up, the global `columnWidths`, the closed `StrataUnit` union),
+   * each of which blocks an IN-MODEL port only.
    */
   includeAncillary: boolean;
   /** OD-1: network-simplex rank refinement behind the pure gate (A/B arm). */
@@ -438,6 +442,10 @@ export type StrataDegradedMeta = {
     | "a0"
     | "a2"
     | "a7"
+    /** Post-A7 ancillary band injection (opt-in; only reachable under
+     * `includeAncillary`). A failed band is NOT a failed layout — the engine
+     * drops the bands and keeps the strata scene rather than degrading to v2. */
+    | "ancillary"
     | "finalize"
     | "scene-build"
     | "structural-check";

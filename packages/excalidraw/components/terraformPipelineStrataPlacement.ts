@@ -56,11 +56,18 @@ import type {
 // dispatch), so at module-init time the LayoutShared constants can still be
 // uninitialized (undefined ⇒ a module-level `PAD * 2` freezes as NaN — a real,
 // test-caught failure). Call-time reads always see the initialized bindings.
-/** Title strip reserved at the top of a hull box (v3.1-frozen HULL_TITLE_BAND). */
-const strataTitleReserve = (): number => PIPELINE_FRAME_PAD * 2;
+/** Title strip reserved at the top of a hull box (v3.1-frozen HULL_TITLE_BAND).
+ * Exported for the ancillary band re-stack (terraformPipelineStrataAncillary.ts),
+ * which must reproduce this hull's top inset EXACTLY rather than re-derive it. */
+export const strataTitleReserve = (): number => PIPELINE_FRAME_PAD * 2;
 
 /** A rectangle already occupied in a hull's local frame (for geometric drop). */
-type SkylineRect = { x0: number; x1: number; y1: number; isHull: boolean };
+export type SkylineRect = {
+  x0: number;
+  x1: number;
+  y1: number;
+  isHull: boolean;
+};
 
 /**
  * Stacked gap between two blocks: wide if either is a framed hull.
@@ -80,8 +87,13 @@ function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
  * hull/leaf stacked gap). Monotone downward, no gap back-fill (OD-6). Strata's
  * own copy of the Pack.ts:137-208 skyline geometry (no coupling to V2Pack's Block
  * machinery, D3′).
+ *
+ * Exported for the ancillary band re-stack (terraformPipelineStrataAncillary.ts):
+ * growing a hull to host a band forces its siblings to re-settle, and that
+ * re-settle MUST use this exact rule — a private re-implementation there would be
+ * a second copy of the skyline free to drift from this one.
  */
-function dropY(
+export function dropY(
   rects: readonly SkylineRect[],
   x0: number,
   x1: number,

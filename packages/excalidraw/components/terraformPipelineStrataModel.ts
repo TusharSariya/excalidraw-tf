@@ -261,8 +261,10 @@ function buildStrataEdges(
  * first engine phase). `strataBandDepth` and `strataDeBandLevel` ARE consumed
  * here — both rewrite the hull tree, and this is the STRUCTURE phase, so rank /
  * ordering / placement / A7 / transpose all re-run over the resulting model. The
- * rest is not: `compact` is already reflected in the prep skeleton sizes and
- * `includeAncillary` is deferred to the M3 port (honest-meta echo, SDEC-26).
+ * rest is not: `compact` is already reflected in the prep skeleton sizes, and
+ * `includeAncillary` is deliberately NOT read here — ancillary is injected
+ * POST-LAYOUT (terraformPipelineStrataAncillary.ts), and this model staying
+ * ancillary-free is precisely what routes around the three SDEC-29 blockers.
  * Deterministic: same prep ⇒ deeply equal hull tree + edge set (only object
  * identity of `addressOf` differs).
  */

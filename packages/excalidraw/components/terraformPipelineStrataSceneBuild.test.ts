@@ -588,16 +588,38 @@ describe("buildTerraformStrataExcalidrawScene — P11 failure contract", () => {
   );
 
   it(
-    "includeAncillary is deferred (extraction-free M1) and echoed honestly",
+    "includeAncillary injects real ancillary bands (no longer deferred)",
     async () => {
       const { nodes, plan } = loadNodes(preset);
       const scene = await buildTerraformStrataExcalidrawScene(nodes, plan, {
         compact: true,
         includeAncillary: true,
       });
-      expect(scene.meta.strataAncillaryDeferred).toBe(true);
+      // The deferral is GONE — the flag now reaches the engine and does work.
+      expect(scene.meta.strataAncillaryDeferred).toBeUndefined();
       expect(scene.meta.rcllV2Degraded).toBeUndefined();
+      // A failed band drops the bands and keeps the strata scene, so this key
+      // being absent is what proves the injection actually succeeded rather than
+      // silently no-op'ing.
+      expect(scene.meta.strataAncillaryDegraded).toBeUndefined();
+      expect(scene.meta.pipelineIncludeAncillary).toBe(true);
+      expect(scene.meta.pipelineAncillaryCount).toBeGreaterThan(0);
+      expect(scene.meta.strataAncillaryBandCount).toBeGreaterThan(0);
+      // §3g — bands are invisible to `checkStrataStructure`; this is the only
+      // check that sees them, and any nonzero count is a failure.
+      expect(scene.meta.strataAncillaryContainment).toEqual({
+        bandEscapesHost: 0,
+        bandOverlaps: 0,
+        bandTitleCollisions: 0,
+      });
       expect(scene.elements.length).toBeGreaterThan(0);
+      // §3h anti-landmine: the bands actually DREW something.
+      expect(
+        scene.elements.some(
+          (el: ExcalidrawElement) =>
+            (el as unknown as { name?: string }).name === "Unconnected",
+        ),
+      ).toBe(true);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );

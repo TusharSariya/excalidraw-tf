@@ -19,6 +19,15 @@ import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelo
 import { transposeStrataColumns } from "./terraformPipelineStrataTranspose";
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
+import {
+  buildAncillaryStrips,
+  countAncillaryCards,
+} from "./terraformPipelineLayoutAncillary";
+import {
+  checkStrataAncillaryContainment,
+  injectStrataAncillaryBands,
+  type StrataAncillaryBand,
+} from "./terraformPipelineStrataAncillary";
 import { strataDeBandFeasible } from "./terraformPipelineStrataTypes";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
@@ -259,11 +268,15 @@ export type TerraformStrataSceneOptions = {
  * same HTTP-400 every pipeline variant raises, and the v2 fallback would only
  * re-throw it; degenerate-input coverage is a loud-failure contract.
  *
- * Ancillary is deferred at M1 (the engine path is extraction-free): when
- * `includeAncillary` is requested the engine builds WITHOUT ancillary and echoes
- * `strataAncillaryDeferred: true` (honest-meta, SDEC-26/29). `strataCoordinate-
- * Refine` (A7) runs the per-hull Y refinement between placement and scene build
- * when set; its meta echo is kept regardless. Default off.
+ * Ancillary ("All resources") is honored POST-LAYOUT: the model is still built
+ * WITHOUT ancillary — that is exactly what routes around SDEC-29's three
+ * blockers (rank pile-up, the global `columnWidths`, the closed `StrataUnit`
+ * union), all of which block an IN-MODEL port only — and bands are injected into
+ * the finished placement as the last geometry stage
+ * (terraformPipelineStrataAncillary.ts). A failed band drops the bands and keeps
+ * the strata scene; it never degrades the layout to v2. `strataCoordinateRefine`
+ * (A7) runs the per-hull Y refinement between placement and scene build when set;
+ * its meta echo is kept regardless. Default off.
  */
 export async function buildTerraformStrataExcalidrawScene(
   nodes: TerraformPlanNodesMap,
@@ -421,7 +434,6 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataToggleSuppressions.length > 0
       ? { strataToggleSuppressions }
       : {}),
-    ...(includeAncillary ? { strataAncillaryDeferred: true } : {}),
   };
 
   // Build prep ONCE — same invocation shape as the v2 builder's internal call so
@@ -432,9 +444,11 @@ export async function buildTerraformStrataExcalidrawScene(
 
   const engineOptions = {
     compact,
-    // M1 is extraction-free: never thread ancillary into the engine — it is
-    // echoed as deferred, not silently ignored.
-    includeAncillary: false,
+    // Ancillary is honored POST-LAYOUT (see the injection stage below): the
+    // engine still builds its model WITHOUT ancillary — that is what routes
+    // around all three SDEC-29 blockers — but the flag is no longer hardcoded
+    // false and deferred.
+    includeAncillary,
     networkSimplexRank: strataNetworkSimplexRank,
     rankSeparate: strataRankSeparate,
     sweeps: strataSweeps,
@@ -672,6 +686,81 @@ export async function buildTerraformStrataExcalidrawScene(
       );
     }
 
+    // Ancillary ("All resources") band injection — the LAST geometry stage,
+    // deliberately placed here (plan §3d):
+    //  - NOT earlier: A7/relocate/transpose/blockClamp move geometry and score
+    //    over model UNITS. Bands aren't units (that is the point). They would
+    //    either ignore bands and move hulls out from under them, or need to know
+    //    about bands — resurrecting SDEC-29's closed-union blocker across ~25
+    //    sites.
+    //  - BEFORE the structural check, deliberately: `checkStrataStructure`
+    //    re-validates all model-entry geometry post-growth for free.
+    //  - STATED COST: bands get no crossing-min, no height gate, no compaction.
+    //    They are invisible to every optimizer and can create a tall dead zone no
+    //    pass reclaims. Accepted scope; the §3o allocator is the lever that
+    //    reclaims it and is a separate, gated commit.
+    // Flag-off ⇒ the module is never called and no strips are built
+    // (byte-identical, and none of the ~14-30s strip build is paid).
+    let ancillaryBands: ReadonlyMap<string, StrataAncillaryBand> | undefined;
+    let ancillaryMeta: Record<string, unknown> = {};
+    if (includeAncillary) {
+      stage = "ancillary";
+      gate("ancillary");
+      // A failed band is NOT a failed layout: never degrade the whole scene to
+      // v2 over one: drop the bands, keep the strata scene, echo the reason
+      // (honest-meta). This catch is INSIDE the engine's outer try on purpose.
+      try {
+        const strips = buildAncillaryStrips(nodes, plan, prep, { compact });
+        const injected = injectStrataAncillaryBands({
+          model,
+          placement,
+          strips,
+        });
+        // §3g — bands are INVISIBLE to `checkStrataStructure` (it walks the
+        // model). Without this check a band/leaf overlap is silent, green and
+        // invisible — the exact `skeleton: []` failure class, and precisely the
+        // "unreserved-space failure" that made the measured dead end emit 90
+        // collisions. Any nonzero count is a failure.
+        const containment = checkStrataAncillaryContainment(
+          injected.bands,
+          injected.placement,
+          model,
+        );
+        if (
+          containment.bandEscapesHost > 0 ||
+          containment.bandOverlaps > 0 ||
+          containment.bandTitleCollisions > 0
+        ) {
+          throw new Error(
+            `ancillary containment failed: ${JSON.stringify(containment)}`,
+          );
+        }
+        placement = injected.placement;
+        ancillaryBands = injected.bands.size > 0 ? injected.bands : undefined;
+        ancillaryMeta = {
+          pipelineIncludeAncillary: true,
+          pipelineAncillaryCount: countAncillaryCards(strips),
+          pipelineAncillaryStripCount: strips.length,
+          strataAncillaryBandCount: injected.bands.size,
+          strataAncillaryNestDepthMax: injected.maxNestDepth,
+          strataAncillaryRelocatedStripCount: injected.relocatedStripCount,
+          strataAncillaryContainment: containment,
+          ...(injected.hostWidenedCount > 0
+            ? { strataAncillaryHostWidenedCount: injected.hostWidenedCount }
+            : {}),
+        };
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        // eslint-disable-next-line no-console
+        console.warn(`[strata] ancillary bands dropped: ${reason}`);
+        ancillaryBands = undefined;
+        ancillaryMeta = {
+          pipelineIncludeAncillary: true,
+          strataAncillaryDegraded: { reason },
+        };
+      }
+    }
+
     stage = "scene-build";
     gate("scene-build");
     const scene = await buildStrataScene({
@@ -680,6 +769,11 @@ export async function buildTerraformStrataExcalidrawScene(
       placement,
       nodes,
       generation: strataGeneration,
+      // Ancillary bands: the key rides only when at least one band exists, so
+      // the flag-off input literal (and the scene build) stay byte-identical —
+      // and a host with zero ancillary cards emits no band at all rather than an
+      // empty "Unconnected" box.
+      ...(ancillaryBands ? { ancillaryBands } : {}),
       // Package C spike (W9): the key rides only when the flag is on so the
       // flag-off input literal (and the scene build) stay byte-identical.
       ...(strataEdgeRouting ? { edgeRouting: true } : {}),
@@ -804,6 +898,10 @@ export async function buildTerraformStrataExcalidrawScene(
         // R2 evidence (all-zero on the success path).
         strataStructural: structure,
         ...flagMeta,
+        // Ancillary echoes — mirror v1's contract
+        // (terraformPipelineLayout.test.ts) so cross-engine meta stays
+        // comparable. Rides ONLY when `includeAncillary` (byte-identity).
+        ...ancillaryMeta,
       },
       // NOT the legacy pipelineCycleWarnings (codex W2 P2): its message claims
       // ordering "fell back to first .tfd occurrence", which is false here —

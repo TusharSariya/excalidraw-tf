@@ -67,6 +67,7 @@ import type {
   PipelineLayoutPrep,
   PipelinePlacement,
 } from "./terraformPipelineLayoutShared";
+import type { StrataAncillaryBand } from "./terraformPipelineStrataAncillary";
 import type {
   StrataHullNode,
   StrataModel,
@@ -110,11 +111,22 @@ export type StrataSceneBuildInput = {
    * downstream is garbage. Pinned by a test asserting the two agree.
    */
   deBandLevel?: DeBandLevel;
+  /**
+   * Ancillary ("All resources") bands, keyed by host hull id
+   * (terraformPipelineStrataAncillary.ts). A SIDE MAP: bands are not in the model
+   * and never enter `StrataBoxedHull.placed`, so `StrataUnit` stays a closed
+   * 2-kind union. Each band carries a REAL, already-absolute skeleton — this
+   * build only appends it and parents its frame under the host hull. Present only
+   * when non-empty (flag-OFF byte-identity).
+   */
+  ancillaryBands?: ReadonlyMap<string, StrataAncillaryBand>;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
- * private `frameNameForLevel`, D6′ copy). */
-function strataHullLabel(
+ * private `frameNameForLevel`, D6′ copy). Exported so the ancillary band
+ * builder labels its nested scope groups with the SAME phrasing real hull
+ * frames use (plan §3n) instead of inventing a second label vocabulary. */
+export function strataHullLabel(
   role: TopologyFrameRole,
   p: PipelinePlacement,
 ): string {
@@ -246,6 +258,16 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
           childIds.push(c.build.clusterFrameId);
         }
       }
+      // Ancillary band hosted by THIS hull, if any. The band's frame joins
+      // `childIds` so drag-grouping/nesting fall out the way the compound path
+      // produces them (RISK: `childIds` is otherwise only child hull frames +
+      // direct-leaf cluster frames — a band frame here is unverified
+      // interactively; the fallback is to omit it, at which point bands still
+      // render but do not drag-group).
+      const band = input.ancillaryBands?.get(hull.id);
+      if (band) {
+        childIds.push(band.frameId);
+      }
 
       // Resolved-policy stamp (spec v3.1 §53 `terraformHullPolicy`): the
       // slice-metrics diagnostics run on built scene elements and have no
@@ -300,6 +322,21 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
         y: box.y,
         width: box.width,
         height: box.height,
+      });
+    }
+    // ── ancillary band (opt-in): append the band's REAL, already-absolute
+    // skeleton. Emitted outside the non-root guard because the synthetic root
+    // can host a band too (a root-hosted band is top-level, exactly like a root
+    // leaf). No re-derivation and no re-translation — the band's geometry IS the
+    // injector's, so the two can never disagree. ──
+    const hostedBand = input.ancillaryBands?.get(hull.id);
+    if (hostedBand) {
+      skeleton.push(...hostedBand.skeleton);
+      layoutBoxes.set(hostedBand.frameId, {
+        x: hostedBand.box.x,
+        y: hostedBand.box.y,
+        width: hostedBand.box.width,
+        height: hostedBand.box.height,
       });
     }
     for (const child of hull.children) {

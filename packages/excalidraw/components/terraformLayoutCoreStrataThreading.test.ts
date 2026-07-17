@@ -884,15 +884,21 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "the Strata engine produces its OWN scene (not a v2 passthrough) and defers ancillary honestly",
+    "the Strata engine produces its OWN scene (not a v2 passthrough) and honors ancillary",
     async () => {
       const strata = await buildStrata({ pipelineIncludeAncillary: true });
       // engine ran end-to-end and emitted geometry
       expect(strata.meta.rcllV2Degraded).toBeUndefined();
       expect(strata.meta.pipelineVariant).toBe("strata");
       expect(strata.elements.length).toBeGreaterThan(0);
-      // ancillary is deferred at M1 (extraction-free) — echoed, never silently ignored
-      expect(strata.meta.strataAncillaryDeferred).toBe(true);
+      // Ancillary is no longer deferred: the flag reaches the ENGINE (it used to
+      // reach only the builder, which hardcoded `includeAncillary: false`), and
+      // the engine injects real bands post-layout.
+      expect(strata.meta.strataAncillaryDeferred).toBeUndefined();
+      expect(strata.meta.pipelineIncludeAncillary).toBe(true);
+      expect(strata.meta.pipelineAncillaryCount).toBeGreaterThan(0);
+      expect(strata.meta.strataAncillaryBandCount).toBeGreaterThan(0);
+      expect(strata.meta.strataAncillaryDegraded).toBeUndefined();
       // it is NOT a byte-for-byte v2 passthrough anymore: the Strata engine owns
       // placement, so its geometry differs from the v2 packer's.
       const v2 = await buildV2({ pipelineIncludeAncillary: true });
