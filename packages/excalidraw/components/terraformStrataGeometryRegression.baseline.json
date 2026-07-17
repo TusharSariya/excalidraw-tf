@@ -1,0 +1,5 @@
+{
+  "__about__": "W0-I4 strata geometry regression FREEZE baseline. Cells are EMPTY until generated on the pre-change tip (e962579f9): run `STRATA_REGRESSION_UPDATE=1 yarn vitest run packages/excalidraw/components/terraformStrataGeometryRegression.probe.test.ts` (add STRATA_REGRESSION_SLOW=1 to measure the audit / vpc-de-band rows). Regenerate ONLY in the same commit as the change that justifies it; append a one-line justification to __updates__ per regeneration, referencing a gate artifact or the Track C disposition doc. NOTE: generation was blocked in the W0-I4 worktree by a shared-node_modules vitest setup-file resolution pointing at a stale sibling worktree; seed on a clean checkout of e962579f9.",
+  "__updates__": [],
+  "cells": {}
+}
