@@ -729,6 +729,60 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "forwards ε / crossing weights / edge-cap when strataLeafShift is the SOLE relocate operator (scorer-option gate fix)",
+    async () => {
+      // Regression for the A2 finding: leaf-shift consumes penW/crossW/ε/cap through
+      // `strataRelocateAdoptable`, but it was omitted from BOTH engineOptions gates
+      // (packedScoringEpsilon and the weights/cap block) AND their honest-meta
+      // counterparts — so with leaf-shift as the ONLY enabled operator, non-default
+      // ε/weights/cap were silently dropped (engine ran ε=0, weights=1, no cap). The
+      // meta echo now rides when leaf-shift is on, so it is the app-observable proof
+      // the values reached the engine's option bag. No other relocate operator is
+      // enabled here, so a passing echo isolates the leaf-shift branch specifically.
+      const on = await buildStrata({
+        strataRankSeparate: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataLeafShift: true,
+        strataPackedScoringEpsilon: 2,
+        strataCrossWeightPenetration: 3,
+        strataCrossWeightEdge: 2,
+        strataEdgeCrossCap: 5,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      expect(on.meta.strataLeafShift).toBe(true);
+      // All four scorer knobs are echoed (they were ABSENT before the gate fix).
+      expect(on.meta.strataPackedScoringEpsilon).toBe(2);
+      expect(on.meta.strataCrossWeightPenetration).toBe(3);
+      expect(on.meta.strataCrossWeightEdge).toBe(2);
+      expect(on.meta.strataEdgeCrossCap).toBe(5);
+      expect(on.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
+
+      // Sanity: with leaf-shift OFF and no other relocate operator, the same
+      // non-default knobs are NOT echoed (nothing consumes them) — the fix rides
+      // the echo ON the operator, it does not materialize the keys unconditionally.
+      const off = await buildStrata({
+        strataRankSeparate: true,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataPackedScoringEpsilon: 2,
+        strataCrossWeightPenetration: 3,
+        strataCrossWeightEdge: 2,
+        strataEdgeCrossCap: 5,
+      });
+      expect(off.meta.strataPackedScoringEpsilon).toBeUndefined();
+      expect(off.meta.strataCrossWeightPenetration).toBeUndefined();
+      expect(off.meta.strataCrossWeightEdge).toBeUndefined();
+      expect(off.meta.strataEdgeCrossCap).toBeUndefined();
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 10,
+  );
+
+  it(
     "threads strataDeBandLevel end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
     async () => {
       // Same silent-drop guard as the transpose case above, with the enum trap

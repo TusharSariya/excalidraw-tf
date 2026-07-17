@@ -192,10 +192,13 @@ export type StrataEngineOptions = {
    * (never shrinks) the leaf's ancestor hull chain to contain the new bottom. It
    * NEVER re-ranks (colSpan/rank untouched — the -42% height lever is preserved).
    *
-   * Gate stack (cheap→expensive): X-containment → SLACK per-hull height gate
-   * (`strataHeightGateAdmitsWithin`, budget max(absPx, relFrac·h)) → R2
-   * `checkStrataStructure` all-zero → `strataRelocateAdoptable` / `transitiveAdopt`
-   * (same weighted-C/ε/cap machinery as the relocate passes).
+   * Gate stack (cheap→expensive): X-containment → GLOBALLY-BOUNDED slack per-hull
+   * height gate (`strataHeightGateAdmitsWithinBaseline`, budget max(absPx,
+   * relFrac·h) vs the FIXED pass-baseline ceiling so total per-hull growth over the
+   * pass cannot exceed one slack allowance) → R2 `checkStrataStructure` all-zero →
+   * `strataRelocateAdoptable` / `transitiveAdopt` (same weighted-C/ε/cap machinery
+   * as the relocate passes — ε/weights/cap now forwarded when leaf-shift is the
+   * sole relocate operator).
    *
    * MANDATORY right-edge guard (a05 F10 / e7ae739f0): region-level loose sinks
    * whose box right edge is within `strataLeafShiftRightEdgeGuardPx` of their

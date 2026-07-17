@@ -164,3 +164,40 @@ export function strataHeightGateAdmitsWithin(
   }
   return true;
 }
+
+/**
+ * GLOBALLY-BOUNDED slack gate — the leaf X-shift operator's real acceptance gate.
+ *
+ * {@link strataHeightGateAdmitsWithin} compares against the ROLLING incumbent, so a
+ * chain of N adopted leaves can each spend a fresh slack allowance against the
+ * already-grown incumbent, cumulatively inflating one hull by ≈N·slack. That
+ * contradicts the intended bounded-slack protection. This variant instead compares
+ * every candidate against a FIXED per-hull ceiling captured ONCE from the pass
+ * baseline (`baselineHeights = strataHullImpliedHeights(baseline)`): `∀ hull:
+ * impliedHeight(cand, h) <= baselineHeight(h) + max(absPx, relFrac·baselineHeight(h))`.
+ * The ceiling never moves as adoptions accumulate, so a hull's TOTAL growth over
+ * the whole pass is bounded by exactly one slack allowance from its original
+ * placement, no matter how many leaves land in it.
+ *
+ * A hull absent from the baseline is rejected (new content — the leaf operator
+ * never adds hulls). `{absPx:0, relFrac:0}` recovers the strict maintain-or-decrease
+ * gate against the pass baseline. Same O(Σ|placed|) integer cost as the strict gate.
+ */
+export function strataHeightGateAdmitsWithinBaseline(
+  candidate: StrataPlacementResult,
+  baselineHeights: ReadonlyMap<string, number>,
+  budget: { absPx: number; relFrac: number },
+): boolean {
+  const candHeights = strataHullImpliedHeights(candidate);
+  for (const [id, candH] of candHeights) {
+    const baseH = baselineHeights.get(id);
+    if (baseH === undefined) {
+      return false;
+    }
+    const slack = Math.max(budget.absPx, budget.relFrac * baseH);
+    if (candH > baseH + slack) {
+      return false;
+    }
+  }
+  return true;
+}

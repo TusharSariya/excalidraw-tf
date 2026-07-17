@@ -22,6 +22,7 @@ import { placeStrataHulls } from "./terraformPipelineStrataPlacement";
 import {
   strataHeightGateAdmits,
   strataHeightGateAdmitsWithin,
+  strataHeightGateAdmitsWithinBaseline,
   strataHullImpliedHeights,
 } from "./terraformPipelineStrataHeightGate";
 
@@ -394,5 +395,56 @@ describe("strataHeightGateAdmitsWithin — bounded slack (A01)", () => {
     expect(strataHeightGateAdmitsWithin(shrunk, a0, { absPx: 0, relFrac: 0 })).toBe(
       strataHeightGateAdmits(shrunk, a0),
     );
+  });
+});
+
+// ── (9) GLOBALLY-BOUNDED slack gate (A2 fix — total growth cap) ────────────────
+
+describe("strataHeightGateAdmitsWithinBaseline — globally bounded total growth", () => {
+  it("caps a hull's TOTAL growth at one slack allowance across N adoptions where the rolling-incumbent gate would not", () => {
+    const { a0 } = twoHullFixture();
+    const owner = hullOfLeaf(a0, "a3");
+    const baseline = strataHullImpliedHeights(a0);
+    const budget = { absPx: 150, relFrac: 0.01 };
+
+    // Two successive +100px grows of the SAME hull (a3 is its bottom-most unit).
+    const cand1 = moveLeaf(a0, "a3", 0, 100);
+    const cand2 = moveLeaf(cand1, "a3", 0, 100); // +200 total from the baseline.
+    expect(strataHullImpliedHeights(cand2).get(owner)!).toBe(
+      baseline.get(owner)! + 200,
+    );
+
+    // ROLLING-INCUMBENT gate (the DEFECT this fix replaces): each step is within
+    // one slack of the PREVIOUS incumbent, so BOTH adopt and the hull cumulatively
+    // grows +200 — twice the intended bound. Documented here as the contrast.
+    expect(strataHeightGateAdmitsWithin(cand1, a0, budget)).toBe(true);
+    expect(strataHeightGateAdmitsWithin(cand2, cand1, budget)).toBe(true);
+
+    // BASELINE-ANCHORED gate (the FIX): step 1 admits (+100 <= 150), step 2 is
+    // REJECTED (+200 > baseline+150). Total growth can never exceed one slack
+    // allowance no matter how many candidates are checked against the fixed ceiling.
+    expect(strataHeightGateAdmitsWithinBaseline(cand1, baseline, budget)).toBe(true);
+    expect(strataHeightGateAdmitsWithinBaseline(cand2, baseline, budget)).toBe(false);
+
+    // A hull absent from the baseline is rejected (new content — defensive).
+    expect(
+      strataHeightGateAdmitsWithinBaseline(a0, new Map(), budget),
+    ).toBe(false);
+
+    // {absPx:0, relFrac:0} recovers the strict maintain-or-decrease gate against
+    // the baseline: any grow rejects, a shrink/hold admits.
+    expect(
+      strataHeightGateAdmitsWithinBaseline(cand1, baseline, {
+        absPx: 0,
+        relFrac: 0,
+      }),
+    ).toBe(false);
+    const shrunk = moveLeaf(a0, "a3", 0, -10);
+    expect(
+      strataHeightGateAdmitsWithinBaseline(shrunk, baseline, {
+        absPx: 0,
+        relFrac: 0,
+      }),
+    ).toBe(true);
   });
 });

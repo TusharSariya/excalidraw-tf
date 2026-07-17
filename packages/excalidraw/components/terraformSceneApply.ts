@@ -267,6 +267,17 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P5 (Lever C) per-hull height maintain-or-decrease gate for the sink-pull-in
    * / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px); floored at the historical cohort
+   * distance — the knob may only raise the guard, never disable it. Default 300. */
+  strataLeafShiftRightEdgeGuardPx?: number;
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build. Default "none" (byte-identical). */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
@@ -328,6 +339,11 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataBlockClamp"
   | "strataTranspose"
   | "strataHeightGate"
+  | "strataLeafShift"
+  | "strataLeafShiftHeightBudgetPx"
+  | "strataLeafShiftHeightBudgetFrac"
+  | "strataLeafShiftRankBudget"
+  | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
 > => ({
   pipelineLayoutVariant:
@@ -384,6 +400,28 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataBlockClamp: session.strataBlockClamp === true,
   strataTranspose: session.strataTranspose === true,
   strataHeightGate: session.strataHeightGate === true,
+  strataLeafShift: session.strataLeafShift === true,
+  // Budget knobs are optional numbers — forward ONLY when the persisted session
+  // carries them (buildPipelineFamilyLayoutOptions writes them only when set), so
+  // a replayed default session never re-materializes an engine-default value.
+  ...(session.strataLeafShiftHeightBudgetPx !== undefined
+    ? { strataLeafShiftHeightBudgetPx: session.strataLeafShiftHeightBudgetPx }
+    : {}),
+  ...(session.strataLeafShiftHeightBudgetFrac !== undefined
+    ? {
+        strataLeafShiftHeightBudgetFrac:
+          session.strataLeafShiftHeightBudgetFrac,
+      }
+    : {}),
+  ...(session.strataLeafShiftRankBudget !== undefined
+    ? { strataLeafShiftRankBudget: session.strataLeafShiftRankBudget }
+    : {}),
+  ...(session.strataLeafShiftRightEdgeGuardPx !== undefined
+    ? {
+        strataLeafShiftRightEdgeGuardPx:
+          session.strataLeafShiftRightEdgeGuardPx,
+      }
+    : {}),
   // Raw forward — omit at default ("none")/absent so a replayed session never
   // re-materializes a default level ("none" is a TRUTHY string).
   ...(session.strataDeBandLevel !== undefined &&
@@ -443,6 +481,11 @@ function buildPipelineFamilyLayoutOptions(
   | "strataBlockClamp"
   | "strataTranspose"
   | "strataHeightGate"
+  | "strataLeafShift"
+  | "strataLeafShiftHeightBudgetPx"
+  | "strataLeafShiftHeightBudgetFrac"
+  | "strataLeafShiftRankBudget"
+  | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
 > {
   if (
@@ -509,6 +552,28 @@ function buildPipelineFamilyLayoutOptions(
     strataBlockClamp: options.strataBlockClamp === true,
     strataTranspose: options.strataTranspose === true,
     strataHeightGate: options.strataHeightGate === true,
+    strataLeafShift: options.strataLeafShift === true,
+    // Budget knobs are optional numbers — forward ONLY when explicitly set so the
+    // engine inherits its own defaults and the all-off/on-with-default shape stays
+    // byte-identical (same optional-only pattern as strataEdgeCrossCap above).
+    ...(options.strataLeafShiftHeightBudgetPx !== undefined
+      ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
+      : {}),
+    ...(options.strataLeafShiftHeightBudgetFrac !== undefined
+      ? {
+          strataLeafShiftHeightBudgetFrac:
+            options.strataLeafShiftHeightBudgetFrac,
+        }
+      : {}),
+    ...(options.strataLeafShiftRankBudget !== undefined
+      ? { strataLeafShiftRankBudget: options.strataLeafShiftRankBudget }
+      : {}),
+    ...(options.strataLeafShiftRightEdgeGuardPx !== undefined
+      ? {
+          strataLeafShiftRightEdgeGuardPx:
+            options.strataLeafShiftRightEdgeGuardPx,
+        }
+      : {}),
     // Raw forward — omit at default ("none")/absent so neither the engine
     // request nor the persisted session snapshot carries a default level key.
     ...(options.strataDeBandLevel !== undefined &&

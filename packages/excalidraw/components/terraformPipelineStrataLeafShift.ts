@@ -45,7 +45,10 @@
  * terraformPipelineLayoutShared — `PIPELINE_FRAME_PAD` is read at call time.
  */
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
-import { strataHeightGateAdmitsWithin } from "./terraformPipelineStrataHeightGate";
+import {
+  strataHeightGateAdmitsWithinBaseline,
+  strataHullImpliedHeights,
+} from "./terraformPipelineStrataHeightGate";
 import {
   checkStrataStructure,
   dropY,
@@ -111,7 +114,19 @@ export function refineStrataLeafShift(
     relFrac: options.strataLeafShiftHeightBudgetFrac ?? 0.01,
   };
   const rankBudget = options.strataLeafShiftRankBudget ?? 8;
-  const rightEdgeGuardPx = options.strataLeafShiftRightEdgeGuardPx ?? 300;
+  // MANDATORY guard floor (a05 F10 / e7ae739f0): the right-edge guard protects the
+  // historical us-west-2 flush-right cohort, which sits ~250px from its region's
+  // content edge. The knob may only RAISE the guard (more conservative). A caller
+  // passing a value below the cohort distance, a negative, or a NaN would restore
+  // the owner-REMOVED unguarded sink-pull, so we clamp to a finite safe minimum
+  // (a non-finite override falls back to the 300px default). This makes the guard
+  // truly mandatory — it cannot be disabled by an option value.
+  const RIGHT_EDGE_GUARD_FLOOR_PX = 250;
+  const rightEdgeGuardRaw = options.strataLeafShiftRightEdgeGuardPx;
+  const rightEdgeGuardPx =
+    typeof rightEdgeGuardRaw === "number" && Number.isFinite(rightEdgeGuardRaw)
+      ? Math.max(rightEdgeGuardRaw, RIGHT_EDGE_GUARD_FLOOR_PX)
+      : 300;
 
   const columnX = rank.columnX;
 
@@ -173,6 +188,11 @@ export function refineStrataLeafShift(
     model,
     edgesPrime,
   );
+  // Per-hull height ceilings are captured ONCE from the pass baseline (never the
+  // rolling incumbent) so total per-hull growth over the whole pass is bounded by a
+  // single slack allowance regardless of how many leaves adopt — the globally-
+  // bounded gate (a01 §5 / height-gate finding). Recomputed here, not per-candidate.
+  const baselineHeights = strataHullImpliedHeights(placement);
   let incumbent = placement;
   let incumbentScore: StrataPackedScore = baselineScore;
 
@@ -409,10 +429,17 @@ export function refineStrataLeafShift(
         continue;
       }
 
-      // Gate (c): SLACK height gate (budget max(absPx, relFrac·h)) — cheap
-      // integer reject BEFORE the O(entries²) R2 and O(E²) scorer.
+      // Gate (c): GLOBALLY-BOUNDED slack height gate (budget max(absPx, relFrac·h)
+      // vs the FIXED pass-baseline ceiling, not the rolling incumbent) — cheap
+      // integer reject BEFORE the O(entries²) R2 and O(E²) scorer. Bounding against
+      // the baseline caps a hull's TOTAL growth over the pass at one slack
+      // allowance, so N adoptions cannot cumulatively inflate it by N·slack.
       if (
-        !strataHeightGateAdmitsWithin(candidate, incumbent, heightBudget)
+        !strataHeightGateAdmitsWithinBaseline(
+          candidate,
+          baselineHeights,
+          heightBudget,
+        )
       ) {
         continue;
       }

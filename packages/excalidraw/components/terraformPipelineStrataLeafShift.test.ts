@@ -173,6 +173,39 @@ function owningHull(p: StrataPlacementResult, leafId: string): string {
   throw new Error(`no owning hull for ${leafId}`);
 }
 
+/**
+ * WHOLE-PLACEMENT ancestor-propagation self-consistency (the a01 novel-mechanic
+ * kill-test). Two invariants that MUST both hold after a leaf-shift regrows an
+ * ancestor chain:
+ *
+ *  (1) ANCHOR — every hull's stored `box.height` equals its recomputed implied
+ *      height (`strataHullImpliedHeights`), so the slack height gate and the scene
+ *      build read a self-consistent box.
+ *  (2) PROPAGATION — every child-hull unit inside a parent's `placed` list carries
+ *      the SAME box height as that child's own `boxedHulls` box. This is exactly
+ *      the `translateLeaf` parent-sync: without it a grown child (e.g. a vpc that
+ *      grew to hold a dropped leaf) leaves its parent region's placed entry stale,
+ *      so the region frame is too short to contain the vpc — a descendant escape
+ *      R2 cannot see (ancestor↔descendant overlaps are exempt). Deleting the sync
+ *      block passes every OWNER-only height assertion but violates (2) here.
+ */
+function assertHullPropagationConsistent(p: StrataPlacementResult): void {
+  const implied = strataHullImpliedHeights(p);
+  for (const [id, bh] of p.boxedHulls) {
+    expect(bh.box.height).toBe(implied.get(id)); // (1) anchor.
+    for (const pu of bh.placed) {
+      if (pu.unit.kind === "hull") {
+        const child = p.boxedHulls.get(pu.unit.hullId);
+        if (child !== undefined) {
+          // (2) propagation — parent's placed entry for the child hull must carry
+          // the child's ACTUAL current box height (kills the sync-deletion mutant).
+          expect(pu.box.height).toBe(child.box.height);
+        }
+      }
+    }
+  }
+}
+
 // ── A — zero-growth win (target column free at the leaf's Y) ──────────────────
 
 describe("leafShift A — zero-growth win", () => {
@@ -250,6 +283,22 @@ describe("leafShift B — bounded-growth win (C2 analog)", () => {
     expect(hAfter - hBefore).toBeLessThanOrEqual(150);
     expect(out.boxedHulls.get(ownerId)!.box.height).toBe(hAfter); // anchor assert.
     expect(checkStrataStructure(out, model)).toEqual(R2_CLEAN);
+
+    // ANCESTOR-CHAIN PROPAGATION (the a01 novel mechanic — kills the sync-deletion
+    // mutant): every hull in the WHOLE placement is self-consistent (box.height ==
+    // implied) AND every parent's placed entry for a child hull carries the child's
+    // CURRENT box height. The owner (vpc-1) is the only vpc under its region, so
+    // when it grew, its parent region MUST have grown in lockstep via the sync.
+    assertHullPropagationConsistent(out);
+    // non-vacuity: the growth actually propagated OFF the owner — at least one
+    // strict ANCESTOR of the owner grew relative to the input (so the parent-sync
+    // path is genuinely exercised, not trivially satisfied by an owner-only grow).
+    const beforeAll = strataHullImpliedHeights(a0);
+    const afterAll = strataHullImpliedHeights(out);
+    const grownAncestors = [...afterAll.entries()].filter(
+      ([id, h]) => id !== ownerId && h > (beforeAll.get(id) ?? 0),
+    );
+    expect(grownAncestors.length).toBeGreaterThan(0);
   });
 });
 
@@ -508,5 +557,61 @@ describe("leafShift RE — right-edge column guard", () => {
     const out2 = refineStrataLeafShift(b0, model2, primes, rank2, ON);
     expect(out2).not.toBe(b0);
     expect(out2.leafBoxes.get("l")!.x).toBe(rank2.columnX[1]);
+  });
+
+  it("clamps an unsafe right-edge-guard override to the cohort floor (cannot be disabled)", () => {
+    // The guard is MANDATORY: `strataLeafShiftRightEdgeGuardPx` may only RAISE it,
+    // never disable it. A caller passing a value below the historical cohort
+    // distance (~250px), a negative, or a NaN would otherwise restore the
+    // owner-removed unguarded sink-pull (e7ae739f0). The clamp floors it.
+    const reg = () => placement("aws", "1", "us-west-2");
+    const clustersFlush = [
+      frameCluster("s", reg(), "aws.1.s", 150, 100),
+      frameCluster("l", reg(), "aws.1.l", 150, 100),
+    ];
+    const model = buildStrataModel(
+      prep(clustersFlush, [edge("s", "l")]),
+      OPTS,
+    );
+    const primes = primeEdges([["s", "l"]]);
+    const rank = rankStub({ s: 0, l: 3 });
+    const a0 = placeStrataHulls(model, primes, rank, OPTS);
+    const ownerId = owningHull(a0, "l");
+    // non-vacuity precondition: `l` is a flush-right region-level sink (the cohort
+    // the guard protects) that IS otherwise movable (the mid-region case above
+    // proves the same geometry moves once unguarded).
+    expect(a0.boxedHulls.get(ownerId)!.hull.role).toBe("region");
+
+    // Every unsafe override still keeps the flush-right sink PUT (referential
+    // identity) — the floor prevented the disable in all three shapes.
+    for (const unsafe of [-1000, 0, 100, Number.NaN]) {
+      expect(
+        refineStrataLeafShift(a0, model, primes, rank, {
+          ...ON,
+          strataLeafShiftRightEdgeGuardPx: unsafe,
+        }),
+      ).toBe(a0);
+    }
+
+    // The knob DOES still work in the safe direction — raising it keeps an
+    // otherwise-movable mid-region sink put, proving the clamp only floors, never
+    // pins the guard to a constant.
+    const clustersMid = [
+      frameCluster("s", reg(), "aws.1.s", 150, 100),
+      frameCluster("l", reg(), "aws.1.l", 150, 100),
+      frameCluster("filler", reg(), "aws.1.filler", 150, 100),
+    ];
+    const model2 = buildStrataModel(prep(clustersMid, [edge("s", "l")]), OPTS);
+    const rank2 = rankStub({ s: 0, l: 3, filler: 5 });
+    const b0 = placeStrataHulls(model2, primes, rank2, OPTS);
+    // default guard (300) ⇒ `l` moves (unguarded mid-region sink)…
+    expect(refineStrataLeafShift(b0, model2, primes, rank2, ON)).not.toBe(b0);
+    // …a large override raises the guard to cover it ⇒ `l` stays put.
+    expect(
+      refineStrataLeafShift(b0, model2, primes, rank2, {
+        ...ON,
+        strataLeafShiftRightEdgeGuardPx: 100000,
+      }),
+    ).toBe(b0);
   });
 });

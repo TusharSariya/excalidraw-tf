@@ -432,7 +432,10 @@ export async function buildTerraformStrataExcalidrawScene(
     strataRankSeparate,
     ...(strataJointNsRank ? { strataJointNsRank } : {}),
     ...(strataPackedScoring ? { strataPackedScoring } : {}),
-    ...((strataPackedScoring || strataSiftRelocate || strataTranspose) &&
+    ...((strataPackedScoring ||
+      strataSiftRelocate ||
+      strataTranspose ||
+      strataLeafShift) &&
     strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
       : {}),
@@ -443,10 +446,11 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
     // P2 transpose echo — present only when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
-    // Relocate objective weights/cap echoes — the OD-15 vertical-relocate AND the
-    // P2 transpose both consume penW/crossW/cap, so the echo rides when EITHER is
-    // on (weights/cap only when non-default, so both-off meta is byte-identical).
-    ...(strataSiftRelocate || strataTranspose
+    // Relocate objective weights/cap echoes — the OD-15 vertical-relocate, the
+    // P2 transpose, AND the A01 leaf X-shift all consume penW/crossW/cap through
+    // `strataRelocateAdoptable`, so the echo rides when ANY is on (weights/cap only
+    // when non-default, so the all-off meta is byte-identical).
+    ...(strataSiftRelocate || strataTranspose || strataLeafShift
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
@@ -527,7 +531,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...((strataPackedScoring ||
       strataSiftRelocate ||
       strataBlockClamp ||
-      strataTranspose) &&
+      strataTranspose ||
+      strataLeafShift) &&
     strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
       : {}),
@@ -541,13 +546,16 @@ export async function buildTerraformStrataExcalidrawScene(
     // `!== "none"` guard is load-bearing for flag-off byte-identity.
     ...(strataDeBandLevel !== "none" ? { strataDeBandLevel } : {}),
     // Relocate objective weights/cap: these ride when ANY relocate-family
-    // operator is on — the OD-15 sift/vertical-relocate, the block clamp, or
-    // the transpose — because ALL consume penW/crossW/cap through
-    // `strataRelocateAdoptable`. Gating them on strataSiftRelocate alone would
-    // neuter the ε/cap owner guardrails and the weight sliders for the other
+    // operator is on — the OD-15 sift/vertical-relocate, the block clamp, the
+    // transpose, or the A01 leaf X-shift — because ALL consume penW/crossW/cap
+    // through `strataRelocateAdoptable`. Gating them on strataSiftRelocate alone
+    // would neuter the ε/cap owner guardrails and the weight sliders for the other
     // runs. Weights ride only when non-default, cap only when set, so the
     // all-off shape is byte-identical to today.
-    ...(strataSiftRelocate || strataBlockClamp || strataTranspose
+    ...(strataSiftRelocate ||
+    strataBlockClamp ||
+    strataTranspose ||
+    strataLeafShift
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }

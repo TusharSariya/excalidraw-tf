@@ -104,6 +104,16 @@ export type RunTerraformImportFromSourcesArgs = {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px), floored at the cohort distance. */
+  strataLeafShiftRightEdgeGuardPx?: number;
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
@@ -171,6 +181,11 @@ export const runTerraformImportWithView = async ({
   strataBlockClamp,
   strataTranspose,
   strataHeightGate,
+  strataLeafShift,
+  strataLeafShiftHeightBudgetPx,
+  strataLeafShiftHeightBudgetFrac,
+  strataLeafShiftRankBudget,
+  strataLeafShiftRightEdgeGuardPx,
   strataDeBandLevel,
   strataEdgeRouting,
   strataBorderRoute,
@@ -238,6 +253,22 @@ export const runTerraformImportWithView = async ({
           strataBlockClamp,
           strataTranspose,
           strataHeightGate,
+          strataLeafShift,
+          // Budget knobs are optional numbers — forward ONLY when explicitly set so
+          // the engine inherits its own defaults (absent ⇒ default) and the
+          // on-with-default shape stays byte-identical.
+          ...(strataLeafShiftHeightBudgetPx !== undefined
+            ? { strataLeafShiftHeightBudgetPx }
+            : {}),
+          ...(strataLeafShiftHeightBudgetFrac !== undefined
+            ? { strataLeafShiftHeightBudgetFrac }
+            : {}),
+          ...(strataLeafShiftRankBudget !== undefined
+            ? { strataLeafShiftRankBudget }
+            : {}),
+          ...(strataLeafShiftRightEdgeGuardPx !== undefined
+            ? { strataLeafShiftRightEdgeGuardPx }
+            : {}),
           strataDeBandLevel,
           strataEdgeRouting,
           strataBorderRoute,
@@ -299,6 +330,16 @@ export type RunTerraformPresetImportOptions = {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px), floored at the cohort distance. */
+  strataLeafShiftRightEdgeGuardPx?: number;
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
@@ -387,6 +428,11 @@ export const runTerraformPresetImport = async (
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
     strataHeightGate: options.strataHeightGate,
+    strataLeafShift: options.strataLeafShift,
+    strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx,
+    strataLeafShiftHeightBudgetFrac: options.strataLeafShiftHeightBudgetFrac,
+    strataLeafShiftRankBudget: options.strataLeafShiftRankBudget,
+    strataLeafShiftRightEdgeGuardPx: options.strataLeafShiftRightEdgeGuardPx,
     strataDeBandLevel: options.strataDeBandLevel,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBorderRoute: options.strataBorderRoute,

@@ -117,6 +117,16 @@ export type TerraformImportSession = {
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
   strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px), floored at the cohort distance. */
+  strataLeafShiftRightEdgeGuardPx?: number;
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */

@@ -600,6 +600,78 @@ describe("terraformSceneApply", () => {
     );
   });
 
+  it("forwards strataLeafShift + budget knobs through buildPipelineFamilyLayoutOptions to the worker (public preset/demo bridge)", async () => {
+    // Regression for the A2 finding: the public preset/demo import path
+    // (runTerraformPresetImport -> runTerraformImportWithView ->
+    // runTerraformImportFromSources -> buildPipelineFamilyLayoutOptions) never
+    // declared or forwarded strataLeafShift, so `?strataLeafShift=1` resolved in
+    // the URL/demo layer but was stripped by the Pick-typed whitelist before the
+    // worker/engine ran. This drives the SAME buildPipelineFamilyLayoutOptions
+    // whitelist the bridge feeds and asserts the leaf-shift option surface (flag +
+    // all four budget knobs) now reaches the worker call.
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
+    vi.mocked(fetchPresetLayoutCache).mockResolvedValue(null);
+    hoisted.replaceAllElements.mockImplementation((els) => {
+      hoisted.getElementsIncludingDeleted.mockReturnValue(els);
+    });
+
+    const preset = { id: "demo-preset" } as unknown as TerraformImportPreset;
+    const sources = { planDotBundles: [], states: [], tfdTexts: [] };
+
+    await runTerraformImportFromSources(mockApp(), hoisted.setAppState, sources, {
+      semanticLayout: false,
+      layoutMode: "strata",
+      strataLeafShift: true,
+      strataLeafShiftHeightBudgetPx: 200,
+      strataLeafShiftHeightBudgetFrac: 0.02,
+      strataLeafShiftRankBudget: 5,
+      strataLeafShiftRightEdgeGuardPx: 400,
+      preset,
+    });
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layoutMode: "strata",
+        pipelineLayoutVariant: "strata",
+        strataLeafShift: true,
+        strataLeafShiftHeightBudgetPx: 200,
+        strataLeafShiftHeightBudgetFrac: 0.02,
+        strataLeafShiftRankBudget: 5,
+        strataLeafShiftRightEdgeGuardPx: 400,
+      }),
+      expect.anything(),
+    );
+
+    // The persisted session snapshot carries the same surface, so a refresh/replay
+    // re-derives it (session round-trip through terraformPipelineReplayOptionsFromSession).
+    const persisted = getTerraformImportSession();
+    expect(persisted?.strataLeafShift).toBe(true);
+    expect(persisted?.strataLeafShiftHeightBudgetPx).toBe(200);
+
+    // Default import (no leaf-shift): the flag rides as false and the optional
+    // budget knobs are ABSENT — the on-with-default / off shape stays minimal.
+    vi.mocked(layoutTerraformViaWorkers).mockClear();
+    await runTerraformImportFromSources(mockApp(), hoisted.setAppState, sources, {
+      semanticLayout: false,
+      layoutMode: "strata",
+      preset,
+    });
+    const call = vi.mocked(layoutTerraformViaWorkers).mock.calls[0]![1] as Record<
+      string,
+      unknown
+    >;
+    expect(call.strataLeafShift).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        call,
+        "strataLeafShiftHeightBudgetPx",
+      ),
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(call, "strataLeafShiftRankBudget"),
+    ).toBe(false);
+  });
+
   describe("strataBandDepth raw-forward (WP4 codex P1/P2)", () => {
     const sessionWith = (
       overrides: Record<string, unknown>,
