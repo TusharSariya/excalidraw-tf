@@ -2,18 +2,19 @@
   "__about__": "W0-I4 strata geometry regression FREEZE baseline (seeded from the pre-overnight tip e962579f9). Regenerate ONLY alongside the change that justifies it. This is asserted by a *.probe.test.ts the base vitest.config.mts EXCLUDES, so regeneration MUST use the probe config and a MANDATORY justification: STRATA_REGRESSION_UPDATE=1 STRATA_REGRESSION_JUSTIFY=\"<gate artifact / Track C disposition ref>\" yarn vitest run --config vitest.probe.config.mts packages/excalidraw/components/terraformStrataGeometryRegression.probe.test.ts (add STRATA_REGRESSION_SLOW=1 to measure the audit / vpc-de-band rows, which are SKIPPED-SLOW here). Each regeneration appends its justification to __updates__. A measured slow cell is never clobbered by a later fast UPDATE.",
   "__updates__": [
     "2026-07-17 — W0-I4 initial freeze from pre-overnight tip e962579f9 (fast cells; audit/vpc-deband rows SKIPPED-SLOW)",
-    "2026-07-17 — W0-I1 fix round — geometryHash canonicalization change (drop element id + integer-pixel rounding, keep points/count:length:fnv64); orchestrator-mandated. Layout geometry unchanged; only the per-cell fingerprint changes."
+    "2026-07-17 — W0-I1 fix round — geometryHash canonicalization change (drop element id + integer-pixel rounding, keep points/count:length:fnv64); orchestrator-mandated. Layout geometry unchanged; only the per-cell fingerprint changes.",
+    "2026-07-17 — owner default flip 2026-07-17: transpose/sift/packedScoring ON, rankSeparate OFF (mutual-excl), privateApiRegional always-on — default geometry improves cr273->252 pierce226->139"
   ],
   "cells": {
     "P2::strata-default": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 273,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 252,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::audit-minus-deband": {
       "status": "SKIPPED-SLOW"
@@ -24,132 +25,132 @@
     "P2::deband-none": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 273,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 252,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::deband-subnet": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1317:47049:5d606c0639e52beb",
-      "elementCount": 1317,
-      "renderedCrossings": 223,
-      "pierce": 95,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 4.3182
+      "geometryHash": "1316:47039:b230cee0b1f68c4a",
+      "elementCount": 1316,
+      "renderedCrossings": 207,
+      "pierce": 58,
+      "topoFrames": 21,
+      "piercePerTopoFrame": 2.7619
     },
     "P2::rankSeparate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:48023:73551added8c0cbc",
-      "elementCount": 1333,
-      "renderedCrossings": 322,
-      "pierce": 140,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 3.6842
+      "geometryHash": "1328:47748:5a80dd3b5585fc5b",
+      "elementCount": 1328,
+      "renderedCrossings": 351,
+      "pierce": 107,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 3.2424
     },
     "P2::packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 273,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 252,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::packedScoring-eps1": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 273,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 252,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::sift-packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:701cc0a6e160b2d1",
-      "elementCount": 1333,
-      "renderedCrossings": 263,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:823b0d0fe2d24b9b",
+      "elementCount": 1328,
+      "renderedCrossings": 239,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::transpose-sweeps4": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47947:82eae11ad2c5f876",
-      "elementCount": 1333,
-      "renderedCrossings": 115,
-      "pierce": 56,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 1.4737
+      "geometryHash": "1328:47699:8e41d5740e7160a8",
+      "elementCount": 1328,
+      "renderedCrossings": 103,
+      "pierce": 42,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 1.2727
     },
     "P2::blockClamp": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 273,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 252,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::heightGate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 273,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 252,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::edgeRouting": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 465,
-      "pierce": 86,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 2.2632
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 334,
+      "pierce": 43,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 1.303
     },
     "P2::borderRoute": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47775:46cc9092e9d6cda1",
-      "elementCount": 1333,
-      "renderedCrossings": 270,
-      "pierce": 226,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 5.9474
+      "geometryHash": "1328:47475:9266f8c8f63a6a97",
+      "elementCount": 1328,
+      "renderedCrossings": 244,
+      "pierce": 139,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.2121
     },
     "P2::bandDepth-root": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:47634:8a53243de5820830",
-      "elementCount": 1333,
-      "renderedCrossings": 279,
-      "pierce": 228,
-      "topoFrames": 38,
-      "piercePerTopoFrame": 6
+      "geometryHash": "1328:47454:bee4022716a69f23",
+      "elementCount": 1328,
+      "renderedCrossings": 249,
+      "pierce": 137,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.1515
     },
     "P1::strata-default": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::audit-minus-deband": {
       "status": "SKIPPED-SLOW"
@@ -160,122 +161,122 @@
     "P1::deband-none": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::deband-subnet": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "723:25456:ef54de20f4dd747f",
+      "geometryHash": "723:25490:2a1a45d56a225074",
       "elementCount": 723,
-      "renderedCrossings": 26,
-      "pierce": 6,
+      "renderedCrossings": 19,
+      "pierce": 3,
       "topoFrames": 10,
-      "piercePerTopoFrame": 0.6
+      "piercePerTopoFrame": 0.3
     },
     "P1::rankSeparate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:25847:e07bf059bc427fc2",
-      "elementCount": 735,
-      "renderedCrossings": 125,
-      "pierce": 40,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 1.8182
+      "geometryHash": "731:25734:b32b52c4e6721e2d",
+      "elementCount": 731,
+      "renderedCrossings": 116,
+      "pierce": 35,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 1.9444
     },
     "P1::packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::packedScoring-eps1": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::sift-packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26042:2911b2ca1d626e93",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25879:997f6c30902ed737",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::transpose-sweeps4": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26024:61597ce1d43680c5",
-      "elementCount": 735,
-      "renderedCrossings": 37,
-      "pierce": 16,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 0.7273
+      "geometryHash": "731:25856:5c1cb5ec65564fbc",
+      "elementCount": 731,
+      "renderedCrossings": 17,
+      "pierce": 7,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 0.3889
     },
     "P1::blockClamp": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::heightGate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::edgeRouting": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 136,
-      "pierce": 29,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 1.3182
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 53,
+      "pierce": 20,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 1.1111
     },
     "P1::borderRoute": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 37,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 25,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     },
     "P1::bandDepth-root": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:26018:a05755f3dfafdad7",
-      "elementCount": 735,
-      "renderedCrossings": 39,
-      "pierce": 69,
-      "topoFrames": 22,
-      "piercePerTopoFrame": 3.1364
+      "geometryHash": "731:25855:792caea6fcedfc39",
+      "elementCount": 731,
+      "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
     }
   }
 }
