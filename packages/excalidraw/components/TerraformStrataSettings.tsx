@@ -5,78 +5,18 @@ import {
   type OptionHelpKey,
 } from "./TerraformImportPipelineSettings";
 
-import { strataDeBandFeasible } from "./terraformPipelineStrataTypes";
+import { TerraformStrataSettingsHeight } from "./TerraformStrataSettingsHeight";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 
-/** Depth order for the band-depth slider, shallowest (root, always banded) to
- * deepest (subnetZone, always packed) — the slider's index domain. UI-local
- * mirror of the engine's `StrataHullRole` depth order (no runtime import of
- * the engine module needed; the type import above is type-only). */
-export const STRATA_BAND_DEPTH_ORDER: readonly StrataHullRole[] = [
-  "root",
-  "provider",
-  "account",
-  "region",
-  "vpc",
-  "subnetZone",
-];
-
-const STRATA_BAND_DEPTH_LABELS: Record<StrataHullRole, string> = {
-  root: "Root",
-  provider: "Provider",
-  account: "Account",
-  region: "Region",
-  vpc: "VPC",
-  subnetZone: "Zone",
-};
-
-/** Deep cuts (index >= this) are the experimental, "usually wider" stops. */
-const STRATA_BAND_DEPTH_EXPERIMENTAL_FROM = 3; // region
-
-/** One-line, per-role live description of what the current band-depth cut does,
- * keyed by the deepest role that stays a full-width band. */
-const STRATA_BAND_DEPTH_READOUT: Record<StrataHullRole, string> = {
-  root: "Only Root stays banded; providers and below pack into shared rows.",
-  provider: "Providers stay full-width; accounts and below pack.",
-  account:
-    "Providers and accounts stay full-width bands; regions and below pack.",
-  region: "Down to regions stay full-width; VPCs and below pack.",
-  vpc: "Down to VPCs stay full-width; only subnet zones pack.",
-  subnetZone: "Every level stays a full-width band.",
-};
-
-/** The de-band ladder rungs the slider offers, deepest first (dissolving a level
- * cascades to every deeper one, so deepest = smallest change). `provider` is
- * deliberately ABSENT: it absorbs into the root, which is pinned banded at every
- * cut (v3.1 §1.4), so it can only ever produce one vertical stack of every
- * resource — shipping it would be a trap, not a rung. */
-export const STRATA_DEBAND_ORDER: readonly Exclude<
-  DeBandLevel,
-  "none" | "provider"
->[] = ["subnet", "vpc", "region", "account"];
-
-const STRATA_DEBAND_LABELS: Record<
-  Exclude<DeBandLevel, "none" | "provider">,
-  string
-> = {
-  subnet: "Zones",
-  vpc: "VPCs",
-  region: "Regions",
-  account: "Accounts",
-};
-
-/** The container that ABSORBS the lifted resources, in user words — mirrors the
- * engine's `STRATA_DEBAND_ABSORBING_ROLE` for the suppression hint. */
-const STRATA_DEBAND_ABSORBING_LABELS: Record<DeBandLevel, string> = {
-  none: "parent",
-  subnet: "VPC",
-  vpc: "region",
-  region: "account",
-  account: "provider",
-  provider: "canvas root",
-};
+// Re-exported from their new home so this module's public surface is unchanged
+// by the "Height & packing" extraction — both moved with the section that is
+// their only consumer.
+export {
+  STRATA_BAND_DEPTH_ORDER,
+  STRATA_DEBAND_ORDER,
+} from "./TerraformStrataSettingsHeight";
 
 /**
  * Strata (rcll-v2) view settings — WP-4-UI.
@@ -200,15 +140,6 @@ export const TerraformStrataSettings = ({
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const activeKey = hoverKey ?? stickyKey;
   const activeHelp = OPTION_HELP[activeKey];
-  const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
-  // Mirror of the engine's own gate (same predicate, imported — not re-derived)
-  // so the panel tells the user the level will be dropped BEFORE they import and
-  // wonder why nothing changed. The engine suppresses regardless; this is the
-  // visible half of the honest-meta contract.
-  const deBandSuppressed = !strataDeBandFeasible(
-    strataDeBandLevel,
-    strataBandDepth,
-  );
   // The crossing objective weights + edge-crossing cap feed ALL FOUR relocate
   // operators — the OD-15 sift/vertical-relocate, the
   // P4 pure-sink account block clamp, and the P2 within-column transpose — so the
@@ -217,12 +148,6 @@ export const TerraformStrataSettings = ({
   // is enabled).
   const weightsActive =
     strataSiftRelocate || strataBlockClamp || strataTranspose;
-  // The height gate is refereed INSIDE the block-clamp pass, so its hint
-  // lights only when that consumer is on. The OD-15 sift and the transpose are
-  // not consumers (transpose is envelope-preserving — hull height is
-  // invariant), so reusing `weightsActive` would imply an effect that cannot
-  // exist.
-  const heightGateMoversActive = strataBlockClamp;
 
   const option = (
     label: string,
@@ -562,344 +487,28 @@ export const TerraformStrataSettings = ({
               )}
             </div>
           </div>
-          <div className="TerraformImportModal__settingsSection">
-            <div className="TerraformImportModal__settingsSectionHeader">
-              Height &amp; packing
-            </div>
-            <div role="group" aria-label="Strata compact height">
-              <span className="TerraformImportModal__controlLabel">
-                Compact height{" "}
-                <span>separate sibling stacks to shorten the canvas</span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option(
-                  "Off",
-                  !strataRankSeparate,
-                  "strata.rankseparate.off",
-                  () => setStrataRankSeparate(false),
-                )}
-                {option(
-                  "On",
-                  strataRankSeparate,
-                  "strata.rankseparate.on",
-                  () => setStrataRankSeparate(true),
-                )}
-              </div>
-            </div>
-            <div
-              role="group"
-              aria-label="Strata keep containers from growing taller"
-            >
-              <span className="TerraformImportModal__controlLabel">
-                Keep containers from growing taller{" "}
-                <span>
-                  check each clamp move against every container it touches, and
-                  keep it only if nothing ends up taller
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option("Off", !strataHeightGate, "strata.heightgate.off", () =>
-                  setStrataHeightGate(false),
-                )}
-                {option("On", strataHeightGate, "strata.heightgate.on", () =>
-                  setStrataHeightGate(true),
-                )}
-              </div>
-              {strataHeightGate && !heightGateMoversActive && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Does nothing on its own — turn on{" "}
-                    <strong>Compact pure-sink accounts</strong>, the pass it
-                    referees.
-                  </span>
-                </div>
-              )}
-              {strataHeightGate && heightGateMoversActive && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Usually no visible change: nothing yet makes a container
-                    taller, so this check rarely has anything to catch. Mainly
-                    groundwork for a later pass.
-                  </span>
-                </div>
-              )}
-            </div>
-            <div role="group" aria-label="Strata band depth">
-              <span className="TerraformImportModal__controlLabel">
-                Band depth{" "}
-                <span>
-                  deepest level that stays a full-width band — everything below
-                  packs X-disjoint siblings into shared rows
-                </span>
-              </span>
-              <div className="TerraformImportModal__depthSlider">
-                <span
-                  className="TerraformImportModal__depthSliderAxisLabel"
-                  aria-hidden="true"
-                >
-                  banded
-                </span>
-                <input
-                  type="range"
-                  className="TerraformImportModal__depthSliderInput"
-                  min={0}
-                  max={STRATA_BAND_DEPTH_ORDER.length - 1}
-                  step={1}
-                  value={STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth)}
-                  aria-label="Strata band depth"
-                  aria-valuetext={STRATA_BAND_DEPTH_LABELS[strataBandDepth]}
-                  title={OPTION_HELP["strata.banddepth"].body}
-                  onMouseEnter={() => setHoverKey("strata.banddepth")}
-                  onMouseLeave={() => setHoverKey(null)}
-                  onFocus={() => setHoverKey("strata.banddepth")}
-                  onBlur={() => setHoverKey(null)}
-                  onChange={(event) => {
-                    const raw = Number(event.target.value);
-                    const idx = Number.isNaN(raw)
-                      ? STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth)
-                      : Math.min(
-                          STRATA_BAND_DEPTH_ORDER.length - 1,
-                          Math.max(0, Math.round(raw)),
-                        );
-                    const nextRole = STRATA_BAND_DEPTH_ORDER[idx];
-                    if (nextRole === undefined) {
-                      return;
-                    }
-                    setStickyKey("strata.banddepth");
-                    setStrataBandDepth(nextRole);
-                  }}
-                />
-                <span
-                  className="TerraformImportModal__depthSliderAxisLabel"
-                  aria-hidden="true"
-                >
-                  packed
-                </span>
-              </div>
-              <div
-                className="TerraformImportModal__depthSliderTicks"
-                aria-hidden="true"
-              >
-                {STRATA_BAND_DEPTH_ORDER.map((role, index) => (
-                  <span
-                    key={role}
-                    className={`TerraformImportModal__depthSliderTick${
-                      index === currentDepthIndex
-                        ? " TerraformImportModal__depthSliderTick--active"
-                        : ""
-                    }`}
-                  >
-                    {STRATA_BAND_DEPTH_LABELS[role]}
-                  </span>
-                ))}
-              </div>
-              <div
-                className="TerraformImportModal__depthReadout"
-                aria-live="polite"
-              >
-                {STRATA_BAND_DEPTH_READOUT[strataBandDepth]}
-                {currentDepthIndex >= STRATA_BAND_DEPTH_EXPERIMENTAL_FROM && (
-                  <span className="TerraformImportModal__depthReadoutCaption">
-                    Experimental — usually wider.
-                  </span>
-                )}
-              </div>
-              {currentDepthIndex < 2 && !strataRankSeparate && (
-                <div className="TerraformImportModal__couplingHint">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Packing provider and account only reclaims height when{" "}
-                    <strong>Compact height</strong> is on.
-                  </span>
-                </div>
-              )}
-            </div>
-            {/* De-band sits beside Band depth deliberately: the two rewrite the
-                SAME axis (band depth picks each surviving hull's policy, de-band
-                picks which hulls exist) and the engine suppresses an infeasible
-                pairing. `provider` is omitted from the ladder — it absorbs into
-                the root, which is pinned banded, so it is dead at every cut. */}
-            <div role="group" aria-label="Strata dissolve containers">
-              <span className="TerraformImportModal__controlLabel">
-                Dissolve containers{" "}
-                <span>
-                  drop this level's boxes and pack its resources straight into
-                  the parent
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option(
-                  "Off",
-                  strataDeBandLevel === "none",
-                  "strata.deband.none",
-                  () => setStrataDeBandLevel("none"),
-                )}
-                {/* `option` returns a bare <button>, so the list needs its own
-                    key wrapper — every other segmented control in this file is
-                    a fixed pair and never hit this. */}
-                {STRATA_DEBAND_ORDER.map((level) => (
-                  <React.Fragment key={level}>
-                    {option(
-                      STRATA_DEBAND_LABELS[level],
-                      strataDeBandLevel === level,
-                      // Per-rung help key: the rungs' measured costs differ
-                      // (subnet wins, vpc regresses height/pierce, region and
-                      // account are unmeasured), so they cannot share one key.
-                      `strata.deband.${level}`,
-                      () => setStrataDeBandLevel(level),
-                    )}
-                  </React.Fragment>
-                ))}
-              </div>
-              {deBandSuppressed && (
-                <div
-                  className="TerraformImportModal__dependencyHint"
-                  role="status"
-                  aria-live="polite"
-                >
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    Ignored at this <strong>Band depth</strong> — the{" "}
-                    {STRATA_DEBAND_ABSORBING_LABELS[strataDeBandLevel]} that
-                    would absorb these resources is still a full-width band, so
-                    each one would land on its own row (one tall stack). Move
-                    Band depth shallower, or pick a deeper level to dissolve.
-                  </span>
-                </div>
-              )}
-            </div>
-            <div role="group" aria-label="Strata packed edge scoring">
-              <span className="TerraformImportModal__controlLabel">
-                Packed edge scoring{" "}
-                <span>
-                  score region and VPC sibling order on real edge geometry
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option(
-                  "Off",
-                  !strataPackedScoring,
-                  "strata.packedscoring.off",
-                  () => setStrataPackedScoring(false),
-                )}
-                {option(
-                  "On",
-                  strataPackedScoring,
-                  "strata.packedscoring.on",
-                  () => setStrataPackedScoring(true),
-                )}
-              </div>
-            </div>
-            {strataPackedScoring && (
-              <div role="group" aria-label="Strata packed crossing budget">
-                <span className="TerraformImportModal__controlLabel">
-                  Crossing budget (ε){" "}
-                  <span>
-                    extra crossings the packed scorer may accept for shorter,
-                    cleaner edges (W8b ε-constraint; 0 = strict)
-                  </span>
-                </span>
-                <select
-                  className="TerraformImportModal__select"
-                  aria-label="Packed scoring crossing budget epsilon"
-                  value={String(strataPackedScoringEpsilon)}
-                  onChange={(event) =>
-                    setStrataPackedScoringEpsilon(Number(event.target.value))
-                  }
-                >
-                  <option value="0">0 (strict)</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  {/* URL-set custom value (e.g. relative 0.01) stays visible. */}
-                  {![0, 1, 2].includes(strataPackedScoringEpsilon) && (
-                    <option value={String(strataPackedScoringEpsilon)}>
-                      {strataPackedScoringEpsilon} (custom)
-                    </option>
-                  )}
-                </select>
-              </div>
-            )}
-            {strataPackedScoring && (
-              <div role="group" aria-label="Strata keep best order found">
-                <span className="TerraformImportModal__controlLabel">
-                  Keep best order found{" "}
-                  <span>
-                    return the best order the packed scorer found, not the last
-                    one it tried
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataPackedConverge,
-                    "strata.converge.off",
-                    () => setStrataPackedConverge(false),
-                  )}
-                  {option(
-                    "On",
-                    strataPackedConverge,
-                    "strata.converge.on",
-                    () => setStrataPackedConverge(true),
-                  )}
-                </div>
-                {strataPackedConverge && strataPackedScoringEpsilon === 0 && (
-                  <div
-                    className="TerraformImportModal__dependencyHint"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <span aria-hidden="true">ⓘ</span>
-                    <span>
-                      Only changes the layout when the{" "}
-                      <strong>crossing budget (ε)</strong> is 1 or more.
-                    </span>
-                    <button
-                      type="button"
-                      className="TerraformImportModal__dependencyHintAction"
-                      onClick={() => setStrataPackedScoringEpsilon(1)}
-                    >
-                      Set ε to 1
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            {strataPackedScoring && (
-              <div role="group" aria-label="Strata stable adoption order">
-                <span className="TerraformImportModal__controlLabel">
-                  Stable adoption rule{" "}
-                  <span>
-                    compare layouts with one strict order so the scorer can't
-                    accept a layout then drop it for a worse one (fixes rare
-                    oscillation; experimental)
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataTransitiveAdopt,
-                    "strata.transitive.off",
-                    () => setStrataTransitiveAdopt(false),
-                  )}
-                  {option(
-                    "On",
-                    strataTransitiveAdopt,
-                    "strata.transitive.on",
-                    () => setStrataTransitiveAdopt(true),
-                  )}
-                </div>
-              </div>
-            )}
-            {strataRankSeparate && strataPackedScoring && (
-              <div className="TerraformImportModal__controlNote">
-                Measured to conflict (W8): rank separation rebuilds the column
-                grid and packed edge scoring then optimizes global crossings at
-                the expense of pair locality. Prefer one or the other.
-              </div>
-            )}
-          </div>
+          <TerraformStrataSettingsHeight
+            option={option}
+            setHoverKey={setHoverKey}
+            setStickyKey={setStickyKey}
+            strataRankSeparate={strataRankSeparate}
+            strataHeightGate={strataHeightGate}
+            strataBlockClamp={strataBlockClamp}
+            strataBandDepth={strataBandDepth}
+            strataDeBandLevel={strataDeBandLevel}
+            strataPackedScoring={strataPackedScoring}
+            strataPackedScoringEpsilon={strataPackedScoringEpsilon}
+            strataPackedConverge={strataPackedConverge}
+            strataTransitiveAdopt={strataTransitiveAdopt}
+            setStrataRankSeparate={setStrataRankSeparate}
+            setStrataHeightGate={setStrataHeightGate}
+            setStrataBandDepth={setStrataBandDepth}
+            setStrataDeBandLevel={setStrataDeBandLevel}
+            setStrataPackedScoring={setStrataPackedScoring}
+            setStrataPackedScoringEpsilon={setStrataPackedScoringEpsilon}
+            setStrataPackedConverge={setStrataPackedConverge}
+            setStrataTransitiveAdopt={setStrataTransitiveAdopt}
+          />
           <div className="TerraformImportModal__settingsSection">
             <div className="TerraformImportModal__settingsSectionHeader">
               Edges
