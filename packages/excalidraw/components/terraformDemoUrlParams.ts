@@ -65,17 +65,17 @@ const VALID_LOD_PRESETS = new Set<TerraformLodPreset>([
   "detailed",
 ]);
 
-/** The 6 `StrataHullRole` cuts the band-depth slider accepts, exact-case
- * (mixed-case `subnetZone`, so — unlike the other lowercase-normalized
- * enums here — the raw param is NOT lowercased before the membership check). */
-const VALID_STRATA_BAND_DEPTHS = new Set<StrataHullRole>([
-  "root",
-  "provider",
-  "account",
-  "region",
-  "vpc",
-  "subnetZone",
-]);
+/** The 6 `StrataHullRole` cuts the band-depth slider accepts. S3-7: parsed
+ * case-INSENSITIVELY (like every other enum here) and canonicalized back to
+ * the exact `StrataHullRole` spelling — the mixed-case `subnetZone` used to be
+ * the one enum that hard-failed the whole URL on a case slip (`subnetzone`).
+ * Keyed by lowercase so `SubnetZone`/`ROOT`/etc. all resolve; the emitter still
+ * writes the canonical spelling, so round-trips stay byte-stable. */
+const STRATA_BAND_DEPTH_BY_LOWER = new Map<string, StrataHullRole>(
+  (
+    ["root", "provider", "account", "region", "vpc", "subnetZone"] as const
+  ).map((role) => [role.toLowerCase(), role]),
+);
 
 export type TerraformDemoUrlParams = {
   presetId: string;
@@ -448,7 +448,13 @@ export const parseTerraformDemoUrlParams = (
   if (strataCoordRefine === null) {
     return null;
   }
-  const strataRankSeparate = parseBooleanParam("strataRankSep");
+  // S5-6: accept the full-name spelling `strataRankSeparate` as well as the
+  // abbreviation `strataRankSep` the owner's nightly URL uses. Abbreviation-
+  // first precedence (frozen); the emitter keeps writing `strataRankSep`.
+  const strataRankSeparate = parseBooleanAlias(
+    "strataRankSep",
+    "strataRankSeparate",
+  );
   if (strataRankSeparate === null) {
     return null;
   }
@@ -470,16 +476,19 @@ export const parseTerraformDemoUrlParams = (
     return null;
   }
   // Band-depth cut enum. Hard-fail on an invalid value (same contract as the
-  // rest). Exact-case membership check (NOT lowercased — `subnetZone` is
-  // mixed-case, unlike every other enum parsed here).
+  // rest). S3-7: case-INSENSITIVE parse — the raw param is lowercased and
+  // resolved to the canonical `StrataHullRole` spelling (so `subnetzone` no
+  // longer hard-fails the whole URL on a case slip).
   const strataBandDepthRaw = params.get("strataBandDepth");
   let strataBandDepth: StrataHullRole | undefined;
   if (strataBandDepthRaw != null && strataBandDepthRaw.trim() !== "") {
-    const normalized = strataBandDepthRaw.trim() as StrataHullRole;
-    if (!VALID_STRATA_BAND_DEPTHS.has(normalized)) {
+    const canonical = STRATA_BAND_DEPTH_BY_LOWER.get(
+      strataBandDepthRaw.trim().toLowerCase(),
+    );
+    if (!canonical) {
       return null;
     }
-    strataBandDepth = normalized;
+    strataBandDepth = canonical;
   }
   // De-band ladder enum. Hard-fail on an invalid value (same contract as the
   // band-depth cut above); `isDeBandLevel` is the shipped v1 guard.

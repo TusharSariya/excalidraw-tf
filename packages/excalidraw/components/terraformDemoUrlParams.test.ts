@@ -495,18 +495,21 @@ describe("terraformDemoUrlParams", () => {
       }
     });
 
-    it("rejects an invalid strataBandDepth (bogus value, or wrong case)", () => {
+    it("rejects a genuinely-bogus strataBandDepth but canonicalizes case (S3-7)", () => {
+      // Disposition c09 §7.3 / S3-7: strataBandDepth is now case-INSENSITIVE
+      // like every other enum param — a case slip no longer hard-fails the URL.
+      // A bogus role still rejects the whole URL.
       expect(
         parseTerraformDemoUrlParams(
           "?preset=demo&view=strata&strataBandDepth=bogus",
         ),
       ).toBeNull();
-      // Exact-case only — lowercased "subnetzone" is not a valid spelling.
+      // Lowercased "subnetzone" now canonicalizes to "subnetZone" (was: reject).
       expect(
         parseTerraformDemoUrlParams(
           "?preset=demo&view=strata&strataBandDepth=subnetzone",
-        ),
-      ).toBeNull();
+        )?.strataBandDepth,
+      ).toBe("subnetZone");
     });
 
     it("legacy strataBandCompact=1 still parses on its own (alias fold-in happens downstream, not in the parser)", () => {

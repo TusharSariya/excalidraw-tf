@@ -127,6 +127,42 @@ describe("strata option-surface regression (W0-I4)", () => {
     expect(aliased?.staircaseBandOverlap).toBe(false);
   });
 
+  it("S5-6: strataRankSeparate full-name spelling aliases to the abbreviation", () => {
+    // The owner's nightly URL uses `strataRankSep`; archived rcll URLs use the
+    // full name. Both must resolve to the same field, abbreviation-first.
+    const abbrev = parseTerraformDemoUrlParams(
+      "?preset=demo&view=strata&strataRankSep=1",
+    );
+    const full = parseTerraformDemoUrlParams(
+      "?preset=demo&view=strata&strataRankSeparate=1",
+    );
+    expect(full?.strataRankSeparate).toBe(true);
+    expect(full).toEqual(abbrev);
+    // Abbreviation wins when both present (frozen precedence).
+    const both = parseTerraformDemoUrlParams(
+      "?preset=demo&view=strata&strataRankSep=0&strataRankSeparate=1",
+    );
+    expect(both?.strataRankSeparate).toBe(false);
+  });
+
+  it("S3-7: strataBandDepth parses case-insensitively and canonicalizes", () => {
+    for (const [raw, canonical] of [
+      ["subnetzone", "subnetZone"],
+      ["SubnetZone", "subnetZone"],
+      ["ROOT", "root"],
+      ["Vpc", "vpc"],
+    ] as const) {
+      const parsed = parseTerraformDemoUrlParams(
+        `?preset=demo&view=strata&strataBandDepth=${raw}`,
+      );
+      expect(parsed?.strataBandDepth).toBe(canonical);
+    }
+    // Genuinely invalid cuts still hard-fail the whole URL.
+    expect(
+      parseTerraformDemoUrlParams("?preset=demo&strataBandDepth=zone"),
+    ).toBeNull();
+  });
+
   it("legacy subnetDeBand=1 aliases to deBandLevel=subnet", () => {
     const parsed = parseTerraformDemoUrlParams("?preset=demo&subnetDeBand=1");
     expect(parsed?.deBandLevel).toBe("subnet");
