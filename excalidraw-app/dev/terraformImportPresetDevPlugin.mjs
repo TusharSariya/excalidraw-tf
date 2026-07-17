@@ -197,7 +197,7 @@ const LAYOUT_PARAM_CATALOG = {
     width: "Scene bounds width (px).",
     elementCount: "Non-deleted element count.",
     geometryHash:
-      "strataGeometryHash(elements) from the shared terraformStrataGeometryHash helper — `<count>:<fnv1a32hex>` of the canonical rounded geometry. Deterministic: same request ⇒ same hash.",
+      "strataGeometryHash(elements) from the shared terraformStrataGeometryHash helper — `<count>:<length>:<fnv1a64hex>` of the canonical rounded geometry (sorted multiset of `type|x|y|w|h|angle|pts` lines). Deterministic across runs: the fingerprint OMITS element id, so the proof-API path's per-run id regeneration (nanoid via convertToExcalidrawElements regenerateIds) can't flip it — same request ⇒ same hash.",
   },
   timings: {
     param: "timings",
