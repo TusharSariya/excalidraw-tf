@@ -18,6 +18,7 @@ import {
   TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS,
   type TerraformRuntimePerformanceSettings,
 } from "./terraformRuntimePerformance";
+import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 
 import { isValidTerraformFocusHopCount } from "./terraformRelationshipFocus";
 
@@ -69,7 +70,15 @@ const sessionToDemoSnapshot = (
   pipelinePacked: session.pipelinePacked ?? false,
   pipelinePackedPullLeft: session.pipelinePackedPullLeft ?? false,
   pipelineIncludeAncillary: session.pipelineIncludeAncillary ?? false,
-  pipelinePrivateApiRegional: session.pipelinePrivateApiRegional ?? false,
+  // S5-9: fall back to the strata view DEFAULT (ON), not `false`. A strata
+  // session that somehow lacks the retained field must round-trip to the
+  // layout it was imported with — a `false` fallback here emitted an
+  // explicit `privateApiRegional=0` that silently flipped the geometry on
+  // re-import. (Non-strata shares never read this field; only the strata
+  // collect-branch emits it.)
+  pipelinePrivateApiRegional:
+    session.pipelinePrivateApiRegional ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional,
   pipelineSemanticPlacement: session.pipelineSemanticPlacement ?? false,
   pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise ?? false,
   pipelineReorder: session.pipelineReorder ?? false,
@@ -87,8 +96,16 @@ const sessionToDemoSnapshot = (
   pipelineLayoutProfile: session.pipelineLayoutProfile ?? "custom",
   pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap ?? true,
   strataNetworkSimplexRank: session.strataNetworkSimplexRank ?? false,
-  strataSweeps: session.strataSweeps ?? 0,
-  strataCoordinateRefine: session.strataCoordinateRefine ?? false,
+  // S5-9: sweeps + coordinate-refine fall back to the SDEC-54 validated
+  // strata defaults (K=4 + A7 ON), not `0`/`false`. The old inverted
+  // fallbacks would, for a field-absent session, emit `strataSweeps=0` /
+  // `strataCoordRefine=0` — the worst-arm K=0 config the share URL is meant
+  // to reproduce faithfully.
+  strataSweeps:
+    session.strataSweeps ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSweeps,
+  strataCoordinateRefine:
+    session.strataCoordinateRefine ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordinateRefine,
   strataRankSeparate: session.strataRankSeparate ?? false,
   strataPackedScoring: session.strataPackedScoring ?? false,
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,

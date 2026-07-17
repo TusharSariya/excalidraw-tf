@@ -7,6 +7,14 @@
 // Plain literals only — this module must not import from any layout module
 // (planParsing→layoutCore import-cycle rule).
 export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
+  /** S3-1: the strata view places private VPC-endpoint-bound REST APIs at
+   * region level by default (de-facto ON since the flag shipped). The single
+   * source of truth for that ON default — the dialog seed and the demo-URL
+   * resolve path both read it here instead of hardcoding `true`, so the app
+   * default can never drift from what harnesses/batteries measure. (Non-strata
+   * views still force the flag OFF at the import boundary — that view-scoping
+   * is unchanged; see `runTerraformImportWithView`.) */
+  pipelinePrivateApiRegional: true,
   /** Band-depth slider (v3.2): the deepest role still banded; deeper roles are
    * packed. `"account"` reproduces today's fixed role→policy map
    * byte-identically. Plain string literal (not `StrataHullRole`) per the

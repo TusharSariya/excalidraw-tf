@@ -4,6 +4,7 @@ import {
   type TerraformModuleLayoutOptions,
 } from "./terraformModuleLayoutOptions";
 import { loadTerraformImportPresetSources } from "./terraformImportPresetLoader";
+import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 import {
   runTerraformImportFromSources,
   type RunTerraformImportFromSourcesResult,
@@ -227,7 +228,8 @@ export const runTerraformImportWithView = async ({
           // is absent (a bare `view=strata` demo URL), defaults ON.
           pipelinePrivateApiRegional:
             layoutMode === "strata"
-              ? pipelinePrivateApiRegional ?? true
+              ? pipelinePrivateApiRegional ??
+                TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional
               : false,
           pipelineSemanticPlacement,
           pipelineSwimlaneLaneRise,

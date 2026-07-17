@@ -228,8 +228,9 @@ export const useTerraformImportDialog = ({
   // `runTerraformImportWithView` view-scopes the value so it never reaches a
   // non-strata engine/worker call — those keep forcing it false, byte-identical
   // to today. The toggle is exposed only in the strata settings panel.
-  const [pipelinePrivateApiRegional, setPipelinePrivateApiRegional] =
-    useState(true);
+  const [pipelinePrivateApiRegional, setPipelinePrivateApiRegional] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional,
+  );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );

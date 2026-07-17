@@ -357,5 +357,24 @@ describe("terraformCanvasShareUrl", () => {
         expect(url).not.toContain("focushops");
       }
     });
+
+    it("S5-9: a strata session with field-absent strata options shares its ACTUAL layout (defaults ON, not the inverted false/0)", () => {
+      // A strata session that never retained strataSweeps / strataCoordinateRefine
+      // / pipelinePrivateApiRegional must round-trip to the strata VIEW defaults
+      // (K=4 + A7 + private-API ON), not the old inverted `0`/`false` fallbacks
+      // that emitted a worst-arm K=0 / private-API-off geometry. (c09 §6 guard 4.)
+      const url = buildTerraformCanvasShareUrl(
+        makeSession({ layoutMode: "strata" }),
+        defaultView,
+      );
+      expect(url).not.toBeNull();
+      const parsed = parseTerraformDemoUrlParams(queryOf(url!));
+      expect(parsed?.view).toBe("strata");
+      expect(parsed?.strataSweeps).toBe(4);
+      expect(parsed?.strataCoordRefine).toBe(true);
+      expect(parsed?.privateApiRegional).toBe(true);
+      // Never the inverted worst-arm values.
+      expect(parsed?.strataSweeps).not.toBe(0);
+    });
   });
 });

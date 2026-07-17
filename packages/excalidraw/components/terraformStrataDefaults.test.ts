@@ -30,6 +30,7 @@ describe("resolveStrataDemoOptions", () => {
       strataBlockClamp: false,
       strataTranspose: false,
       strataHeightGate: false,
+      strataLeafShift: false,
       // The default cut ("account") is OMITTED (raw-forward discipline): no
       // seam may materialize a default `strataBandDepth` own key.
     });
@@ -87,6 +88,7 @@ describe("resolveStrataDemoOptions", () => {
       strataBlockClamp: false,
       strataTranspose: false,
       strataHeightGate: false,
+      strataLeafShift: false,
       // Default cut omitted — see the bare-URL test above.
     });
   });
