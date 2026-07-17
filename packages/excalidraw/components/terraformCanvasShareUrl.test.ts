@@ -395,6 +395,13 @@ describe("terraformCanvasShareUrl", () => {
       expect(parsed?.strataSweeps).toBe(4);
       expect(parsed?.strataCoordRefine).toBe(true);
       expect(parsed?.privateApiRegional).toBe(true);
+      // owner-decisions.md 2026-07-17: the new default stack (packedScoring +
+      // sift + transpose ON, ε=1) must also round-trip ON for a field-absent
+      // strata session — a `false`/`0` fallback would emit an explicit OFF that
+      // silently flips the shared geometry back to the pre-flip layout.
+      expect(parsed?.strataPackedScoring).toBe(true);
+      expect(parsed?.strataSift).toBe(true);
+      expect(parsed?.strataTranspose).toBe(true);
       // Never the inverted worst-arm values.
       expect(parsed?.strataSweeps).not.toBe(0);
     });

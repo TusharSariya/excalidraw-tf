@@ -23,14 +23,20 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   strataNetworkSimplexRank: false,
   strataSweeps: 4,
   strataCoordinateRefine: true,
+  /** Owner default flip (owner-decisions.md 2026-07-17): OFF. Mutually
+   * exclusive with `strataPackedScoring` (the chosen default) — see the
+   * rankSeparate × packedScoring exclusion in `terraformPipelineStrata.ts` and
+   * the `terraformStrataOptionRules` conflict table. */
   strataRankSeparate: false,
-  /** Round 9 (SDEC-57): packed-hull whole-layout candidate scoring — probe
-   * lever, default off pending its gate battery. */
-  strataPackedScoring: false,
+  /** Round 9 (SDEC-57): packed-hull whole-layout candidate scoring. Owner
+   * default flip (owner-decisions.md 2026-07-17): ON — B1 removed the rescore
+   * cost objection; combines with transpose+sift for the new default
+   * (crossings 107→94, pierce 81→35 on the frozen P2 preset). */
+  strataPackedScoring: true,
   /** W8b (SDEC-59 follow-up): ε-constraint crossings budget for the packed
-   * scorer. 0 = the strict round-9 rule (bit-identical); REPORT lever only —
-   * a nonzero default is an owner adjudication, never a silent pick. */
-  strataPackedScoringEpsilon: 0,
+   * scorer. Owner default flip (owner-decisions.md 2026-07-17): ε=1 — the S1-1
+   * fix makes ε=1 behave correctly, and the new default stack measures at ε=1. */
+  strataPackedScoringEpsilon: 1,
   /** Package C spike (W9): post-A7 obstacle-avoiding edge routing — probe
    * lever, default off pending its gate battery. */
   strataEdgeRouting: false,
@@ -41,8 +47,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * off pending owner adjudication (primarily effective with rankSeparate). */
   strataBandCompact: false,
   /** OD-15 crossings-≻-length relocate (cross-hull sift + post-A7 vertical
-   * slots) — probe lever, default off pending its gate battery. */
-  strataSiftRelocate: false,
+   * slots). Owner default flip (owner-decisions.md 2026-07-17): ON — −35%
+   * global crossings; part of the new default stack (transpose+sift+packed). */
+  strataSiftRelocate: true,
   /** Relocate objective weights: C = penW·penetrations + crossW·edgeEdge (owner
    * priority: hull crossings ≻ edge length). Integer/fixed-point. The
    * edge-edge regression cap (`strataEdgeCrossCap`) inherits
@@ -63,9 +70,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * the diagram — probe lever, default off. */
   strataBlockClamp: false,
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
-   * remove diagonal crossings the barycenter sweeps leave in fan-in columns —
-   * probe lever, default off (envelope-preserving, byte-identical off). */
-  strataTranspose: false,
+   * remove diagonal crossings the barycenter sweeps leave in fan-in columns.
+   * Owner default flip (owner-decisions.md 2026-07-17): ON — −24% crossings,
+   * envelope-preserving; part of the new default stack. */
+  strataTranspose: true,
   /** P5 (Lever C) per-hull implied-height maintain-or-decrease acceptance gate
    * for the block-clamp pass — probe lever, default off. Measured inert at the
    * frozen preset. It is the referee a phase-2 occupant-displacement relaxation

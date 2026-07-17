@@ -859,6 +859,14 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 0,
         strataCoordRefine: false,
         strataRankSeparate: false,
+        // owner-decisions.md 2026-07-17: packedScoring/sift/transpose flipped to
+        // default ON, so they now emit EXPLICITLY (both states) too — here the
+        // baseSnapshot's OFF ⇒ explicit false (transpose absent ⇒ false).
+        strataPackedScoring: false,
+        strataSift: false,
+        strataTranspose: false,
+        // ε default flipped to 1; the baseSnapshot's ε=0 is non-default ⇒ emitted.
+        strataPackedEps: 0,
       });
     });
 
@@ -896,18 +904,37 @@ describe("terraformDemoUrlParams", () => {
       expect(on.strataLeafShift).toBe(true);
     });
 
-    it("strataPackedScoring emits truthy-only (like strataNsRank)", () => {
+    it("strataPackedScoring emits explicitly in both states (owner default-ON flip 2026-07-17)", () => {
       const off = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
       });
-      expect("strataPackedScoring" in off).toBe(false);
+      // Default-ON flag: a turned-OFF share must carry an explicit 0, not omit
+      // (else the recipient re-imports with the ON default).
+      expect(off.strataPackedScoring).toBe(false);
       const on = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
         strataPackedScoring: true,
       });
       expect(on.strataPackedScoring).toBe(true);
+    });
+
+    it("strataSift + strataTranspose emit explicitly in both states (owner default-ON flip 2026-07-17)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect(off.strataSift).toBe(false);
+      expect(off.strataTranspose).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataSiftRelocate: true,
+        strataTranspose: true,
+      });
+      expect(on.strataSift).toBe(true);
+      expect(on.strataTranspose).toBe(true);
     });
 
     it("strataEdgeRouting emits truthy-only (like strataPackedScoring)", () => {
@@ -960,13 +987,23 @@ describe("terraformDemoUrlParams", () => {
       expect(nonDefault.strataBandDepth).toBe("root");
     });
 
-    it("strataPackedScoringEpsilon emits truthy-only as strataPackedEps", () => {
-      const off = collectTerraformDemoParams({
+    it("strataPackedScoringEpsilon emits non-default-only as strataPackedEps (owner default ε=1 2026-07-17)", () => {
+      // ε default flipped to 1; emit only when it diverges from 1 (absent
+      // resolves to 1). An explicit 0 is non-default ⇒ emitted (round-trips).
+      const atDefault = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
         strataPackedScoring: true,
+        strataPackedScoringEpsilon: 1,
       });
-      expect("strataPackedEps" in off).toBe(false);
+      expect("strataPackedEps" in atDefault).toBe(false);
+      const explicitZero = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 0,
+      });
+      expect(explicitZero.strataPackedEps).toBe(0);
       const on = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",

@@ -1055,10 +1055,14 @@ export const collectTerraformDemoParams = (
       strataSweeps: snapshot.strataSweeps,
       strataCoordRefine: snapshot.strataCoordinateRefine,
       strataRankSeparate: snapshot.strataRankSeparate,
-      // Round 9: default-off, no dialog default flip — truthy-only like NS.
-      ...(snapshot.strataPackedScoring ? { strataPackedScoring: true } : {}),
-      // W8b: default-0 — truthy-only (a 0 budget is the absent-param default).
-      ...(snapshot.strataPackedScoringEpsilon
+      // owner-decisions.md 2026-07-17: default ON — emit EXPLICITLY (both states)
+      // like K=4/A7/privateApi. A truthy-only emit would drop a "turned OFF"
+      // toggle from the share URL and silently re-import with the default ON.
+      strataPackedScoring: snapshot.strataPackedScoring,
+      // W8b: default ε=1 (owner flip) — non-default-only emit (absent resolves
+      // to 1 in resolveStrataDemoOptions), so a share URL of a default scene is
+      // byte-identical while an explicit ε (incl. 0) round-trips faithfully.
+      ...(snapshot.strataPackedScoringEpsilon !== 1
         ? { strataPackedEps: snapshot.strataPackedScoringEpsilon }
         : {}),
       // Package C spike (W9): default-off — truthy-only, like packed scoring.
@@ -1073,9 +1077,10 @@ export const collectTerraformDemoParams = (
       ...((snapshot.strataBandDepth ?? "account") !== "account"
         ? { strataBandDepth: snapshot.strataBandDepth }
         : {}),
-      // OD-15 relocate + its weights: default-off/1/1 — truthy/non-default-only,
-      // like the packed-scoring levers above.
-      ...(snapshot.strataSiftRelocate ? { strataSift: true } : {}),
+      // OD-15 relocate: owner-decisions.md 2026-07-17 default ON — emit
+      // EXPLICITLY (both states), like packedScoring/transpose above. Its
+      // weights stay non-default-only (default 1/1).
+      strataSift: snapshot.strataSiftRelocate,
       ...(snapshot.strataCrossWeightPenetration !== 1
         ? { strataPenW: snapshot.strataCrossWeightPenetration }
         : {}),
@@ -1094,8 +1099,11 @@ export const collectTerraformDemoParams = (
         : {}),
       // P4 pure-sink account block clamp: default-off — truthy-only.
       ...(snapshot.strataBlockClamp ? { strataBlockClamp: true } : {}),
-      // P2 within-column transpose: default-off — truthy-only.
-      ...(snapshot.strataTranspose ? { strataTranspose: true } : {}),
+      // P2 within-column transpose: owner-decisions.md 2026-07-17 default ON —
+      // emit EXPLICITLY (both states), like packedScoring/sift above. Optional
+      // in the snapshot (pre-flip literals omit it) → coalesce to false so a
+      // partial literal still serializes a concrete both-states value.
+      strataTranspose: snapshot.strataTranspose ?? false,
       // P5 height gate: default-off — truthy-only.
       ...(snapshot.strataHeightGate ? { strataHeightGate: true } : {}),
       // A01 leaf X-shift: default-off — truthy-only.

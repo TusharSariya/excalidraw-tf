@@ -119,7 +119,17 @@ describe("strata option registry (c04)", () => {
     }
     // heightGate hidden→advanced now; delete-from-UI is matrix cell M3a.
     expect(byKey.get("strataHeightGate")?.surface).toBe("advanced");
-    // transpose is the flip candidate but NOT decided now (T-FLIP + owner).
-    expect(byKey.get("strataTranspose")?.decidedNow).toBe(false);
+    // owner-decisions.md 2026-07-17: transpose flipped to default ON and joined
+    // C1 (both-states emit); the owner DECIDED the flip, so it is decidedNow.
+    expect(byKey.get("strataTranspose")?.decidedNow).toBe(true);
+    expect(byKey.get("strataTranspose")?.default).toBe(true);
+    expect(byKey.get("strataTranspose")?.emitClass).toBe("C1");
+    // The new default stack (packedScoring + sift) is default-ON and both-states.
+    expect(byKey.get("strataPackedScoring")?.default).toBe(true);
+    expect(byKey.get("strataPackedScoring")?.emitClass).toBe("C1");
+    expect(byKey.get("strataSiftRelocate")?.default).toBe(true);
+    expect(byKey.get("strataSiftRelocate")?.emitClass).toBe("C1");
+    // privateApiRegional toggle removed from the UI (always-on) → hidden surface.
+    expect(byKey.get("pipelinePrivateApiRegional")?.surface).toBe("hidden");
   });
 });

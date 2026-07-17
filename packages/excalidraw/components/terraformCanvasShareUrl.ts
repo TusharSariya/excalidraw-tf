@@ -106,9 +106,21 @@ const sessionToDemoSnapshot = (
   strataCoordinateRefine:
     session.strataCoordinateRefine ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordinateRefine,
-  strataRankSeparate: session.strataRankSeparate ?? false,
-  strataPackedScoring: session.strataPackedScoring ?? false,
-  strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
+  strataRankSeparate:
+    session.strataRankSeparate ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate,
+  // owner-decisions.md 2026-07-17: packedScoring/ε/sift/transpose default ON.
+  // Fall back to the strata view DEFAULT (like sweeps/coordRefine/privateApi
+  // above), not `false`/`0` — a field-absent strata session must round-trip to
+  // the layout it was imported with, and the strata collect-branch now emits
+  // these both-states, so a `false` fallback would emit an explicit OFF that
+  // silently flips the geometry on re-import.
+  strataPackedScoring:
+    session.strataPackedScoring ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring,
+  strataPackedScoringEpsilon:
+    session.strataPackedScoringEpsilon ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
   strataEdgeRouting: session.strataEdgeRouting ?? false,
   strataBorderRoute: session.strataBorderRoute ?? false,
   strataBandCompact: session.strataBandCompact ?? false,
@@ -119,7 +131,9 @@ const sessionToDemoSnapshot = (
   session.strataBandDepth !== "account"
     ? { strataBandDepth: session.strataBandDepth }
     : {}),
-  strataSiftRelocate: session.strataSiftRelocate ?? false,
+  strataSiftRelocate:
+    session.strataSiftRelocate ??
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSiftRelocate,
   strataCrossWeightPenetration: session.strataCrossWeightPenetration ?? 1,
   strataCrossWeightEdge: session.strataCrossWeightEdge ?? 1,
   ...(session.strataEdgeCrossCap !== undefined
@@ -128,7 +142,8 @@ const sessionToDemoSnapshot = (
   strataPackedConverge: session.strataPackedConverge ?? false,
   strataTransitiveAdopt: session.strataTransitiveAdopt ?? false,
   strataBlockClamp: session.strataBlockClamp ?? false,
-  strataTranspose: session.strataTranspose ?? false,
+  strataTranspose:
+    session.strataTranspose ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose,
   strataHeightGate: session.strataHeightGate ?? false,
   // C19 fix (share-url-drops-leaf-shift): the session retains strataLeafShift
   // and collectTerraformDemoParams emits it truthy-only, but the bridge here
