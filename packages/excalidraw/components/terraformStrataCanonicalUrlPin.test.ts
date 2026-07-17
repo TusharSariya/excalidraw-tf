@@ -10,14 +10,30 @@
  *
  * Geometry-hash pinning of the same URLs lives in the separate (slow) strata
  * geometry-regression harness — running the layout engine here would make this
- * a multi-second integration test. Since every Track C change is parse/resolve/
- * serialize-level, a resolution-level pin fully covers it: if the resolved
- * option bag is byte-identical, the geometry is too.
+ * a multi-second integration test.
+ *
+ * COVERING ARGUMENT (scoped 2026-07-17). For PARSER changes (Track C:
+ * rename/hide/merge/alias-fold) a resolution-level pin fully covers geometry: if
+ * the resolved option bag is byte-identical, the engine sees the same input and
+ * the geometry is too. That implication holds ONLY while no ENGINE-level
+ * disposition reinterprets the bag. The owner's 2026-07-17 rankSeparate ×
+ * packedScoring HARD mutual exclusion (owner-decisions.md line 12; packedScoring
+ * wins) is exactly such an engine-level reinterpretation: the canonical audit
+ * query sets BOTH strataRankSep=1 and strataPackedScoring=1, so its resolved bag
+ * stays byte-identical (resolve does NOT apply the exclusion) but its GEOMETRY
+ * now differs — the engine suppresses rankSeparate. That is an intended,
+ * owner-adjudicated change (line 12 exclusion + line 14 "re-freeze the
+ * measurement config at the new default"). The audit query is kept verbatim as a
+ * historical parse/resolve fixture; the engine-geometry re-freeze is pinned (with
+ * the owner cite) in the slow geometry-regression harness. The
+ * `evaluateStrataRules` adjudication test below makes that suppression explicit
+ * and testable here WITHOUT running the engine.
  */
 import { describe, expect, it } from "vitest";
 
 import { resolveStrataDemoOptions } from "./terraformStrataDefaults";
 import { parseTerraformDemoUrlParams } from "./terraformDemoUrlParams";
+import { evaluateStrataRules } from "./terraformStrataOptionRules";
 
 /** The owner's nightly audit query (the effect-matrix P2-audit config), verbatim. */
 const CANONICAL_AUDIT_QUERY =
@@ -64,6 +80,27 @@ describe("canonical audit URL pin (c08 guard 1)", () => {
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
     });
+  });
+
+  it("adjudicates the engine-level rankSeparate × packedScoring exclusion on the frozen audit config (owner-decisions.md 2026-07-17 line 12; packedScoring wins)", () => {
+    // The audit query sets BOTH strataRankSep=1 and strataPackedScoring=1. The
+    // resolve bag above keeps both true (parser reversibility is intact — resolve
+    // does not apply the exclusion), but the engine now applies the HARD
+    // exclusion: packedScoring wins and rankSeparate is suppressed. This is the
+    // INTENDED geometry change on the owner's frozen measurement config (line 14
+    // "re-freeze at the new default"), pinned to the engine via the
+    // dependency-rule table (STRATA_CONFLICTS → terraformPipelineStrata.ts). It
+    // is the substance behind the header's scoped covering argument: byte-identical
+    // resolve, changed geometry, owner-adjudicated.
+    const resolved = resolveStrataDemoOptions(parsed!);
+    expect(resolved.strataRankSeparate).toBe(true);
+    expect(resolved.strataPackedScoring).toBe(true);
+    const { suppressed, echoes } = evaluateStrataRules(resolved);
+    expect(suppressed.has("strataRankSeparate")).toBe(true);
+    expect(suppressed.has("strataPackedScoring")).toBe(false);
+    expect(echoes).toContain(
+      "rankseparate-packedscoring-conflict-packedscoring-wins-rankseparate:strataRankSeparate",
+    );
   });
 
   it("carries the strata-only private-API + runtime view settings through parse", () => {
