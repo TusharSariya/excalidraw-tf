@@ -130,4 +130,40 @@ describe("detectEdgeCollapse", () => {
     expect(r.edgeSpanningFraction).toBe(0);
     expect(r.edgeCollapseDetected).toBe(false);
   });
+
+  // Round-2 regression: the proof-API dev-plugin seam originally measured the
+  // numerator over `elements.concat(revealedEdges)` — the soft-deleted skeletons
+  // are REVEALED (isDeleted stripped to false) for the endpoint-based
+  // crossings/pierce metrics, and they span [[0,0],[dx,dy]] BY CONSTRUCTION. On
+  // the reproduced collapsed scene (judge2-edge-collapse.json) that read
+  // spanningVisibleLinearCount=155 / edgeCollapseDetected=false while the probe
+  // seam (visible-only) read 0 / true. This test pins the invariant: the SAME
+  // helper must FIRE on the visible-only set and would NOT fire on the revealed
+  // set — so the plugin seam must call it over visible-only `elements`.
+  it("FIRES on visible-only but NOT over the revealed set (round-2 plugin-seam defect)", () => {
+    const declaredEdgeCount = 145;
+    // Visible-only: only icon strokes (<= 53px). No routed connector geometry.
+    const visibleOnly = [...iconStrokes(3707), box("rectangle"), box("frame")];
+    // The 155 revealed skeletons: isDeleted stripped to false, span by
+    // construction — exactly what the plugin's `revealedEdges` map produces.
+    const revealed = Array.from({ length: 155 }, () =>
+      linear("arrow", [
+        [0, 0],
+        [4000, 8000],
+      ]),
+    );
+
+    const visibleSeam = detectEdgeCollapse(visibleOnly, declaredEdgeCount);
+    expect(visibleSeam.spanningVisibleLinearCount).toBe(0);
+    expect(visibleSeam.edgeCollapseDetected).toBe(true);
+
+    // Guard against a regression back to the revealed-set measurement: that
+    // reproduces the exact 155/false false-negative the judge caught.
+    const revealedSeam = detectEdgeCollapse(
+      [...visibleOnly, ...revealed],
+      declaredEdgeCount,
+    );
+    expect(revealedSeam.spanningVisibleLinearCount).toBe(155);
+    expect(revealedSeam.edgeCollapseDetected).toBe(false);
+  });
 });

@@ -52,6 +52,17 @@ const IMPORT_PROFILER_MODULE = path.resolve(
   PLUGIN_DIR,
   "../../packages/excalidraw/components/terraformImportProfiler.ts",
 );
+// The SHARED, unit-tested edge-collapse guard. Loaded headlessly (ssrLoadModule)
+// so the proof-API plugin seam and the probe seam run the IDENTICAL detector —
+// the round-2 defect was a hand-rolled duplicate here that measured over the
+// visible+REVEALED set (the revealed skeletons span [[0,0],[dx,dy]] by
+// construction), so it read 155/145-healthy on a scene the probe seam correctly
+// flagged 0/145-collapsed. There is now ONE detector, invoked over visible-only
+// elements, so the two seams can never diverge again.
+const EDGE_COLLAPSE_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformEdgeCollapse.ts",
+);
 
 // RCLL pipeline toggles → `TerraformLayoutOptions` keys. Param names mirror the
 // `/demo` URL API (terraformDemoUrlParams.ts); `compact` is endpoint-only.
@@ -267,7 +278,7 @@ const LAYOUT_PARAM_CATALOG = {
     declaredEdgeCount:
       "The declared-edge population = pierce.edgeCount — the denominator of the edge-collapse invariant.",
     spanningVisibleLinearCount:
-      "Count of NON-deleted linear elements (arrow OR line) whose polyline spans >= 64px (above the 53px icon-stroke ceiling) — the visible routed connector geometry. NOT keyed off customData.relationship: the declared skeletons span BY CONSTRUCTION and, on the headless path, arrive soft-deleted, so a relationship-keyed span check is a no-op on a genuinely collapsed scene (deband-hash-anomaly.md fix #1).",
+      "Count of spanning (>= 64px, above the 53px icon-stroke ceiling) linear elements (arrow OR line) in the VISIBLE-ONLY set — NOT the visible+revealed set the crossings/pierce scalars use. This distinction is load-bearing: the revealed edges carry isDeleted:false and span [[0,0],[dx,dy]] BY CONSTRUCTION, so counting them read 155/145-healthy on a collapsed scene (round-2 defect). Computed by the SHARED detectEdgeCollapse helper (same as the arm-eval probe). NOT keyed off customData.relationship — the declared skeletons span by construction and arrive soft-deleted on the headless path, so a relationship-keyed span check is a no-op on a genuinely collapsed scene (deband-hash-anomaly.md fix #1).",
     edgeSpanningFraction:
       "spanningVisibleLinearCount / declaredEdgeCount, rounded to 3dp. Near 0 means the declared edges left no spanning VISIBLE connector geometry even though crossings/pierce (endpoint-based) look valid.",
     edgeCollapseDetected:
@@ -550,7 +561,12 @@ const countTopoFrames = (elements) => {
  * `helpers` carries the ssr-loaded functions so this stays pure/testable.
  */
 const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
-  const { diagnosePipelineScene, computePierceMetrics, strataGeometryHash } =
+  const {
+    diagnosePipelineScene,
+    computePierceMetrics,
+    strataGeometryHash,
+    detectEdgeCollapse,
+  } =
     helpers;
   // W5 finding: headless import pins every edge layer OFF
   // (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false), so the TFD arrows arrive
@@ -606,56 +622,24 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
       }
     }
   }
-  // Edge-collapse invariant (deband-hash-anomaly.md fix #1): the engine
-  // nondeterministically produces scenes whose declared dataflow edges left NO
-  // spanning VISIBLE connector geometry, while renderedCrossings/pierce — read
-  // off `customData.relationship` ENDPOINTS, not `element.points` — score
-  // IDENTICALLY. Count NON-deleted spanning linear elements (arrow OR line; the
-  // routed connector geometry, whichever type carries it) and compare against
-  // the declared-edge population (pierceEdgeCount). A relationship-keyed span
-  // check is a no-op: the declared skeletons span BY CONSTRUCTION. SPAN_MIN_PX =
-  // 64 sits above the 53px icon-stroke ceiling; MIN_POPULATION gates out the
-  // sparse-scene false-positive (a single valid short-connector edge is not a
-  // collapse).
-  const EDGE_SPAN_MIN_PX = 64;
-  const EDGE_COLLAPSE_MAX_SPANNING_FRACTION = 0.1;
-  const EDGE_COLLAPSE_MIN_POPULATION = 8;
-  let spanningVisibleLinearCount = 0;
-  for (const el of metricsElements) {
-    if (el.isDeleted) {
-      continue;
-    }
-    if (el.type !== "arrow" && el.type !== "line") {
-      continue;
-    }
-    const pts = el.points;
-    if (!Array.isArray(pts) || pts.length < 2) {
-      continue;
-    }
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const p of pts) {
-      minX = Math.min(minX, p[0]);
-      maxX = Math.max(maxX, p[0]);
-      minY = Math.min(minY, p[1]);
-      maxY = Math.max(maxY, p[1]);
-    }
-    if (Math.max(maxX - minX, maxY - minY) >= EDGE_SPAN_MIN_PX) {
-      spanningVisibleLinearCount += 1;
-    }
-  }
-  const declaredEdgeCount = pierceEdgeCount;
-  const edgeSpanningFraction =
-    declaredEdgeCount > 0
-      ? Math.round((spanningVisibleLinearCount / declaredEdgeCount) * 1000) /
-        1000
-      : 0;
-  const edgeCollapseDetected =
-    declaredEdgeCount >= EDGE_COLLAPSE_MIN_POPULATION &&
-    spanningVisibleLinearCount <
-      Math.max(1, declaredEdgeCount * EDGE_COLLAPSE_MAX_SPANNING_FRACTION);
+  // Edge-collapse invariant (deband-hash-anomaly.md fix #1) — delegated to the
+  // SHARED, unit-tested `detectEdgeCollapse` so this proof-API seam and the
+  // arm-eval probe seam run byte-identical detection. CRITICAL: it is measured
+  // over the visible-only `elements` (which already excludes soft-deleted
+  // elements — line ~1218), NOT `metricsElements`. The revealed skeletons in
+  // `revealedEdges` carry `isDeleted:false` and span [[0,0],[dx,dy]] BY
+  // CONSTRUCTION, so measuring the numerator over the revealed set read
+  // 155/145-healthy on a genuinely collapsed scene (round-2 defect) — the
+  // revealed edges exist ONLY to make the endpoint-based crossings/pierce
+  // metrics non-trivial, they are NOT evidence of routed VISIBLE geometry. The
+  // declared-edge denominator is still `pierceEdgeCount` (computed over
+  // metricsElements above), matching the probe's `pm.pierce.edgeCount`.
+  const {
+    declaredEdgeCount,
+    spanningVisibleLinearCount,
+    edgeSpanningFraction,
+    edgeCollapseDetected,
+  } = detectEdgeCollapse(elements, pierceEdgeCount);
   return {
     renderedCrossings,
     pierce: pierceTotal,
@@ -1181,14 +1165,21 @@ export const terraformImportPresetDevPlugin = () => ({
               };
             }
             await ensureLayoutDomGlobals();
-            const [core, diagnosticsMod, pierceMod, hashMod, profilerMod] =
-              await Promise.all([
-                server.ssrLoadModule(LAYOUT_CORE_MODULE),
-                server.ssrLoadModule(COLLISION_DIAGNOSTICS_MODULE),
-                server.ssrLoadModule(PIERCE_METRICS_MODULE),
-                server.ssrLoadModule(GEOMETRY_HASH_MODULE),
-                server.ssrLoadModule(IMPORT_PROFILER_MODULE),
-              ]);
+            const [
+              core,
+              diagnosticsMod,
+              pierceMod,
+              hashMod,
+              profilerMod,
+              edgeCollapseMod,
+            ] = await Promise.all([
+              server.ssrLoadModule(LAYOUT_CORE_MODULE),
+              server.ssrLoadModule(COLLISION_DIAGNOSTICS_MODULE),
+              server.ssrLoadModule(PIERCE_METRICS_MODULE),
+              server.ssrLoadModule(GEOMETRY_HASH_MODULE),
+              server.ssrLoadModule(IMPORT_PROFILER_MODULE),
+              server.ssrLoadModule(EDGE_COLLAPSE_MODULE),
+            ]);
 
             // reset → enable → layout → summary → restore prior enabled-state.
             // Safe because we hold the queue lock (no interleaving possible).
@@ -1235,6 +1226,7 @@ export const terraformImportPresetDevPlugin = () => ({
               diagnosePipelineScene: diagnosticsMod.diagnosePipelineScene,
               computePierceMetrics: pierceMod.computePierceMetrics,
               strataGeometryHash: hashMod.strataGeometryHash,
+              detectEdgeCollapse: edgeCollapseMod.detectEdgeCollapse,
             });
             return {
               status: 200,
