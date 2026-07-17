@@ -145,12 +145,19 @@ describe("TerraformStrataSettings DOM identity", () => {
     expect(container.innerHTML).toMatchSnapshot();
   });
 
-  it("renders the rank separate + packed scoring conflict note", () => {
-    const { container } = renderPanel({
+  it("renders rank separate + packed scoring both-on WITHOUT the retired W8 conflict note", () => {
+    // The panel renders whatever state it is given (a legacy
+    // rankSep=1&packedScoring=1 URL can still seed both-on); the rankSeparate ×
+    // packedScoring hard exclusion is enforced at the toggle handlers, not here.
+    // The retired W8 "measured to conflict … prefer one or the other" advisory
+    // must NOT reappear — it described an undecided preference the hard rule
+    // (owner-decisions.md 2026-07-17 line 12) replaced.
+    renderPanel({
       strataRankSeparate: true,
       strataPackedScoring: true,
     });
-    expect(container.innerHTML).toMatchSnapshot();
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+    expect(screen.queryByText(/prefer one or the other/i)).toBeNull();
   });
 
   it("renders every toggle in its on state", () => {

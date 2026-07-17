@@ -173,9 +173,16 @@ export const TerraformStrataSettingsHeight = ({
           {option("Off", !strataRankSeparate, "strata.rankseparate.off", () =>
             setStrataRankSeparate(false),
           )}
-          {option("On", strataRankSeparate, "strata.rankseparate.on", () =>
-            setStrataRankSeparate(true),
-          )}
+          {/* Hard mutual exclusion (owner-decisions.md 2026-07-17 line 12):
+              rankSeparate × packedScoring — enabling either auto-disables the
+              other, so the UI can never emit the on/on state the engine would
+              silently resolve (packedScoring wins). Without this cross-disable
+              the default-ON packedScoring makes Compact height a silent no-op
+              (rankSeparate suppressed at layout). */}
+          {option("On", strataRankSeparate, "strata.rankseparate.on", () => {
+            setStrataRankSeparate(true);
+            setStrataPackedScoring(false);
+          })}
         </div>
       </div>
       <div role="group" aria-label="Strata keep containers from growing taller">
@@ -364,9 +371,15 @@ export const TerraformStrataSettingsHeight = ({
           {option("Off", !strataPackedScoring, "strata.packedscoring.off", () =>
             setStrataPackedScoring(false),
           )}
-          {option("On", strataPackedScoring, "strata.packedscoring.on", () =>
-            setStrataPackedScoring(true),
-          )}
+          {/* Other direction of the same hard exclusion (see Compact height
+              above): enabling packed edge scoring auto-disables Compact height
+              (rankSeparate). packedScoring is the engine's tiebreaker winner, so
+              this is also the state the app default sits in (packedScoring ON,
+              rankSeparate OFF). */}
+          {option("On", strataPackedScoring, "strata.packedscoring.on", () => {
+            setStrataPackedScoring(true);
+            setStrataRankSeparate(false);
+          })}
         </div>
       </div>
       {strataPackedScoring && (
@@ -460,13 +473,10 @@ export const TerraformStrataSettingsHeight = ({
           </div>
         </div>
       )}
-      {strataRankSeparate && strataPackedScoring && (
-        <div className="TerraformImportModal__controlNote">
-          Measured to conflict (W8): rank separation rebuilds the column grid
-          and packed edge scoring then optimizes global crossings at the expense
-          of pair locality. Prefer one or the other.
-        </div>
-      )}
+      {/* The former W8 "Measured to conflict … prefer one or the other" advisory
+          is gone: rankSeparate × packedScoring is now a HARD exclusion enforced
+          at both toggle handlers (owner-decisions.md 2026-07-17 line 12), so the
+          on/on state it described can no longer be reached from the UI. */}
     </div>
   );
 };

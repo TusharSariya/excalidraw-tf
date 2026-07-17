@@ -158,22 +158,27 @@ describe("TerraformImportModal", () => {
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
-      // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip
-      // (strata-only downstream — the pipeline engine ignores them).
+      // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
+      // and transpose/sift/packedScoring seed ON + ε=1 since the owner default
+      // flip (owner-decisions.md 2026-07-17) — all strata-only downstream (the
+      // pipeline engine ignores them).
       strataSweeps: 4,
       strataCoordinateRefine: true,
       strataRankSeparate: false,
-      strataPackedScoring: false,
-      strataPackedScoringEpsilon: 0,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 1,
       strataPackedConverge: false,
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
-      strataTranspose: false,
+      strataTranspose: true,
       strataHeightGate: false,
+      // strataLeafShift threads for every view (default off); pin was missing it
+      // (pre-existing stale full-bag pin, unrelated to the default flip).
+      strataLeafShift: false,
       strataEdgeRouting: false,
       strataBorderRoute: false,
       strataBandCompact: false,
-      strataSiftRelocate: false,
+      strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
       moduleLayoutOptions: undefined,
@@ -213,22 +218,27 @@ describe("TerraformImportModal", () => {
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
-      // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip
-      // (strata-only downstream — the pipeline engine ignores them).
+      // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
+      // and transpose/sift/packedScoring seed ON + ε=1 since the owner default
+      // flip (owner-decisions.md 2026-07-17) — all strata-only downstream (the
+      // pipeline engine ignores them).
       strataSweeps: 4,
       strataCoordinateRefine: true,
       strataRankSeparate: false,
-      strataPackedScoring: false,
-      strataPackedScoringEpsilon: 0,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 1,
       strataPackedConverge: false,
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
-      strataTranspose: false,
+      strataTranspose: true,
       strataHeightGate: false,
+      // strataLeafShift threads for every view (default off); pin was missing it
+      // (pre-existing stale full-bag pin, unrelated to the default flip).
+      strataLeafShift: false,
       strataEdgeRouting: false,
       strataBorderRoute: false,
       strataBandCompact: false,
-      strataSiftRelocate: false,
+      strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,
       moduleLayoutOptions: undefined,
@@ -1060,9 +1070,13 @@ describe("TerraformImportModal", () => {
         layoutMode: "strata",
         strataSweeps: 4,
         strataCoordinateRefine: true,
+        // Owner default flip (owner-decisions.md 2026-07-17): the untouched
+        // dialog seeds packedScoring ON (ε=1) — mutually exclusive with
+        // rankSeparate, which stays OFF (the app default sits at packed ON /
+        // rankSeparate OFF).
         strataRankSeparate: false,
-        strataPackedScoring: false,
-        strataPackedScoringEpsilon: 0,
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 1,
         strataEdgeRouting: false,
         strataBandCompact: false,
         // Private-API regional placement defaults ON in the strata view (the
@@ -1307,24 +1321,7 @@ describe("TerraformImportModal", () => {
     ).not.toHaveProperty("strataBandDepth");
   });
 
-  it("Strata view: no W8 conflict note when only one of Compact height / Packed edge scoring is on", () => {
-    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
-    fillFirstBundle();
-    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
-
-    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
-
-    const compactHeight = screen.getByRole("group", {
-      name: /strata compact height/i,
-    });
-    fireEvent.click(
-      within(compactHeight).getByRole("button", { name: /^on$/i }),
-    );
-
-    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
-  });
-
-  it("Strata view: shows W8 conflict note when Compact height AND Packed edge scoring are both on", () => {
+  it("Strata view: enabling Compact height auto-disables Packed edge scoring (hard exclusion, UI enforces)", () => {
     render(<TerraformImportModal onCloseRequest={vi.fn()} />);
     fillFirstBundle();
     fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
@@ -1336,22 +1333,70 @@ describe("TerraformImportModal", () => {
       name: /strata packed edge scoring/i,
     });
 
+    // Owner default flip (owner-decisions.md 2026-07-17): the app default sits
+    // at Packed edge scoring ON / Compact height OFF.
+    expect(
+      within(packedScoring).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(compactHeight).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // rankSeparate × packedScoring is a HARD exclusion (line 12): enabling
+    // Compact height auto-disables Packed edge scoring, so the on/on state the
+    // engine would silently resolve can never be reached from the UI. Without
+    // this, the default-ON packedScoring made Compact height a silent no-op.
     fireEvent.click(
       within(compactHeight).getByRole("button", { name: /^on$/i }),
     );
-    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+    expect(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(packedScoring).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
 
+    // The retired W8 "measured to conflict … prefer one or the other" advisory
+    // is gone (it described an undecided preference the hard rule replaced).
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+  });
+
+  it("Strata view: Packed edge scoring × Compact height are mutually exclusive in both directions", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    const packedScoring = screen.getByRole("group", {
+      name: /strata packed edge scoring/i,
+    });
+
+    // Compact height ON → Packed edge scoring OFF.
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+    expect(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(packedScoring).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // Packed edge scoring ON → Compact height OFF (the other direction).
     fireEvent.click(
       within(packedScoring).getByRole("button", { name: /^on$/i }),
     );
     expect(
-      screen.getByText(/measured to conflict \(w8\)/i),
-    ).toBeInTheDocument();
-
-    // Turning either back off clears the note.
-    fireEvent.click(
+      within(packedScoring).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
       within(compactHeight).getByRole("button", { name: /^off$/i }),
-    );
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // The UI never produces the both-on state, so the retired W8 advisory
+    // never appears.
     expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
   });
 
