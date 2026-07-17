@@ -255,7 +255,7 @@ const LAYOUT_PARAM_CATALOG = {
       "W8b ε-constraint crossings budget for the packed scorer. Integer for eps >= 1; fractional allowed for 0 < eps < 1.",
   },
   metrics: {
-    note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2). The dataflow metrics (renderedCrossings/pierce/arrowCount) measure VISIBLE + REVEALED edges: the headless import pins every edge layer OFF (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false) so TFD arrows arrive soft-deleted; a visible-only pass would score identically 0 for every request (W5). geometryHash stays visible-only for baseline comparability; edgeGeometryHash is the edge-inclusive fingerprint.",
+    note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2). The dataflow crossings/pierce metrics measure VISIBLE + REVEALED edges: the headless import pins every edge layer OFF (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false) so TFD arrows arrive soft-deleted, and computePierceMetrics/diagnosePipelineScene read customData.relationship ENDPOINTS — so on a visible-only set those scalars go quiet even though visible ROUTED geometry may still be present (the healthy branch's visible-only geometryHash carries the ~1.18M-char edge-connector points). geometryHash stays visible-only for baseline comparability; edgeGeometryHash is the edge-inclusive fingerprint; the edge-collapse fields below measure the visible spanning geometry directly.",
     renderedCrossings:
       "diagnosePipelineScene(visible+revealed edges).dataflow.crossings — polyline-aware rendered dataflow crossings.",
     pierce:
@@ -263,13 +263,15 @@ const LAYOUT_PARAM_CATALOG = {
     arrowCount:
       "Non-deleted arrows in the measured (visible+revealed) set — the guard that renderedCrossings=0 means 'no crossings', not 'no arrows measured'.",
     tfdArrowCount:
-      "Subset of arrowCount carrying a declared dataflow relationship (customData.relationship source/target strings, aggregated !== true) — the crossings/pierce denominator.",
-    spanningEdgeArrowCount:
-      "Subset of tfdArrowCount whose polyline actually spans >= 64px (above the 53px icon-stroke ceiling). The edge-collapse invariant (deband-hash-anomaly.md #1).",
+      "Subset of arrowCount carrying a declared dataflow relationship (customData.relationship source/target strings, aggregated !== true) — the crossings-visibility guard.",
+    declaredEdgeCount:
+      "The declared-edge population = pierce.edgeCount — the denominator of the edge-collapse invariant.",
+    spanningVisibleLinearCount:
+      "Count of NON-deleted linear elements (arrow OR line) whose polyline spans >= 64px (above the 53px icon-stroke ceiling) — the visible routed connector geometry. NOT keyed off customData.relationship: the declared skeletons span BY CONSTRUCTION and, on the headless path, arrive soft-deleted, so a relationship-keyed span check is a no-op on a genuinely collapsed scene (deband-hash-anomaly.md fix #1).",
     edgeSpanningFraction:
-      "spanningEdgeArrowCount / tfdArrowCount, rounded to 3dp. Near 0 means the declared edges left no spanning connector geometry even though crossings/pierce look valid.",
+      "spanningVisibleLinearCount / declaredEdgeCount, rounded to 3dp. Near 0 means the declared edges left no spanning VISIBLE connector geometry even though crossings/pierce (endpoint-based) look valid.",
     edgeCollapseDetected:
-      "true when tfdArrowCount>0 but fewer than 10% of declared edges span >= 64px — a catastrophic edge collapse the scalar metrics are blind to (the engine's once-per-process nondeterminism). A true here means the scene is BROKEN, not a valid layout.",
+      "true when declaredEdgeCount >= 8 AND fewer than 10% of the declared population has spanning visible geometry — a catastrophic edge collapse the scalar metrics are blind to (the engine's once-per-process nondeterminism). The >= 8 population floor gates out the sparse-scene false-positive (a single valid short-connector edge). A true here means the scene is BROKEN, not a valid layout.",
     revealedEdgeCount:
       "Count of soft-deleted relationship edges revealed (un-deleted) for the rendered dataflow metrics — the edge geometry the strata toggles optimize.",
     edgeGeometryHash:
@@ -569,10 +571,14 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
     renderedCrossings = null;
   }
   let pierceTotal = null;
+  let pierceEdgeCount = 0;
   try {
-    pierceTotal = computePierceMetrics(metricsElements)?.pierce?.total ?? null;
+    const pm = computePierceMetrics(metricsElements);
+    pierceTotal = pm?.pierce?.total ?? null;
+    pierceEdgeCount = pm?.pierce?.edgeCount ?? 0;
   } catch {
     pierceTotal = null;
+    pierceEdgeCount = 0;
   }
   const topoFrames = countTopoFrames(elements);
   const piercePerTopoFrame =
@@ -585,20 +591,6 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
   // source/target, aggregated !== true).
   let arrowCount = 0;
   let tfdArrowCount = 0;
-  // Edge-collapse invariant (deband-hash-anomaly.md §"Recommended fix" #1): the
-  // engine nondeterministically produces scenes whose declared dataflow edges
-  // left NO spanning connector geometry — every relationship arrow degenerates to
-  // icon-stroke scale (<=53px) — while renderedCrossings/pierce, read off
-  // `customData.relationship` endpoints, score IDENTICALLY. Every scalar metric is
-  // blind to it. Count the declared arrows whose polyline actually spans a
-  // meaningful distance and compare against tfdArrowCount; a catastrophic collapse
-  // sets `edgeCollapseDetected` so a caller cannot mistake a broken scene for a
-  // valid layout off the crossings/pierce numbers alone. SPAN_MIN_PX = 64 sits
-  // above the measured 53px icon-stroke ceiling, so decorative strokes (which
-  // carry no relationship anyway) can never be miscounted.
-  const EDGE_SPAN_MIN_PX = 64;
-  const EDGE_COLLAPSE_MAX_SPANNING_FRACTION = 0.1;
-  let spanningEdgeArrowCount = 0;
   for (const el of metricsElements) {
     if (el.type === "arrow" && !el.isDeleted) {
       arrowCount += 1;
@@ -611,33 +603,59 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
         rel.aggregated !== true
       ) {
         tfdArrowCount += 1;
-        const pts = el.points;
-        if (Array.isArray(pts) && pts.length >= 2) {
-          let minX = Infinity;
-          let maxX = -Infinity;
-          let minY = Infinity;
-          let maxY = -Infinity;
-          for (const p of pts) {
-            minX = Math.min(minX, p[0]);
-            maxX = Math.max(maxX, p[0]);
-            minY = Math.min(minY, p[1]);
-            maxY = Math.max(maxY, p[1]);
-          }
-          if (Math.max(maxX - minX, maxY - minY) >= EDGE_SPAN_MIN_PX) {
-            spanningEdgeArrowCount += 1;
-          }
-        }
       }
     }
   }
+  // Edge-collapse invariant (deband-hash-anomaly.md fix #1): the engine
+  // nondeterministically produces scenes whose declared dataflow edges left NO
+  // spanning VISIBLE connector geometry, while renderedCrossings/pierce — read
+  // off `customData.relationship` ENDPOINTS, not `element.points` — score
+  // IDENTICALLY. Count NON-deleted spanning linear elements (arrow OR line; the
+  // routed connector geometry, whichever type carries it) and compare against
+  // the declared-edge population (pierceEdgeCount). A relationship-keyed span
+  // check is a no-op: the declared skeletons span BY CONSTRUCTION. SPAN_MIN_PX =
+  // 64 sits above the 53px icon-stroke ceiling; MIN_POPULATION gates out the
+  // sparse-scene false-positive (a single valid short-connector edge is not a
+  // collapse).
+  const EDGE_SPAN_MIN_PX = 64;
+  const EDGE_COLLAPSE_MAX_SPANNING_FRACTION = 0.1;
+  const EDGE_COLLAPSE_MIN_POPULATION = 8;
+  let spanningVisibleLinearCount = 0;
+  for (const el of metricsElements) {
+    if (el.isDeleted) {
+      continue;
+    }
+    if (el.type !== "arrow" && el.type !== "line") {
+      continue;
+    }
+    const pts = el.points;
+    if (!Array.isArray(pts) || pts.length < 2) {
+      continue;
+    }
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const p of pts) {
+      minX = Math.min(minX, p[0]);
+      maxX = Math.max(maxX, p[0]);
+      minY = Math.min(minY, p[1]);
+      maxY = Math.max(maxY, p[1]);
+    }
+    if (Math.max(maxX - minX, maxY - minY) >= EDGE_SPAN_MIN_PX) {
+      spanningVisibleLinearCount += 1;
+    }
+  }
+  const declaredEdgeCount = pierceEdgeCount;
   const edgeSpanningFraction =
-    tfdArrowCount > 0
-      ? Math.round((spanningEdgeArrowCount / tfdArrowCount) * 1000) / 1000
+    declaredEdgeCount > 0
+      ? Math.round((spanningVisibleLinearCount / declaredEdgeCount) * 1000) /
+        1000
       : 0;
   const edgeCollapseDetected =
-    tfdArrowCount > 0 &&
-    spanningEdgeArrowCount <
-      Math.max(1, tfdArrowCount * EDGE_COLLAPSE_MAX_SPANNING_FRACTION);
+    declaredEdgeCount >= EDGE_COLLAPSE_MIN_POPULATION &&
+    spanningVisibleLinearCount <
+      Math.max(1, declaredEdgeCount * EDGE_COLLAPSE_MAX_SPANNING_FRACTION);
   return {
     renderedCrossings,
     pierce: pierceTotal,
@@ -645,7 +663,8 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
     piercePerTopoFrame,
     arrowCount,
     tfdArrowCount,
-    spanningEdgeArrowCount,
+    declaredEdgeCount,
+    spanningVisibleLinearCount,
     edgeSpanningFraction,
     edgeCollapseDetected,
     revealedEdgeCount: revealedEdges.length,
@@ -887,12 +906,21 @@ const buildLayoutProofPayload = (
       strataTranspose: meta.strataTranspose ?? false,
       strataHeightGate: meta.strataHeightGate ?? false,
       strataDeBandLevel: meta.strataDeBandLevel ?? "none",
-      // privateApiRegional (consumed in prep) and strataBandDepth (resolved
-      // internally, "account" default) are NOT echoed to scene.meta by the
-      // engine, so these reflect the REQUESTED value — the honest best-available
-      // proof-API signal that the caller asked for the toggle.
-      pipelinePrivateApiRegional: requested.privateApiRegional ?? false,
-      strataBandDepth: requested.strataBandDepth ?? "account",
+      // privateApiRegional and strataBandDepth are NOT echoed to scene.meta by
+      // the engine, so `applied` must REPLICATE core's mode-scoping instead of
+      // parroting the request. `terraformLayoutCore.ts:1176-1177` forces
+      // pipelinePrivateApiRegional false for every non-strata layoutMode (it is
+      // only wired for strata; it gate-fails on v2/rcll/compound/pipeline/
+      // semantic), and strataBandDepth is a Strata-only cut the pipeline body
+      // ignores off-strata — so reporting either as applied on a non-strata mode
+      // (e.g. layoutMode=rcll&privateApiRegional=1) is a lie. Gate both on
+      // strata; the caller's raw ask stays visible under `requested`.
+      pipelinePrivateApiRegional:
+        layoutMode === "strata" ? requested.privateApiRegional ?? false : false,
+      strataBandDepth:
+        layoutMode === "strata"
+          ? requested.strataBandDepth ?? "account"
+          : "account",
     },
     suppressions,
     bounds: computeSceneBounds(elements),

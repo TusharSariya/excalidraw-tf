@@ -83,6 +83,7 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
 import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraformPresetFixtures";
 
+import { detectEdgeCollapse } from "./terraformEdgeCollapse";
 import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
 import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
@@ -260,109 +261,18 @@ const roleOf = (e: ExcalidrawElement): string =>
 // ── edge-collapse invariant (deband-hash-anomaly.md §"Recommended fix" #1) ────
 //
 // The engine nondeterministically produces scenes whose declared dataflow edges
-// leave NO spanning connector geometry (every relationship arrow degenerates to
-// <=53px) while crossings/pierce — read off `customData.relationship` endpoints —
-// score IDENTICALLY. Every scalar metric is blind to it. This invariant catches
-// it structurally: count the declared (relationship) arrows that actually span a
-// meaningful distance vs the total declared count. A scene where essentially all
-// declared edges have collapsed to icon-stroke scale is a BROKEN layout, not a
-// valid candidate — the arm must fail LOUDLY (status "collapsed"), never pass a
-// hash comparison.
+// leave NO spanning connector geometry while crossings/pierce — read off
+// `customData.relationship` ENDPOINTS, not `element.points` — score IDENTICALLY.
+// The detection logic lives in the shared, unit-tested `terraformEdgeCollapse`
+// helper (see terraformEdgeCollapse.test.ts for the deterministic fire path).
 //
-// SPAN_MIN_PX = 64 sits just above the 53px max icon-stroke span the anomaly doc
-// measured, so decorative arrowheads / glyph strokes (which carry no
-// relationship anyway) can never be miscounted as spanning edges.
-const EDGE_SPAN_MIN_PX = 64;
-// Catastrophic-collapse floor: fire only when >90% of declared edges have no
-// span (the observed anomaly is 100% collapse). A conservative floor so a merely
-// dense-but-valid layout — which still routes most of its edges across the
-// 12783×16796 canvas — never false-positives.
-const EDGE_COLLAPSE_MAX_SPANNING_FRACTION = 0.1;
-
-const relationshipOf = (
-  e: ExcalidrawElement,
-): { source: string; target: string } | null => {
-  const r = (e.customData as { relationship?: unknown } | undefined)
-    ?.relationship;
-  if (
-    r == null ||
-    typeof r !== "object" ||
-    (r as { aggregated?: unknown }).aggregated === true
-  ) {
-    return null;
-  }
-  const source = (r as { source?: unknown }).source;
-  const target = (r as { target?: unknown }).target;
-  return typeof source === "string" && typeof target === "string"
-    ? { source, target }
-    : null;
-};
-
-/** Polyline bbox span (max of horizontal/vertical extent) of an arrow, in px. */
-const arrowSpanPx = (e: ExcalidrawElement): number => {
-  const pts = (e as { points?: ReadonlyArray<readonly [number, number]> })
-    .points;
-  if (!Array.isArray(pts) || pts.length < 2) {
-    return 0;
-  }
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const p of pts) {
-    minX = Math.min(minX, p[0]);
-    maxX = Math.max(maxX, p[0]);
-    minY = Math.min(minY, p[1]);
-    maxY = Math.max(maxY, p[1]);
-  }
-  return Math.max(maxX - minX, maxY - minY);
-};
-
-/**
- * Declared vs spanning edge-arrow counts + the collapse verdict. Scans ALL arrows
- * (soft-deleted included — the headless path pins every edge layer OFF, so the
- * declared skeletons arrive `isDeleted`), keying off `customData.relationship`
- * exactly like `diagnosePipelineScene`/`computePierceMetrics`. `declaredEdgeCount`
- * mirrors those metrics' denominator; `spanningEdgeArrowCount` is the subset whose
- * connector actually spans >= EDGE_SPAN_MIN_PX.
- */
-const edgeSpanStats = (
-  els: ExcalidrawElement[],
-): {
-  declaredEdgeCount: number;
-  spanningEdgeArrowCount: number;
-  edgeSpanningFraction: number;
-  edgeCollapseDetected: boolean;
-} => {
-  let declared = 0;
-  let spanning = 0;
-  for (const e of els) {
-    if (e.type !== "arrow") {
-      continue;
-    }
-    const rel = relationshipOf(e);
-    const pts = (e as { points?: ReadonlyArray<readonly [number, number]> })
-      .points;
-    if (!rel || !Array.isArray(pts) || pts.length < 2) {
-      continue;
-    }
-    declared += 1;
-    if (arrowSpanPx(e) >= EDGE_SPAN_MIN_PX) {
-      spanning += 1;
-    }
-  }
-  const edgeSpanningFraction =
-    declared > 0 ? Number((spanning / declared).toFixed(3)) : 0;
-  const edgeCollapseDetected =
-    declared > 0 &&
-    spanning < Math.max(1, declared * EDGE_COLLAPSE_MAX_SPANNING_FRACTION);
-  return {
-    declaredEdgeCount: declared,
-    spanningEdgeArrowCount: spanning,
-    edgeSpanningFraction,
-    edgeCollapseDetected,
-  };
-};
+// Why the numerator is NOT keyed off the relationship arrows: the declared edges
+// are emitted as 2-point skeletons and, on this headless path, arrive
+// soft-deleted; `repairTerraformEdgeBindings` skips `isDeleted`, so those
+// skeletons keep spanning BY CONSTRUCTION and a relationship-keyed span check
+// reports 145/145 on a genuinely collapsed scene (the earlier no-op). The real
+// signal is the count of NON-deleted, visible spanning linear elements vs the
+// declared population (`pierceEdgeCount`).
 
 /** Scan the scene meta for any degraded/fallback marker without assuming a
  * single key name (the strata engine surfaces `rcllV2Degraded`, but be liberal).*/
@@ -415,11 +325,13 @@ const captureMetrics = (scene: Scene) => {
       topoFrames > 0 ? Number((pm.pierce.total / topoFrames).toFixed(3)) : 0,
     contiguityViolations: pm.contiguity.totalViolations,
     // Edge-collapse invariant (deband-hash-anomaly.md #1): a scene whose declared
-    // dataflow edges left no spanning connector geometry scores IDENTICALLY on
-    // crossings/pierce, so these three fields + the verdict are the ONLY signal
-    // that separates a valid layout from a collapsed one. `runArm` promotes
-    // `edgeCollapseDetected` to a `status:"collapsed"` verdict.
-    ...edgeSpanStats(els),
+    // dataflow edges left no spanning VISIBLE connector geometry scores
+    // IDENTICALLY on crossings/pierce, so these fields + the verdict are the ONLY
+    // signal that separates a valid layout from a collapsed one. Numerator =
+    // non-deleted spanning linear elements; denominator = pierce.edgeCount (the
+    // declared population). `runArm` promotes `edgeCollapseDetected` (on ANY
+    // repeat) to a `status:"collapsed"` verdict.
+    ...detectEdgeCollapse(els, pm.pierce.edgeCount),
     geometryHash: strataGeometryHash(els),
     degraded: degradedFlag(scene.meta),
     echoedLayoutVariant: scene.meta.pipelineLayoutVariant ?? null,
@@ -462,6 +374,12 @@ const runArm = async (
     // ("same spec → same geometry") is only *verified* by comparing them
     // (finding #5).
     const repeatHashes: string[] = [];
+    // Edge-collapse is checked on EVERY repeat, not just the first (finding: a
+    // nondeterministic collapse in repeat 2+ would otherwise stay status:"ok" —
+    // the repeat HASH cannot compensate because `strataGeometryHash` excludes
+    // soft-deleted edges, and even the visible-geometry delta is only surfaced
+    // as a status flip, never a hash assertion).
+    const repeatCollapses: boolean[] = [];
     let firstScene: Scene | null = null;
 
     const armStart = Date.now();
@@ -526,6 +444,15 @@ const runArm = async (
       wallMsRuns.push(wallMs);
       const scene = res.scene as Scene;
       repeatHashes.push(strataGeometryHash(scene.elements));
+      // Per-repeat collapse verdict — a collapse that only manifests on repeat
+      // 2+ must still flip the arm to "collapsed" (it cannot ride the geometry
+      // hash, which omits soft-deleted edges).
+      repeatCollapses.push(
+        detectEdgeCollapse(
+          scene.elements,
+          computePierceMetrics(scene.elements).pierce.edgeCount,
+        ).edgeCollapseDetected,
+      );
       if (i === 0) {
         firstScene = scene;
       }
@@ -547,15 +474,18 @@ const runArm = async (
     const exceededCap = wallMsRuns.some((ms) => ms > perArmTimeoutMs);
 
     // Edge-collapse invariant (deband-hash-anomaly.md #1): if the declared
-    // dataflow edges left essentially no spanning connector geometry, the layout
-    // is BROKEN even though crossings/pierce/geometryHash all look valid. Fail
-    // the arm LOUDLY with a dedicated `collapsed` verdict — an orchestrator must
-    // never adopt a collapsed scene as a passing candidate off a hash compare.
-    const status = metrics.edgeCollapseDetected ? "collapsed" : "ok";
+    // dataflow edges left essentially no spanning VISIBLE connector geometry on
+    // ANY repeat, the layout is BROKEN even though crossings/pierce/geometryHash
+    // all look valid. Fail the arm LOUDLY with a dedicated `collapsed` verdict —
+    // an orchestrator must never adopt a collapsed scene as a passing candidate
+    // off a hash compare. Keyed on ANY repeat, not just the metrics (first) run.
+    const collapsedRepeatCount = repeatCollapses.filter(Boolean).length;
+    const status = collapsedRepeatCount > 0 ? "collapsed" : "ok";
 
     return {
       label: arm.label,
       status,
+      ...(collapsedRepeatCount > 0 ? { collapsedRepeatCount } : {}),
       ...(exceededCap ? { exceededCap: true } : {}),
       repeats,
       deterministic,
@@ -673,6 +603,18 @@ if (!spec) {
           console.log(`ARM ${arm.label} ->`, JSON.stringify(r));
           expect(r).toBeTruthy();
           expect(["ok", "collapsed", "timeout", "error"]).toContain(r.status);
+          // The arm record is already on disk (above), so failing here still
+          // preserves the artifact. A "collapsed" status means the engine
+          // silently dropped all visible edge geometry — that is a BROKEN layout,
+          // never a valid candidate, so surface it as a test FAILURE (the fire
+          // path this probe exists to catch). timeout/error stay tolerated —
+          // they are explicit non-results, not a scene masquerading as valid.
+          expect(
+            r.status,
+            `arm ${arm.label} produced a collapsed scene (edge geometry dropped): ${JSON.stringify(
+              r,
+            )}`,
+          ).not.toBe("collapsed");
         },
         // Per-arm hard cap governs the layout; the vitest test timeout is a
         // generous OUTER guard so the arm's own timeout verdict wins.

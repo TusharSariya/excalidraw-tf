@@ -433,8 +433,16 @@ export async function buildTerraformStrataExcalidrawScene(
     strataRankSeparate,
     ...(strataJointNsRank ? { strataJointNsRank } : {}),
     ...(strataPackedScoring ? { strataPackedScoring } : {}),
+    // MUST list every ε consumer that `engineOptions` forwards ε to (below:
+    // packedScoring || siftRelocate || blockClamp || transpose || leafShift).
+    // Omitting `strataBlockClamp` here made `applied.strataPackedScoringEpsilon`
+    // falsely read 0 when blockClamp was the sole active consumer of a nonzero ε
+    // — the engine ran with the ε but the proof-API echo denied it. This gate is
+    // kept in lock-step with the engineOptions ε gate below. Still gated on
+    // `!== 0`, so flag-off / ε-0 meta stays byte-identical.
     ...((strataPackedScoring ||
       strataSiftRelocate ||
+      strataBlockClamp ||
       strataTranspose ||
       strataLeafShift) &&
     strataPackedScoringEpsilon !== 0
