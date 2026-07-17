@@ -1,13 +1,14 @@
 {
   "__about__": "W0-I4 strata geometry regression FREEZE baseline (seeded from the pre-overnight tip e962579f9). Regenerate ONLY alongside the change that justifies it. This is asserted by a *.probe.test.ts the base vitest.config.mts EXCLUDES, so regeneration MUST use the probe config and a MANDATORY justification: STRATA_REGRESSION_UPDATE=1 STRATA_REGRESSION_JUSTIFY=\"<gate artifact / Track C disposition ref>\" yarn vitest run --config vitest.probe.config.mts packages/excalidraw/components/terraformStrataGeometryRegression.probe.test.ts (add STRATA_REGRESSION_SLOW=1 to measure the audit / vpc-de-band rows, which are SKIPPED-SLOW here). Each regeneration appends its justification to __updates__. A measured slow cell is never clobbered by a later fast UPDATE.",
   "__updates__": [
-    "2026-07-17 — W0-I4 initial freeze from pre-overnight tip e962579f9 (fast cells; audit/vpc-deband rows SKIPPED-SLOW)"
+    "2026-07-17 — W0-I4 initial freeze from pre-overnight tip e962579f9 (fast cells; audit/vpc-deband rows SKIPPED-SLOW)",
+    "2026-07-17 — W0-I1 fix round — geometryHash canonicalization change (drop element id + integer-pixel rounding, keep points/count:length:fnv64); orchestrator-mandated. Layout geometry unchanged; only the per-cell fingerprint changes."
   ],
   "cells": {
     "P2::strata-default": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 273,
       "pierce": 226,
@@ -23,7 +24,7 @@
     "P2::deband-none": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 273,
       "pierce": 226,
@@ -33,7 +34,7 @@
     "P2::deband-subnet": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1317:155954:bfba49b064a2a7eb",
+      "geometryHash": "1317:47049:5d606c0639e52beb",
       "elementCount": 1317,
       "renderedCrossings": 223,
       "pierce": 95,
@@ -43,7 +44,7 @@
     "P2::rankSeparate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:159104:b6ba0143578271f8",
+      "geometryHash": "1333:48023:73551added8c0cbc",
       "elementCount": 1333,
       "renderedCrossings": 322,
       "pierce": 140,
@@ -53,7 +54,7 @@
     "P2::packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 273,
       "pierce": 226,
@@ -63,7 +64,7 @@
     "P2::packedScoring-eps1": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 273,
       "pierce": 226,
@@ -73,7 +74,7 @@
     "P2::sift-packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:093a5de26c847250",
+      "geometryHash": "1333:47775:701cc0a6e160b2d1",
       "elementCount": 1333,
       "renderedCrossings": 263,
       "pierce": 226,
@@ -83,7 +84,7 @@
     "P2::transpose-sweeps4": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:159028:ac77ab431d4a98c4",
+      "geometryHash": "1333:47947:82eae11ad2c5f876",
       "elementCount": 1333,
       "renderedCrossings": 115,
       "pierce": 56,
@@ -93,7 +94,7 @@
     "P2::blockClamp": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 273,
       "pierce": 226,
@@ -103,7 +104,7 @@
     "P2::heightGate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 273,
       "pierce": 226,
@@ -113,7 +114,7 @@
     "P2::edgeRouting": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 465,
       "pierce": 86,
@@ -123,7 +124,7 @@
     "P2::borderRoute": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158856:8046c980b3cd7c02",
+      "geometryHash": "1333:47775:46cc9092e9d6cda1",
       "elementCount": 1333,
       "renderedCrossings": 270,
       "pierce": 226,
@@ -133,7 +134,7 @@
     "P2::bandDepth-root": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "1333:158715:d8571bcf5834a7f5",
+      "geometryHash": "1333:47634:8a53243de5820830",
       "elementCount": 1333,
       "renderedCrossings": 279,
       "pierce": 228,
@@ -143,7 +144,7 @@
     "P1::strata-default": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -159,7 +160,7 @@
     "P1::deband-none": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -169,7 +170,7 @@
     "P1::deband-subnet": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "723:87472:c0fe45baec47d8c9",
+      "geometryHash": "723:25456:ef54de20f4dd747f",
       "elementCount": 723,
       "renderedCrossings": 26,
       "pierce": 6,
@@ -179,7 +180,7 @@
     "P1::rankSeparate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89495:e05c6532b09431b9",
+      "geometryHash": "735:25847:e07bf059bc427fc2",
       "elementCount": 735,
       "renderedCrossings": 125,
       "pierce": 40,
@@ -189,7 +190,7 @@
     "P1::packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -199,7 +200,7 @@
     "P1::packedScoring-eps1": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -209,7 +210,7 @@
     "P1::sift-packedScoring": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89690:dbbad3c5aaa3fd69",
+      "geometryHash": "735:26042:2911b2ca1d626e93",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -219,7 +220,7 @@
     "P1::transpose-sweeps4": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89672:97aee1683ba4530f",
+      "geometryHash": "735:26024:61597ce1d43680c5",
       "elementCount": 735,
       "renderedCrossings": 37,
       "pierce": 16,
@@ -229,7 +230,7 @@
     "P1::blockClamp": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -239,7 +240,7 @@
     "P1::heightGate": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
@@ -249,7 +250,7 @@
     "P1::edgeRouting": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 136,
       "pierce": 29,
@@ -259,7 +260,7 @@
     "P1::borderRoute": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 37,
       "pierce": 69,
@@ -269,7 +270,7 @@
     "P1::bandDepth-root": {
       "status": "measured",
       "ok": true,
-      "geometryHash": "735:89666:82fc4b62c3f24cde",
+      "geometryHash": "735:26018:a05755f3dfafdad7",
       "elementCount": 735,
       "renderedCrossings": 39,
       "pierce": 69,
