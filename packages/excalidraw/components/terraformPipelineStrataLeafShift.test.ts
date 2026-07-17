@@ -25,6 +25,8 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
+
 import { refineStrataLeafShift } from "./terraformPipelineStrataLeafShift";
 import { buildStrataModel } from "./terraformPipelineStrataModel";
 import {
@@ -197,9 +199,14 @@ function assertHullPropagationConsistent(p: StrataPlacementResult): void {
       if (pu.unit.kind === "hull") {
         const child = p.boxedHulls.get(pu.unit.hullId);
         if (child !== undefined) {
-          // (2) propagation — parent's placed entry for the child hull must carry
-          // the child's ACTUAL current box height (kills the sync-deletion mutant).
-          expect(pu.box.height).toBe(child.box.height);
+          // (2) FULL-BOX propagation — the parent's placed entry box for the child
+          // hull must EQUAL the child's ACTUAL current boxedHulls box on EVERY
+          // field (x, y, width, height), not just height. translateLeaf's grow-only
+          // refit rewrites the entry's `height`; a full-box compare additionally
+          // pins that the placer's stored x/y/width stay coherent across the sync,
+          // and it still kills the sync-deletion mutant (which leaves the entry's
+          // height stale ⇒ pu.box.height !== child.box.height ⇒ this fails).
+          expect(pu.box).toEqual(child.box);
         }
       }
     }
@@ -559,31 +566,50 @@ describe("leafShift RE — right-edge column guard", () => {
     expect(out2.leafBoxes.get("l")!.x).toBe(rank2.columnX[1]);
   });
 
-  it("clamps an unsafe right-edge-guard override to the cohort floor (cannot be disabled)", () => {
+  it("clamps unsafe overrides to the cohort floor — cannot move a region-level sink ~250px from the content edge", () => {
     // The guard is MANDATORY: `strataLeafShiftRightEdgeGuardPx` may only RAISE it,
     // never disable it. A caller passing a value below the historical cohort
     // distance (~250px), a negative, or a NaN would otherwise restore the
-    // owner-removed unguarded sink-pull (e7ae739f0). The clamp floors it.
+    // owner-removed unguarded sink-pull (e7ae739f0). The clamp floors the guard at
+    // 250px (finite override) or the 300px default (non-finite override), so the
+    // ~250px flush-right cohort stays protected regardless of the override.
+    //
+    // CRUCIAL non-vacuity (the a05-F10 re-judge fix): the sink here sits ~200px
+    // from its region's content edge — INSIDE the ≤250px protected cohort band but
+    // comfortably ABOVE the `tiny=100` unsafe override. An UNCLAMPED guard of 100
+    // (or 0, or negative) satisfies `distFromRight(200) <= guard` = false ⇒ the
+    // sink WOULD move; ONLY the 250 floor keeps it put. (The prior fixture used a
+    // FLUSH sink at distFromRight≈0, where even a 1px guard protects it — that
+    // proved nothing about the floor VALUE, only that the guard is non-zero.)
     const reg = () => placement("aws", "1", "us-west-2");
-    const clustersFlush = [
+    const cohortClusters = [
       frameCluster("s", reg(), "aws.1.s", 150, 100),
       frameCluster("l", reg(), "aws.1.l", 150, 100),
+      // A rank-4 filler pushes the region's content right edge ~200px past `l`,
+      // seating `l` in the protected cohort band (100 < distFromRight <= 250).
+      frameCluster("filler", reg(), "aws.1.filler", 150, 100),
     ];
-    const model = buildStrataModel(
-      prep(clustersFlush, [edge("s", "l")]),
-      OPTS,
-    );
+    const model = buildStrataModel(prep(cohortClusters, [edge("s", "l")]), OPTS);
     const primes = primeEdges([["s", "l"]]);
-    const rank = rankStub({ s: 0, l: 3 });
+    const rank = rankStub({ s: 0, l: 3, filler: 4 });
     const a0 = placeStrataHulls(model, primes, rank, OPTS);
     const ownerId = owningHull(a0, "l");
-    // non-vacuity precondition: `l` is a flush-right region-level sink (the cohort
-    // the guard protects) that IS otherwise movable (the mid-region case above
-    // proves the same geometry moves once unguarded).
-    expect(a0.boxedHulls.get(ownerId)!.hull.role).toBe("region");
+    const owner = a0.boxedHulls.get(ownerId)!;
+    expect(owner.hull.role).toBe("region");
 
-    // Every unsafe override still keeps the flush-right sink PUT (referential
-    // identity) — the floor prevented the disable in all three shapes.
+    // distFromRight computed EXACTLY as the guard does (contentRight is one
+    // FRAME_PAD inside the region box). The floor is only load-bearing when this is
+    // ABOVE the `tiny=100` unsafe value AND at-or-below the 250 floor — pin that
+    // band so the fixture cannot silently regress into a vacuous flush-sink case.
+    const lBox = a0.leafBoxes.get("l")!;
+    const contentRight = owner.box.x + owner.box.width - PIPELINE_FRAME_PAD;
+    const distFromRight = contentRight - (lBox.x + lBox.width);
+    expect(distFromRight).toBeGreaterThan(100); // an unclamped tiny=100 would EXPOSE it.
+    expect(distFromRight).toBeLessThanOrEqual(250); // the 250 floor still PROTECTS it.
+
+    // Every unsafe override keeps the cohort sink PUT (referential identity): the
+    // floor prevented the disable in all four shapes. Without the clamp, each of
+    // negative / 0 / tiny=100 would move this distFromRight≈200 sink.
     for (const unsafe of [-1000, 0, 100, Number.NaN]) {
       expect(
         refineStrataLeafShift(a0, model, primes, rank, {
@@ -593,18 +619,20 @@ describe("leafShift RE — right-edge column guard", () => {
       ).toBe(a0);
     }
 
-    // The knob DOES still work in the safe direction — raising it keeps an
-    // otherwise-movable mid-region sink put, proving the clamp only floors, never
-    // pins the guard to a constant.
-    const clustersMid = [
+    // The guard is a real GATE, not a blanket block, and the knob still works in
+    // the safe direction: the SAME region-level sink pushed FAR from the right edge
+    // (distFromRight > the 300 default) DOES move under the default guard, and a
+    // large override re-covers it. This proves the cohort sink above stays put
+    // BECAUSE of the floored guard, not because leaf-shift never moves such sinks.
+    const farClusters = [
       frameCluster("s", reg(), "aws.1.s", 150, 100),
       frameCluster("l", reg(), "aws.1.l", 150, 100),
       frameCluster("filler", reg(), "aws.1.filler", 150, 100),
     ];
-    const model2 = buildStrataModel(prep(clustersMid, [edge("s", "l")]), OPTS);
-    const rank2 = rankStub({ s: 0, l: 3, filler: 5 });
+    const model2 = buildStrataModel(prep(farClusters, [edge("s", "l")]), OPTS);
+    const rank2 = rankStub({ s: 0, l: 3, filler: 5 }); // filler@5 ⇒ distFromRight≈400
     const b0 = placeStrataHulls(model2, primes, rank2, OPTS);
-    // default guard (300) ⇒ `l` moves (unguarded mid-region sink)…
+    // default guard (300) ⇒ `l` (distFromRight≈400 > 300) moves…
     expect(refineStrataLeafShift(b0, model2, primes, rank2, ON)).not.toBe(b0);
     // …a large override raises the guard to cover it ⇒ `l` stays put.
     expect(
