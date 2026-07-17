@@ -126,11 +126,16 @@ const LAYOUT_ENUM_PARAMS = [
     ["none", "subnet", "vpc", "region", "account", "provider"],
   ],
   // W10 band-depth cut (SDEC-63) — hulls at/above the cut stay banded, deeper
-  // hulls pack. Engine default is "account"; mirrors the /demo URL param.
+  // hulls pack. Engine default is "account"; mirrors the /demo URL param. The 4th
+  // tuple slot flags CASE-SENSITIVE matching: `subnetZone` is mixed-case, so —
+  // exactly like the demo parser (terraformDemoUrlParams.ts:470-479) — the raw
+  // value must NOT be lowercased before the membership check, or `subnetZone`
+  // would fall through as invalid.
   [
     "strataBandDepth",
     "strataBandDepth",
     ["root", "provider", "account", "region", "vpc", "subnetZone"],
+    true,
   ],
   // Outcome-first "Layout" profile — expands into the RCLL flags in the core.
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
@@ -140,10 +145,14 @@ const LAYOUT_ENUM_PARAMS = [
 // Strata (S0a scaffold) — sweep count (K) for the coordinate-refinement pass;
 // 0 = off (M1a default, 4 planned for M1b). Passthrough-only until the strata
 // engine lands; default OFF like the strata booleans above.
-const LAYOUT_INT_PARAMS = [
-  ["strataSweeps", "strataSweeps"],
-  // W8b ε-constraint crossings budget for the packed scorer. Mirrors the /demo
-  // URL param name (`strataPackedEps`); the engine key is the canonical alias.
+const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
+
+// W8b ε-constraint crossings budget for the packed scorer. Parsed apart from the
+// pure integers above because the demo URL API (terraformDemoUrlParams.ts:492-505)
+// accepts a FRACTIONAL value in RELATIVE mode (0 < eps < 1) while ABSOLUTE mode
+// (eps >= 1) stays an integer crossings budget. `[paramName, optionKey]`; both the
+// /demo name (`strataPackedEps`) and the canonical engine key are accepted.
+const LAYOUT_EPS_PARAMS = [
   ["strataPackedEps", "strataPackedScoringEpsilon"],
   ["strataPackedScoringEpsilon", "strataPackedScoringEpsilon"],
 ];
@@ -189,6 +198,8 @@ const LAYOUT_PARAM_CATALOG = {
       "Dissolve the chosen container level AND every deeper level into one shared column stack (cascades downward). `none` = today's boxed layout (byte-identical).",
     strataDeBand:
       "layoutMode=strata only. Dissolve the chosen level + every deeper one at the model build (structure phase), so ordering/transpose/A7 re-run over the collapsed model. `none` = byte-identical. SUPPRESSED (scene meta strataToggleSuppressions, and strataDeBandLevel absent from meta) when the absorbing parent is still banded under strataBandDepth — `provider` absorbs into the root, pinned banded, so it is never applied.",
+    strataBandDepth:
+      "CASE-SENSITIVE (unlike the other enums here): `subnetZone` is mixed-case, so the raw value is matched exact-case, NOT lowercased — `subnetzone` is rejected. Mirrors the /demo URL parser.",
   },
   booleans: {
     compact: "detail: collapse clusters to a representative",
@@ -236,17 +247,33 @@ const LAYOUT_PARAM_CATALOG = {
   ints: {
     strataSweeps:
       "Strata sweep count K for coordinate refinement (0 = off / M1a default, 4 planned for M1b); scaffold-only (passthrough to rcll v2) until the strata engine lands",
+  },
+  numbers: {
     strataPackedEps:
-      "alias of strataPackedScoringEpsilon (W8b) — ε-constraint crossings budget for the packed scorer.",
+      "alias of strataPackedScoringEpsilon (W8b) — ε-constraint crossings budget for the packed scorer. ABSOLUTE mode (eps >= 1) is a whole-integer budget; RELATIVE mode (0 < eps < 1) is a fractional ratio and accepted (mirrors the /demo URL parser).",
     strataPackedScoringEpsilon:
-      "W8b ε-constraint crossings budget for the packed scorer.",
+      "W8b ε-constraint crossings budget for the packed scorer. Integer for eps >= 1; fractional allowed for 0 < eps < 1.",
   },
   metrics: {
-    note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2).",
+    note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2). The dataflow metrics (renderedCrossings/pierce/arrowCount) measure VISIBLE + REVEALED edges: the headless import pins every edge layer OFF (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false) so TFD arrows arrive soft-deleted; a visible-only pass would score identically 0 for every request (W5). geometryHash stays visible-only for baseline comparability; edgeGeometryHash is the edge-inclusive fingerprint.",
     renderedCrossings:
-      "diagnosePipelineScene(elements).dataflow.crossings — polyline-aware rendered dataflow crossings.",
+      "diagnosePipelineScene(visible+revealed edges).dataflow.crossings — polyline-aware rendered dataflow crossings.",
     pierce:
-      "computePierceMetrics(elements).pierce.total — chord pierces through non-ancestor hulls.",
+      "computePierceMetrics(visible+revealed edges).pierce.total — chord pierces through non-ancestor hulls.",
+    arrowCount:
+      "Non-deleted arrows in the measured (visible+revealed) set — the guard that renderedCrossings=0 means 'no crossings', not 'no arrows measured'.",
+    tfdArrowCount:
+      "Subset of arrowCount carrying a declared dataflow relationship (customData.relationship source/target strings, aggregated !== true) — the crossings/pierce denominator.",
+    spanningEdgeArrowCount:
+      "Subset of tfdArrowCount whose polyline actually spans >= 64px (above the 53px icon-stroke ceiling). The edge-collapse invariant (deband-hash-anomaly.md #1).",
+    edgeSpanningFraction:
+      "spanningEdgeArrowCount / tfdArrowCount, rounded to 3dp. Near 0 means the declared edges left no spanning connector geometry even though crossings/pierce look valid.",
+    edgeCollapseDetected:
+      "true when tfdArrowCount>0 but fewer than 10% of declared edges span >= 64px — a catastrophic edge collapse the scalar metrics are blind to (the engine's once-per-process nondeterminism). A true here means the scene is BROKEN, not a valid layout.",
+    revealedEdgeCount:
+      "Count of soft-deleted relationship edges revealed (un-deleted) for the rendered dataflow metrics — the edge geometry the strata toggles optimize.",
+    edgeGeometryHash:
+      "strataGeometryHash(visible + revealed edges) — the edge-inclusive fingerprint so edge-only toggles (edgeRouting/borderRoute) can't hide behind the box-only geometryHash.",
     topoFrames:
       "Count of topology hull frames (customData.terraformTopologyRole in provider/account/region/vpc/subnetZone — the exact hull set computePierceMetrics's numerator uses) — the pierce denominator (trap #3). NOT a raw terraformTopologyKey count: that key is also on primaryCluster card / ancillaryStrip / satellite frames, which are not pierce hulls.",
     piercePerTopoFrame:
@@ -406,12 +433,18 @@ const parseLayoutBooleanParam = (raw) => {
   return null;
 };
 
-/** undefined when absent, null when invalid, else the matched enum value. */
-const parseLayoutEnumParam = (raw, allowed) => {
+/**
+ * undefined when absent, null when invalid, else the matched enum value.
+ * `caseSensitive` mirrors the demo parser: most enums are lowercased before the
+ * membership check, but `strataBandDepth` carries a mixed-case member
+ * (`subnetZone`) and MUST match exact-case or that value reads as invalid.
+ */
+const parseLayoutEnumParam = (raw, allowed, caseSensitive = false) => {
   if (raw == null || raw.trim() === "") {
     return undefined;
   }
-  const normalized = raw.trim().toLowerCase();
+  const trimmed = raw.trim();
+  const normalized = caseSensitive ? trimmed : trimmed.toLowerCase();
   return allowed.includes(normalized) ? normalized : null;
 };
 
@@ -428,6 +461,29 @@ const parseLayoutIntParam = (raw) => {
   // A hundreds-of-digits input passes the regex but parses to Infinity (or an
   // unrepresentable integer) — outside the documented contract, so reject.
   return Number.isSafeInteger(value) ? value : null;
+};
+
+/**
+ * ε-constraint budget parser (`strataPackedEps`). undefined when absent, null when
+ * invalid, else the parsed number. Mirrors the demo URL semantics exactly
+ * (terraformDemoUrlParams.ts:492-505): reject NaN / negative / non-finite; ABSOLUTE
+ * mode (eps >= 1) must be a whole integer crossings budget, but RELATIVE mode
+ * (0 < eps < 1) is legitimately fractional and accepted.
+ */
+const parseLayoutEpsParam = (raw) => {
+  if (raw == null || raw.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(raw.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  // A fractional value in absolute mode (e.g. 1.5) violates the crossings-budget
+  // contract; a fractional value in relative mode (0 < eps < 1) is valid.
+  if (parsed >= 1 && !Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
 };
 
 /** Overall bounds (min/max) over the non-deleted elements, or null when empty. */
@@ -529,6 +585,20 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
   // source/target, aggregated !== true).
   let arrowCount = 0;
   let tfdArrowCount = 0;
+  // Edge-collapse invariant (deband-hash-anomaly.md §"Recommended fix" #1): the
+  // engine nondeterministically produces scenes whose declared dataflow edges
+  // left NO spanning connector geometry — every relationship arrow degenerates to
+  // icon-stroke scale (<=53px) — while renderedCrossings/pierce, read off
+  // `customData.relationship` endpoints, score IDENTICALLY. Every scalar metric is
+  // blind to it. Count the declared arrows whose polyline actually spans a
+  // meaningful distance and compare against tfdArrowCount; a catastrophic collapse
+  // sets `edgeCollapseDetected` so a caller cannot mistake a broken scene for a
+  // valid layout off the crossings/pierce numbers alone. SPAN_MIN_PX = 64 sits
+  // above the measured 53px icon-stroke ceiling, so decorative strokes (which
+  // carry no relationship anyway) can never be miscounted.
+  const EDGE_SPAN_MIN_PX = 64;
+  const EDGE_COLLAPSE_MAX_SPANNING_FRACTION = 0.1;
+  let spanningEdgeArrowCount = 0;
   for (const el of metricsElements) {
     if (el.type === "arrow" && !el.isDeleted) {
       arrowCount += 1;
@@ -541,9 +611,33 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
         rel.aggregated !== true
       ) {
         tfdArrowCount += 1;
+        const pts = el.points;
+        if (Array.isArray(pts) && pts.length >= 2) {
+          let minX = Infinity;
+          let maxX = -Infinity;
+          let minY = Infinity;
+          let maxY = -Infinity;
+          for (const p of pts) {
+            minX = Math.min(minX, p[0]);
+            maxX = Math.max(maxX, p[0]);
+            minY = Math.min(minY, p[1]);
+            maxY = Math.max(maxY, p[1]);
+          }
+          if (Math.max(maxX - minX, maxY - minY) >= EDGE_SPAN_MIN_PX) {
+            spanningEdgeArrowCount += 1;
+          }
+        }
       }
     }
   }
+  const edgeSpanningFraction =
+    tfdArrowCount > 0
+      ? Math.round((spanningEdgeArrowCount / tfdArrowCount) * 1000) / 1000
+      : 0;
+  const edgeCollapseDetected =
+    tfdArrowCount > 0 &&
+    spanningEdgeArrowCount <
+      Math.max(1, tfdArrowCount * EDGE_COLLAPSE_MAX_SPANNING_FRACTION);
   return {
     renderedCrossings,
     pierce: pierceTotal,
@@ -551,6 +645,9 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
     piercePerTopoFrame,
     arrowCount,
     tfdArrowCount,
+    spanningEdgeArrowCount,
+    edgeSpanningFraction,
+    edgeCollapseDetected,
     revealedEdgeCount: revealedEdges.length,
     height: bounds?.height ?? null,
     width: bounds?.width ?? null,
@@ -775,6 +872,27 @@ const buildLayoutProofPayload = (
       strataRankSeparate: meta.strataRankSeparate ?? false,
       strataCoordinateRefine: meta.strataCoordinateRefine ?? false,
       strataSweeps: meta.strataSweeps ?? 0,
+      // W5 toggle echoes — the remaining engine flags exposed as URL params in
+      // 17bd203f3. flagMeta writes each key present-only-when-active (flag-off
+      // meta byte-identical), so `?? default` here reads the applied state
+      // honestly: a value proves the engine actually ran the toggle.
+      strataPackedScoring: meta.strataPackedScoring ?? false,
+      strataPackedScoringEpsilon: meta.strataPackedScoringEpsilon ?? 0,
+      strataEdgeRouting: meta.strataEdgeRouting ?? false,
+      strataBorderRoute: meta.strataBorderRoute ?? false,
+      strataSiftRelocate: meta.strataSiftRelocate ?? false,
+      strataPackedConverge: meta.strataPackedConverge ?? false,
+      strataTransitiveAdopt: meta.strataTransitiveAdopt ?? false,
+      strataBlockClamp: meta.strataBlockClamp ?? false,
+      strataTranspose: meta.strataTranspose ?? false,
+      strataHeightGate: meta.strataHeightGate ?? false,
+      strataDeBandLevel: meta.strataDeBandLevel ?? "none",
+      // privateApiRegional (consumed in prep) and strataBandDepth (resolved
+      // internally, "account" default) are NOT echoed to scene.meta by the
+      // engine, so these reflect the REQUESTED value — the honest best-available
+      // proof-API signal that the caller asked for the toggle.
+      pipelinePrivateApiRegional: requested.privateApiRegional ?? false,
+      strataBandDepth: requested.strataBandDepth ?? "account",
     },
     suppressions,
     bounds: computeSceneBounds(elements),
@@ -960,8 +1078,17 @@ export const terraformImportPresetDevPlugin = () => ({
             requested[param] = value;
           }
         }
-        for (const [param, optionKey, allowed] of LAYOUT_ENUM_PARAMS) {
-          const value = parseLayoutEnumParam(params.get(param), allowed);
+        for (const [
+          param,
+          optionKey,
+          allowed,
+          caseSensitive,
+        ] of LAYOUT_ENUM_PARAMS) {
+          const value = parseLayoutEnumParam(
+            params.get(param),
+            allowed,
+            caseSensitive === true,
+          );
           if (value === null) {
             sendJson(res, 400, {
               error: `Invalid value for ?${param} (use ${allowed.join("/")}).`,
@@ -978,6 +1105,19 @@ export const terraformImportPresetDevPlugin = () => ({
           if (value === null) {
             sendJson(res, 400, {
               error: `Invalid integer for ?${param} (use a non-negative whole number).`,
+            });
+            return;
+          }
+          if (value !== undefined) {
+            options[optionKey] = value;
+            requested[param] = value;
+          }
+        }
+        for (const [param, optionKey] of LAYOUT_EPS_PARAMS) {
+          const value = parseLayoutEpsParam(params.get(param));
+          if (value === null) {
+            sendJson(res, 400, {
+              error: `Invalid value for ?${param} (use a non-negative number; fractional only in relative mode 0<eps<1, integer for eps>=1).`,
             });
             return;
           }
