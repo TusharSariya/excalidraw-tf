@@ -27,12 +27,29 @@
  *     "outPath": "/abs/path/to/result.json"            // required
  *   }
  *
- * `options` uses the demo-URL option vocabulary. Recognized strata-demo keys
- * (strataSweeps / strataCoordRefine / strataRankSeparate / strataDeBandLevel /
- * strataPackedEps / strataSift / …) are folded through `resolveStrataDemoOptions`;
- * every other key (layoutMode / pipelineCompact / pipelineIncludeAncillary /
- * pipelinePrivateApiRegional / …) is forwarded RAW to `layoutTerraformFromSources`.
- * `layoutMode` defaults to `"strata"` when the arm omits it.
+ * `options` accepts BOTH vocabularies without silent loss:
+ *   - demo-URL strata keys (strataSweeps / strataCoordRefine / strataRankSeparate
+ *     / strataDeBandLevel / strataPackedEps / strataSift / …) fold through
+ *     `resolveStrataDemoOptions`;
+ *   - ENGINE strata keys (strataSiftRelocate / strataCoordinateRefine /
+ *     strataPackedScoringEpsilon / strataNetworkSimplexRank / … — the names every
+ *     memory doc, commit, and toggle in this repo uses) are forwarded RAW and,
+ *     crucially, spread AFTER the resolver output so they WIN over the resolver's
+ *     materialized default instead of being clobbered by it. Each such override
+ *     is echoed in the arm record as `rawStrataOverrides` so a treatment arm can
+ *     never be silently measured as baseline;
+ *   - short URL aliases `compact` / `ancillary` / `privateApiRegional` map to
+ *     `pipelineCompact` / `pipelineIncludeAncillary` / `pipelinePrivateApiRegional`
+ *     (what `TerraformDemoAutoImport` does before the core seam);
+ *   - every remaining key (layoutMode / pipeline* / …) is forwarded RAW.
+ * `layoutMode` defaults to `"strata"`; and — mirroring the real app path
+ * (`terraformPresetImport.ts:213`) — a strata arm that omits
+ * `pipelinePrivateApiRegional` DEFAULTS it ON, so the default arm represents
+ * production, not a private-API-off variant.
+ *
+ * DETERMINISM is VERIFIED, not assumed: every repeat's geometry hash is captured
+ * and compared; `deterministic` rides in each ok record and the divergent
+ * `repeatHashes` are dumped whenever a repeat disagrees.
  *
  * METRIC HONESTY (trap #3): pierce is a DENOMINATOR ARTIFACT under de-band
  * (`computePierceMetrics` ranges only over the hull frames de-band deletes), so
@@ -143,25 +160,78 @@ const STRATA_DEMO_KEYS = new Set<string>([
   "strataDeBandLevel",
 ]);
 
+// Short demo-URL aliases → the pipeline* option name the REAL app path maps them
+// to before calling the core seam (TerraformDemoAutoImport.tsx:182-187). Without
+// this, an arm written as `{ compact: true }` / `{ ancillary: 1 }` /
+// `{ privateApiRegional: 1 }` — the exact param names the owner's audit URLs use
+// — would be forwarded RAW under those aliases and silently ignored by the
+// engine, which only reads the pipeline* names.
+const URL_ALIAS_TO_PIPELINE: Record<string, string> = {
+  compact: "pipelineCompact",
+  ancillary: "pipelineIncludeAncillary",
+  privateApiRegional: "pipelinePrivateApiRegional",
+};
+
+type BuiltLayoutOptions = {
+  options: Record<string, unknown>;
+  /** Raw engine-vocab `strata*` keys (NOT demo keys) that the arm passed and
+   * that therefore OVERRIDE a resolver-materialized default. Surfaced in the arm
+   * record so an engine-vocab treatment is auditable, never silently baseline. */
+  rawStrataOverrides: string[];
+};
+
 const buildLayoutOptions = (
   armOptions: Record<string, unknown>,
-): Record<string, unknown> => {
+): BuiltLayoutOptions => {
   const strataParams: Record<string, unknown> = {};
   const passThrough: Record<string, unknown> = {};
+  const rawStrataOverrides: string[] = [];
   for (const [k, v] of Object.entries(armOptions)) {
     if (STRATA_DEMO_KEYS.has(k)) {
       strataParams[k] = v;
+    } else if (k in URL_ALIAS_TO_PIPELINE) {
+      // Map short URL aliases to their pipeline* names (finding #4).
+      passThrough[URL_ALIAS_TO_PIPELINE[k]!] = v;
     } else {
+      // Any `strata*` key that reached here is ENGINE vocabulary the resolver
+      // also materializes as a default — record it so the override is loud
+      // (finding #1). The reorder below makes it actually take effect.
+      if (/^strata/.test(k)) {
+        rawStrataOverrides.push(k);
+      }
       passThrough[k] = v;
     }
   }
+
+  const resolved = resolveStrataDemoOptions(strataParams as never) as Record<
+    string,
+    unknown
+  >;
+
+  const layoutMode =
+    typeof passThrough.layoutMode === "string" ? passThrough.layoutMode : "strata";
+
+  // Mirror the real app path (finding #4): a bare Strata import defaults
+  // `pipelinePrivateApiRegional` ON when the caller omits it
+  // (terraformPresetImport.ts:213). An explicit pass-through value still wins.
+  const privateApiDefault =
+    layoutMode === "strata" && !("pipelinePrivateApiRegional" in passThrough)
+      ? { pipelinePrivateApiRegional: true }
+      : {};
+
   return {
-    layoutMode: "strata",
-    ...passThrough,
-    ...(resolveStrataDemoOptions(strataParams as never) as Record<
-      string,
-      unknown
-    >),
+    // Merge order is load-bearing (finding #1): the resolver's engine defaults
+    // go DOWN FIRST, then `passThrough` on top, so an explicit engine-vocab
+    // `strata*` key WINS over the materialized default instead of being
+    // clobbered by it. `layoutMode`/`privateApiDefault` sit under both and are
+    // overridden by any explicit pass-through of the same key.
+    options: {
+      layoutMode,
+      ...privateApiDefault,
+      ...resolved,
+      ...passThrough,
+    },
+    rawStrataOverrides,
   };
 };
 
@@ -260,97 +330,129 @@ const runArm = async (
   perArmTimeoutMs: number,
 ): Promise<Record<string, unknown>> => {
   const repeats = Math.max(1, spec.repeats ?? 1);
-  const options = buildLayoutOptions(arm.options ?? {});
+  const { options, rawStrataOverrides } = buildLayoutOptions(arm.options ?? {});
+  const overrides =
+    rawStrataOverrides.length > 0 ? { rawStrataOverrides } : {};
 
   if (PROFILE) {
     terraformImportProfilerReset();
     setTerraformImportProfilerEnabled(true);
   }
 
-  const wallMsRuns: number[] = [];
-  let firstScene: Scene | null = null;
+  // finally guarantees the profiler flag is reset even if a later run throws
+  // (finding #3 — a thrown layout / metric-extraction must not leave the shared
+  // profiler enabled for the next arm).
+  try {
+    const wallMsRuns: number[] = [];
+    // Hash EVERY repeat, not just the first — the determinism guarantee
+    // ("same spec → same geometry") is only *verified* by comparing them
+    // (finding #5).
+    const repeatHashes: string[] = [];
+    let firstScene: Scene | null = null;
 
-  const armStart = Date.now();
-  for (let i = 0; i < repeats; i++) {
-    // Cold cache each run — otherwise the prep cache masks real build cost and
-    // (worse) confounds the determinism guarantee across arms.
-    clearTerraformImportPrepCache();
-    const sources = getTerraformImportPresetSourcesFromDb(
-      spec.presetId,
-    ) as never;
+    const armStart = Date.now();
+    for (let i = 0; i < repeats; i++) {
+      // Cold cache each run — otherwise the prep cache masks real build cost and
+      // (worse) confounds the determinism guarantee across arms.
+      clearTerraformImportPrepCache();
+      const sources = getTerraformImportPresetSourcesFromDb(
+        spec.presetId,
+      ) as never;
 
-    const t0 = performance.now();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const raced = await Promise.race([
-      layoutTerraformFromSources(sources, options as never),
-      new Promise<typeof TIMEOUT>((resolve) => {
+      const t0 = performance.now();
+      // Arm the timeout BEFORE invoking layout (finding #2): the timer's
+      // deadline must include the synchronous pre-`await` work
+      // (packed-scoring descent). Constructing the timeout promise first starts
+      // the timer; the layout call then runs synchronously up to its first
+      // yield, at which point an already-elapsed timer resolves TIMEOUT. (An
+      // arm that overruns entirely in synchronous CPU still cannot be preempted
+      // in-process — that is the documented `exceededCap` path below.)
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<typeof TIMEOUT>((resolve) => {
         timer = setTimeout(() => resolve(TIMEOUT), perArmTimeoutMs);
-      }),
-    ]);
-    if (timer) {
-      clearTimeout(timer);
-    }
-    const wallMs = performance.now() - t0;
+      });
+      const layoutPromise = layoutTerraformFromSources(
+        sources,
+        options as never,
+      );
+      const raced = await Promise.race([layoutPromise, timeoutPromise]);
+      if (timer) {
+        clearTimeout(timer);
+      }
+      const wallMs = performance.now() - t0;
 
-    if (raced === TIMEOUT) {
-      if (PROFILE) {
-        setTerraformImportProfilerEnabled(false);
+      if (raced === TIMEOUT) {
+        // The abandoned layout keeps running (no worker thread to cancel);
+        // swallow any eventual rejection so it doesn't surface as an unhandled
+        // rejection after we've already returned the timeout verdict.
+        void Promise.resolve(layoutPromise).catch(() => {});
+        return {
+          label: arm.label,
+          status: "timeout",
+          elapsedMs: Math.round(Date.now() - armStart),
+          perArmTimeoutMs,
+          repeatOfTimeout: i,
+          options,
+          ...overrides,
+        };
       }
-      return {
-        label: arm.label,
-        status: "timeout",
-        elapsedMs: Math.round(Date.now() - armStart),
-        perArmTimeoutMs,
-        options,
-      };
-    }
-    const res = raced as Awaited<
-      ReturnType<typeof layoutTerraformFromSources>
-    >;
-    if (!res.ok) {
-      if (PROFILE) {
-        setTerraformImportProfilerEnabled(false);
+      const res = raced as Awaited<
+        ReturnType<typeof layoutTerraformFromSources>
+      >;
+      if (!res.ok) {
+        return {
+          label: arm.label,
+          status: "error",
+          error: String(res.error),
+          elapsedMs: Math.round(Date.now() - armStart),
+          options,
+          ...overrides,
+        };
       }
-      return {
-        label: arm.label,
-        status: "error",
-        error: String(res.error),
-        elapsedMs: Math.round(Date.now() - armStart),
-        options,
-      };
+      wallMsRuns.push(wallMs);
+      const scene = res.scene as Scene;
+      repeatHashes.push(strataGeometryHash(scene.elements));
+      if (i === 0) {
+        firstScene = scene;
+      }
     }
-    wallMsRuns.push(wallMs);
-    if (i === 0) {
-      firstScene = res.scene as Scene;
+
+    let profileSummary: unknown;
+    if (PROFILE) {
+      profileSummary = terraformImportProfilerSummary();
+    }
+
+    // Metrics captured from the FIRST run; determinism is now VERIFIED (not
+    // assumed) by comparing every repeat's geometry hash (finding #5).
+    const metrics = captureMetrics(firstScene!);
+    const deterministic = repeatHashes.every((h) => h === repeatHashes[0]);
+
+    // Synchronous overrun: the in-process race couldn't preempt this arm, but it
+    // still exceeded the cap — surface it honestly so the orchestrator can treat
+    // it like a soft timeout without losing the (completed) measurement.
+    const exceededCap = wallMsRuns.some((ms) => ms > perArmTimeoutMs);
+
+    return {
+      label: arm.label,
+      status: "ok",
+      ...(exceededCap ? { exceededCap: true } : {}),
+      repeats,
+      deterministic,
+      // Only bloat the record with per-repeat hashes when they actually
+      // disagree — a determinism VIOLATION is the one thing worth the bytes.
+      ...(deterministic ? {} : { repeatHashes }),
+      wallMsRuns: wallMsRuns.map((n) => Math.round(n)),
+      wallMsMedian: median(wallMsRuns),
+      ...metrics,
+      options,
+      ...overrides,
+      ...(PROFILE ? { profile: profileSummary } : {}),
+    };
+  } finally {
+    if (PROFILE) {
+      setTerraformImportProfilerEnabled(false);
     }
   }
-
-  let profileSummary: unknown;
-  if (PROFILE) {
-    profileSummary = terraformImportProfilerSummary();
-    setTerraformImportProfilerEnabled(false);
-  }
-
-  // Metrics captured from the FIRST run (deterministic engine — later runs are
-  // byte-identical; the determinism guarantee is exactly this).
-  const metrics = captureMetrics(firstScene!);
-
-  // Synchronous overrun: the in-process race couldn't preempt this arm, but it
-  // still exceeded the cap — surface it honestly so the orchestrator can treat
-  // it like a soft timeout without losing the (completed) measurement.
-  const exceededCap = wallMsRuns.some((ms) => ms > perArmTimeoutMs);
-
-  return {
-    label: arm.label,
-    status: "ok",
-    ...(exceededCap ? { exceededCap: true } : {}),
-    repeats,
-    wallMsRuns: wallMsRuns.map((n) => Math.round(n)),
-    wallMsMedian: median(wallMsRuns),
-    ...metrics,
-    options,
-    ...(PROFILE ? { profile: profileSummary } : {}),
-  };
 };
 
 // ── incremental writer (read → push → write, after EVERY arm) ────────────────
@@ -425,7 +527,25 @@ if (!spec) {
       it(
         `measures ${arm.label}`,
         async () => {
-          const r = await runArm(spec, arm, perArmTimeoutMs);
+          // runArm returns error/timeout records for the paths IT knows about,
+          // but a thrown source-load / layout / metric-extraction exception
+          // would otherwise skip the write entirely — breaking the "artifact
+          // after EVERY arm" guarantee (finding #3). Catch here so every arm,
+          // however it fails, lands a record on disk before this `it` resolves.
+          let r: Record<string, unknown>;
+          try {
+            r = await runArm(spec, arm, perArmTimeoutMs);
+          } catch (err) {
+            r = {
+              label: arm.label,
+              status: "error",
+              error:
+                err instanceof Error
+                  ? `${err.message}\n${err.stack ?? ""}`
+                  : String(err),
+              threw: true,
+            };
+          }
           // WRITE AFTER EVERY ARM — partial data survives a later hang.
           appendArmResult(spec, header, r);
           // eslint-disable-next-line no-console
