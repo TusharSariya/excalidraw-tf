@@ -1058,19 +1058,19 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "engine-core view-scoping: pipelinePrivateApiRegional is inert for non-strata layoutModes (forced false at the sceneContext seam) but live for strata",
+    "engine-core clamp: pipelinePrivateApiRegional is ALWAYS-ON for strata (owner Q9) and inert (forced false) for non-strata",
     async () => {
-      // Load-bearing regression for the engine-core scoping (terraformLayoutCore.ts
-      // sceneContext literal). This exercises the DIRECT engine path
-      // (`layoutTerraformFromSources`) — the one that bypasses the import
-      // wrapper's scoping — on the real multi-account private-API fixture. The
-      // flag is strata-only: turning it on for v2/rcll must change NOTHING, so
-      // those views stay byte-identical regardless of what a direct/worker
-      // caller passes; strata must actually apply it.
+      // Load-bearing regression for the engine-core clamp (terraformLayoutCore.ts
+      // sceneContext literal: `pipelinePrivateApiRegional: layoutMode === "strata"`).
+      // owner-decisions.md 2026-07-17 (Q9): private REST APIs are ALWAYS regional
+      // in strata, and the ability to turn it off is removed. This exercises the
+      // DIRECT engine path (`layoutTerraformFromSources`) — the one a URL/worker
+      // caller hits — on the real multi-account private-API fixture.
+      //
+      // Non-strata forces the flag false at the engine core ⇒ geometry is
+      // byte-identical regardless of what the caller passes (unchanged).
       const v2Off = await buildV2();
       const v2On = await buildV2({ pipelinePrivateApiRegional: true });
-      // Non-strata forces the flag false at the engine core ⇒ geometry is
-      // byte-identical, proving the private-API regional placement never ran.
       expect(geometryTuples(v2On.elements)).toEqual(
         geometryTuples(v2Off.elements),
       );
@@ -1081,24 +1081,44 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
         geometryTuples(rcllOff.elements),
       );
 
-      // Strata keeps the caller's value — the same flag DOES move geometry
-      // here (the fixture is the multi-account private-API case), proving the
-      // scoping is view-specific, not a blanket no-op that would hide the fix.
-      const strataOff = await buildStrata({
+      // Strata CLAMPS the flag on: the caller's value is ignored. A strata build
+      // that explicitly passes `pipelinePrivateApiRegional: false` (the exact
+      // shape a legacy `privateApiRegional=0` URL produces) must yield the SAME
+      // geometry as one that passes `true` — the review bug was that `=0` could
+      // still flip it off; it can't anymore.
+      const strataFalse = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
         pipelinePrivateApiRegional: false,
       });
-      const strataOn = await buildStrata({
+      const strataTrue = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
         pipelinePrivateApiRegional: true,
       });
-      expect(strataOff.meta.rcllV2Degraded).toBeUndefined();
-      expect(strataOn.meta.rcllV2Degraded).toBeUndefined();
-      expect(geometryTuples(strataOn.elements)).not.toEqual(
-        geometryTuples(strataOff.elements),
+      // The no-key default path lands on the SAME clamped-on layout. This is the
+      // decisive anti-revert guard: under the pre-clamp engine contract ("absent
+      // ⇒ opted out") a strata build with no privateApi key ran with the flag
+      // OFF, so this default build would DIFFER from the explicit-true build on
+      // this multi-account fixture. The clamp makes them identical — restore the
+      // old `options?.pipelinePrivateApiRegional` pass-through and this fails.
+      const strataDefault = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(strataFalse.meta.rcllV2Degraded).toBeUndefined();
+      expect(strataTrue.meta.rcllV2Degraded).toBeUndefined();
+      expect(strataDefault.meta.rcllV2Degraded).toBeUndefined();
+      expect(geometryTuples(strataFalse.elements)).toEqual(
+        geometryTuples(strataTrue.elements),
       );
+      expect(geometryTuples(strataDefault.elements)).toEqual(
+        geometryTuples(strataTrue.elements),
+      );
+      // Regional PLACEMENT semantics (true ⇒ private REST API hoisted to an
+      // account/region hull, not VPC-nested) are owned by the dedicated
+      // topology suites (terraformPrivateApiRegionalPlacement.test.ts,
+      // terraformApiPlacementDebug.test.ts); this test owns the strata CLAMP.
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );

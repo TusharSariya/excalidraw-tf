@@ -58,7 +58,6 @@ export const TerraformImportModal = ({
     pipelinePacked,
     pipelinePackedPullLeft,
     pipelineIncludeAncillary,
-    pipelinePrivateApiRegional,
     pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise,
     pipelineReorder,
@@ -668,10 +667,6 @@ terraform show -json tfplan > plan.json`}</code>
               strataCrossWeightPenetration={strataCrossWeightPenetration}
               strataCrossWeightEdge={strataCrossWeightEdge}
               strataEdgeCrossCap={strataEdgeCrossCap}
-              pipelinePrivateApiRegional={pipelinePrivateApiRegional}
-              setPipelinePrivateApiRegional={
-                dialog.setPipelinePrivateApiRegional
-              }
               setStrataSweeps={dialog.setStrataSweeps}
               setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
               setStrataRankSeparate={dialog.setStrataRankSeparate}

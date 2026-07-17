@@ -651,22 +651,10 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataEdgeCrossCap (optional; blank ⇒ inherits strataPackedScoringEpsilon): the ε-style edge-edge regression cap the relocation may not exceed.",
     },
   },
-  "strata.privateapi.off": {
-    title: "Private API placement · Off",
-    body: "Private REST APIs (execute-api VPC endpoints) are drawn nested inside the VPC they attach to. A private API that fronts several VPCs — or none in particular — still gets forced into one VPC's box, which misrepresents where it actually lives.",
-    dev: {
-      implements:
-        "pipelinePrivateApiRegional=false: private API gateways keep their legacy VPC-nested placement (the pre-flag behaviour every non-strata view still uses).",
-    },
-  },
-  "strata.privateapi.on": {
-    title: "Private API placement · On (strata default)",
-    body: "Private REST APIs are placed at the account + region level — a sibling of the VPCs in that region — rather than being nested inside a single VPC. This matches how a private API is actually reachable (regionally, from any attached VPC) and avoids the arbitrary pick when it fronts more than one. On by default in the strata view.",
-    dev: {
-      implements:
-        "pipelinePrivateApiRegional=true (strata-only): private execute-api endpoints are hoisted to an account/region hull instead of a VPC hull; the strata builder honours it via preparePipelineLayout. View-scoped to strata — every other view forces it false.",
-    },
-  },
+  // Private API placement help was removed with its control (owner-decisions.md
+  // 2026-07-17 Q9: strata always places private REST APIs regionally; the engine
+  // clamps `pipelinePrivateApiRegional` true, so there is no Off/On toggle to
+  // explain). The legacy `privateApiRegional` URL param stays parsed but inert.
   // Resources help is keyed SEPARATELY for strata rather than reusing
   // "resources.all": the content filter is the same, but strata's cost is not.
   // The generic entry says "collected into an 'Unconnected' strip … works in

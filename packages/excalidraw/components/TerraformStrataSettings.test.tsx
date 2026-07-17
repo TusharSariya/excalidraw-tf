@@ -40,8 +40,6 @@ const baseProps = (): Props => ({
   strataCrossWeightPenetration: 1,
   strataCrossWeightEdge: 1,
   strataEdgeCrossCap: undefined,
-  pipelinePrivateApiRegional: false,
-  setPipelinePrivateApiRegional: vi.fn(),
   setStrataSweeps: vi.fn(),
   setStrataCoordinateRefine: vi.fn(),
   setStrataRankSeparate: vi.fn(),
@@ -201,10 +199,23 @@ describe("TerraformStrataSettings DOM identity", () => {
       strataBorderRoute: true,
       strataSiftRelocate: true,
       pipelineCompact: false,
-      pipelinePrivateApiRegional: true,
       strataEdgeCrossCap: 4,
     });
     expect(container.innerHTML).toMatchSnapshot();
+  });
+
+  it("does NOT render the removed Private API placement control (owner Q9: always-on)", () => {
+    // owner-decisions.md 2026-07-17 (Q9): "remove that button, default is ON,
+    // private apis are regional." The Off/On 'Private API placement' segmented
+    // control is DELETED from the panel — strata always places private REST APIs
+    // regionally (the engine clamps pipelinePrivateApiRegional true), so there is
+    // nothing to toggle. Its role="group" and label must be gone, and there is no
+    // way for the panel to turn the flag off.
+    renderPanel();
+    expect(
+      screen.queryByRole("group", { name: "Strata private API placement" }),
+    ).toBeNull();
+    expect(screen.queryByText(/Private API placement/i)).toBeNull();
   });
 });
 

@@ -1196,18 +1196,19 @@ export async function layoutTerraformFromSources(
     addressToStack,
     deferDecorations: options?.deferDecorations === true,
     pipelineCompact: options?.pipelineCompact,
-    // Engine-core view-scoping (load-bearing, enforced regardless of entry
-    // path — direct/worker/dialog/demo/semantic): private-API regional
-    // placement is ONLY wired for the strata view; it collides/gate-fails on
-    // v2/rcll/compound/pipeline/semantic. Force it false for every non-strata
-    // layoutMode so those stay byte-identical no matter what the caller passed;
-    // strata keeps the caller's value (the import wrapper defaults it ON).
-    // sceneContext is the single fan-in — builderOptions (:601) and the meta
-    // echo (:782) both read `ctx.pipelinePrivateApiRegional`, so gating here
-    // covers every consumer. The import-wrapper scoping stays too, to keep the
-    // worker-options payload false for non-strata dialog imports.
-    pipelinePrivateApiRegional:
-      layoutMode === "strata" ? options?.pipelinePrivateApiRegional : false,
+    // Engine-core clamp (load-bearing, enforced regardless of entry path —
+    // direct/worker/dialog/demo/semantic): private-API regional placement is a
+    // strata-only, ALWAYS-ON property. owner-decisions.md 2026-07-17 (Q9):
+    // "remove that button, default is ON, private apis are regional." So strata
+    // FORCES the flag true here — the caller's value is IGNORED (a strata URL
+    // carrying the legacy `privateApiRegional=0` param can no longer turn it
+    // off; the param is still parsed for reversibility but is inert for strata).
+    // Every non-strata layoutMode forces it false (it collides/gate-fails on
+    // v2/rcll/compound/pipeline/semantic), so those stay byte-identical no
+    // matter what the caller passed. sceneContext is the single fan-in —
+    // builderOptions (:601) and the meta echo (:782) both read
+    // `ctx.pipelinePrivateApiRegional`, so clamping here covers every consumer.
+    pipelinePrivateApiRegional: layoutMode === "strata",
     // Force the variant for RCLL / Strata so a stale-session/default variant
     // can't mis-route to the plain pipeline builder (dispatch keys on the
     // variant). Strata rides its own layoutMode (not the `pipelineVariant`

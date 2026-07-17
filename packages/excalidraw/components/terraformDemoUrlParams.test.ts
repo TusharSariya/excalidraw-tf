@@ -1073,10 +1073,14 @@ describe("terraformDemoUrlParams", () => {
       expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
     });
 
-    it("round-trips an explicit private-API-regional OFF in the strata view", () => {
-      // Strata defaults the flag ON, so the serialize branch must emit it in
-      // both states — an explicit OFF has to survive share→reload rather than
-      // being dropped and silently re-defaulting ON.
+    it("parses the legacy private-API-regional OFF param without error (round-trips; inert for strata)", () => {
+      // owner-decisions.md 2026-07-17 (Q9): private REST APIs are ALWAYS regional
+      // in strata and the toggle is removed. The legacy `privateApiRegional=0`
+      // param is kept PARSEABLE (reversibility — a saved/legacy URL must not
+      // error and must round-trip byte-for-byte), but it is now INERT for strata:
+      // the engine clamps pipelinePrivateApiRegional TRUE at the sceneContext seam
+      // regardless of this value (proven in terraformLayoutCoreStrataThreading).
+      // So this asserts the PARSER contract only, not geometry.
       const snapshot: TerraformDemoSettingsSnapshot = {
         ...baseSnapshot,
         view: "strata",
@@ -1085,6 +1089,8 @@ describe("terraformDemoUrlParams", () => {
       const url = buildTerraformDemoUrlFromSettings(snapshot);
       expect(queryOf(url)).toContain("privateApiRegional=0");
       const parsed = parseTerraformDemoUrlParams(queryOf(url));
+      // No error / non-null: the legacy param is accepted, not rejected.
+      expect(parsed).not.toBeNull();
       expect(parsed!.privateApiRegional).toBe(false);
       expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
     });

@@ -102,7 +102,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "hidden",
     emitClass: "C1",
     decidedNow: true,
-    note: "owner-decisions.md 2026-07-17 TARGET: always-ON for strata with the UI toggle removed (private APIs are always regional) → hidden surface. SHIPPED NOW: default true; the legacy privateApiRegional param is still HONORED at resolve (privateApiRegional=0 resolves to false — NOT yet inert-clamped) and the 'Private API placement' control still renders in the panel. Non-strata views force false at the import boundary. The always-on inert clamp + UI-control removal are the deferred UI-wiring follow-up",
+    note: "owner-decisions.md 2026-07-17 (Q9): always-ON for strata; UI control removed; legacy param parsed but inert for strata → hidden surface. Private REST APIs are always regional: the engine clamps pipelinePrivateApiRegional TRUE for strata at the terraformLayoutCore sceneContext seam regardless of input, so a strata URL with privateApiRegional=0 can no longer turn it off. The legacy privateApiRegional / pipelinePrivateApiRegional param is still PARSED (no error) for reversibility but has no effect on strata. Non-strata views force it FALSE at the same seam (unchanged).",
   },
   {
     urlParam: "strataRankSep",

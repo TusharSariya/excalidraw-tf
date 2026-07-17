@@ -63,8 +63,6 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
-  pipelinePrivateApiRegional,
-  setPipelinePrivateApiRegional,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
@@ -109,8 +107,6 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
   strataEdgeCrossCap: number | undefined;
-  pipelinePrivateApiRegional: boolean;
-  setPipelinePrivateApiRegional: (privateApiRegional: boolean) => void;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
@@ -612,33 +608,12 @@ export const TerraformStrataSettings = ({
               </div>
             </details>
           </div>
-          <div className="TerraformImportModal__settingsSection">
-            <div className="TerraformImportModal__settingsSectionHeader">
-              Placement
-            </div>
-            <div role="group" aria-label="Strata private API placement">
-              <span className="TerraformImportModal__controlLabel">
-                Private API placement{" "}
-                <span>
-                  place private APIs by account (region-level), not inside a VPC
-                </span>
-              </span>
-              <div className="TerraformImportModal__segmentedControl">
-                {option(
-                  "Off",
-                  !pipelinePrivateApiRegional,
-                  "strata.privateapi.off",
-                  () => setPipelinePrivateApiRegional(false),
-                )}
-                {option(
-                  "On",
-                  pipelinePrivateApiRegional,
-                  "strata.privateapi.on",
-                  () => setPipelinePrivateApiRegional(true),
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Private API placement is no longer a control. owner-decisions.md
+              2026-07-17 (Q9): private REST APIs are ALWAYS regional in strata —
+              the engine clamps `pipelinePrivateApiRegional` true at the
+              terraformLayoutCore sceneContext seam, so there is nothing to
+              toggle. The legacy `privateApiRegional` URL param is still parsed
+              (reversibility) but inert for strata. */}
           {/* Future: OD-15 "de-band" toggle lands here as an additional
               role="group" block in the Height & packing section. */}
         </div>
