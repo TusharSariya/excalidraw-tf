@@ -3,16 +3,25 @@
  *
  * ONE declarative catalog of every strata-surface option — its URL param name,
  * legacy aliases, resolved option key, default, value kind, UI surface
- * (basic / advanced / hidden / engine-only), and share-URL emission class. It
- * is the single table the panel IA, the parser/alias map, the share-URL
- * emitter, the proof-API `?describe` catalog, and the dependency-rule module
- * all read, so the disposition of an option is stated exactly once.
+ * (basic / advanced / hidden / engine-only), and share-URL emission class.
+ *
+ * SCOPE (C19): this is a REVIEWED DESCRIPTION of today's surface, not yet a
+ * wired consumer. Nothing reads it yet — the parser, the panel IA, the
+ * share-URL emitter, the proof-API `?describe` catalog, and the dependency-rule
+ * module all still maintain their own hand-kept lists. The `surface`
+ * (basic/advanced/hidden) column is therefore METADATA ONLY: it does NOT hide
+ * or disclose any control today. The intent is that these sites eventually read
+ * this table so an option's disposition is stated exactly once; wiring them
+ * (replacing the hand-maintained lists) is the incremental follow-up.
+ *
+ * Because it must survive that rewire byte-identically, every row's `default`
+ * and `emitClass` are pinned to the LIVE resolver/serializer (the anti-drift
+ * test enforces both, and inherited-default rows are represented as such rather
+ * than with a fabricated concrete value — see `defaultInherits`).
  *
  * Pure data — no layout imports, plain string literals only (same discipline as
- * `terraformStrataDefaults.ts`). This module ships the catalog + its coverage
- * guards additively; wiring the parser/panel/emitter to CONSUME it (replacing
- * their hand-maintained lists) is the incremental follow-up. It changes no
- * behavior today: the registry only DESCRIBES the surviving surface.
+ * `terraformStrataDefaults.ts`). It changes no behavior today: the registry
+ * only DESCRIBES the surviving surface.
  *
  * Emission class (c03 taxonomy):
  *   C1 = both-states (explicit 1/0 always emitted — default-ON flags)
@@ -43,8 +52,24 @@ export type StrataOptionRegistryEntry = {
   /** Resolved engine option key (the `resolveStrataDemoOptions` output name). */
   optionKey: string;
   kind: StrataOptionKind;
-  /** Default value (byte-identical baseline). */
-  default: boolean | number | string;
+  /**
+   * Default value (byte-identical baseline). OMITTED when the option has no
+   * materialized default because it INHERITS one at resolve time — see
+   * `defaultInherits`. An absent value then differs semantically from an
+   * explicit one (e.g. an explicit `0` cap is NOT the same as omission when the
+   * inherited ε is nonzero), so a fabricated concrete default would let a
+   * registry-driven emitter erase an explicit value. Exactly one of `default`
+   * or `defaultInherits` is present on every row.
+   */
+  default?: boolean | number | string;
+  /**
+   * Set when this option has NO fixed default: at resolve time it inherits the
+   * value of the named option (the engine's absence contract). Mutually
+   * exclusive with `default`. The anti-drift test requires such a row to be
+   * ABSENT from `TERRAFORM_STRATA_LAYOUT_DEFAULTS` (the resolver must not seed
+   * it), so the inheritance is enforced, not merely documented.
+   */
+  defaultInherits?: string;
   /** Enum domain, when kind === "enum". */
   domain?: readonly string[];
   surface: StrataOptionSurface;
@@ -148,9 +173,15 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     kind: "boolean",
     default: false,
     surface: "hidden",
-    emitClass: "C4",
+    // C19 fix (surface-and-emission-registry-not-applied): C2, not C4. Although
+    // strataBandCompact is a legacy alias for strataBandDepth='root', the live
+    // serializer STILL emits it truthy-only (collectTerraformDemoParams:1068,
+    // buildTerraformDemoUrl setBool:824) — it is NOT parse-only. Cataloguing it
+    // C4 disagreed with the emitter; a registry-driven serializer would then
+    // wrongly drop it. Its true class today is C2 (default-OFF, emitted when set).
+    emitClass: "C2",
     decidedNow: true,
-    note: "legacy alias → strataBandDepth='root'; parser + build round-trip kept forever",
+    note: "legacy alias → strataBandDepth='root'; STILL emitted truthy-only today (C2); parser + build round-trip kept forever",
   },
   {
     urlParam: "strataBandDepth",
@@ -208,11 +239,17 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     urlParam: "strataEdgeCap",
     optionKey: "strataEdgeCrossCap",
     kind: "number",
-    default: 0,
+    // C19 fix (edge-cap-default-drift): NO fixed default — absence inherits the
+    // resolved ε (strataPackedScoringEpsilon). Cataloguing this as `default: 0`
+    // was a fabrication: with ε nonzero, an explicit cap 0 differs semantically
+    // from omission, so a registry-driven emitter keyed on `default: 0` would
+    // erase an explicit zero. Represented as inherited so every emitter/test
+    // treats absence correctly.
+    defaultInherits: "strataPackedScoringEpsilon",
     surface: "advanced",
     emitClass: "C3",
     decidedNow: false,
-    note: "edge-edge regression cap; no default materialized (inherits ε); BLOCKED on S1-1 before any merge",
+    note: "edge-edge regression cap; no default materialized (inherits ε, NOT 0); BLOCKED on S1-1 before any merge",
   },
   {
     urlParam: "strataPackedConverge",

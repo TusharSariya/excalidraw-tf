@@ -23,9 +23,45 @@ const defaults = TERRAFORM_STRATA_LAYOUT_DEFAULTS as unknown as Record<
 >;
 
 describe("strata option registry (c04)", () => {
-  it("every registry default agrees with TERRAFORM_STRATA_LAYOUT_DEFAULTS", () => {
+  it("EVERY registry row's default is validated against the resolver (no silent skips)", () => {
+    // C19 fix (edge-cap-default-drift): the old form only checked rows whose key
+    // was present in the defaults module, silently skipping inherited-default
+    // rows (strataEdgeCrossCap) — which is exactly where a fabricated `default:
+    // 0` hid. Now every row must be classified and checked.
     for (const entry of STRATA_OPTION_REGISTRY) {
-      if (Object.prototype.hasOwnProperty.call(defaults, entry.optionKey)) {
+      const seeded = Object.prototype.hasOwnProperty.call(
+        defaults,
+        entry.optionKey,
+      );
+      // Exactly one of `default` / `defaultInherits` is present.
+      const hasConcrete = entry.default !== undefined;
+      const inherits = entry.defaultInherits !== undefined;
+      expect(
+        hasConcrete !== inherits,
+        `${entry.optionKey}: exactly one of default/defaultInherits required`,
+      ).toBe(true);
+
+      if (inherits) {
+        // An inherited-default option must NOT be seeded by the resolver (the
+        // engine's absence contract), and the option it inherits from must be a
+        // real seeded key.
+        expect(
+          seeded,
+          `${entry.optionKey}: inherited-default row must be ABSENT from the resolver defaults`,
+        ).toBe(false);
+        expect(
+          Object.prototype.hasOwnProperty.call(
+            defaults,
+            entry.defaultInherits!,
+          ),
+          `${entry.optionKey}: inherits from unknown key ${entry.defaultInherits}`,
+        ).toBe(true);
+      } else {
+        // A concrete-default row MUST be seeded and MUST match byte-for-byte.
+        expect(
+          seeded,
+          `${entry.optionKey}: concrete-default row must be seeded by the resolver`,
+        ).toBe(true);
         expect(
           entry.default,
           `registry default for ${entry.optionKey} drifted from the resolver`,
