@@ -197,6 +197,28 @@ describe("terraformCanvasShareUrl", () => {
     ).toBe(true);
   });
 
+  it("strataLeafShift: default off is omitted, an ON session round-trips through the share URL (c19 leaf-shift bridge)", () => {
+    // C19 fix (share-url-drops-leaf-shift): the session→snapshot bridge dropped
+    // strataLeafShift entirely, so a canvas imported with the flag reopened with
+    // default-off geometry. Default-off stays byte-identical (never emitted).
+    const defaultUrl = buildTerraformCanvasShareUrl(
+      makeSession({ layoutMode: "strata" }),
+      defaultView,
+    );
+    expect(defaultUrl).toContain("view=strata");
+    expect(defaultUrl).not.toContain("strataLeafShift");
+
+    // An ON session round-trips through the snapshot into the URL.
+    const onUrl = buildTerraformCanvasShareUrl(
+      makeSession({ layoutMode: "strata", strataLeafShift: true }),
+      defaultView,
+    );
+    expect(onUrl).toContain("strataLeafShift=1");
+    expect(parseTerraformDemoUrlParams(queryOf(onUrl!))?.strataLeafShift).toBe(
+      true,
+    );
+  });
+
   it("strataBandDepth: default cut is omitted from the /demo URL, a non-default cut round-trips (WP4 P2 byte-identity)", () => {
     // Default cut ("account") and absent are byte-identical — the snapshot →
     // URL path must not materialize a default `strataBandDepth` param, matching

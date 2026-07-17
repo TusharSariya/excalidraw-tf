@@ -130,6 +130,12 @@ const sessionToDemoSnapshot = (
   strataBlockClamp: session.strataBlockClamp ?? false,
   strataTranspose: session.strataTranspose ?? false,
   strataHeightGate: session.strataHeightGate ?? false,
+  // C19 fix (share-url-drops-leaf-shift): the session retains strataLeafShift
+  // and collectTerraformDemoParams emits it truthy-only, but the bridge here
+  // never forwarded it — a canvas imported with strataLeafShift=1 lost the flag
+  // on share and reopened with default-off geometry. `?? false` is byte-
+  // identical for field-absent sessions (false ⇒ never emitted).
+  strataLeafShift: session.strataLeafShift ?? false,
   // De-band ladder: omit at the default `"none"` (a TRUTHY string — the
   // explicit compare is load-bearing) so a shared URL of a default scene is
   // byte-identical to today's.
