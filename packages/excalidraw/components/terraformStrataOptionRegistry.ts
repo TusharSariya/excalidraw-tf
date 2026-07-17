@@ -94,7 +94,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "hidden",
     emitClass: "C1",
     decidedNow: true,
-    note: "owner-decisions.md 2026-07-17: ALWAYS-ON for strata; UI toggle REMOVED (private APIs are always regional). Parser keeps accepting the legacy param as inert/always-on; engine forces it on. Non-strata views force false at the import boundary",
+    note: "owner-decisions.md 2026-07-17 TARGET: always-ON for strata with the UI toggle removed (private APIs are always regional) → hidden surface. SHIPPED NOW: default true; the legacy privateApiRegional param is still HONORED at resolve (privateApiRegional=0 resolves to false — NOT yet inert-clamped) and the 'Private API placement' control still renders in the panel. Non-strata views force false at the import boundary. The always-on inert clamp + UI-control removal are the deferred UI-wiring follow-up",
   },
   {
     urlParam: "strataRankSep",
