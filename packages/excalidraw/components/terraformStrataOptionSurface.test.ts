@@ -150,18 +150,29 @@ describe("strata option-surface regression (W0-I4)", () => {
     ).toBeNull();
   });
 
-  it("threading tripwire: every strata layout option is still forwarded by layoutTerraformFromSources", () => {
-    // Structural backstop for the sceneContext / builderOptions / direct-option
-    // seams (terraformLayoutCore.ts). If a future refactor stops forwarding one
-    // of these, the option is silently dropped on the real app path even though
-    // the dialog still shows it. This asserts the source still references each
-    // key as a forwarded layout option (`options?.strataXxx`).
+  it("threading tripwire: every strata layout option survives BOTH forwarding seams of layoutTerraformFromSources", () => {
+    // A strata option reaches the engine only if it survives TWO independent
+    // silent-drop points in terraformLayoutCore.ts, and checking only one is a
+    // false backstop (memory: "RCLL option threading boundary"):
+    //
+    //  SEAM 1 — the sceneContext literal (`options?.strataXxx`): reads the raw
+    //           option off the caller's `options` bag into the ctx.
+    //  SEAM 2 — the builderOptions fan-in (`ctx.strataXxx`): passes that ctx
+    //           value on to the packed builder. This object is a `const`
+    //           precisely to defeat TS's excess-property check, so a key present
+    //           in seam 1 but MISSING here compiles green and is silently lost.
+    //
+    // A key present in only one seam is exactly the failure this must catch, so
+    // every REQUIRED option must appear in BOTH match sets.
     const src = readFileSync(
       join(__dirname, "terraformLayoutCore.ts"),
       "utf8",
     );
-    const forwarded = new Set(
+    const seam1 = new Set(
       [...src.matchAll(/options\?\.(strata[A-Za-z0-9]+)/g)].map((m) => m[1]!),
+    );
+    const seam2 = new Set(
+      [...src.matchAll(/ctx\.(strata[A-Za-z0-9]+)/g)].map((m) => m[1]!),
     );
     // The strata layout options that MUST survive the seam. Adding a new strata
     // option? Add it here in the same change that forwards it — that is the
@@ -188,9 +199,15 @@ describe("strata option-surface regression (W0-I4)", () => {
       "strataTranspose",
       "strataHeightGate",
     ];
-    const missing = REQUIRED.filter((k) => !forwarded.has(k));
-    expect(missing, `strata options no longer forwarded: ${missing.join(", ")}`).toEqual(
-      [],
-    );
+    const missingSeam1 = REQUIRED.filter((k) => !seam1.has(k));
+    const missingSeam2 = REQUIRED.filter((k) => !seam2.has(k));
+    expect(
+      missingSeam1,
+      `strata options no longer read into the sceneContext (seam 1): ${missingSeam1.join(", ")}`,
+    ).toEqual([]);
+    expect(
+      missingSeam2,
+      `strata options no longer forwarded to the builder (seam 2): ${missingSeam2.join(", ")}`,
+    ).toEqual([]);
   });
 });

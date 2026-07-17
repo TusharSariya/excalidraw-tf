@@ -7,8 +7,12 @@
  * the full matrix probe (`…probe.test.ts`) is the slower, complete freeze.
  *
  * If this trips: strata geometry changed on the canonical preset. Investigate,
- * and only if the change is intended regenerate the baseline via the probe
- * (STRATA_REGRESSION_UPDATE=1) with a justification.
+ * and only if the change is intended regenerate the baseline via the probe —
+ * which is a `*.probe.test.ts` the base config excludes, so it MUST run under
+ * the probe config with a mandatory justification:
+ *   STRATA_REGRESSION_UPDATE=1 STRATA_REGRESSION_JUSTIFY="<ref>" \
+ *     yarn vitest run --config vitest.probe.config.mts \
+ *     packages/excalidraw/components/terraformStrataGeometryRegression.probe.test.ts
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
