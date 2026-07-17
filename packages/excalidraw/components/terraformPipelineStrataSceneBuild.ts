@@ -51,6 +51,10 @@ import {
   type StrataBorderRouteMeta,
 } from "./terraformPipelineStrataBorderRoute";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
+import {
+  isTerraformImportProfilerEnabled,
+  terraformImportProfilerRecord,
+} from "./terraformImportProfiler";
 import { STRATA_ROOT_ID } from "./terraformPipelineStrataModel";
 import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
 import {
@@ -412,12 +416,29 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
   borderRoute?: StrataBorderRouteMeta;
 }> {
+  // Closure-free stage timing (see terraformPipelineStrata.ts): zero overhead
+  // when the profiler is disabled, and the async span is timed around its await
+  // WITHOUT touching the shared sync stack.
+  const profileOn = isTerraformImportProfilerEnabled();
+  const spanNow = (): number => (profileOn ? performance.now() : 0);
+  const spanRecord = (name: string, since: number): void => {
+    if (profileOn) {
+      terraformImportProfilerRecord(name, performance.now() - since);
+    }
+  };
+
+  const tSkeleton = spanNow();
   const { skeleton, frameEdgeCount, edgeRouting, borderRoute } =
     assembleStrataSceneSkeleton(input);
+  spanRecord("strata.sceneBuild.skeleton", tSkeleton);
+  const tConvert = spanNow();
   const converted = await convertPipelineSkeletonToElements(skeleton);
+  spanRecord("strata.sceneBuild.convert", tConvert);
+  const tFinalize = spanNow();
   const elements = finalizeStrataScene(converted, {
     generation: input.generation ?? 1,
   });
+  spanRecord("strata.finalize", tFinalize);
   return {
     elements,
     frameEdgeCount,

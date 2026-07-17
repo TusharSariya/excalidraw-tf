@@ -30,6 +30,10 @@ import {
   type StrataAncillaryBand,
 } from "./terraformPipelineStrataAncillary";
 import { strataDeBandFeasible } from "./terraformPipelineStrataTypes";
+import {
+  isTerraformImportProfilerEnabled,
+  terraformImportProfilerRecord,
+} from "./terraformImportProfiler";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
@@ -526,17 +530,41 @@ export async function buildTerraformStrataExcalidrawScene(
     }
   };
 
+  // Engine-stage profiling (I2). The stages below are SIBLINGS (model → rank →
+  // A0 → A7 → post-passes → ancillary → sceneBuild → structural-check), not a
+  // nesting, so each is timed as a flat span via `spanNow`/`spanRecord` rather
+  // than the stack-based `terraformImportProfilerMeasure` wrapper. Two
+  // consequences the review asked for: (1) ZERO overhead when disabled — the
+  // enabled flag is resolved once here into a cached boolean, and both helpers
+  // early-return on it; no closure is allocated per stage, no wrapper is
+  // invoked, and no env/localStorage probe runs per call. (2) The async
+  // sceneBuild span is timed around its `await` WITHOUT pushing onto the shared
+  // module stack, so overlapping builds cannot interleave and corrupt each
+  // other's self-time.
+  const profileOn = isTerraformImportProfilerEnabled();
+  const spanNow = (): number => (profileOn ? performance.now() : 0);
+  const spanRecord = (name: string, since: number): void => {
+    if (profileOn) {
+      terraformImportProfilerRecord(name, performance.now() - since);
+    }
+  };
+
   let stage: StrataDegradedMeta["stage"] = "model";
   try {
     gate("model");
+    const tModel = spanNow();
     const model = buildStrataModel(prep, engineOptions);
+    spanRecord("strata.model", tModel);
 
     stage = "a3";
     gate("a3");
+    const tRepair = spanNow();
     const repair = repairStrataCycles(model.edges, model.addressOf);
+    spanRecord("strata.a3", tRepair);
 
     stage = "a1";
     gate("a1");
+    const tRank = spanNow();
     const rank = rankStrataClusters([...model.clusters.keys()], repair, {
       networkSimplexRank: engineOptions.networkSimplexRank,
       // OD-14: when live, the separated floor (derived from the hull tree's
@@ -552,6 +580,7 @@ export async function buildTerraformStrataExcalidrawScene(
         return cluster ? clusterFrameLocalRect(cluster).width : 0;
       },
     });
+    spanRecord("strata.rank", tRank);
 
     // A0 compound placement + A2 ordering (both inside placeStrataHulls).
     // Attribution contract (codex W2 P2): the forced-error hook gets an honest
@@ -572,6 +601,8 @@ export async function buildTerraformStrataExcalidrawScene(
       strataPackedScoring && strataPackedFrontierMeta ? [] : undefined;
     try {
       if (strataPackedScoring) {
+        // Descent = the whole-layout packed-scoring search (the expensive A0).
+        const tDescent = spanNow();
         packedScored = placeStrataHullsPackedScored(
           model,
           repair.edgesPrime,
@@ -581,14 +612,17 @@ export async function buildTerraformStrataExcalidrawScene(
             ? (record) => packedFrontierTrials.push(record)
             : undefined,
         );
+        spanRecord("strata.descent", tDescent);
         placement = packedScored.placement;
       } else {
+        const tPlace = spanNow();
         placement = placeStrataHulls(
           model,
           repair.edgesPrime,
           rank,
           engineOptions,
         );
+        spanRecord("strata.place", tPlace);
       }
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("Strata A2")) {
@@ -613,6 +647,9 @@ export async function buildTerraformStrataExcalidrawScene(
     let packedScoringFellBack = false;
     if (engineOptions.coordinateRefine) {
       if (packedScored && packedScored.selections.size > 0) {
+        // Trial re-layout = refining BOTH arms (scored + legacy) so the guard
+        // can compare them on final geometry.
+        const tTrial = spanNow();
         const scoredFinal = refineStrataCoordinates(
           placement,
           model,
@@ -623,6 +660,9 @@ export async function buildTerraformStrataExcalidrawScene(
           model,
           repair.edgesPrime,
         );
+        spanRecord("strata.trialRelayout", tTrial);
+        // Score = the never-worse selection between the two trial arms.
+        const tScore = spanNow();
         const chosen = chooseStrataRefinedPlacement(
           scoredFinal,
           legacyFinal,
@@ -642,17 +682,23 @@ export async function buildTerraformStrataExcalidrawScene(
               }
             : undefined,
         );
+        spanRecord("strata.score", tScore);
         placement = chosen.placement;
         packedScoringFellBack = chosen.fellBack;
       } else {
+        const tA7 = spanNow();
         placement = refineStrataCoordinates(
           placement,
           model,
           repair.edgesPrime,
         );
+        spanRecord("strata.a7", tA7);
       }
     }
 
+    // Post-A7 geometry post-passes (vertical-relocate → transpose → block-clamp).
+    // Timed as one span: each is independently flag-gated and off ⇒ ~0ms.
+    const tPostpasses = spanNow();
     // OD-15 post-A7 vertical-slot relocation (WP-RELOCATE). Runs whenever the
     // master flag is on — independent of packed scoring — after A7 and before
     // scene build; the existing structural check then validates the result.
@@ -697,6 +743,7 @@ export async function buildTerraformStrataExcalidrawScene(
         engineOptions,
       );
     }
+    spanRecord("strata.postpasses", tPostpasses);
 
     // Ancillary ("All resources") band injection — the LAST geometry stage,
     // deliberately placed here (plan §3d):
@@ -716,6 +763,7 @@ export async function buildTerraformStrataExcalidrawScene(
     let ancillaryBands: ReadonlyMap<string, StrataAncillaryBand> | undefined;
     let ancillaryMeta: Record<string, unknown> = {};
     if (includeAncillary) {
+      const tAncillary = spanNow();
       stage = "ancillary";
       // A failed band is NOT a failed layout: never degrade the whole scene to
       // v2 over one: drop the bands, keep the strata scene, echo the reason
@@ -792,10 +840,15 @@ export async function buildTerraformStrataExcalidrawScene(
           strataAncillaryDegraded: { reason },
         };
       }
+      spanRecord("strata.ancillary", tAncillary);
     }
 
     stage = "scene-build";
     gate("scene-build");
+    // Timed around the await WITHOUT touching the shared sync stack (see the
+    // spanNow/spanRecord note above) so overlapping builds cannot corrupt each
+    // other's self-time across this await boundary.
+    const tSceneBuild = spanNow();
     const scene = await buildStrataScene({
       prep,
       model,
@@ -822,11 +875,14 @@ export async function buildTerraformStrataExcalidrawScene(
         ? { deBandLevel: strataDeBandLevel }
         : {}),
     });
+    spanRecord("strata.sceneBuild", tSceneBuild);
 
     // Standing R2 invariant (S0b acceptance): any nonzero count is a failure.
     stage = "structural-check";
     gate("structural-check");
+    const tStructuralCheck = spanNow();
     const structure = checkStrataStructure(placement, model);
+    spanRecord("strata.structuralCheck", tStructuralCheck);
     if (
       structure.nonAncestorOverlaps > 0 ||
       structure.titleCollisions > 0 ||
