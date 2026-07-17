@@ -26,6 +26,11 @@ import {
   getTerraformGraphAddressForElement,
   isTerraformSemanticOverviewScene,
 } from "./terraformElementMetadata";
+import {
+  isTerraformEdgeTripwireEnabled,
+  tripwireCheckConnectorPointFinite,
+  tripwireCheckEdgeSpan,
+} from "./terraformEdgeTripwire";
 
 import type { PointerDownState } from "../types";
 
@@ -1177,6 +1182,66 @@ export const repairTerraformEdgeBindings = (
         mode: "orbit" as const,
       },
     };
+
+    // TRIPWIRES (owner Q11, LOG-ONLY; see terraformEdgeTripwire.ts). Observe the
+    // connector points this declared edge just materialized — never mutate them.
+    // Gated OFF by default, so the block below is a single cheap boolean in prod
+    // and the emitted `patch` / element is byte-identical either way.
+    if (isTerraformEdgeTripwireEnabled()) {
+      // (a) SDEC-34 catch: a finite-guard on the center-clipped chord anchors.
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "startX",
+        value: startX,
+      });
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "startY",
+        value: startY,
+      });
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "endX",
+        value: endX,
+      });
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "endY",
+        value: endY,
+      });
+      if (isRoutedPolyline) {
+        element.points.forEach((point, index) => {
+          tripwireCheckConnectorPointFinite({
+            edgeId: element.id,
+            layer,
+            guard: "routed-polyline-point",
+            axis: `point[${index}].x`,
+            value: point[0],
+          });
+          tripwireCheckConnectorPointFinite({
+            edgeId: element.id,
+            layer,
+            guard: "routed-polyline-point",
+            axis: `point[${index}].y`,
+            value: point[1],
+          });
+        });
+      }
+      // (b) per-edge collapse: the polyline this edge finished materializing.
+      tripwireCheckEdgeSpan({
+        edgeId: element.id,
+        layer,
+        points: patch.points as ReadonlyArray<readonly [number, number]>,
+      });
+    }
 
     // Never short-circuit past a pending marker strip: a marked 2-point arrow
     // whose flattened geometry already matches would otherwise keep the flag.
