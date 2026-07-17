@@ -2,7 +2,44 @@
 
 **Branch:** `strata-overnight-20260717` — 33 commits, 51 files, +7959/−188, **UNPUSHED**, base `62950e0f1` (strata-v3.2-w5-w10b).
 **Run:** 03:31 → ~17:30 NDT (incl. a ~6h spend-limit stall 05:15–11:10). ~90+ agents across audit, research, implementation, and adversarial judging (Fable + Codex gpt-5.6-sol judge pairs; **Fable was unavailable mid-run, so post-pause judges were Opus + Codex** — noted per-row below).
-**Companion artifacts in this directory:** [audit-findings.md](audit-findings.md) (15-agent audit, dual-verified), [effect-matrix.md](effect-matrix.md) (62-cell empirical toggle matrix), [collapse-rootcause.md](collapse-rootcause.md) (edge-collapse root-cause investigation). Full chronological log: `scratchpad/overnight-20260717/status.md`.
+**Companion artifacts in this directory:** [audit-findings.md](audit-findings.md) (15-agent audit, dual-verified), [effect-matrix.md](effect-matrix.md) (62-cell empirical toggle matrix), [collapse-rootcause.md](collapse-rootcause.md) (edge-collapse root-cause investigation), [owner-decisions.md](owner-decisions.md) (the 11 resolved decisions). Full chronological log: `scratchpad/overnight-20260717/status.md`.
+
+> **UPDATE — follow-up round complete (branch now 45 commits, +9879/−581).** After the report below was written, the owner reviewed the 11 decisions and had them **all implemented** (§0). Sections 1–9 describe the overnight run as it stood at tip `7cf2104d6`; §0 covers the follow-up.
+
+---
+
+## 0. Follow-up round — owner decisions IMPLEMENTED (branch tip `e80bfef7a`)
+
+The owner answered all 11 decisions ([owner-decisions.md](owner-decisions.md)) and asked for immediate implementation. Two lanes (Opus impl, Fable adversarial — **Codex hit its usage limit mid-round, so these reviews were Fable-only, flagged REVIEW-DEGRADED**), a completion pass, and a dedicated privateApiRegional lane. All merged; branch green (234/235, the 1 "fail" being the intended default-geometry rebaseline, now committed).
+
+**The headline: the new defaults measurably improve the default layout.** Reference measurement + the regenerated geometry-regression baseline agree:
+
+| Config | crossings | pierce |
+|---|---|---|
+| Old default | 273 | 226 |
+| **New default (transpose+sift+packedScoring ON)** | **252 (−8%)** | **139 (−38%)** |
+
+Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr 37→17; edgeRouting cr 465→334). New-default geometry verified **stable** (byte-identical ×3 — the collapse nondeterminism is audit+deband-specific, not the plain default). **Browser source-of-truth: the new default renders healthy** (edges present, coherent nested structure) — `browser-final/new-default-*.jpg`.
+
+**All 11 decisions — final status:**
+
+| # | Decision | Shipped |
+|---|---|---|
+| Q1 | UI: wire hybrid, declutter | Static Standard/advanced split — **~8 core controls**, rest behind collapsed `<details>` disclosures. (Full registry-**driven** render honestly deferred — the registry+rules table is the byte-accurate backbone.) |
+| Q2 | transpose default ON | ✅ default ON |
+| Q3 | packedScoring default ON | ✅ default ON |
+| Q5/Q6 | rankSeparate ×packedScoring | ✅ **hard mutual exclusion** (packedScoring wins; UI cross-disable handlers + engine backstop with echoed suppression); rankSeparate default OFF |
+| Q4 | ε=1 | ✅ kept |
+| Q7 | sift default ON | ✅ default ON |
+| Q9 | privateApiRegional always-on, remove toggle | ✅ toggle deleted; **engine clamp forces ON for strata** (`privateApiRegional=0` can no longer turn it off); legacy param parses inert; default geometry unchanged (was already regional) |
+| Q8 | remove transitiveAdopt + packedConverge | ✅ both controls deleted from panel (legacy params parse inert); killed transitiveAdopt's ~8.6s waste |
+| Q10 | edgeRouting → advanced | ✅ moved into a collapsed advanced disclosure (with borderRoute/blockClamp/heightGate) |
+| Q11 | edge-collapse guard + tripwires | ✅ log-only, dev-gated `Number.isFinite` tripwires on the connector-point path (byte-identical); full flip-hunt deferred |
+
+**Consequences to know:**
+- **Your canonical nightly URL changes behavior.** It sets both `strataRankSep=1` and `strataPackedScoring=1`; the new mutual exclusion **suppresses rankSeparate** on it (packedScoring wins) — shifting it to the packedScoring-only layout, which measures **better** (the cr252/pierce139 family vs the old both-on conflict). Deliberate, per your "packedScoring wins" choice.
+- **The frozen audit-config geometry is NOT hash-pinned** (the regression cells for it stay `SKIPPED-SLOW`) because that config collapses nondeterministically headless — the edge-collapse finding biting the test infra. The resolve-bag is pinned; layout quality is pinned via the collapse-blind crossings/pierce.
+- **Deferred (honest follow-ups):** the registry-**driven** panel render (static split shipped instead), and three non-blocking re-judge notes (surface-metadata reconciliation before that render, orphaned `OPTION_HELP` copy, no in-panel note for URL-induced both-on).
 
 ---
 
