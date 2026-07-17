@@ -4,10 +4,16 @@
  * ONE pure module — no layout imports, plain string keys only (same discipline
  * as `terraformStrataDefaults.ts`) — that captures the option-to-option
  * relations the strata engine and dialog currently encode ad-hoc in scattered
- * pairwise `if` blocks. It is the single source the panel, the demo-URL
- * resolver, the dependency-cruiser-clean proof API, and (eventually) the engine
- * guard block all read, so a relation can never be stated in one place and
- * contradicted in another.
+ * pairwise `if` blocks.
+ *
+ * SCOPE (C19): this is a REVIEWED DESCRIPTION, not yet a wired consumer. No
+ * parser, panel, resolver, proof API, or engine guard reads this table today —
+ * they still maintain their own inline logic. The module ships additively so the
+ * relations can be audited against the engine in one place BEFORE anything is
+ * rewired; the intent is that it becomes the single source those sites read, so
+ * a relation can never be stated in one place and contradicted in another. Every
+ * predicate here is pinned to a specific engine line (cited inline) precisely so
+ * the eventual rewire is byte-identical.
  *
  * This module is intentionally NON-mutating and side-effect free:
  *
@@ -74,20 +80,22 @@ export const STRATA_CONFLICTS: ReadonlyArray<{
   warnOnly?: boolean;
 }> = [
   {
+    // The ONLY hard NS mutual-exclusion the engine codes
+    // (terraformPipelineStrata.ts:339-343): NS is suppressed IFF rankSeparate
+    // is also requested. rankSeparate is the dominant height lever and wins.
     a: "strataNetworkSimplexRank",
     b: "strataRankSeparate",
     winner: "strataRankSeparate",
     echo: "rank-floor-conflict",
   },
-  {
-    // Derivable-by-transitivity once the table exists (c09 §4): jointNsRank is
-    // inert unless rankSeparate, and NS-rank conflicts with rankSeparate, so
-    // NS-rank and jointNsRank cannot both meaningfully act.
-    a: "strataNetworkSimplexRank",
-    b: "strataJointNsRank",
-    winner: "strataJointNsRank",
-    echo: "ns-joint-conflict",
-  },
+  // C19 fix (invalid-ns-joint-conflict): there is NO NS ↔ jointNsRank exclusion
+  // in the engine. `strataJointNsRank` is a W5b probe that is INERT unless
+  // rankSeparate (STRATA_INERT_UNLESS below) and never suppresses the NS ranker.
+  // For {NS:true, joint:true, rankSep:false} the engine keeps NS ACTIVE; the
+  // old derived-by-transitivity conflict here would instead suppress the live NS
+  // ranker in favor of an inert probe — wiring it would change geometry. The
+  // real relation (NS × rankSeparate) is the entry above; joint's rankSeparate
+  // dependence is captured as inertness, not a pairwise conflict.
   {
     // W8/SDEC-64: NO coded exclusion exists (grep-confirmed). Encode as a
     // declarative WARN, not an exclusion — the combo improves both p50 medians;
@@ -144,27 +152,48 @@ export const STRATA_INERT_UNLESS: Readonly<
   Record<string, (s: StrataOptionState) => boolean>
 > = {
   strataJointNsRank: (s) => truthy(s.strataRankSeparate),
+  // ε rides when the packed scorer OR any relocate-family operator that reads
+  // ε/cap is on. C19 fix (dependency-table-diverges-from-engine): the A01 leaf
+  // X-shift is one such consumer — terraformPipelineStrata.ts:532-536 gates ε on
+  // `packedScoring || siftRelocate || blockClamp || transpose || leafShift`.
   strataPackedScoringEpsilon: (s) =>
     truthy(s.strataPackedScoring) ||
     truthy(s.strataSiftRelocate) ||
     truthy(s.strataBlockClamp) ||
-    truthy(s.strataTranspose),
+    truthy(s.strataTranspose) ||
+    truthy(s.strataLeafShift),
   strataPackedConverge: (s) =>
     truthy(s.strataPackedScoring) &&
     truthy(s.strataPackedScoringEpsilon) &&
     !truthy(s.strataTransitiveAdopt),
+  // Relocate objective weights + edge-cross cap ride when ANY relocate-family
+  // operator is on. C19 fix: the engine gate (terraformPipelineStrata.ts:570-580)
+  // is `siftRelocate || blockClamp || transpose || leafShift || transitiveAdopt`
+  // — the leaf X-shift AND the transitive-adoption descent both read penW/crossW/
+  // cap, so both were missing consumers here.
   strataCrossWeightPenetration: (s) =>
     truthy(s.strataSiftRelocate) ||
     truthy(s.strataBlockClamp) ||
-    truthy(s.strataTranspose),
+    truthy(s.strataTranspose) ||
+    truthy(s.strataLeafShift) ||
+    truthy(s.strataTransitiveAdopt),
   strataCrossWeightEdge: (s) =>
     truthy(s.strataSiftRelocate) ||
     truthy(s.strataBlockClamp) ||
-    truthy(s.strataTranspose),
+    truthy(s.strataTranspose) ||
+    truthy(s.strataLeafShift) ||
+    truthy(s.strataTransitiveAdopt),
   strataEdgeCrossCap: (s) =>
     truthy(s.strataSiftRelocate) ||
     truthy(s.strataBlockClamp) ||
-    truthy(s.strataTranspose),
+    truthy(s.strataTranspose) ||
+    truthy(s.strataLeafShift) ||
+    truthy(s.strataTransitiveAdopt),
+  // heightGate's OPTION flag is read at exactly one site
+  // (terraformPipelineStrataBlockClamp.ts:714, `options.strataHeightGate ===
+  // true`) — inside the block-clamp operator. leafShift uses a height-gate
+  // HELPER function unconditionally but never reads the flag, so blockClamp is
+  // the sole gate (verified: no other `.strataHeightGate` flag consumer exists).
   strataHeightGate: (s) => truthy(s.strataBlockClamp),
   strataTransitiveAdopt: (s) =>
     truthy(s.strataPackedScoring) ||

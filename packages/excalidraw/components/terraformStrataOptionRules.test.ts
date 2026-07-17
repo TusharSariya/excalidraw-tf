@@ -86,6 +86,59 @@ describe("strata dependency-rule table (c05)", () => {
     expect(echoes.some((e) => e.startsWith("rank-floor-conflict"))).toBe(true);
   });
 
+  it("NS-rank × jointNsRank WITHOUT rankSeparate: NS stays ACTIVE (no phantom conflict)", () => {
+    // C19 regression pin (invalid-ns-joint-conflict): the engine
+    // (terraformPipelineStrata.ts:339-343) suppresses NS ONLY when rankSeparate
+    // is also set. jointNsRank is an inert probe here and must NOT suppress the
+    // live NS ranker — the removed derived conflict would have wrongly done so.
+    const { suppressed, echoes } = evaluateStrataRules({
+      strataNetworkSimplexRank: true,
+      strataJointNsRank: true,
+      strataRankSeparate: false,
+    });
+    expect(suppressed.has("strataNetworkSimplexRank")).toBe(false);
+    expect(echoes.some((e) => e.startsWith("ns-joint-conflict"))).toBe(false);
+    // And jointNsRank itself is inert without rankSeparate.
+    expect(
+      strataOptionIsInert("strataJointNsRank", {
+        strataNetworkSimplexRank: true,
+        strataJointNsRank: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("inertUnless mirrors the engine gates for leaf-shift and transitive-adopt (c19 divergence fix)", () => {
+    // ε rides under leafShift (terraformPipelineStrata.ts:532-536).
+    expect(
+      strataOptionIsInert("strataPackedScoringEpsilon", {
+        strataLeafShift: true,
+      }),
+    ).toBe(false);
+    // penW / crossW / edgeCrossCap ride under leafShift AND under transitiveAdopt
+    // (terraformPipelineStrata.ts:570-580).
+    for (const key of [
+      "strataCrossWeightPenetration",
+      "strataCrossWeightEdge",
+      "strataEdgeCrossCap",
+    ] as StrataRuleOptionKey[]) {
+      expect(
+        strataOptionIsInert(key, { strataLeafShift: true }),
+        `${key} must be active under leafShift`,
+      ).toBe(false);
+      expect(
+        strataOptionIsInert(key, { strataTransitiveAdopt: true }),
+        `${key} must be active under transitiveAdopt`,
+      ).toBe(false);
+    }
+    // ε is NOT gated on transitiveAdopt (transitiveAdopt is absent from the ε
+    // engine gate) — guards against over-broadening the predicate.
+    expect(
+      strataOptionIsInert("strataPackedScoringEpsilon", {
+        strataTransitiveAdopt: true,
+      }),
+    ).toBe(true);
+  });
+
   it("rankSeparate × packedScoring is WARN-only, never suppressed (W8/SDEC-64 undecided)", () => {
     const { suppressed, warnings } = evaluateStrataRules({
       strataRankSeparate: true,
