@@ -18,6 +18,7 @@ import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
 import { transposeStrataColumns } from "./terraformPipelineStrataTranspose";
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
+import { refineStrataLeafShift } from "./terraformPipelineStrataLeafShift";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 import {
   buildAncillaryStrips,
@@ -210,6 +211,27 @@ export type TerraformStrataSceneOptions = {
    */
   strataHeightGate?: boolean;
   /**
+   * A01 leaf X-shift (default off, opt-in): a post-A7 pass (after the block clamp,
+   * before ancillary) that pulls degree-1 pure-sink LEAVES left onto an existing
+   * grid column between their single source and their current rank, re-drops their
+   * Y within the owning hull, and grows (never shrinks) the ancestor hull chain to
+   * contain the new bottom. Never re-ranks. Gated by X-containment → a SLACK
+   * per-hull height gate → R2 → the same weighted-C/ε machinery as the relocate
+   * passes. Carries the mandatory right-edge guard (region-level loose sinks flush
+   * against their region's right edge are excluded — the owner's protected
+   * column). Threaded into `engineOptions.strataLeafShift` only when on
+   * (byte-identity); the budget knobs ride only when non-default.
+   */
+  strataLeafShift?: boolean;
+  /** A01 slack height gate absolute px budget (default 150). */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 slack height gate relative budget fraction (default 0.01). */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 max target ranks tried per leaf (default 8). */
+  strataLeafShiftRankBudget?: number;
+  /** A01 right-edge column guard px (default 300). */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /**
    * OD-15 de-band port (default `"none"`, opt-in): dissolve this hierarchy level
    * and every deeper one so the subtree's resources share one packed hull. Runs
    * in the STRUCTURE phase (model build, before rank/ordering/placement) as pure
@@ -354,6 +376,14 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataTranspose = options?.strataTranspose === true;
   // P5 (Lever C) per-hull height maintain-or-decrease gate, default off.
   const strataHeightGate = options?.strataHeightGate === true;
+  // A01 leaf X-shift (post-A7), default off. Budget knobs read only when on.
+  const strataLeafShift = options?.strataLeafShift === true;
+  const strataLeafShiftHeightBudgetPx = options?.strataLeafShiftHeightBudgetPx;
+  const strataLeafShiftHeightBudgetFrac =
+    options?.strataLeafShiftHeightBudgetFrac;
+  const strataLeafShiftRankBudget = options?.strataLeafShiftRankBudget;
+  const strataLeafShiftRightEdgeGuardPx =
+    options?.strataLeafShiftRightEdgeGuardPx;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // P3-pierce border-exit routing (scene-build), default off.
@@ -433,6 +463,25 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
     // P5 height-gate echo — present only when on (byte-identity).
     ...(strataHeightGate ? { strataHeightGate: true } : {}),
+    // A01 leaf-shift echo — present only when on; budgets only when non-default,
+    // so flag-off (and default-budget) meta is byte-identical.
+    ...(strataLeafShift
+      ? {
+          strataLeafShift: true,
+          ...(strataLeafShiftHeightBudgetPx !== undefined
+            ? { strataLeafShiftHeightBudgetPx }
+            : {}),
+          ...(strataLeafShiftHeightBudgetFrac !== undefined
+            ? { strataLeafShiftHeightBudgetFrac }
+            : {}),
+          ...(strataLeafShiftRankBudget !== undefined
+            ? { strataLeafShiftRankBudget }
+            : {}),
+          ...(strataLeafShiftRightEdgeGuardPx !== undefined
+            ? { strataLeafShiftRightEdgeGuardPx }
+            : {}),
+        }
+      : {}),
     // OD-15 de-band echo — the EFFECTIVE (post-suppression) level, present only
     // when non-default. `"none"` is a TRUTHY string, so an `&&`-truthy gate here
     // would materialize the key on every default run and break flag-off meta
@@ -521,6 +570,25 @@ export async function buildTerraformStrataExcalidrawScene(
     // P5 height gate: rides ONLY when on (byte-identity). Consumed INSIDE the
     // block-clamp operator, so the pipeline stage order below is unchanged.
     ...(strataHeightGate ? { strataHeightGate: true } : {}),
+    // A01 leaf X-shift: rides ONLY when on (byte-identity). Budget knobs ride only
+    // when explicitly set, so the on-with-default-budget shape is minimal.
+    ...(strataLeafShift
+      ? {
+          strataLeafShift: true,
+          ...(strataLeafShiftHeightBudgetPx !== undefined
+            ? { strataLeafShiftHeightBudgetPx }
+            : {}),
+          ...(strataLeafShiftHeightBudgetFrac !== undefined
+            ? { strataLeafShiftHeightBudgetFrac }
+            : {}),
+          ...(strataLeafShiftRankBudget !== undefined
+            ? { strataLeafShiftRankBudget }
+            : {}),
+          ...(strataLeafShiftRightEdgeGuardPx !== undefined
+            ? { strataLeafShiftRightEdgeGuardPx }
+            : {}),
+        }
+      : {}),
   };
 
   // Small dev seam so a test can force any stage to throw.
@@ -736,6 +804,21 @@ export async function buildTerraformStrataExcalidrawScene(
     // validates it.
     if (strataBlockClamp) {
       placement = refineStrataBlockClamp(
+        placement,
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
+    }
+
+    // A01 leaf X-shift (post-A7). Runs AFTER the block clamp (so block-clamp takes
+    // its whole-block win on unperturbed on-grid geometry first) and BEFORE
+    // ancillary (leaf-shift grows hull heights; the post-ancillary structural
+    // check re-validates that growth for free). Independent of the relocate/packed
+    // flags. Flag-off ⇒ the module is never called (byte-identical).
+    if (strataLeafShift) {
+      placement = refineStrataLeafShift(
         placement,
         model,
         repair.edgesPrime,

@@ -692,10 +692,25 @@ describe("terraformDemoUrlParams", () => {
         strataPackedConverge: true,
         strataTransitiveAdopt: true,
         strataBlockClamp: true,
+        strataLeafShift: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
       ).toEqual(full);
+    });
+
+    it("round-trips strataLeafShift on/off through build+parse", () => {
+      const on: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        strataLeafShift: true,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(on))),
+      ).toEqual(on);
+      // default-off ⇒ no param emitted (byte-identity).
+      const off = buildTerraformDemoUrl({ presetId: "demo", view: "strata" });
+      expect(queryOf(off)).not.toContain("strataLeafShift");
     });
 
     it("round-trips strataBandDepth through build+parse", () => {
@@ -862,6 +877,20 @@ describe("terraformDemoUrlParams", () => {
         strataCoordRefine: true,
         strataRankSeparate: true,
       });
+    });
+
+    it("strataLeafShift emits truthy-only in the strata collect", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataLeafShift" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataLeafShift: true,
+      });
+      expect(on.strataLeafShift).toBe(true);
     });
 
     it("strataPackedScoring emits truthy-only (like strataNsRank)", () => {

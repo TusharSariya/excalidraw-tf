@@ -157,6 +157,7 @@ const STRATA_DEMO_KEYS = new Set<string>([
   "strataBlockClamp",
   "strataTranspose",
   "strataHeightGate",
+  "strataLeafShift",
   "strataDeBandLevel",
 ]);
 

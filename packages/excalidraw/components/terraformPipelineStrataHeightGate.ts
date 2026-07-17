@@ -123,3 +123,44 @@ export function strataHeightGateAdmits(
   }
   return true;
 }
+
+/**
+ * SLACK per-hull height gate (the +115px precedent, a01 §5) — a bounded relaxation
+ * of {@link strataHeightGateAdmits} for the leaf X-shift operator, whose Y-redrop
+ * can legitimately grow a hull by a small, budgeted amount (the measured +115px C2
+ * DLQ pull) in exchange for a large edge-length / pierce win.
+ *
+ * Predicate: `∀ hull ∈ candidate: impliedHeight(cand, h) <= impliedHeight(inc, h)
+ * + max(budget.absPx, budget.relFrac · impliedHeight(inc, h))`. A hull absent from
+ * the incumbent is rejected (new content — the leaf operator never adds hulls).
+ *
+ * Compare against the ROLLING INCUMBENT (never the baseline): each adoption is
+ * monotone-plus-bounded-slack, so a chain of adoptions each stays within budget of
+ * the CURRENT incumbent (which already absorbed prior growth) rather than each
+ * spending the full budget against the original baseline. `{absPx:0, relFrac:0}`
+ * recovers the strict maintain-or-decrease gate exactly (the owner's conservative
+ * dial).
+ *
+ * Strict per-hull universal quantification still guards EVERY hull, so an
+ * unbounded blow-up anywhere is rejected. Same O(Σ|placed|) integer cost as the
+ * strict gate; callers put it BEFORE the O(entries²) R2 check and O(E²) scorer.
+ */
+export function strataHeightGateAdmitsWithin(
+  candidate: StrataPlacementResult,
+  incumbent: StrataPlacementResult,
+  budget: { absPx: number; relFrac: number },
+): boolean {
+  const candHeights = strataHullImpliedHeights(candidate);
+  const incHeights = strataHullImpliedHeights(incumbent);
+  for (const [id, candH] of candHeights) {
+    const incH = incHeights.get(id);
+    if (incH === undefined) {
+      return false;
+    }
+    const slack = Math.max(budget.absPx, budget.relFrac * incH);
+    if (candH > incH + slack) {
+      return false;
+    }
+  }
+  return true;
+}

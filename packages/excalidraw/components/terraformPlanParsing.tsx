@@ -242,6 +242,18 @@ export type TerraformPlanParsingOptions = {
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
   strataHeightGate?: boolean;
+  /** A01 leaf X-shift (post-A7): pull degree-1 pure-sink leaves left onto a grid
+   * column between source and current rank, Y-redrop, grow ancestor chain. Default
+   * off. Carries the mandatory right-edge column guard. */
+  strataLeafShift?: boolean;
+  /** A01 slack height gate absolute px budget (default 150). */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 slack height gate relative budget fraction (default 0.01). */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 max target ranks tried per leaf (default 8). */
+  strataLeafShiftRankBudget?: number;
+  /** A01 right-edge column guard px (default 300). */
+  strataLeafShiftRightEdgeGuardPx?: number;
   /** §3o ancillary greedy right-slack allocator. Default ON; inert unless
    *  `pipelineIncludeAncillary` is also on, so it cannot affect the default
    *  ("Connected only") scene. */

@@ -21,6 +21,7 @@ import { buildStrataModel } from "./terraformPipelineStrataModel";
 import { placeStrataHulls } from "./terraformPipelineStrataPlacement";
 import {
   strataHeightGateAdmits,
+  strataHeightGateAdmitsWithin,
   strataHullImpliedHeights,
 } from "./terraformPipelineStrataHeightGate";
 
@@ -358,5 +359,40 @@ describe("monotonicity theorem", () => {
     for (const [id, h0] of baseline) {
       expect(final.get(id)!).toBeLessThanOrEqual(h0);
     }
+  });
+});
+
+// ── (8) SLACK gate (A01 leaf X-shift) ─────────────────────────────────────────
+
+describe("strataHeightGateAdmitsWithin — bounded slack (A01)", () => {
+  it("admits a within-budget grow, rejects an over-budget grow, and {0,0} is strict", () => {
+    const { a0 } = twoHullFixture();
+    // grow vpc-1 by dropping a3 +120px (its owning hull's bottom moves +120).
+    const grown120 = moveLeaf(a0, "a3", 0, 120);
+    const owner = hullOfLeaf(a0, "a3");
+    expect(strataHullImpliedHeights(grown120).get(owner)!).toBe(
+      strataHullImpliedHeights(a0).get(owner)! + 120,
+    );
+
+    // default budget max(150, 1%) admits +120; the strict gate rejects it.
+    expect(
+      strataHeightGateAdmitsWithin(grown120, a0, { absPx: 150, relFrac: 0.01 }),
+    ).toBe(true);
+    expect(strataHeightGateAdmits(grown120, a0)).toBe(false);
+
+    // an over-budget grow (+200 > 150) is rejected by the slack gate too.
+    const grown200 = moveLeaf(a0, "a3", 0, 200);
+    expect(
+      strataHeightGateAdmitsWithin(grown200, a0, { absPx: 150, relFrac: 0.01 }),
+    ).toBe(false);
+
+    // {absPx:0, relFrac:0} recovers the strict maintain-or-decrease gate exactly.
+    expect(strataHeightGateAdmitsWithin(grown120, a0, { absPx: 0, relFrac: 0 })).toBe(
+      strataHeightGateAdmits(grown120, a0),
+    );
+    const shrunk = moveLeaf(a0, "a3", 0, -10);
+    expect(strataHeightGateAdmitsWithin(shrunk, a0, { absPx: 0, relFrac: 0 })).toBe(
+      strataHeightGateAdmits(shrunk, a0),
+    );
   });
 });

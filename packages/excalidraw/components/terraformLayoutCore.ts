@@ -519,6 +519,18 @@ type LayoutSceneContext = {
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * sink-pull-in / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
+  /** A01 leaf X-shift (post-A7): pull degree-1 pure-sink leaves left onto a grid
+   * column between source and current rank, Y-redrop, grow ancestor chain. Default
+   * off. Carries the mandatory right-edge column guard. */
+  strataLeafShift?: boolean;
+  /** A01 slack height gate absolute px budget (default 150). */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 slack height gate relative budget fraction (default 0.01). */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 max target ranks tried per leaf (default 8). */
+  strataLeafShiftRankBudget?: number;
+  /** A01 right-edge column guard px (default 300). */
+  strataLeafShiftRightEdgeGuardPx?: number;
   /** §3o ancillary greedy right-slack allocator. Default ON; inert unless
    *  `pipelineIncludeAncillary` is also on. */
   strataAncillaryAllocator?: boolean;
@@ -646,6 +658,27 @@ async function buildPipelineLayoutSceneBody(
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
         strataHeightGate: ctx.strataHeightGate,
+        strataLeafShift: ctx.strataLeafShift,
+        // A01 leaf-shift budget knobs: optional-only forward (no default
+        // materialized — absent ⇒ engine defaults 150/0.01/8/300).
+        ...(ctx.strataLeafShiftHeightBudgetPx !== undefined
+          ? { strataLeafShiftHeightBudgetPx: ctx.strataLeafShiftHeightBudgetPx }
+          : {}),
+        ...(ctx.strataLeafShiftHeightBudgetFrac !== undefined
+          ? {
+              strataLeafShiftHeightBudgetFrac:
+                ctx.strataLeafShiftHeightBudgetFrac,
+            }
+          : {}),
+        ...(ctx.strataLeafShiftRankBudget !== undefined
+          ? { strataLeafShiftRankBudget: ctx.strataLeafShiftRankBudget }
+          : {}),
+        ...(ctx.strataLeafShiftRightEdgeGuardPx !== undefined
+          ? {
+              strataLeafShiftRightEdgeGuardPx:
+                ctx.strataLeafShiftRightEdgeGuardPx,
+            }
+          : {}),
         strataAncillaryAllocator: ctx.strataAncillaryAllocator,
         // OD-15 de-band — SEAM 2. This fan-in is a second silent-drop point the
         // trap-#4 comment on the sceneContext literal does not mention: a key
@@ -1246,6 +1279,29 @@ export async function layoutTerraformFromSources(
     strataBlockClamp: options?.strataBlockClamp === true,
     strataTranspose: options?.strataTranspose === true,
     strataHeightGate: options?.strataHeightGate === true,
+    // A01 leaf X-shift — MUST be listed in THIS literal or it is silently dropped
+    // on the real app path (RCLL threading boundary), however correctly it is
+    // threaded everywhere else. Budget knobs are optional-only forwards (absent ⇒
+    // engine defaults 150/0.01/8/300), so the default shape is byte-identical.
+    strataLeafShift: options?.strataLeafShift === true,
+    ...(options?.strataLeafShiftHeightBudgetPx !== undefined
+      ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
+      : {}),
+    ...(options?.strataLeafShiftHeightBudgetFrac !== undefined
+      ? {
+          strataLeafShiftHeightBudgetFrac:
+            options.strataLeafShiftHeightBudgetFrac,
+        }
+      : {}),
+    ...(options?.strataLeafShiftRankBudget !== undefined
+      ? { strataLeafShiftRankBudget: options.strataLeafShiftRankBudget }
+      : {}),
+    ...(options?.strataLeafShiftRightEdgeGuardPx !== undefined
+      ? {
+          strataLeafShiftRightEdgeGuardPx:
+            options.strataLeafShiftRightEdgeGuardPx,
+        }
+      : {}),
     // Default ON (`!== false`), unlike every neighbour here: the allocator is
     // already gated behind `pipelineIncludeAncillary`. Must be listed in THIS
     // literal — an option absent from the sceneContext is silently dropped on

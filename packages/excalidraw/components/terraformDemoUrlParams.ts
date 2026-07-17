@@ -173,6 +173,9 @@ export type TerraformDemoUrlParams = {
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * block-clamp pass (`strataHeightGate=1/0`). Default off. */
   strataHeightGate?: boolean;
+  /** A01 leaf X-shift: pull degree-1 pure-sink leaves left toward their source
+   * (`strataLeafShift=1/0`). Default off. Carries the right-edge column guard. */
+  strataLeafShift?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -528,6 +531,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataHeightGate === null) {
     return null;
   }
+  const strataLeafShift = parseBooleanParam("strataLeafShift");
+  if (strataLeafShift === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -734,6 +741,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
     ...(strataTranspose != null ? { strataTranspose } : {}),
     ...(strataHeightGate != null ? { strataHeightGate } : {}),
+    ...(strataLeafShift != null ? { strataLeafShift } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -816,6 +824,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataBlockClamp", params.strataBlockClamp);
   setBool("strataTranspose", params.strataTranspose);
   setBool("strataHeightGate", params.strataHeightGate);
+  setBool("strataLeafShift", params.strataLeafShift);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -945,6 +954,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** P5 (Lever C) height gate. Optional (default off) so pre-existing snapshot
    * literals still type-check. */
   strataHeightGate?: boolean;
+  /** A01 leaf X-shift. Optional (default off) so pre-existing snapshot literals
+   * still type-check. */
+  strataLeafShift?: boolean;
   /** OD-15 de-band ladder. Optional (default `"none"`) so pre-existing snapshot
    * literals still type-check. */
   strataDeBandLevel?: DeBandLevel;
@@ -1077,6 +1089,8 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataTranspose ? { strataTranspose: true } : {}),
       // P5 height gate: default-off — truthy-only.
       ...(snapshot.strataHeightGate ? { strataHeightGate: true } : {}),
+      // A01 leaf X-shift: default-off — truthy-only.
+      ...(snapshot.strataLeafShift ? { strataLeafShift: true } : {}),
       // OD-15 de-band ladder: emit only when it diverges from the default.
       // `strataDeBandLevel` is a TRUTHY string at every value (including the
       // default `"none"`), so — like the band-depth cut above — this must

@@ -185,6 +185,43 @@ export type StrataEngineOptions = {
    */
   strataHeightGate?: boolean;
   /**
+   * A01 leaf X-shift (`strataLeafShift`, default off, opt-in): a post-A7 pass
+   * (after `strataBlockClamp`, before ancillary) that pulls degree-1 pure-sink
+   * LEAVES left onto an existing grid column between their single source and their
+   * current rank, re-drops their Y within the owning hull via `dropY`, and grows
+   * (never shrinks) the leaf's ancestor hull chain to contain the new bottom. It
+   * NEVER re-ranks (colSpan/rank untouched — the -42% height lever is preserved).
+   *
+   * Gate stack (cheap→expensive): X-containment → SLACK per-hull height gate
+   * (`strataHeightGateAdmitsWithin`, budget max(absPx, relFrac·h)) → R2
+   * `checkStrataStructure` all-zero → `strataRelocateAdoptable` / `transitiveAdopt`
+   * (same weighted-C/ε/cap machinery as the relocate passes).
+   *
+   * MANDATORY right-edge guard (a05 F10 / e7ae739f0): region-level loose sinks
+   * whose box right edge is within `strataLeafShiftRightEdgeGuardPx` of their
+   * parent region hull's content right edge are EXCLUDED as candidates — pulling
+   * them off the right edge dissolves the emergent right-edge column the owner
+   * wants, and the unguarded sink-pull was owner-removed. Optional so existing
+   * option literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataLeafShift?: boolean;
+  /** A01 slack height gate absolute budget in px (default 150 — admits the
+   * measured +115px C2 DLQ pull). Consumed only when `strataLeafShift` is on. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 slack height gate relative budget as a fraction of the incumbent hull's
+   * implied height (default 0.01). The effective slack is `max(absPx, relFrac·h)`.
+   * Consumed only when `strataLeafShift` is on. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 max number of target ranks tried per leaf, nearest-to-source first
+   * (default 8 — bounds the R2/scorer cost per candidate leaf). Consumed only when
+   * `strataLeafShift` is on. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 right-edge column guard (a05 F10): a region-level loose sink whose box
+   * right edge is within this many px of its parent region hull's content right
+   * edge is NOT a candidate (default 300 — the owner's protected us-west-2 column
+   * measured distFromRight=250). Consumed only when `strataLeafShift` is on. */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /**
    * OD-15 de-band port (`strataDeBandLevel`, default `"none"`, opt-in): the v1
    * hierarchy ladder, ported into Strata's STRUCTURE phase. Dissolving level L
    * (and every deeper level) is expressed ENTIRELY as topology-path truncation

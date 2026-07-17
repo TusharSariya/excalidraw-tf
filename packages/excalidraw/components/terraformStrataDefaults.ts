@@ -63,6 +63,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * frozen preset. It is the referee a phase-2 occupant-displacement relaxation
    * needs, not a height win today. */
   strataHeightGate: false,
+  /** A01 leaf X-shift: pull degree-1 pure-sink leaves left toward their source,
+   * Y-redrop within the owning hull, grow ancestor chain — probe lever, default
+   * off (byte-identical off). Carries the mandatory right-edge column guard. */
+  strataLeafShift: false,
   /** OD-15 de-band ladder port: dissolve this hierarchy level and every deeper
    * one at the Strata model build — probe lever, default `"none"` (byte-
    * identical: `"none"` truncates no topology path). Plain string literal (not
@@ -114,6 +118,8 @@ export const resolveStrataDemoOptions = (params: {
   strataTranspose?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate. */
   strataHeightGate?: boolean;
+  /** A01 leaf X-shift. */
+  strataLeafShift?: boolean;
   /** OD-15 de-band ladder. Plain string union (not `DeBandLevel`) per the
    * no-layout-import rule above — mirrors the engine's domain exactly. */
   strataDeBandLevel?:
@@ -185,6 +191,9 @@ export const resolveStrataDemoOptions = (params: {
     strataHeightGate:
       params.strataHeightGate ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate,
+    strataLeafShift:
+      params.strataLeafShift ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataLeafShift,
     // De-band ladder: forward RAW and omit at the default `"none"` (never
     // materialize a default own key). `"none"` is a TRUTHY string, so the
     // explicit `!== "none"` compare is load-bearing — an `&&`-truthy gate would
