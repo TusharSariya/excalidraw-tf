@@ -89,6 +89,22 @@ const LAYOUT_BOOLEAN_PARAMS = [
   // pattern), last-present-wins like the URL.
   ["strataRankSep", "strataRankSeparate"],
   ["strataRankSeparate", "strataRankSeparate"],
+  // W5 effect-matrix exposure — the remaining engine toggles, threaded through
+  // `layoutTerraformFromSources`'s sceneContext literal (all already forwarded
+  // there; this table was the only gap). Param names mirror the /demo URL API
+  // (terraformDemoUrlParams.ts) exactly; `strataSift` carries the engine-key
+  // alias like the other dual-alias entries. All default OFF.
+  ["privateApiRegional", "pipelinePrivateApiRegional"],
+  ["strataPackedScoring", "strataPackedScoring"],
+  ["strataEdgeRouting", "strataEdgeRouting"],
+  ["strataBorderRoute", "strataBorderRoute"],
+  ["strataSift", "strataSiftRelocate"],
+  ["strataSiftRelocate", "strataSiftRelocate"],
+  ["strataPackedConverge", "strataPackedConverge"],
+  ["strataTransitiveAdopt", "strataTransitiveAdopt"],
+  ["strataBlockClamp", "strataBlockClamp"],
+  ["strataTranspose", "strataTranspose"],
+  ["strataHeightGate", "strataHeightGate"],
 ];
 
 // Enum (non-boolean) layout params: [paramName, optionKey, allowedValues].
@@ -109,6 +125,13 @@ const LAYOUT_ENUM_PARAMS = [
     "strataDeBandLevel",
     ["none", "subnet", "vpc", "region", "account", "provider"],
   ],
+  // W10 band-depth cut (SDEC-63) — hulls at/above the cut stay banded, deeper
+  // hulls pack. Engine default is "account"; mirrors the /demo URL param.
+  [
+    "strataBandDepth",
+    "strataBandDepth",
+    ["root", "provider", "account", "region", "vpc", "subnetZone"],
+  ],
   // Outcome-first "Layout" profile — expands into the RCLL flags in the core.
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
 ];
@@ -117,7 +140,13 @@ const LAYOUT_ENUM_PARAMS = [
 // Strata (S0a scaffold) — sweep count (K) for the coordinate-refinement pass;
 // 0 = off (M1a default, 4 planned for M1b). Passthrough-only until the strata
 // engine lands; default OFF like the strata booleans above.
-const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
+const LAYOUT_INT_PARAMS = [
+  ["strataSweeps", "strataSweeps"],
+  // W8b ε-constraint crossings budget for the packed scorer. Mirrors the /demo
+  // URL param name (`strataPackedEps`); the engine key is the canonical alias.
+  ["strataPackedEps", "strataPackedScoringEpsilon"],
+  ["strataPackedScoringEpsilon", "strataPackedScoringEpsilon"],
+];
 
 // Which engine variant `/api/terraform-layout` runs. Parsed separately from
 // LAYOUT_ENUM_PARAMS (below) because it selects `options.layoutMode` itself rather
@@ -146,6 +175,14 @@ const LAYOUT_PARAM_CATALOG = {
     columnPacking: ["spread", "none", "compact"],
     deBandLevel: ["none", "subnet", "vpc", "region", "account", "provider"],
     strataDeBand: ["none", "subnet", "vpc", "region", "account", "provider"],
+    strataBandDepth: [
+      "root",
+      "provider",
+      "account",
+      "region",
+      "vpc",
+      "subnetZone",
+    ],
   },
   enumNotes: {
     deBandLevel:
@@ -166,6 +203,8 @@ const LAYOUT_PARAM_CATALOG = {
     crossingMin:
       "container-aware crossing minimization (M6c) — reorders whole groups + leaves; supersedes reorder",
     deDensify: "legacy alias ⇒ columnPacking=spread",
+    ancillary:
+      "pipelineIncludeAncillary — include ancillary (non-primary) resources.",
     strataNsRank:
       "alias of strataNetworkSimplexRank (OD-1) — Strata NS rank refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
     strataNetworkSimplexRank:
@@ -178,10 +217,29 @@ const LAYOUT_PARAM_CATALOG = {
       "alias of strataRankSeparate (OD-14) — whole-model sibling-separation ranking (the height lever). Threaded to the engine (sceneContext), active under layoutMode=strata.",
     strataRankSeparate:
       "OD-14 flag — Strata whole-model sibling-separation ranking (the height lever). Threaded to the engine (sceneContext), active under layoutMode=strata.",
+    privateApiRegional:
+      "pipelinePrivateApiRegional — private REST APIs bind by account+region (strata-only; forced false on other layoutModes).",
+    strataPackedScoring:
+      "W8 packed-scorer edge scoring (strataPackedScoring). layoutMode=strata only.",
+    strataEdgeRouting: "Strata edge routing (opt-in).",
+    strataBorderRoute: "Strata P3 clean container-exit routing (opt-in).",
+    strataSift:
+      "alias of strataSiftRelocate (OD-15) — crossings-≻-length relocate lever.",
+    strataSiftRelocate: "OD-15 flag — crossings-≻-length relocate lever.",
+    strataPackedConverge:
+      "Adopt the best-seen packed-scorer snapshot instead of the rolling incumbent.",
+    strataTransitiveAdopt: "Transitive ε adoption gate for the packed scorer.",
+    strataBlockClamp: "P4 pure-sink account block clamp.",
+    strataTranspose: "P2 within-column adjacent Y-exchange crossing reduction.",
+    strataHeightGate: "P5/Lever-C height gate after the block-clamp pass.",
   },
   ints: {
     strataSweeps:
       "Strata sweep count K for coordinate refinement (0 = off / M1a default, 4 planned for M1b); scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataPackedEps:
+      "alias of strataPackedScoringEpsilon (W8b) — ε-constraint crossings budget for the packed scorer.",
+    strataPackedScoringEpsilon:
+      "W8b ε-constraint crossings budget for the packed scorer.",
   },
   metrics: {
     note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2).",
@@ -433,19 +491,30 @@ const countTopoFrames = (elements) => {
  * (diagnosePipelineScene / computePierceMetrics), never chord proxies (trap #2).
  * `helpers` carries the ssr-loaded functions so this stays pure/testable.
  */
-const buildSceneMetrics = (elements, bounds, helpers) => {
+const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
   const { diagnosePipelineScene, computePierceMetrics, strataGeometryHash } =
     helpers;
+  // W5 finding: headless import pins every edge layer OFF
+  // (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false), so the TFD arrows arrive
+  // soft-deleted and a metrics pass over visible elements alone is
+  // structurally blind (crossings/pierce identically 0 for every request).
+  // Measure over visible + revealed edges — the state the app shows once the
+  // dataflow layer pin (or hover) reveals them, i.e. the geometry the strata
+  // toggles actually optimize. Bounds / elementCount / geometryHash stay
+  // visible-only for baseline comparability; edgeGeometryHash adds an
+  // edge-inclusive fingerprint so edge-only togs (edgeRouting/borderRoute)
+  // cannot hide behind a box-only hash.
+  const metricsElements = elements.concat(revealedEdges);
   let renderedCrossings = null;
   try {
     renderedCrossings =
-      diagnosePipelineScene(elements)?.dataflow?.crossings ?? null;
+      diagnosePipelineScene(metricsElements)?.dataflow?.crossings ?? null;
   } catch {
     renderedCrossings = null;
   }
   let pierceTotal = null;
   try {
-    pierceTotal = computePierceMetrics(elements)?.pierce?.total ?? null;
+    pierceTotal = computePierceMetrics(metricsElements)?.pierce?.total ?? null;
   } catch {
     pierceTotal = null;
   }
@@ -454,15 +523,40 @@ const buildSceneMetrics = (elements, bounds, helpers) => {
     pierceTotal == null
       ? null
       : Math.round((pierceTotal / Math.max(1, topoFrames)) * 1000) / 1000;
+  // Arrow visibility guard: renderedCrossings=0 is only meaningful when the
+  // measured set actually CONTAINS dataflow arrows. tfdArrowCount mirrors the
+  // exact diagnosePipelineScene predicate (customData.relationship
+  // source/target, aggregated !== true).
+  let arrowCount = 0;
+  let tfdArrowCount = 0;
+  for (const el of metricsElements) {
+    if (el.type === "arrow" && !el.isDeleted) {
+      arrowCount += 1;
+      const rel = el.customData?.relationship;
+      if (
+        rel &&
+        typeof rel === "object" &&
+        typeof rel.source === "string" &&
+        typeof rel.target === "string" &&
+        rel.aggregated !== true
+      ) {
+        tfdArrowCount += 1;
+      }
+    }
+  }
   return {
     renderedCrossings,
     pierce: pierceTotal,
     topoFrames,
     piercePerTopoFrame,
+    arrowCount,
+    tfdArrowCount,
+    revealedEdgeCount: revealedEdges.length,
     height: bounds?.height ?? null,
     width: bounds?.width ?? null,
     elementCount: elements.length,
     geometryHash: strataGeometryHash(elements),
+    edgeGeometryHash: strataGeometryHash(metricsElements),
   };
 };
 
@@ -956,8 +1050,20 @@ export const terraformImportPresetDevPlugin = () => ({
             const elements = (result.scene.elements ?? []).filter(
               (el) => !el.isDeleted,
             );
+            // Soft-deleted edge-layer elements (customData.relationship),
+            // revealed (isDeleted stripped) for the rendered metrics only —
+            // see the W5 note on buildSceneMetrics.
+            const revealedEdges = (result.scene.elements ?? [])
+              .filter((el) => {
+                if (!el.isDeleted) {
+                  return false;
+                }
+                const rel = el.customData?.relationship;
+                return rel != null && typeof rel === "object";
+              })
+              .map((el) => ({ ...el, isDeleted: false }));
             const bounds = computeSceneBounds(elements);
-            const metrics = buildSceneMetrics(elements, bounds, {
+            const metrics = buildSceneMetrics(elements, revealedEdges, bounds, {
               diagnosePipelineScene: diagnosticsMod.diagnosePipelineScene,
               computePierceMetrics: pierceMod.computePierceMetrics,
               strataGeometryHash: hashMod.strataGeometryHash,
