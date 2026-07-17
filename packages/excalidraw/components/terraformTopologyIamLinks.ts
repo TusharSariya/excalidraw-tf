@@ -113,7 +113,25 @@ export function getResourceTypeFromPath(
 }
 
 /** Terraform module prefix for a resource address, e.g. `module.a.module.b` or `""` for root. */
+/**
+ * Module-level memo: `terraformModulePrefixForAddress` is a pure function of the
+ * address STRING alone — no config, no preset state — so the same input string
+ * always maps to the same output regardless of which preset is being imported.
+ * The keyspace is string→string, bounded by the finite set of distinct plan
+ * addresses across all presets re-imported in one process, so the cache is safe
+ * to persist for the process lifetime without a per-import reset. The function is
+ * called O(nodes × candidates) inside IAM-link building (1.99s self on the
+ * canonical trace); the memo collapses the repeated split/join. Byte-identical by
+ * construction (pure function, no lifecycle coupling). See
+ * scratchpad/overnight-20260717 O4 (floor memos).
+ */
+const terraformModulePrefixCache = new Map<string, string>();
+
 export function terraformModulePrefixForAddress(address: string): string {
+  const cached = terraformModulePrefixCache.get(address);
+  if (cached !== undefined) {
+    return cached;
+  }
   const parts = address.split(".");
   const segments: string[] = [];
   for (let i = 0; i < parts.length - 1; ) {
@@ -124,7 +142,9 @@ export function terraformModulePrefixForAddress(address: string): string {
       break;
     }
   }
-  return segments.join(".");
+  const result = segments.join(".");
+  terraformModulePrefixCache.set(address, result);
+  return result;
 }
 
 function buildArnToNodePath(nodes: TerraformPlanNodesMap): Map<string, string> {

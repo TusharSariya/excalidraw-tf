@@ -98,9 +98,16 @@ type TerraformPriorStateResource = {
   depends_on?: string[];
 };
 
+// O4 floor (Track B, overnight-20260717): hoist the instance-index RegExp to
+// module scope (compiled once, not re-created per call). `replace(re, "")` resets
+// the `g`-flag `lastIndex` to 0 on each call, so a shared module-level regex is
+// behaviorally identical to a fresh literal. This function is on both the
+// plan-parse head and the scene-apply tail of the canonical trace.
+const TERRAFORM_INSTANCE_INDEX_RE = /\[[^\]]+\]/g;
+
 /** Strip `count` / `for_each` instance keys so graph ids match `terraform graph` / `depends_on` variants. */
 const stripTerraformAddressIndexes = (address = "") =>
-  address.replace(/\[[^\]]+\]/g, "");
+  address.replace(TERRAFORM_INSTANCE_INDEX_RE, "");
 
 export type TerraformPlanParsingOptions = {
   /** When true, emit nested AWS topology frames (local import only); otherwise ELK module graph. */

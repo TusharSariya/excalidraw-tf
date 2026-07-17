@@ -60,4 +60,46 @@ describe("terraformStackAddress", () => {
       stackId: "40-east-api-1",
     });
   });
+
+  // O4 floor memo (Track B, overnight-20260717): behavioral-identity gate for the
+  // module-level `parseStackAddress` cache. Proves the memo is byte-identical to a
+  // fresh recompute for a battery of inputs (positive, negative, whitespace,
+  // instance-index, root-level), and that a second call returns the SAME reference
+  // (i.e. the cache is actually hit — no silent per-call recompute) without any
+  // behavioral drift.
+  it("memoizes parseStackAddress byte-identically and reuses the reference", () => {
+    const recompute = (full: string) => {
+      const trimmed = full.trim();
+      const sepIndex = trimmed.indexOf("::");
+      if (sepIndex <= 0) {
+        return null;
+      }
+      const stackId = trimmed.slice(0, sepIndex);
+      const address = trimmed.slice(sepIndex + 2);
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(stackId) || !address) {
+        return null;
+      }
+      return { stackId, address };
+    };
+
+    const inputs = [
+      "40-east-api-1::module.api.aws_lambda_function.this",
+      "  stack-2::aws_s3_bucket.logs  ",
+      "aws_s3_bucket.no_stack",
+      "::leading-sep-invalid",
+      "bad stack::addr",
+      "",
+      "root",
+      "s::module.a.module.b.aws_instance.web[0]",
+    ];
+
+    for (const input of inputs) {
+      const first = parseStackAddress(input);
+      const second = parseStackAddress(input);
+      // byte-identical to a fresh recompute
+      expect(first).toEqual(recompute(input));
+      // cache hit: the second call returns the identical reference (or null)
+      expect(second).toBe(first);
+    }
+  });
 });
