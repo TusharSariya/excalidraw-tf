@@ -548,15 +548,30 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataDeBandLevel !== "none" ? { strataDeBandLevel } : {}),
     // Relocate objective weights/cap: these ride when ANY relocate-family
     // operator is on — the OD-15 sift/vertical-relocate, the block clamp, the
-    // transpose, or the A01 leaf X-shift — because ALL consume penW/crossW/cap
-    // through `strataRelocateAdoptable`. Gating them on strataSiftRelocate alone
-    // would neuter the ε/cap owner guardrails and the weight sliders for the other
-    // runs. Weights ride only when non-default, cap only when set, so the
-    // all-off shape is byte-identical to today.
+    // transpose, the A01 leaf X-shift, OR the P0.2 transitive adoption —
+    // because ALL consume penW/crossW/cap. The relocate family (sift/vertical-
+    // relocate, block clamp, transpose, AND leaf X-shift) reads them through
+    // `strataRelocateAdoptable`; the transitive descent reads them for its
+    // `transitiveW`/`transitiveCap` (comparator + feasibility cap). Gating them
+    // on strataSiftRelocate alone would neuter the ε/cap owner guardrails and
+    // the weight sliders for the other runs.
+    //
+    // O4-3 FIX: `strataTransitiveAdopt` MUST be in this gate. The post-A7 guard
+    // (chooseStrataRefinedPlacement, transitive arm) is threaded the OUTER
+    // weights/explicit cap. Without transitiveAdopt here, a transitive-only run
+    // with a non-default weight or explicit cap would make engineOptions OMIT
+    // them, so the descent's decideAdoption ran at 1/1 + resolved δ while the
+    // guard ranked at the outer weights/cap — two different comparators end to
+    // end (the exact incoherence O4 exists to remove). With this gate the
+    // descent's `relocateCfg`/`transitiveW`/`transitiveCap` equal the guard's
+    // config exactly. Weights ride only when non-default, cap only when set, so
+    // the all-off (and transitive-with-default-weights) shape stays
+    // byte-identical to today.
     ...(strataSiftRelocate ||
     strataBlockClamp ||
     strataTranspose ||
-    strataLeafShift
+    strataLeafShift ||
+    strataTransitiveAdopt
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }

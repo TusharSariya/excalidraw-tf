@@ -48,6 +48,7 @@
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
 import { checkStrataStructure } from "./terraformPipelineStrataPlacement";
 import {
+  resolveInheritedEdgeCrossCap,
   scoreStrataPlacementGeometry,
   // CONTRACT (terraformPipelineStrataPackedScoring.ts, authored in parallel):
   // the adoption gate encapsulates the weighted comparator + both guardrails.
@@ -137,9 +138,6 @@ export function refineStrataVerticalSlots(
   const penW = options.strataCrossWeightPenetration ?? 1;
   const crossW = options.strataCrossWeightEdge ?? 1;
   const epsilon = options.packedScoringEpsilon ?? 0;
-  const edgeCrossCap =
-    options.strataEdgeCrossCap ?? options.packedScoringEpsilon ?? 0;
-  const weights = { penW, crossW, epsilon, edgeCrossCap };
 
   // Baseline = the incoming (post-A7 legacy) placement. `baseline` anchors both
   // owner guardrails inside `strataRelocateAdoptable` (ε budget on C and the raw
@@ -149,6 +147,19 @@ export function refineStrataVerticalSlots(
     model,
     edgesPrime,
   );
+
+  // S1-1 FIX: a BLANK `strataEdgeCrossCap` inherits the descent's RESOLVED δ
+  // (`resolveStrataPackedEpsilonDelta(epsilon, baseline.crossings)`), NEVER the
+  // raw fractional ε that the old `?? options.packedScoringEpsilon ?? 0`
+  // collapsed to a ~0 absolute cap (the hard cap compares INTEGER crossings, so
+  // +0.5 ≡ +0). Needs the baseline crossings ⇒ resolved AFTER `baselineScore`.
+  // Byte-identical at integer ε (resolve(N)===N); only fractional ε changes.
+  const edgeCrossCap = resolveInheritedEdgeCrossCap(
+    options.strataEdgeCrossCap,
+    epsilon,
+    baselineScore.crossings,
+  );
+  const weights = { penW, crossW, epsilon, edgeCrossCap };
 
   let incumbent = placement;
   let incumbentScore: StrataPackedScore = baselineScore;

@@ -84,6 +84,7 @@ import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
 import { strataHeightGateAdmits } from "./terraformPipelineStrataHeightGate";
 import { checkStrataStructure } from "./terraformPipelineStrataPlacement";
 import {
+  resolveInheritedEdgeCrossCap,
   scoreStrataPlacementGeometry,
   strataRelocateAdoptable,
 } from "./terraformPipelineStrataPackedScoring";
@@ -150,9 +151,10 @@ export function refineStrataBlockClamp(
   const penW = options.strataCrossWeightPenetration ?? 1;
   const crossW = options.strataCrossWeightEdge ?? 1;
   const epsilon = options.packedScoringEpsilon ?? 0;
-  const edgeCrossCap =
-    options.strataEdgeCrossCap ?? options.packedScoringEpsilon ?? 0;
-  const weights = { penW, crossW, epsilon, edgeCrossCap };
+  // S1-1 FIX: `edgeCrossCap`/`weights` are resolved AFTER `baselineScore` below
+  // (a blank `strataEdgeCrossCap` inherits the descent's RESOLVED δ, which needs
+  // the baseline crossings, NOT the raw fractional ε the old
+  // `?? options.packedScoringEpsilon ?? 0` collapsed to a ~0 absolute cap).
 
   const columnX = rank.columnX;
 
@@ -277,6 +279,14 @@ export function refineStrataBlockClamp(
     model,
     edgesPrime,
   );
+  // S1-1 FIX: blank cap inherits the descent's RESOLVED δ, not raw fractional ε.
+  // Byte-identical at integer ε (resolve(N)===N); only fractional ε changes.
+  const edgeCrossCap = resolveInheritedEdgeCrossCap(
+    options.strataEdgeCrossCap,
+    epsilon,
+    baselineScore.crossings,
+  );
+  const weights = { penW, crossW, epsilon, edgeCrossCap };
   let incumbent = placement;
   let incumbentScore: StrataPackedScore = baselineScore;
 

@@ -54,6 +54,7 @@ import {
   dropY,
 } from "./terraformPipelineStrataPlacement";
 import {
+  resolveInheritedEdgeCrossCap,
   scoreStrataPlacementGeometry,
   strataRelocateAdoptable,
   strataTransitiveEligible,
@@ -104,9 +105,6 @@ export function refineStrataLeafShift(
   const penW = options.strataCrossWeightPenetration ?? 1;
   const crossW = options.strataCrossWeightEdge ?? 1;
   const epsilon = options.packedScoringEpsilon ?? 0;
-  const edgeCrossCap =
-    options.strataEdgeCrossCap ?? options.packedScoringEpsilon ?? 0;
-  const weights = { penW, crossW, epsilon, edgeCrossCap };
   const useTransitive = options.transitiveAdopt === true;
 
   const heightBudget = {
@@ -188,6 +186,22 @@ export function refineStrataLeafShift(
     model,
     edgesPrime,
   );
+
+  // S1-1 FIX: a BLANK `strataEdgeCrossCap` inherits the descent's RESOLVED δ
+  // (`resolveStrataPackedEpsilonDelta(epsilon, baselineScore.crossings)`), NEVER
+  // the raw fractional ε that the old `?? options.packedScoringEpsilon ?? 0`
+  // collapsed to a ~0 absolute cap (the hard cap compares INTEGER crossings, so
+  // +0.5 ≡ +0, vetoing exactly the ε-band trades this pass admits — the S1-1
+  // defect, reborn in the newest relocate operator). Needs the baseline
+  // crossings ⇒ resolved AFTER `baselineScore`. Byte-identical at integer ε
+  // (resolve(N)===N); only fractional ε changes. The transitive arm's
+  // `strataTransitiveEligible` cap below reads this same resolved δ.
+  const edgeCrossCap = resolveInheritedEdgeCrossCap(
+    options.strataEdgeCrossCap,
+    epsilon,
+    baselineScore.crossings,
+  );
+  const weights = { penW, crossW, epsilon, edgeCrossCap };
   // Per-hull height ceilings are captured ONCE from the pass baseline (never the
   // rolling incumbent) so total per-hull growth over the whole pass is bounded by a
   // single slack allowance regardless of how many leaves adopt — the globally-
@@ -208,7 +222,8 @@ export function refineStrataLeafShift(
   const scoreAdoptable = (candScore: StrataPackedScore): boolean => {
     if (useTransitive) {
       // P0.2 transitive path: ε-feasibility (raw crossings within the legacy
-      // baseline budget — `edgeCrossCap` already resolves cap→ε→0) then
+      // baseline budget — `edgeCrossCap` is the RESOLVED δ, cap else
+      // resolveStrataPackedEpsilonDelta(ε), never raw fractional ε) then
       // strict-total-order adoption vs the incumbent.
       return (
         strataTransitiveEligible(
