@@ -324,25 +324,49 @@ export async function buildTerraformStrataExcalidrawScene(
 }> {
   const compact = options?.compact !== false;
   const includeAncillary = options?.includeAncillary === true;
-  const strataRankSeparate = options?.strataRankSeparate === true;
+  const strataRankSeparateRequested = options?.strataRankSeparate === true;
   const strataGeneration = options?.strataGeneration ?? 1;
   const forceStage = options?.__testForceStageError;
+
+  const strataToggleSuppressions: string[] = [];
+
+  // Round 9 (SDEC-57): packed candidate-set scoring. Owner default flip
+  // 2026-07-17: default ON (view layer). Computed before the exclusion blocks
+  // below because it is the WINNER of the rankSeparate × packedScoring exclusion.
+  const strataPackedScoring = options?.strataPackedScoring === true;
 
   // OD-14 mutual-exclusion (mirror of terraformPipelineToggleGuards.ts:103-106):
   // `strataRankSeparate` and the network-simplex ranker both rewrite the column
   // axis and CANNOT compose — rankSeparate is the dominant height lever, so when
-  // both are requested it WINS and NS is dropped, surfaced observably. The
-  // ECHOED (effective) NS value below is the post-suppression one (honest meta).
+  // both are requested it WINS and NS is dropped, surfaced observably. NS is
+  // suppressed against the REQUESTED rankSeparate (not the packedScoring-
+  // suppressed effective value) so the engine matches the single-pass
+  // `terraformStrataOptionRules` conflict table: {NS,rankSep,packed} suppresses
+  // BOTH NS and rankSep, leaving packedScoring alone. The ECHOED (effective) NS
+  // value below is the post-suppression one (honest meta).
   const strataNetworkSimplexRankRequested =
     options?.strataNetworkSimplexRank === true;
-  const strataToggleSuppressions: string[] = [];
   const strataNetworkSimplexRank =
-    strataRankSeparate && strataNetworkSimplexRankRequested
+    strataRankSeparateRequested && strataNetworkSimplexRankRequested
       ? false
       : strataNetworkSimplexRankRequested;
-  if (strataRankSeparate && strataNetworkSimplexRankRequested) {
+  if (strataRankSeparateRequested && strataNetworkSimplexRankRequested) {
     strataToggleSuppressions.push(
       "rank-floor-conflict-rankseparate-wins-network-simplex",
+    );
+  }
+
+  // rankSeparate × packedScoring mutual-exclusion (owner-decisions.md
+  // 2026-07-17): the two whole-layout scorers cannot compose. Valid states are
+  // off/off, on/off, off/on — never on/on. packedScoring is the chosen default
+  // and WINS; when both arrive true rankSeparate is SUPPRESSED (dropped, echoed
+  // in `strataToggleSuppressions`, never silently). The UI enforces the same
+  // exclusion (toggling one off the other); this is the engine-side backstop
+  // and the `terraformStrataOptionRules` conflict-table winner.
+  const strataRankSeparate = strataRankSeparateRequested && !strataPackedScoring;
+  if (strataRankSeparateRequested && strataPackedScoring) {
+    strataToggleSuppressions.push(
+      "rankseparate-packedscoring-conflict-packedscoring-wins-rankseparate",
     );
   }
 
@@ -351,8 +375,6 @@ export async function buildTerraformStrataExcalidrawScene(
   // W5b probe: only meaningful WITH rankSeparate (it refines the separated
   // floor); requesting it without RS is inert and echoed as such.
   const strataJointNsRank = options?.strataJointNsRank === true;
-  // Round 9 (SDEC-57): packed candidate-set scoring, default off.
-  const strataPackedScoring = options?.strataPackedScoring === true;
   // W8b: ε-constraint budget (0 = strict rule) + frontier instrumentation.
   const strataPackedScoringEpsilon = options?.strataPackedScoringEpsilon ?? 0;
   const strataPackedFrontierMeta = options?.strataPackedFrontierMeta === true;

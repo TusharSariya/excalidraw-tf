@@ -61,7 +61,11 @@ describe("strata dependency-rule table (c05)", () => {
     }
   });
 
-  it("byte-identity at defaults: no rule fires on the shipped default state", () => {
+  it("no CONFLICT rule fires on the shipped default state (rankSeparate OFF)", () => {
+    // owner-decisions.md 2026-07-17: the new default enables packedScoring+sift+
+    // transpose and keeps rankSeparate OFF, so the rankSeparate × packedScoring
+    // mutual exclusion (and the NS × rankSeparate one) never fire — the table
+    // suppresses nothing and emits no echo/warning for a default import.
     const defaultState: StrataOptionState = {
       ...(TERRAFORM_STRATA_LAYOUT_DEFAULTS as unknown as StrataOptionState),
     };
@@ -69,11 +73,30 @@ describe("strata dependency-rule table (c05)", () => {
     expect([...suppressed]).toEqual([]);
     expect(warnings).toEqual([]);
     expect(echoes).toEqual([]);
-    // Every default-off consumer means every inertUnless option reads inert.
-    for (const key of Object.keys(
-      STRATA_INERT_UNLESS,
-    ) as StrataRuleOptionKey[]) {
-      expect(strataOptionIsInert(key, defaultState)).toBe(true);
+    // Under the new default, the relocate-family consumers (packedScoring, sift,
+    // transpose) are ON, so ε / crossing-weights / edge-cap / converge read
+    // ACTIVE, while the flags whose consumers stay off read inert.
+    for (const key of [
+      "strataPackedScoringEpsilon",
+      "strataCrossWeightPenetration",
+      "strataCrossWeightEdge",
+      "strataEdgeCrossCap",
+      "strataPackedConverge",
+      "strataTransitiveAdopt",
+    ] as StrataRuleOptionKey[]) {
+      expect(
+        strataOptionIsInert(key, defaultState),
+        `${key} should be ACTIVE under the new default`,
+      ).toBe(false);
+    }
+    for (const key of [
+      "strataJointNsRank",
+      "strataHeightGate",
+    ] as StrataRuleOptionKey[]) {
+      expect(
+        strataOptionIsInert(key, defaultState),
+        `${key} should be inert under the new default`,
+      ).toBe(true);
     }
   });
 
@@ -139,14 +162,21 @@ describe("strata dependency-rule table (c05)", () => {
     ).toBe(true);
   });
 
-  it("rankSeparate × packedScoring is WARN-only, never suppressed (W8/SDEC-64 undecided)", () => {
-    const { suppressed, warnings } = evaluateStrataRules({
+  it("rankSeparate × packedScoring is a HARD exclusion: packedScoring wins, rankSeparate suppressed (owner 2026-07-17)", () => {
+    const { suppressed, warnings, echoes } = evaluateStrataRules({
       strataRankSeparate: true,
       strataPackedScoring: true,
     });
+    expect(suppressed.has("strataRankSeparate")).toBe(true);
     expect(suppressed.has("strataPackedScoring")).toBe(false);
-    expect(suppressed.has("strataRankSeparate")).toBe(false);
-    expect(warnings).toContain("rankSep-packedScoring-prefer-one");
+    expect(warnings).toEqual([]);
+    expect(
+      echoes.some((e) =>
+        e.startsWith(
+          "rankseparate-packedscoring-conflict-packedscoring-wins-rankseparate",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("evaluation is idempotent (fixpoint): resolving the losers and re-running is stable", () => {

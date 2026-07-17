@@ -889,6 +889,51 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "rankSeparate × packedScoring mutual exclusion: packedScoring WINS, rankSeparate suppressed (owner 2026-07-17)",
+    async () => {
+      // owner-decisions.md 2026-07-17: the two whole-layout scorers cannot
+      // compose. When both arrive true packedScoring wins and rankSeparate is
+      // dropped — surfaced in meta as strataToggleSuppressions, never silently.
+      const bothOn = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataRankSeparate: true,
+        strataPackedScoring: true,
+      });
+      expect(bothOn.meta.rcllV2Degraded).toBeUndefined();
+      // packedScoring survives; rankSeparate is suppressed (effective echo false).
+      expect(bothOn.meta.strataPackedScoring).toBe(true);
+      expect(bothOn.meta.strataRankSeparate).toBe(false);
+      expect(bothOn.meta.strataToggleSuppressions).toContain(
+        "rankseparate-packedscoring-conflict-packedscoring-wins-rankseparate",
+      );
+
+      // The both-on geometry is byte-identical to packedScoring-alone (the
+      // rankSeparate request was fully dropped, not partially applied).
+      const packedOnly = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataPackedScoring: true,
+      });
+      expect(geometryTuples(bothOn.elements)).toEqual(
+        geometryTuples(packedOnly.elements),
+      );
+      expect(packedOnly.meta.strataToggleSuppressions).toBeUndefined();
+
+      // rankSeparate ALONE (packedScoring off) is NOT suppressed — the exclusion
+      // only fires when packedScoring is also requested.
+      const rankOnly = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataRankSeparate: true,
+      });
+      expect(rankOnly.meta.strataRankSeparate).toBe(true);
+      expect(rankOnly.meta.strataToggleSuppressions).toBeUndefined();
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
     "stamps terraformTopologyPath at the SAME de-band level the hull tree was built with",
     async () => {
       // The two `topologyPathForCluster` call sites — the model tree

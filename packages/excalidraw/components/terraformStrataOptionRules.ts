@@ -97,14 +97,16 @@ export const STRATA_CONFLICTS: ReadonlyArray<{
   // real relation (NS × rankSeparate) is the entry above; joint's rankSeparate
   // dependence is captured as inertness, not a pairwise conflict.
   {
-    // W8/SDEC-64: NO coded exclusion exists (grep-confirmed). Encode as a
-    // declarative WARN, not an exclusion — the combo improves both p50 medians;
-    // only the p90 tail regresses. Winner is UNDECIDED (owner adjudicates).
+    // owner-decisions.md 2026-07-17: the W8/SDEC-64 combo is now a HARD mutual
+    // exclusion. The two whole-layout scorers cannot compose; valid states are
+    // off/off, on/off, off/on — never on/on. packedScoring is the chosen default
+    // and WINS, so rankSeparate is the suppressed loser (echoed, never silent).
+    // Engine-pinned to terraformPipelineStrata.ts (the rankSeparate ×
+    // packedScoring exclusion block).
     a: "strataRankSeparate",
     b: "strataPackedScoring",
-    winner: "strataRankSeparate",
-    echo: "rankSep-packedScoring-prefer-one",
-    warnOnly: true,
+    winner: "strataPackedScoring",
+    echo: "rankseparate-packedscoring-conflict-packedscoring-wins-rankseparate",
   },
 ];
 
