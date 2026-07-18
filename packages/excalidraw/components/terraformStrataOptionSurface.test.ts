@@ -62,6 +62,8 @@ describe("strata option-surface regression (W0-I4)", () => {
       strataTranspose: true,
       strataHeightGate: true,
       strataLeafShift: true,
+      strataChainRelocate: true,
+      strataCoordCascade: true,
     };
     expect(roundTrip(full)).toEqual(full);
   });
@@ -236,6 +238,8 @@ describe("strata option-surface regression (W0-I4)", () => {
       "strataTranspose",
       "strataHeightGate",
       "strataLeafShift",
+      "strataChainRelocate",
+      "strataCoordCascade",
     ];
     const missingSeam1 = REQUIRED.filter((k) => !seam1.has(k));
     const missingSeam2 = REQUIRED.filter((k) => !seam2.has(k));

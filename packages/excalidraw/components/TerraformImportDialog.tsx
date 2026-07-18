@@ -82,6 +82,8 @@ export const TerraformImportModal = ({
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
+    strataChainRelocate,
+    strataCoordCascade,
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
@@ -664,6 +666,8 @@ terraform show -json tfplan > plan.json`}</code>
               pipelineCompact={pipelineCompact}
               pipelineIncludeAncillary={pipelineIncludeAncillary}
               strataSiftRelocate={strataSiftRelocate}
+              strataChainRelocate={strataChainRelocate}
+              strataCoordCascade={strataCoordCascade}
               strataCrossWeightPenetration={strataCrossWeightPenetration}
               strataCrossWeightEdge={strataCrossWeightEdge}
               strataEdgeCrossCap={strataEdgeCrossCap}
@@ -684,6 +688,8 @@ terraform show -json tfplan > plan.json`}</code>
               setPipelineCompact={dialog.setPipelineCompact}
               setPipelineIncludeAncillary={dialog.setPipelineIncludeAncillary}
               setStrataSiftRelocate={dialog.setStrataSiftRelocate}
+              setStrataChainRelocate={dialog.setStrataChainRelocate}
+              setStrataCoordCascade={dialog.setStrataCoordCascade}
               setStrataCrossWeightPenetration={
                 dialog.setStrataCrossWeightPenetration
               }

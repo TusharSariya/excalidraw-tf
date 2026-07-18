@@ -210,6 +210,18 @@ export const useTerraformImportDialog = ({
   const [strataSiftRelocate, setStrataSiftRelocate] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSiftRelocate as boolean,
   );
+  // Exclusive-downstream chain relocate (strata-only): post-A7 pass that rigid-
+  // translates a unit plus its exclusive downstream chain vertically to shorten
+  // edges. Default OFF (byte-identical off) pending its gate battery.
+  const [strataChainRelocate, setStrataChainRelocate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChainRelocate as boolean,
+  );
+  // A7 tie-cascade (strata-only): extends strataCoordinateRefine — escapes net-
+  // zero fixed-point columns to their two-sided median + chase. Default OFF
+  // (byte-identical off); inert unless strataCoordinateRefine is on.
+  const [strataCoordCascade, setStrataCoordCascade] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordCascade as boolean,
+  );
   // Relocate objective weights (strata-only, inert without strataSiftRelocate).
   const [strataCrossWeightPenetration, setStrataCrossWeightPenetration] =
     useState(
@@ -545,6 +557,8 @@ export const useTerraformImportDialog = ({
         strataBandDepth,
         strataDeBandLevel,
         strataSiftRelocate,
+        strataChainRelocate,
+        strataCoordCascade,
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
@@ -705,6 +719,8 @@ export const useTerraformImportDialog = ({
           strataBandDepth,
           strataDeBandLevel,
           strataSiftRelocate,
+          strataChainRelocate,
+          strataCoordCascade,
           strataCrossWeightPenetration,
           strataCrossWeightEdge,
           // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
@@ -832,6 +848,8 @@ export const useTerraformImportDialog = ({
         // these weights + cap, so dropping them here would make the same UI
         // state adopt differently between the two import buttons.
         strataSiftRelocate,
+        strataChainRelocate,
+        strataCoordCascade,
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
@@ -1077,6 +1095,8 @@ export const useTerraformImportDialog = ({
         strataBandDepth,
         strataDeBandLevel,
         strataSiftRelocate,
+        strataChainRelocate,
+        strataCoordCascade,
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         strataEdgeCrossCap,
@@ -1120,6 +1140,8 @@ export const useTerraformImportDialog = ({
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
+    strataChainRelocate,
+    strataCoordCascade,
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
@@ -1164,6 +1186,8 @@ export const useTerraformImportDialog = ({
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
+    strataChainRelocate,
+    strataCoordCascade,
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
@@ -1230,6 +1254,8 @@ export const useTerraformImportDialog = ({
     setStrataBandDepth,
     setStrataDeBandLevel,
     setStrataSiftRelocate,
+    setStrataChainRelocate,
+    setStrataCoordCascade,
     setStrataCrossWeightPenetration,
     setStrataCrossWeightEdge,
     setStrataEdgeCrossCap,

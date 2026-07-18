@@ -131,5 +131,15 @@ describe("strata option registry (c04)", () => {
     expect(byKey.get("strataSiftRelocate")?.emitClass).toBe("C1");
     // privateApiRegional toggle removed from the UI (always-on) → hidden surface.
     expect(byKey.get("pipelinePrivateApiRegional")?.surface).toBe("hidden");
+    // The two default-OFF experimental edge-shortening passes now have advanced
+    // panel controls ('Advanced: extra crossing-reduction passes'), so the
+    // registry catalogs them as advanced (not hidden) — both default-off,
+    // truthy-only (C2), and present.
+    expect(byKey.get("strataChainRelocate")?.surface).toBe("advanced");
+    expect(byKey.get("strataChainRelocate")?.default).toBe(false);
+    expect(byKey.get("strataChainRelocate")?.emitClass).toBe("C2");
+    expect(byKey.get("strataCoordCascade")?.surface).toBe("advanced");
+    expect(byKey.get("strataCoordCascade")?.default).toBe(false);
+    expect(byKey.get("strataCoordCascade")?.emitClass).toBe("C2");
   });
 });

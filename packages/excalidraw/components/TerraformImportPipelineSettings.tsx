@@ -627,6 +627,38 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.coordcascade.off": {
+    title: "Coordinate cascade · Off",
+    body: "The straighten pass stops at the first column arrangement it cannot improve one column at a time. Where two columns are each locally optimal but a joint move would untangle them, that crossing stays.",
+    dev: {
+      implements:
+        "strataCoordCascade=false: per-column coordinate refinement (A7) halts at its net-zero fixed point; no tie-cascade runs and the engine is byte-identical.",
+    },
+  },
+  "strata.coordcascade.on": {
+    title: "Coordinate cascade · On",
+    body: "Extends Straighten edges: when a column reaches a net-zero tie the straighten pass would otherwise stop at, it escapes to its two-sided median and chases the improvement, keeping the move only if it shortens edges on the A7 length proxy. Cuts more crossings than the straighten pass alone. Measured on the flagship preset: crossings 116 → 98 (−15.5%), routed edge length −1.6%, height unchanged. Does nothing unless Straighten edges is on. Off by default (experimental).",
+    dev: {
+      implements:
+        "strataCoordCascade=true (A7 tie-cascade, extends strataCoordinateRefine): a net-zero fixed-point column escapes to its two-sided median + chase, adopt-or-rollback on the A7 length proxy. Inert unless strataCoordinateRefine. Measured (P2 audit-config): −15.5% rendered crossings / −1.6% routed edge length / height-gated.",
+    },
+  },
+  "strata.chainrelocate.off": {
+    title: "Chain relocate · Off",
+    body: "A unit and the resources that depend only on it (a lambda, its SSM parameter, its database) each keep the row their own rank assigned, so the arrows chaining them can stay longer than they need to be.",
+    dev: {
+      implements:
+        "strataChainRelocate=false: the post-A7 exclusive-downstream chain relocate never runs; unit placement stays byte-identical.",
+    },
+  },
+  "strata.chainrelocate.on": {
+    title: "Chain relocate · On",
+    body: "After edges are straightened, slides a unit together with its exclusive downstream chain — the resources that depend only on it (its SSM parameter, its database) — vertically as one rigid group, shortening the arrows that link them without disturbing anything else. Measured on the flagship preset: routed edge length −4.3%, crossings 116 → 113, height unchanged. Off by default (experimental).",
+    dev: {
+      implements:
+        "strataChainRelocate=true: a post-A7 pass that rigid-translates a unit plus its exclusive downstream chain vertically to shorten edges, adopt-or-rollback scored. Strata-only. Measured: −4.3% routed edge length, crossings 116 → 113, height unchanged.",
+    },
+  },
   "strata.crosspenweight": {
     title: "Penetration weight (penW)",
     body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",

@@ -60,6 +60,8 @@ export const TerraformStrataSettings = ({
   pipelineCompact,
   pipelineIncludeAncillary,
   strataSiftRelocate,
+  strataChainRelocate,
+  strataCoordCascade,
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
@@ -78,6 +80,8 @@ export const TerraformStrataSettings = ({
   setPipelineCompact,
   setPipelineIncludeAncillary,
   setStrataSiftRelocate,
+  setStrataChainRelocate,
+  setStrataCoordCascade,
   setStrataCrossWeightPenetration,
   setStrataCrossWeightEdge,
   setStrataEdgeCrossCap,
@@ -104,6 +108,12 @@ export const TerraformStrataSettings = ({
    * OPTION_HELP["strata.resources.all"]. */
   pipelineIncludeAncillary: boolean;
   strataSiftRelocate: boolean;
+  /** Post-A7 chain relocate: slides a unit with its exclusive downstream chain
+   * vertically to shorten edges. Strata-only, default off. */
+  strataChainRelocate: boolean;
+  /** A7 tie-cascade: escapes net-zero fixed points in per-column coordinate
+   * refinement. Extends strataCoordinateRefine; strata-only, default off. */
+  strataCoordCascade: boolean;
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
   strataEdgeCrossCap: number | undefined;
@@ -122,6 +132,8 @@ export const TerraformStrataSettings = ({
   setPipelineCompact: (compact: boolean) => void;
   setPipelineIncludeAncillary: (includeAncillary: boolean) => void;
   setStrataSiftRelocate: (siftRelocate: boolean) => void;
+  setStrataChainRelocate: (chainRelocate: boolean) => void;
+  setStrataCoordCascade: (coordCascade: boolean) => void;
   setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
   setStrataCrossWeightEdge: (edgeWeight: number) => void;
   setStrataEdgeCrossCap: (cap: number | undefined) => void;
@@ -515,6 +527,89 @@ export const TerraformStrataSettings = ({
                     </span>
                   </div>
                 )}
+              </div>
+            </details>
+            {/* Advanced (default-OFF experimental levers): two extra passes that
+                compose with the straighten/relocate family to cut crossings and
+                shorten edges. Both measured on the flagship preset and off by
+                default, so they sit in a collapsed disclosure off the
+                always-visible Standard surface — like the other experimental
+                passes. Together they are the best measured config (crossings
+                116 → 94, edge length −6.4% vs baseline); they compose with no
+                anti-synergy. */}
+            <details className="TerraformImportModal__advancedDisclosure">
+              <summary
+                className="TerraformImportModal__advancedSummary"
+                aria-label="Advanced extra crossing-reduction passes"
+              >
+                Advanced: extra crossing-reduction passes
+              </summary>
+              <div role="group" aria-label="Strata coordinate cascade">
+                <span className="TerraformImportModal__controlLabel">
+                  Coordinate cascade{" "}
+                  <span>
+                    escape net-zero ties in the straighten pass to cut more
+                    crossings
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataCoordCascade,
+                    "strata.coordcascade.off",
+                    () => setStrataCoordCascade(false),
+                  )}
+                  {option(
+                    "On",
+                    strataCoordCascade,
+                    "strata.coordcascade.on",
+                    () => setStrataCoordCascade(true),
+                  )}
+                </div>
+                {strataCoordCascade && !strataCoordinateRefine && (
+                  <div
+                    className="TerraformImportModal__dependencyHint"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span aria-hidden="true">ⓘ</span>
+                    <span>
+                      Turn on <strong>Straighten edges</strong> too — the
+                      cascade extends the straighten pass and does nothing
+                      without it.
+                    </span>
+                    <button
+                      type="button"
+                      className="TerraformImportModal__dependencyHintAction"
+                      onClick={() => setStrataCoordinateRefine(true)}
+                    >
+                      Turn on
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div role="group" aria-label="Strata chain relocate">
+                <span className="TerraformImportModal__controlLabel">
+                  Chain relocate{" "}
+                  <span>
+                    slide a unit with its exclusive downstream chain to shorten
+                    edges
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataChainRelocate,
+                    "strata.chainrelocate.off",
+                    () => setStrataChainRelocate(false),
+                  )}
+                  {option(
+                    "On",
+                    strataChainRelocate,
+                    "strata.chainrelocate.on",
+                    () => setStrataChainRelocate(true),
+                  )}
+                </div>
               </div>
             </details>
           </div>

@@ -133,6 +133,10 @@ export type RunTerraformImportFromSourcesArgs = {
   strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   /** OD-15 crossings-≻-length relocate. Default off. */
   strataSiftRelocate?: boolean;
+  /** Post-A7 exclusive-downstream chain relocate. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends strataCoordinateRefine). Default off. */
+  strataCoordCascade?: boolean;
   /** Relocate objective weight on penetrations. Default 1. */
   strataCrossWeightPenetration?: number;
   /** Relocate objective weight on edge-edge crossings. Default 1. */
@@ -193,6 +197,8 @@ export const runTerraformImportWithView = async ({
   strataBandCompact,
   strataBandDepth,
   strataSiftRelocate,
+  strataChainRelocate,
+  strataCoordCascade,
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
@@ -277,6 +283,8 @@ export const runTerraformImportWithView = async ({
           strataBandCompact,
           strataBandDepth,
           strataSiftRelocate,
+          strataChainRelocate,
+          strataCoordCascade,
           strataCrossWeightPenetration,
           strataCrossWeightEdge,
           // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
@@ -356,6 +364,10 @@ export type RunTerraformPresetImportOptions = {
   strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   /** OD-15 crossings-≻-length relocate. Default off. */
   strataSiftRelocate?: boolean;
+  /** Post-A7 exclusive-downstream chain relocate. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends strataCoordinateRefine). Default off. */
+  strataCoordCascade?: boolean;
   /** Relocate objective weight on penetrations. Default 1. */
   strataCrossWeightPenetration?: number;
   /** Relocate objective weight on edge-edge crossings. Default 1. */
@@ -441,6 +453,8 @@ export const runTerraformPresetImport = async (
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,
     strataSiftRelocate: options.strataSiftRelocate,
+    strataChainRelocate: options.strataChainRelocate,
+    strataCoordCascade: options.strataCoordCascade,
     strataCrossWeightPenetration: options.strataCrossWeightPenetration,
     strataCrossWeightEdge: options.strataCrossWeightEdge,
     // Optional-only forward: no explicit `undefined` key (absent ⇒ engine

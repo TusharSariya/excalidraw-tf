@@ -37,6 +37,8 @@ const baseProps = (): Props => ({
   pipelineCompact: true,
   pipelineIncludeAncillary: false,
   strataSiftRelocate: false,
+  strataChainRelocate: false,
+  strataCoordCascade: false,
   strataCrossWeightPenetration: 1,
   strataCrossWeightEdge: 1,
   strataEdgeCrossCap: undefined,
@@ -55,6 +57,8 @@ const baseProps = (): Props => ({
   setPipelineCompact: vi.fn(),
   setPipelineIncludeAncillary: vi.fn(),
   setStrataSiftRelocate: vi.fn(),
+  setStrataChainRelocate: vi.fn(),
+  setStrataCoordCascade: vi.fn(),
   setStrataCrossWeightPenetration: vi.fn(),
   setStrataCrossWeightEdge: vi.fn(),
   setStrataEdgeCrossCap: vi.fn(),
@@ -164,6 +168,68 @@ describe("TerraformStrataSettings DOM identity", () => {
     ).toBeTruthy();
   });
 
+  it("keeps chain relocate + coordinate cascade off the Standard surface (advanced disclosure)", () => {
+    // Both are default-OFF experimental edge-shortening passes: they must render
+    // (so their URL params round-trip) but inside a collapsed advanced <details>,
+    // not the always-visible Standard flow — mirroring the edge-routing passes.
+    renderPanel();
+    for (const name of ["Strata chain relocate", "Strata coordinate cascade"]) {
+      const group = screen.getByRole("group", { name });
+      const disclosure = group.closest("details");
+      expect(disclosure, `${name} must live in a <details>`).not.toBeNull();
+      expect(
+        within(disclosure as HTMLElement).getByText(
+          /Advanced: extra crossing-reduction passes/i,
+        ),
+      ).toBeTruthy();
+    }
+  });
+
+  it("toggles chain relocate and coordinate cascade through their setters", () => {
+    const setChain = vi.fn();
+    const setCascade = vi.fn();
+    renderPanel({
+      setStrataChainRelocate: setChain,
+      setStrataCoordCascade: setCascade,
+    });
+    const chain = screen.getByRole("group", { name: "Strata chain relocate" });
+    fireEvent.click(within(chain).getByRole("button", { name: "On" }));
+    expect(setChain).toHaveBeenCalledWith(true);
+
+    const cascade = screen.getByRole("group", {
+      name: "Strata coordinate cascade",
+    });
+    fireEvent.click(within(cascade).getByRole("button", { name: "On" }));
+    expect(setCascade).toHaveBeenCalledWith(true);
+  });
+
+  it("hints to enable Straighten edges when coordinate cascade is on without it", () => {
+    // strataCoordCascade extends strataCoordinateRefine and is inert without it —
+    // the dependency hint mirrors the transpose→Layer-ordering hint. Its "Turn
+    // on" action flips Straighten edges on.
+    const setRefine = vi.fn();
+    renderPanel({
+      strataCoordCascade: true,
+      strataCoordinateRefine: false,
+      setStrataCoordinateRefine: setRefine,
+    });
+    const cascade = screen.getByRole("group", {
+      name: "Strata coordinate cascade",
+    });
+    const hint = within(cascade).getByRole("status");
+    expect(hint.textContent).toMatch(/Straighten edges/i);
+    fireEvent.click(within(hint).getByRole("button", { name: "Turn on" }));
+    expect(setRefine).toHaveBeenCalledWith(true);
+  });
+
+  it("does NOT show the cascade dependency hint once Straighten edges is on", () => {
+    renderPanel({ strataCoordCascade: true, strataCoordinateRefine: true });
+    const cascade = screen.getByRole("group", {
+      name: "Strata coordinate cascade",
+    });
+    expect(within(cascade).queryByRole("status")).toBeNull();
+  });
+
   it("renders a custom epsilon option carried in from a URL", () => {
     const { container } = renderPanel({
       strataPackedScoring: true,
@@ -198,6 +264,8 @@ describe("TerraformStrataSettings DOM identity", () => {
       strataEdgeRouting: true,
       strataBorderRoute: true,
       strataSiftRelocate: true,
+      strataChainRelocate: true,
+      strataCoordCascade: true,
       pipelineCompact: false,
       strataEdgeCrossCap: 4,
     });
