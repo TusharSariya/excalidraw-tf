@@ -170,6 +170,9 @@ export type TerraformDemoUrlParams = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings (`strataTranspose=1/0`). Default off. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate: rigid Y co-translation of a unit and
+   * its exclusive downstream group (`strataChainRelocate=1/0`). Default off. */
+  strataChainRelocate?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * block-clamp pass (`strataHeightGate=1/0`). Default off. */
   strataHeightGate?: boolean;
@@ -536,6 +539,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataTranspose === null) {
     return null;
   }
+  const strataChainRelocate = parseBooleanParam("strataChainRelocate");
+  if (strataChainRelocate === null) {
+    return null;
+  }
   const strataHeightGate = parseBooleanParam("strataHeightGate");
   if (strataHeightGate === null) {
     return null;
@@ -749,6 +756,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
     ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
     ...(strataTranspose != null ? { strataTranspose } : {}),
+    ...(strataChainRelocate != null ? { strataChainRelocate } : {}),
     ...(strataHeightGate != null ? { strataHeightGate } : {}),
     ...(strataLeafShift != null ? { strataLeafShift } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
@@ -832,6 +840,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
   setBool("strataBlockClamp", params.strataBlockClamp);
   setBool("strataTranspose", params.strataTranspose);
+  setBool("strataChainRelocate", params.strataChainRelocate);
   setBool("strataHeightGate", params.strataHeightGate);
   setBool("strataLeafShift", params.strataLeafShift);
 
@@ -960,6 +969,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** P2 within-column transpose. Optional (default off) so pre-existing snapshot
    * literals still type-check. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate. Optional (default off) so pre-existing
+   * snapshot literals still type-check. */
+  strataChainRelocate?: boolean;
   /** P5 (Lever C) height gate. Optional (default off) so pre-existing snapshot
    * literals still type-check. */
   strataHeightGate?: boolean;
@@ -1104,6 +1116,8 @@ export const collectTerraformDemoParams = (
       // in the snapshot (pre-flip literals omit it) → coalesce to false so a
       // partial literal still serializes a concrete both-states value.
       strataTranspose: snapshot.strataTranspose ?? false,
+      // Chain relocate: default-off — truthy-only.
+      ...(snapshot.strataChainRelocate ? { strataChainRelocate: true } : {}),
       // P5 height gate: default-off — truthy-only.
       ...(snapshot.strataHeightGate ? { strataHeightGate: true } : {}),
       // A01 leaf X-shift: default-off — truthy-only.

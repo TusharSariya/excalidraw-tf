@@ -516,6 +516,9 @@ type LayoutSceneContext = {
   /** P2 within-column transpose (post-A7): swap Y-adjacent X-overlapping sibling
    * pairs to remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate (post-A7): rigid Y co-translation of a
+   * unit and its exclusive downstream group. Default off. */
+  strataChainRelocate?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * sink-pull-in / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
@@ -657,6 +660,7 @@ async function buildPipelineLayoutSceneBody(
         strataTransitiveAdopt: ctx.strataTransitiveAdopt,
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
+        strataChainRelocate: ctx.strataChainRelocate,
         strataHeightGate: ctx.strataHeightGate,
         strataLeafShift: ctx.strataLeafShift,
         // A01 leaf-shift budget knobs: optional-only forward (no default
@@ -1279,6 +1283,10 @@ export async function layoutTerraformFromSources(
     strataTransitiveAdopt: options?.strataTransitiveAdopt === true,
     strataBlockClamp: options?.strataBlockClamp === true,
     strataTranspose: options?.strataTranspose === true,
+    // Chain relocate — MUST be listed in THIS sceneContext literal or it is
+    // silently dropped on the real app path (RCLL threading boundary), however
+    // correctly it is threaded everywhere else.
+    strataChainRelocate: options?.strataChainRelocate === true,
     strataHeightGate: options?.strataHeightGate === true,
     // A01 leaf X-shift — MUST be listed in THIS literal or it is silently dropped
     // on the real app path (RCLL threading boundary), however correctly it is

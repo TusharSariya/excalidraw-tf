@@ -241,6 +241,9 @@ export type TerraformPlanParsingOptions = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate: rigid Y co-translation of a unit and
+   * its exclusive downstream group. Default off. */
+  strataChainRelocate?: boolean;
   strataHeightGate?: boolean;
   /** A01 leaf X-shift (post-A7): pull degree-1 pure-sink leaves left onto a grid
    * column between source and current rank, Y-redrop, grow ancestor chain. Default

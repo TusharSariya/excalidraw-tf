@@ -84,6 +84,7 @@ describe("canonical audit URL pin (c08 guard 1)", () => {
       strataTransitiveAdopt: true,
       strataBlockClamp: true,
       strataTranspose: true,
+      strataChainRelocate: false,
       strataHeightGate: true,
       strataLeafShift: false,
       strataDeBandLevel: "vpc",

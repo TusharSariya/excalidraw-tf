@@ -165,6 +165,21 @@ export type StrataEngineOptions = {
    */
   strataTranspose?: boolean;
   /**
+   * Exclusive-downstream CHAIN relocate (`strataChainRelocate`, default off,
+   * opt-in): a post-A7 pass that rigidly co-translates a unit U TOGETHER WITH
+   * its exclusive downstream group G(U) (the greatest set of downstream leaves
+   * all of whose edges stay internal to {U}∪G) in Y — each member within its own
+   * stationary parent hull box, so members in different columns move together.
+   * Reaches the two owner cases (api6 lambda / api7 ecs) where a SOLO move is
+   * net-zero length (A7 rejects) and the unit is not X-disjoint (the
+   * vertical-slot relocate never proposes it). Boxes never grow (members stay
+   * inside stationary parents ⇒ scene height invariant). Consumes the same
+   * weighted-C/ε machinery (penW/crossW/ε/cap through `strataRelocateAdoptable`)
+   * as the relocate passes. Optional so existing option literals (flag-OFF
+   * byte-identity) are unaffected.
+   */
+  strataChainRelocate?: boolean;
+  /**
    * P5 / Lever C height gate (`strataHeightGate`, default off, opt-in): applies
    * the per-hull implied-height maintain-or-decrease referee
    * (`strataHeightGateAdmits`) as a conjunct on every adoption in

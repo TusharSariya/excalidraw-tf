@@ -14,10 +14,12 @@ import {
   chooseStrataRefinedPlacement,
   placeStrataHullsPackedScored,
   resolveInheritedEdgeCrossCap,
+  scoreStrataPlacementGeometry,
 } from "./terraformPipelineStrataPackedScoring";
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
 import { transposeStrataColumns } from "./terraformPipelineStrataTranspose";
+import { refineStrataChainRelocate } from "./terraformPipelineStrataChainRelocate";
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { refineStrataLeafShift } from "./terraformPipelineStrataLeafShift";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
@@ -200,6 +202,17 @@ export type TerraformStrataSceneOptions = {
    * `engineOptions.strataTranspose` only when on (byte-identity).
    */
   strataTranspose?: boolean;
+  /**
+   * Exclusive-downstream CHAIN relocate (default off, opt-in): a post-A7 pass
+   * that rigidly co-translates a unit U together with its exclusive downstream
+   * group G(U) in Y (each member within its own stationary parent hull box), so
+   * a unit whose SOLO move is net-zero length (A7 rejects) and that is not
+   * X-disjoint (the vertical-slot relocate never proposes) can still slide to
+   * shorten its chains. Boxes never grow ⇒ scene height invariant. Consumes the
+   * same weighted-C/ε machinery through `strataRelocateAdoptable`. Threaded into
+   * `engineOptions.strataChainRelocate` only when on (byte-identity).
+   */
+  strataChainRelocate?: boolean;
   /**
    * P5 / Lever C height gate (default off, opt-in): applies the per-hull
    * implied-height maintain-or-decrease referee as a conjunct on every adoption
@@ -397,6 +410,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataAncillaryAllocator = options?.strataAncillaryAllocator !== false;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
+  // Exclusive-downstream chain relocate (post-A7), default off.
+  const strataChainRelocate = options?.strataChainRelocate === true;
   // P5 (Lever C) per-hull height maintain-or-decrease gate, default off.
   const strataHeightGate = options?.strataHeightGate === true;
   // A01 leaf X-shift (post-A7), default off. Budget knobs read only when on.
@@ -466,6 +481,7 @@ export async function buildTerraformStrataExcalidrawScene(
       strataSiftRelocate ||
       strataBlockClamp ||
       strataTranspose ||
+      strataChainRelocate ||
       strataLeafShift) &&
     strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
@@ -477,11 +493,17 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
     // P2 transpose echo — present only when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
+    // Chain-relocate echo — present only when on (byte-identity).
+    ...(strataChainRelocate ? { strataChainRelocate: true } : {}),
     // Relocate objective weights/cap echoes — the OD-15 vertical-relocate, the
-    // P2 transpose, AND the A01 leaf X-shift all consume penW/crossW/cap through
-    // `strataRelocateAdoptable`, so the echo rides when ANY is on (weights/cap only
-    // when non-default, so the all-off meta is byte-identical).
-    ...(strataSiftRelocate || strataTranspose || strataLeafShift
+    // P2 transpose, the chain relocate, AND the A01 leaf X-shift all consume
+    // penW/crossW/cap through `strataRelocateAdoptable`, so the echo rides when
+    // ANY is on (weights/cap only when non-default, so the all-off meta is
+    // byte-identical).
+    ...(strataSiftRelocate ||
+    strataTranspose ||
+    strataChainRelocate ||
+    strataLeafShift
       ? {
           ...(strataCrossWeightPenetration !== 1
             ? { strataCrossWeightPenetration }
@@ -563,6 +585,7 @@ export async function buildTerraformStrataExcalidrawScene(
       strataSiftRelocate ||
       strataBlockClamp ||
       strataTranspose ||
+      strataChainRelocate ||
       strataLeafShift) &&
     strataPackedScoringEpsilon !== 0
       ? { packedScoringEpsilon: strataPackedScoringEpsilon }
@@ -600,6 +623,7 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSiftRelocate ||
     strataBlockClamp ||
     strataTranspose ||
+    strataChainRelocate ||
     strataLeafShift ||
     strataTransitiveAdopt
       ? {
@@ -621,6 +645,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataBlockClamp ? { strataBlockClamp: true } : {}),
     // P2 transpose: rides ONLY when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
+    // Chain relocate: rides ONLY when on (byte-identity).
+    ...(strataChainRelocate ? { strataChainRelocate: true } : {}),
     // P5 height gate: rides ONLY when on (byte-identity). Consumed INSIDE the
     // block-clamp operator, so the pipeline stage order below is unchanged.
     ...(strataHeightGate ? { strataHeightGate: true } : {}),
@@ -870,6 +896,36 @@ export async function buildTerraformStrataExcalidrawScene(
         rank,
         engineOptions,
       );
+    }
+
+    // Exclusive-downstream chain relocate (post-A7, after transpose settles the
+    // within-column Y-order). Runs whenever its own master flag is on —
+    // independent of the relocate/packed/sink flags. Rigidly co-translates a unit
+    // with its exclusive downstream group in Y; boxes never grow (members stay
+    // inside stationary parents ⇒ scene height invariant). Flag-off ⇒ the module
+    // is never called (byte-identical). The final structural check validates it.
+    let chainRelocateMeta: Record<string, unknown> = {};
+    if (strataChainRelocate) {
+      const before = scoreStrataPlacementGeometry(
+        placement,
+        model,
+        repair.edgesPrime,
+      );
+      placement = refineStrataChainRelocate(
+        placement,
+        model,
+        repair.edgesPrime,
+        rank,
+        engineOptions,
+      );
+      const after = scoreStrataPlacementGeometry(
+        placement,
+        model,
+        repair.edgesPrime,
+      );
+      chainRelocateMeta = {
+        strataChainRelocateScore: { before, after },
+      };
     }
 
     // P4 pure-sink account block clamp (post-A7). Runs whenever its own master
@@ -1144,6 +1200,8 @@ export async function buildTerraformStrataExcalidrawScene(
         // R2 evidence (all-zero on the success path).
         strataStructural: structure,
         ...flagMeta,
+        // Chain-relocate before/after scorer numbers (present only when on).
+        ...chainRelocateMeta,
         // Ancillary echoes — mirror v1's contract
         // (terraformPipelineLayout.test.ts) so cross-engine meta stays
         // comparable. Rides ONLY when `includeAncillary` (byte-identity).

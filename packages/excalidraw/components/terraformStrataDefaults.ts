@@ -74,6 +74,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * Owner default flip (owner-decisions.md 2026-07-17): ON — −24% crossings,
    * envelope-preserving; part of the new default stack. */
   strataTranspose: true,
+  /** Exclusive-downstream chain relocate — post-A7 rigid Y co-translation of a
+   * unit and its exclusive downstream group; probe lever, default off. */
+  strataChainRelocate: false,
   /** P5 (Lever C) per-hull implied-height maintain-or-decrease acceptance gate
    * for the block-clamp pass — probe lever, default off. Measured inert at the
    * frozen preset. It is the referee a phase-2 occupant-displacement relaxation
@@ -132,6 +135,8 @@ export const resolveStrataDemoOptions = (params: {
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate. */
+  strataChainRelocate?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate. */
   strataHeightGate?: boolean;
   /** A01 leaf X-shift. */
@@ -204,6 +209,9 @@ export const resolveStrataDemoOptions = (params: {
     strataTranspose:
       params.strataTranspose ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose,
+    strataChainRelocate:
+      params.strataChainRelocate ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChainRelocate,
     strataHeightGate:
       params.strataHeightGate ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate,
