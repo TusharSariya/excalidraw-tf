@@ -640,7 +640,7 @@ export function strataPackedCandidateSequences(
             return;
           }
           const seq = [...rest.slice(0, p), unitId, ...rest.slice(p)];
-          const key = seq.join("");
+          const key = seq.join("\u0001");
           if (!seen.has(key)) {
             seen.add(key);
             snapshots.push(toUnits(seq));

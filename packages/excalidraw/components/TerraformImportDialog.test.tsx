@@ -171,6 +171,8 @@ describe("TerraformImportModal", () => {
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
       strataTranspose: true,
+      strataChainRelocate: false,
+      strataCoordCascade: false,
       strataHeightGate: false,
       // strataLeafShift threads for every view (default off); pin was missing it
       // (pre-existing stale full-bag pin, unrelated to the default flip).
@@ -231,6 +233,8 @@ describe("TerraformImportModal", () => {
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
       strataTranspose: true,
+      strataChainRelocate: false,
+      strataCoordCascade: false,
       strataHeightGate: false,
       // strataLeafShift threads for every view (default off); pin was missing it
       // (pre-existing stale full-bag pin, unrelated to the default flip).
