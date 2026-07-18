@@ -19,8 +19,6 @@
  */
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
-import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
-
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
 import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
 import { layoutTerraformFromSources } from "./terraformLayoutCore";
@@ -198,10 +196,31 @@ export type StrataRegressionMeasurement =
 
 const round4 = (n: number): number => Math.round(n * 10000) / 10000;
 
-const sourcesFor = (presetKey: StrataRegressionPresetKey) =>
-  getTerraformImportPresetSourcesFromDb(
-    STRATA_REGRESSION_PRESETS[presetKey],
-  ) as unknown as TerraformPlanParsingSources;
+/** Preset-sources accessor, injected by the consuming test files. This module
+ * is library-side, so it must not import `excalidraw-app` itself (arch rule
+ * `no-excalidraw-app-in-terraform`; tests are exempt and own the DB import). */
+export type StrataRegressionSourcesResolver = (
+  presetId: string,
+) => TerraformPlanParsingSources;
+
+let sourcesResolver: StrataRegressionSourcesResolver | null = null;
+
+export const setStrataRegressionSourcesResolver = (
+  resolver: StrataRegressionSourcesResolver,
+): void => {
+  sourcesResolver = resolver;
+};
+
+const sourcesFor = (
+  presetKey: StrataRegressionPresetKey,
+): TerraformPlanParsingSources => {
+  if (!sourcesResolver) {
+    throw new Error(
+      "strata regression cells: call setStrataRegressionSourcesResolver() before measuring",
+    );
+  }
+  return sourcesResolver(STRATA_REGRESSION_PRESETS[presetKey]);
+};
 
 /**
  * Run one matrix cell end-to-end through the real app path

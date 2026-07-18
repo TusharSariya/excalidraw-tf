@@ -21,11 +21,25 @@ import { describe, expect, it } from "vitest";
 
 import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraformPresetFixtures";
 
+import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
+
 import {
   STRATA_REGRESSION_CONFIGS,
   cellKey,
   measureStrataRegressionCell,
+  setStrataRegressionSourcesResolver,
 } from "./terraformStrataGeometryRegression.cells";
+
+import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
+
+// Tests own the excalidraw-app DB import (arch rule exempts .test files); the
+// library-side cells module receives it by injection.
+setStrataRegressionSourcesResolver(
+  (presetId) =>
+    getTerraformImportPresetSourcesFromDb(
+      presetId,
+    ) as unknown as TerraformPlanParsingSources,
+);
 
 const BASELINE_PATH = join(
   __dirname,
