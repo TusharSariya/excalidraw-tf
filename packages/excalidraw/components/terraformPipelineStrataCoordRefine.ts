@@ -408,6 +408,79 @@ function hullObjective(
 }
 
 /**
+ * Build the order-/gap-/clamp-feasible projected tops for one column's movable
+ * blocks toward the targets `buildTargets` returns (one per movable block, in
+ * that column's current top order). Factored out of {@link sweepHull} so the
+ * directional sweep AND the A7 tie-cascade honour the IDENTICAL constraint set
+ * (min-gap chain + topInset floor + fixed x-overlapping [lo, hi] clamps). Returns
+ * the movable list paired with its projection, or `null` when the column is empty
+ * or the box+monotone constraints are jointly infeasible (⇒ caller rejects). Pure
+ * w.r.t. block tops — never mutates.
+ */
+function projectColumn(
+  rh: RefHull,
+  c: number,
+  buildTargets: (movable: readonly RefBlock[]) => number[],
+): { movable: RefBlock[]; projected: number[] } | null {
+  const movable = rh.blocks
+    .filter((b) => b.homeColumn === c)
+    .sort((a, b) => a.top - b.top || compareStrataContentKeys(a.id, b.id));
+  if (movable.length === 0) {
+    return null;
+  }
+  const fixed = rh.blocks.filter((b) => b.homeColumn !== c);
+
+  const targetTops = buildTargets(movable);
+
+  // constraints — min-gap chain between consecutive movable blocks + the
+  // topInset floor + fixed x-overlapping neighbours as [lo, hi] clamps.
+  // gaps[i] = minimum top-to-top separation between movable i and i+1 =
+  // height_i + the min inter-block gap (isotonicWithGaps's contract).
+  const gaps: number[] = [];
+  for (let i = 0; i < movable.length - 1; i++) {
+    gaps.push(
+      movable[i]!.height +
+        minGap(
+          rh.constraintPolicy,
+          movable[i]!.kind === "hull",
+          movable[i + 1]!.kind === "hull",
+        ),
+    );
+  }
+  const lo = movable.map(() => rh.topInset);
+  const hi = movable.map(() => Number.POSITIVE_INFINITY);
+  for (let i = 0; i < movable.length; i++) {
+    const m = movable[i]!;
+    for (const f of fixed) {
+      if (!blocksConstrain(rh.constraintPolicy, m, f)) {
+        continue;
+      }
+      const gap = minGap(
+        rh.constraintPolicy,
+        m.kind === "hull",
+        f.kind === "hull",
+      );
+      // Preserve the current relative order against the fixed block (ties
+      // broken by the content comparator for determinism).
+      const mAbove =
+        m.top < f.top ||
+        (m.top === f.top && compareStrataContentKeys(m.id, f.id) < 0);
+      if (mAbove) {
+        hi[i] = Math.min(hi[i]!, f.top - gap - m.height);
+      } else {
+        lo[i] = Math.max(lo[i]!, f.top + f.height + gap);
+      }
+    }
+  }
+
+  const projected = isotonicWithGaps(targetTops, gaps, lo, hi);
+  if (projected === null) {
+    return null; // infeasible ⇒ reject
+  }
+  return { movable, projected };
+}
+
+/**
  * One directional sweep over a hull (P3): columns ascending for "down"
  * (neighbours strictly LEFT drive the median), descending for "up" (strictly
  * RIGHT). Each column's movable blocks are projected once from a pre-projection
@@ -426,78 +499,30 @@ function sweepHull(
   );
 
   for (const c of columns) {
-    const movable = rh.blocks
-      .filter((b) => b.homeColumn === c)
-      .sort((a, b) => a.top - b.top || compareStrataContentKeys(a.id, b.id));
-    if (movable.length === 0) {
-      continue;
-    }
-    const fixed = rh.blocks.filter((b) => b.homeColumn !== c);
-
     // (1) targets — median of swept-from-direction neighbour centres (P2). All
     // computed from the CURRENT snapshot before any projection (Jacobi batch).
-    const targetTops = movable.map((b) => {
-      const centres: number[] = [];
-      for (const otherId of adjacency.get(b.id) ?? []) {
-        const p = byId.get(otherId);
-        if (p === undefined) {
-          continue;
+    const result = projectColumn(rh, c, (movable) =>
+      movable.map((b) => {
+        const centres: number[] = [];
+        for (const otherId of adjacency.get(b.id) ?? []) {
+          const p = byId.get(otherId);
+          if (p === undefined) {
+            continue;
+          }
+          const relevant =
+            direction === "down" ? p.homeColumn < c : p.homeColumn > c;
+          if (relevant) {
+            centres.push(centreOf(p));
+          }
         }
-        const relevant =
-          direction === "down" ? p.homeColumn < c : p.homeColumn > c;
-        if (relevant) {
-          centres.push(centreOf(p));
-        }
-      }
-      // No swept-direction neighbour ⇒ hold this block's own position.
-      return centres.length === 0 ? b.top : l1Median(centres) - b.height / 2;
-    });
-
-    // (2) constraints — min-gap chain between consecutive movable blocks + the
-    // topInset floor + fixed x-overlapping neighbours as [lo, hi] clamps.
-    // gaps[i] = minimum top-to-top separation between movable i and i+1 =
-    // height_i + the min inter-block gap (isotonicWithGaps's contract).
-    const gaps: number[] = [];
-    for (let i = 0; i < movable.length - 1; i++) {
-      gaps.push(
-        movable[i]!.height +
-          minGap(
-            rh.constraintPolicy,
-            movable[i]!.kind === "hull",
-            movable[i + 1]!.kind === "hull",
-          ),
-      );
+        // No swept-direction neighbour ⇒ hold this block's own position.
+        return centres.length === 0 ? b.top : l1Median(centres) - b.height / 2;
+      }),
+    );
+    if (result === null) {
+      continue;
     }
-    const lo = movable.map(() => rh.topInset);
-    const hi = movable.map(() => Number.POSITIVE_INFINITY);
-    for (let i = 0; i < movable.length; i++) {
-      const m = movable[i]!;
-      for (const f of fixed) {
-        if (!blocksConstrain(rh.constraintPolicy, m, f)) {
-          continue;
-        }
-        const gap = minGap(
-          rh.constraintPolicy,
-          m.kind === "hull",
-          f.kind === "hull",
-        );
-        // Preserve the current relative order against the fixed block (ties
-        // broken by the content comparator for determinism).
-        const mAbove =
-          m.top < f.top ||
-          (m.top === f.top && compareStrataContentKeys(m.id, f.id) < 0);
-        if (mAbove) {
-          hi[i] = Math.min(hi[i]!, f.top - gap - m.height);
-        } else {
-          lo[i] = Math.max(lo[i]!, f.top + f.height + gap);
-        }
-      }
-    }
-
-    const projected = isotonicWithGaps(targetTops, gaps, lo, hi);
-    if (projected === null) {
-      continue; // infeasible ⇒ reject
-    }
+    const { movable, projected } = result;
 
     // (3) acceptance — GLOBAL Σ|Δy| over the hull's chords (chords not touching
     // this column are unchanged, so this is equivalent to the touching subset).
@@ -515,15 +540,124 @@ function sweepHull(
   }
 }
 
+// ── A7 tie-cascade (strataCoordCascade, opt-in, default off) ──────────────────
+/**
+ * Per-seed chase depth (determinism): each tentative tie move is followed by
+ * exactly this many strict Gauss-Seidel chase rounds before the whole cascade is
+ * adopted-or-rolled-back on a NET strict hull-objective (Σ|Δcentre|, the A7
+ * length proxy) decrease. Bounding the CHASE depth (not the number of seed
+ * columns) keeps the pass deterministic and terminating while still letting EVERY
+ * column get a chance to escape — the api6 lambda sits at a mid/right column, so
+ * capping the number of seeds (an earlier design) starved it. Each seed is a
+ * bounded snapshot→apply→chase→compare with its own rollback, so trying all
+ * columns stays O(columns) and monotone (never worsens length).
+ */
+const CASCADE_CHASE_ROUNDS = 2;
+/** Hard safety cap on adopted cascades per hull (termination guard; far above
+ * any real column count, so it never truncates a legitimate hull). */
+const CASCADE_MAX_ADOPTIONS = 64;
+
+/**
+ * A7 tie-cascade (strataCoordCascade). Runs AFTER the fixed directional sweeps
+ * converge. The directional sweeps only ADOPT a column move when it STRICTLY
+ * lowers the hull objective; a unit whose best (barycentric) move is exactly
+ * net-zero — e.g. a block with equally many chord partners above and below — is
+ * a fixed point the sweeps refuse to leave, even though nudging it to its
+ * two-sided median UNLOCKS a strict decrease once its chord-connected downstream
+ * columns chase the new position (the diagnosed api6 lambda stranding).
+ *
+ * For each column (ascending order, deterministic; every column gets a chance,
+ * capped only by the {@link CASCADE_MAX_ADOPTIONS} termination guard): snapshot
+ * the whole hull, tentatively
+ * apply the column's two-sided-median projection (the escape the sweeps reject
+ * as non-strict), run {@link CASCADE_CHASE_ROUNDS} strict Gauss-Seidel sweeps,
+ * then ADOPT the entire cascade iff the final hull objective is strictly below
+ * the pre-seed objective — else roll the hull back verbatim. Adopt-or-rollback
+ * on the shared length proxy makes it monotone (never worsens length) and
+ * deterministic (fixed bounds, pinned column/tiebreak order, no RNG/wall-clock).
+ * Order-preserving throughout (the projection is the same feasible set the
+ * sweeps use), so it introduces no intra-hull overlap.
+ */
+function cascadeHull(
+  rh: RefHull,
+  chords: readonly Chord[],
+  adjacency: ReadonlyMap<string, readonly string[]>,
+  byId: ReadonlyMap<string, RefBlock>,
+): void {
+  const columns = [...new Set(rh.blocks.map((b) => b.homeColumn))].sort(
+    (a, b) => a - b,
+  );
+  let adopted = 0;
+  for (const seed of columns) {
+    if (adopted >= CASCADE_MAX_ADOPTIONS) {
+      break;
+    }
+    // Escape target = median of ALL chord neighbours (both directions) — the
+    // net-zero barycentric position the strict directional sweeps reject.
+    const result = projectColumn(rh, seed, (movable) =>
+      movable.map((b) => {
+        const centres: number[] = [];
+        for (const otherId of adjacency.get(b.id) ?? []) {
+          const p = byId.get(otherId);
+          if (p !== undefined) {
+            centres.push(centreOf(p));
+          }
+        }
+        return centres.length === 0 ? b.top : l1Median(centres) - b.height / 2;
+      }),
+    );
+    if (result === null) {
+      continue;
+    }
+    const { movable, projected } = result;
+
+    // Whole-hull snapshot for adopt-or-rollback of the ENTIRE cascade.
+    const snapshot = rh.blocks.map((b) => b.top);
+    const objBefore = hullObjective(chords, byId);
+
+    // Tentatively apply the seed escape.
+    const seedSaved = movable.map((b) => b.top);
+    movable.forEach((b, i) => {
+      b.top = projected[i]!;
+    });
+    const moved = movable.some((b, i) => Math.abs(b.top - seedSaved[i]!) > EPS);
+    const objAfterSeed = hullObjective(chords, byId);
+    // Skip a no-op seed, or one that strictly WORSENS before any chase (only a
+    // genuine tie/near-tie is a useful escape; a worsening seed is not).
+    if (!moved || objAfterSeed > objBefore + EPS) {
+      movable.forEach((b, i) => {
+        b.top = seedSaved[i]!;
+      });
+      continue;
+    }
+
+    // Chase: bounded strict Gauss-Seidel over chord-connected columns.
+    for (let r = 0; r < CASCADE_CHASE_ROUNDS; r++) {
+      for (const direction of SWEEP_DIRECTIONS) {
+        sweepHull(rh, chords, adjacency, byId, direction);
+      }
+    }
+
+    if (hullObjective(chords, byId) < objBefore - EPS) {
+      adopted += 1; // net strict improvement ⇒ keep the whole cascade
+    } else {
+      rh.blocks.forEach((b, i) => {
+        b.top = snapshot[i]!;
+      });
+    }
+  }
+}
+
 /** Bottom-up: refine children (then rigid), seed-compact, sweep, recompute. */
 function refineHull(
   rh: RefHull,
   chordsByHull: ReadonlyMap<string, readonly Chord[]>,
+  cascade: boolean,
 ): void {
   for (const b of rh.blocks) {
     if (b.kind === "hull") {
       const child = rh.childById.get(b.memberId)!;
-      refineHull(child, chordsByHull);
+      refineHull(child, chordsByHull, cascade);
       b.height = child.boxHeight; // child may have grown/shrunk
     }
   }
@@ -553,6 +687,11 @@ function refineHull(
 
   for (const direction of SWEEP_DIRECTIONS) {
     sweepHull(rh, chords, adjacency, byId, direction);
+  }
+  // A7 tie-cascade (opt-in): let net-zero fixed points escape and chase. Runs
+  // only when requested; flag-off leaves the sweeps' output byte-identical.
+  if (cascade) {
+    cascadeHull(rh, chords, adjacency, byId);
   }
   recomputeHeight(rh);
 }
@@ -650,16 +789,21 @@ export function assertStrataR2(
  * `edgesPrime` is A3's E′ (the same array A0/A2 consumed); `model` supplies the
  * hull tree. The re-anchoring pass + the R2 dev-assert run before returning, so
  * the result is final and structurally valid (or this throws honestly).
+ *
+ * `opts.cascade` (strataCoordCascade, default off) enables the post-sweep A7
+ * tie-cascade ({@link cascadeHull}). When absent/false the pass is byte-identical
+ * to the fixed 2-down/2-up sweep A7.
  */
 export function refineStrataCoordinates(
   placement: StrataPlacementResult,
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
+  opts?: { cascade?: boolean },
 ): StrataPlacementResult {
   const root = buildRefHull(model.hullRoot, placement);
   const chordsByHull = buildChordsByHull(model.hullRoot, edgesPrime);
 
-  refineHull(root, chordsByHull);
+  refineHull(root, chordsByHull, opts?.cascade === true);
 
   const boxedHulls = new Map<string, StrataBoxedHull>();
   const leafBoxes = new Map<string, StrataBox>();

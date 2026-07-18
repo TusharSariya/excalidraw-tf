@@ -85,6 +85,9 @@ describe("canonical audit URL pin (c08 guard 1)", () => {
       strataBlockClamp: true,
       strataTranspose: true,
       strataChainRelocate: false,
+      // A7 tie-cascade — genuinely-new engine option (default off; not set by the
+      // audit URL, so it resolves false). PROBE-4 addition.
+      strataCoordCascade: false,
       strataHeightGate: true,
       strataLeafShift: false,
       strataDeBandLevel: "vpc",

@@ -214,6 +214,18 @@ export type TerraformStrataSceneOptions = {
    */
   strataChainRelocate?: boolean;
   /**
+   * A7 tie-cascade (default off, opt-in): extends the coordinateRefine (A7) pass
+   * with a bounded post-sweep cascade phase. After the fixed 2-down/2-up
+   * directional sweeps converge, a column whose best barycentric move is exactly
+   * net-zero (a fixed point the strict-decrease sweeps refuse to leave) is nudged
+   * to its two-sided median and its chord-connected downstream columns chase;
+   * the whole cascade is adopted only on a NET strict A7-length-proxy decrease,
+   * else rolled back (monotone, deterministic, ≤3 tie-steps/hull). Fixes the
+   * api6 lambda net-zero stranding. Threaded into the `refineStrataCoordinates`
+   * calls only when on (A7 byte-identical off).
+   */
+  strataCoordCascade?: boolean;
+  /**
    * P5 / Lever C height gate (default off, opt-in): applies the per-hull
    * implied-height maintain-or-decrease referee as a conjunct on every adoption
    * in the sink-pull-in and block-clamp passes. Height is a GATE only — never a
@@ -412,6 +424,10 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataTranspose = options?.strataTranspose === true;
   // Exclusive-downstream chain relocate (post-A7), default off.
   const strataChainRelocate = options?.strataChainRelocate === true;
+  // A7 tie-cascade (extends coordinateRefine), default off. Lets a net-zero
+  // fixed-point column escape to its two-sided median and chase, adopt-or-
+  // rollback on the A7 length proxy. Flag-off ⇒ A7 byte-identical.
+  const strataCoordCascade = options?.strataCoordCascade === true;
   // P5 (Lever C) per-hull height maintain-or-decrease gate, default off.
   const strataHeightGate = options?.strataHeightGate === true;
   // A01 leaf X-shift (post-A7), default off. Budget knobs read only when on.
@@ -802,11 +818,13 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
+          { cascade: strataCoordCascade },
         );
         const legacyFinal = refineStrataCoordinates(
           packedScored.baselinePlacement,
           model,
           repair.edgesPrime,
+          { cascade: strataCoordCascade },
         );
         spanRecord("strata.trialRelayout", tTrial);
         // Score = the never-worse selection between the two trial arms.
@@ -859,6 +877,7 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
+          { cascade: strataCoordCascade },
         );
         spanRecord("strata.a7", tA7);
       }

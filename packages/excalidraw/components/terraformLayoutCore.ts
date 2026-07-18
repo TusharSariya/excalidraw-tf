@@ -519,6 +519,11 @@ type LayoutSceneContext = {
   /** Exclusive-downstream chain relocate (post-A7): rigid Y co-translation of a
    * unit and its exclusive downstream group. Default off. */
   strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends coordinateRefine): let a net-zero fixed-point column
+   * escape to its two-sided median and chase chord-connected downstreams,
+   * adopt-or-rollback on the A7 length proxy. Fixes api6 lambda stranding.
+   * Default off. */
+  strataCoordCascade?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
    * sink-pull-in / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
@@ -661,6 +666,7 @@ async function buildPipelineLayoutSceneBody(
         strataBlockClamp: ctx.strataBlockClamp,
         strataTranspose: ctx.strataTranspose,
         strataChainRelocate: ctx.strataChainRelocate,
+        strataCoordCascade: ctx.strataCoordCascade,
         strataHeightGate: ctx.strataHeightGate,
         strataLeafShift: ctx.strataLeafShift,
         // A01 leaf-shift budget knobs: optional-only forward (no default
@@ -1287,6 +1293,7 @@ export async function layoutTerraformFromSources(
     // silently dropped on the real app path (RCLL threading boundary), however
     // correctly it is threaded everywhere else.
     strataChainRelocate: options?.strataChainRelocate === true,
+    strataCoordCascade: options?.strataCoordCascade === true,
     strataHeightGate: options?.strataHeightGate === true,
     // A01 leaf X-shift — MUST be listed in THIS literal or it is silently dropped
     // on the real app path (RCLL threading boundary), however correctly it is

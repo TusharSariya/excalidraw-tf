@@ -77,6 +77,12 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** Exclusive-downstream chain relocate — post-A7 rigid Y co-translation of a
    * unit and its exclusive downstream group; probe lever, default off. */
   strataChainRelocate: false,
+  /** A7 tie-cascade (extends coordinateRefine): let a net-zero fixed-point column
+   * escape to its two-sided median and chase chord-connected downstreams,
+   * adopt-or-rollback on the A7 length proxy. Probe lever, default off. Measured
+   * (P2 audit-config): −15.5% rendered crossings, −1.6% routed edge length,
+   * height-gated; moves the api6 lambda + api7 ecs toward their partners. */
+  strataCoordCascade: false,
   /** P5 (Lever C) per-hull implied-height maintain-or-decrease acceptance gate
    * for the block-clamp pass — probe lever, default off. Measured inert at the
    * frozen preset. It is the referee a phase-2 occupant-displacement relaxation
@@ -137,6 +143,8 @@ export const resolveStrataDemoOptions = (params: {
   strataTranspose?: boolean;
   /** Exclusive-downstream chain relocate. */
   strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends coordinateRefine). */
+  strataCoordCascade?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate. */
   strataHeightGate?: boolean;
   /** A01 leaf X-shift. */
@@ -212,6 +220,9 @@ export const resolveStrataDemoOptions = (params: {
     strataChainRelocate:
       params.strataChainRelocate ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChainRelocate,
+    strataCoordCascade:
+      params.strataCoordCascade ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordCascade,
     strataHeightGate:
       params.strataHeightGate ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate,

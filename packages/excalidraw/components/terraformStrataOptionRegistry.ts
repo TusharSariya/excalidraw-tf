@@ -300,6 +300,16 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "owner-decisions.md 2026-07-17: default ON (matrix: -24% crossings, envelope-preserving); part of the new default stack; joined C1 (emitted both-states) on the flip",
   },
   {
+    urlParam: "strataCoordCascade",
+    optionKey: "strataCoordCascade",
+    kind: "boolean",
+    default: false,
+    surface: "hidden",
+    emitClass: "C2",
+    decidedNow: false,
+    note: "A7 tie-cascade (extends coordinateRefine): net-zero fixed-point column escapes to its two-sided median + chase, adopt-or-rollback on the A7 length proxy. Probe lever, default off; measured (P2 audit-config) −15.5% rendered crossings / −1.6% routed edge length / height-gated. Hidden (no UI control yet); emitted truthy-only (C2)",
+  },
+  {
     urlParam: "strataHeightGate",
     optionKey: "strataHeightGate",
     kind: "boolean",

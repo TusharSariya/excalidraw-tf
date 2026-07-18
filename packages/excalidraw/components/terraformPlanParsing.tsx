@@ -244,6 +244,10 @@ export type TerraformPlanParsingOptions = {
   /** Exclusive-downstream chain relocate: rigid Y co-translation of a unit and
    * its exclusive downstream group. Default off. */
   strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends coordinateRefine): let a net-zero fixed-point column
+   * escape to its two-sided median and chase chord-connected downstreams. Default
+   * off. */
+  strataCoordCascade?: boolean;
   strataHeightGate?: boolean;
   /** A01 leaf X-shift (post-A7): pull degree-1 pure-sink leaves left onto a grid
    * column between source and current rank, Y-redrop, grow ancestor chain. Default

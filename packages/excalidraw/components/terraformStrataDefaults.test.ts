@@ -30,6 +30,7 @@ describe("resolveStrataDemoOptions", () => {
       strataBlockClamp: false,
       strataTranspose: true,
       strataChainRelocate: false,
+      strataCoordCascade: false,
       strataHeightGate: false,
       strataLeafShift: false,
       // The default cut ("account") is OMITTED (raw-forward discipline): no
@@ -89,6 +90,7 @@ describe("resolveStrataDemoOptions", () => {
       strataBlockClamp: false,
       strataTranspose: true,
       strataChainRelocate: false,
+      strataCoordCascade: false,
       strataHeightGate: false,
       strataLeafShift: false,
       // Default cut omitted — see the bare-URL test above.
