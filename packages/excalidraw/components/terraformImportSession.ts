@@ -116,6 +116,12 @@ export type TerraformImportSession = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate: post-A7 rigid Y co-translation of a
+   * unit with its incoming-dominated downstream group. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade: net-zero column escape + chase inside coordinate refine.
+   * Default off. */
+  strataCoordCascade?: boolean;
   strataHeightGate?: boolean;
   /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
   strataLeafShift?: boolean;

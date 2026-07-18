@@ -264,6 +264,12 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate: post-A7 rigid Y co-translation of a
+   * unit with its incoming-dominated downstream group. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade: net-zero column escape + Gauss-Seidel chase inside the
+   * coordinate-refine pass. Default off. */
+  strataCoordCascade?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate for the sink-pull-in
    * / block-clamp passes. Default off. */
   strataHeightGate?: boolean;
@@ -338,6 +344,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataTransitiveAdopt"
   | "strataBlockClamp"
   | "strataTranspose"
+  | "strataChainRelocate"
+  | "strataCoordCascade"
   | "strataHeightGate"
   | "strataLeafShift"
   | "strataLeafShiftHeightBudgetPx"
@@ -399,6 +407,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataTransitiveAdopt: session.strataTransitiveAdopt === true,
   strataBlockClamp: session.strataBlockClamp === true,
   strataTranspose: session.strataTranspose === true,
+  strataChainRelocate: session.strataChainRelocate === true,
+  strataCoordCascade: session.strataCoordCascade === true,
   strataHeightGate: session.strataHeightGate === true,
   strataLeafShift: session.strataLeafShift === true,
   // Budget knobs are optional numbers — forward ONLY when the persisted session
@@ -480,6 +490,8 @@ function buildPipelineFamilyLayoutOptions(
   | "strataTransitiveAdopt"
   | "strataBlockClamp"
   | "strataTranspose"
+  | "strataChainRelocate"
+  | "strataCoordCascade"
   | "strataHeightGate"
   | "strataLeafShift"
   | "strataLeafShiftHeightBudgetPx"
@@ -551,6 +563,8 @@ function buildPipelineFamilyLayoutOptions(
     strataTransitiveAdopt: options.strataTransitiveAdopt === true,
     strataBlockClamp: options.strataBlockClamp === true,
     strataTranspose: options.strataTranspose === true,
+    strataChainRelocate: options.strataChainRelocate === true,
+    strataCoordCascade: options.strataCoordCascade === true,
     strataHeightGate: options.strataHeightGate === true,
     strataLeafShift: options.strataLeafShift === true,
     // Budget knobs are optional numbers — forward ONLY when explicitly set so the
