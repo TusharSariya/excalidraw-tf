@@ -168,7 +168,8 @@ export type StrataEngineOptions = {
    * Exclusive-downstream CHAIN relocate (`strataChainRelocate`, default off,
    * opt-in): a post-A7 pass that rigidly co-translates a unit U TOGETHER WITH
    * its exclusive downstream group G(U) (the greatest set of downstream leaves
-   * all of whose edges stay internal to {U}∪G) in Y — each member within its own
+   * whose every incoming edge originates inside {U}∪G — incoming-domination;
+   * members may have external downstream edges) in Y — each member within its own
    * stationary parent hull box, so members in different columns move together.
    * Reaches the two owner cases (api6 lambda / api7 ecs) where a SOLO move is
    * net-zero length (A7 rejects) and the unit is not X-disjoint (the

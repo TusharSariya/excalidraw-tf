@@ -20,8 +20,10 @@
  *
  * THE OPERATOR: for each placed unit U (leaf or child hull) in every hull, build
  * its EXCLUSIVE DOWNSTREAM GROUP G(U) — the greatest set of downstream leaves
- * ALL of whose incident edges stay internal to {U}∪G (the same "every edge
- * internal" closure `pushGroupSift` uses, computed here directly over E′), capped
+ * whose every INCOMING (effective-upstream) edge originates inside {U}∪G
+ * (incoming-domination over E′ — members may have arbitrary external DOWNSTREAM
+ * edges; the stricter "every edge internal" closure `pushGroupSift` uses is
+ * empty on real dataflow graphs where ssm/db nodes feed further targets), capped
  * at {@link CHAIN_GROUP_CAP}. The whole set {U}∪G(U) is then rigidly translated
  * in Y by a single `dy` — EACH member within its OWN stationary parent hull box,
  * so members in different columns/hulls all move together. Candidate offsets are
@@ -574,6 +576,13 @@ export function refineStrataChainRelocate(
             incumbent = candidate;
             incumbentScore = candScore;
             changedThisPass = true;
+            // One adoption per anchor per pass: candidateDys were clamped to
+            // [dyLo, dyHi] against pre-adoption boxes, so adopting a second
+            // candidate would compound dys beyond the validated interval and
+            // could move a member outside its parent hull (which R2's
+            // hull-tree containment cannot detect). The next pass re-derives
+            // feasibility from fresh geometry.
+            break;
           }
         }
       }
