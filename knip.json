@@ -17,7 +17,9 @@
     "scripts/buildBase.js",
     "scripts/buildDocs.js",
     "scripts/buildWasm.js",
-    "scripts/release.js"
+    "scripts/release.js",
+    "scripts/generate-heldout-plan.mjs",
+    "scripts/strata-pref-fit.mjs"
   ],
   "project": ["excalidraw-app/**/*.{ts,tsx,mjs}", "packages/{common,element,excalidraw,math,utils}/**/*.{ts,tsx,mjs}", "functions/**/*.ts", "scripts/**/*.{js,mjs}"],
   "ignore": [
@@ -25,6 +27,7 @@
     "**/__snapshots__/**",
     "functions/generated/**",
     ".agents/**",
+    ".superpowers/**",
     "examples/**",
     "dev-docs/**",
     "packages/excalidraw/components/ButtonIconCycle.tsx",
