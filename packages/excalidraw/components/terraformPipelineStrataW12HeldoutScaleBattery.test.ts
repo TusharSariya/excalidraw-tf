@@ -1357,8 +1357,11 @@ const W11_DOC_ANCHORS: Record<
     mismatchMeanRecall3dp: 0.682,
     rtHat2dp: {
       A_v2: { p50: 14.77, p90: 22.92 },
-      I: { p50: 13.36, p90: 21.39 },
-      I_RS: { p50: 14.21, p90: 24.89 },
+      // I / I_RS re-recorded after the owner Q9 flip (`7199e62a5`) made
+      // privateApiRegional always-ON for strata — the strata arms' geometry
+      // (and hence deterministic rt̂) shifted; the v2-substrate arm did not.
+      I: { p50: 13.19, p90: 20.96 },
+      I_RS: { p50: 14.89, p90: 22.21 },
     },
   },
   P2: {
@@ -1367,13 +1370,16 @@ const W11_DOC_ANCHORS: Record<
     mismatchMeanRecall3dp: 0.739,
     rtHat2dp: {
       A_v2: { p50: 11.5, p90: 19.32 },
-      I: { p50: 12.58, p90: 21.78 },
-      I_RS: { p50: 15.08, p90: 23.76 },
+      // Same Q9 always-ON re-record as P1 above.
+      I: { p50: 11.73, p90: 20.05 },
+      I_RS: { p50: 15.07, p90: 23.47 },
     },
   },
 };
-/** P1 paired rt̂ p50 (A_v2 vs I) CI, 2dp — W11 doc + gate register evidence. */
-const W11_P1_PAIRED_RTHAT_P50 = { lo: -0.48, hi: -0.05 };
+/** P1 paired rt̂ p50 (A_v2 vs I) CI, 2dp — W11 doc + gate register evidence;
+ * re-recorded after the owner Q9 privateApiRegional always-ON flip (see the
+ * rtHat2dp note above). */
+const W11_P1_PAIRED_RTHAT_P50 = { lo: -1.04, hi: -0.38 };
 
 // ── determinism normalization (wall-clock keys only) ─────────────────────────
 

@@ -232,5 +232,7 @@ describe("staging-extended-localstack-v2 private API regional placement", () => 
     expect(off1).toMatch(/^vpc-/);
     // OFF-after-ON reproduces the legacy placement exactly (no ON-cache alias).
     expect(off2).toBe(off1);
-  }, 60_000);
+    // 3 full real-path layouts; 60s flirts with the ceiling on coverage-
+    // instrumented CI shards (measured 65s on a slow runner).
+  }, 120_000);
 });
