@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Derive AWS account / region / VPC / subnet topology from `terraform show -json` plan shape
  * (`resource_changes`) for semantic (topology) layout.

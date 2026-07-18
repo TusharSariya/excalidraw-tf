@@ -59,7 +59,6 @@
  * from `refineStrataVerticalSlots` rather than shared, to keep the flag-OFF
  * byte-identity and A/B isolation clean and avoid any new import cycle.
  */
-import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
 import { checkStrataStructure } from "./terraformPipelineStrataPlacement";
 import {
   resolveInheritedEdgeCrossCap,
@@ -88,9 +87,6 @@ import type {
  * nothing. 4 mirrors the A2 sweep count and is enough for the P2 bubble.
  */
 const STRATA_TRANSPOSE_MAX_PASSES = 4;
-
-/** Call-time reads (never module-level — pre-existing LayoutShared import cycle). */
-const framePad = (): number => PIPELINE_FRAME_PAD;
 
 /** A box translated rigidly in Y (new object; input untouched). */
 const shiftBox = (b: StrataBox, dy: number): StrataBox => ({

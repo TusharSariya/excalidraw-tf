@@ -110,7 +110,10 @@ describe("v3.2 gate register (always-on assertions)", () => {
       expect(ids.has(cell.id), `duplicate cell id ${cell.id}`).toBe(false);
       ids.add(cell.id);
       const artifact = artifacts.get(cell.artifact);
-      expect(artifact, `${cell.id}: artifact ${cell.artifact} loaded`).toBeTruthy();
+      expect(
+        artifact,
+        `${cell.id}: artifact ${cell.artifact} loaded`,
+      ).toBeTruthy();
       const rc = recomputeCell(cell, artifact!);
       const mismatch = claimMismatch(cell, rc);
       if (mismatch) {
@@ -144,12 +147,7 @@ describe("v3.2 gate register (always-on assertions)", () => {
       "batteryCrossings",
       "sharpShare",
     ]);
-    const validStatuses = new Set([
-      "PASS",
-      "PARITY",
-      "FAIL-WAIVED",
-      "REPORT",
-    ]);
+    const validStatuses = new Set(["PASS", "PARITY", "FAIL-WAIVED", "REPORT"]);
     const mismatches: string[] = [];
     const ids = new Set<string>();
     for (const cell of scalarCells) {
@@ -163,17 +161,19 @@ describe("v3.2 gate register (always-on assertions)", () => {
         cell.kind === "report-observation" || cell.kind === "comparative",
         `${cell.id}: kind`,
       ).toBe(true);
-      expect(cell.kind, `${cell.id}: all seeded cells are report-observation`).toBe(
-        "report-observation",
-      );
+      expect(
+        cell.kind,
+        `${cell.id}: all seeded cells are report-observation`,
+      ).toBe("report-observation");
       expect(validMetrics.has(cell.metric), `${cell.id}: metric id`).toBe(true);
       expect(validStatuses.has(cell.claimedStatus), `${cell.id}: status`).toBe(
         true,
       );
       expect(typeof cell.preset, `${cell.id}: preset`).toBe("string");
-      expect(cell.preset.length, `${cell.id}: preset non-empty`).toBeGreaterThan(
-        0,
-      );
+      expect(
+        cell.preset.length,
+        `${cell.id}: preset non-empty`,
+      ).toBeGreaterThan(0);
       // v3.2: a claim must name its exact configuration.
       expect(
         cell.configuration.length,
@@ -182,9 +182,10 @@ describe("v3.2 gate register (always-on assertions)", () => {
       expect(Number.isFinite(cell.value), `${cell.id}: numeric value`).toBe(
         true,
       );
-      expect(cell.evidence.length, `${cell.id}: evidence pointer`).toBeGreaterThan(
-        0,
-      );
+      expect(
+        cell.evidence.length,
+        `${cell.id}: evidence pointer`,
+      ).toBeGreaterThan(0);
       // Direction is derived in code from the metric, never read from the cell.
       expect(scalarLowerIsBetter(cell.metric), `${cell.id}: direction`).toBe(
         true,
@@ -199,9 +200,10 @@ describe("v3.2 gate register (always-on assertions)", () => {
       }
       // FAIL-WAIVED must cite a well-formed SDEC that exists in the log.
       if (cell.claimedStatus === "FAIL-WAIVED") {
-        expect(cell.sdec && SDEC_TOKEN_RE.test(cell.sdec), `${cell.id}: sdec`).toBe(
-          true,
-        );
+        expect(
+          cell.sdec && SDEC_TOKEN_RE.test(cell.sdec),
+          `${cell.id}: sdec`,
+        ).toBe(true);
         expect(
           sdecExistsInLog(cell.sdec!),
           `${cell.id}: cited ${cell.sdec} exists in decision log`,
@@ -278,8 +280,10 @@ describe("v3.2 gate register (always-on assertions)", () => {
       { ...donor, kind: "comparative", claimedStatus: "PASS" },
       resolveScalar,
     );
-    expect(noArtifact, "comparative without a pinned artifact must be flagged")
-      .not.toBeNull();
+    expect(
+      noArtifact,
+      "comparative without a pinned artifact must be flagged",
+    ).not.toBeNull();
     expect(noArtifact).toContain("pinned artifact");
     // Even WITH a well-formed pinned artifact, comparative is rejected today —
     // no scalar pinned artifact exists (this is the anti-mint property).
@@ -288,7 +292,10 @@ describe("v3.2 gate register (always-on assertions)", () => {
         ...donor,
         kind: "comparative",
         claimedStatus: "PASS",
-        pinnedArtifact: { path: "docs/strata-baselines/nope.json", sha256: "0" },
+        pinnedArtifact: {
+          path: "docs/strata-baselines/nope.json",
+          sha256: "0",
+        },
       },
       resolveScalar,
     );
@@ -311,7 +318,12 @@ describe("v3.2 gate register (always-on assertions)", () => {
     const obs = scalarCells.find((c) => c.kind === "report-observation")!;
     // Comparative FAIL-WAIVED with a malformed SDEC → flagged on the SDEC.
     const malformed = scalarClaimMismatch(
-      { ...obs, kind: "comparative", claimedStatus: "FAIL-WAIVED", sdec: "SDEC-" },
+      {
+        ...obs,
+        kind: "comparative",
+        claimedStatus: "FAIL-WAIVED",
+        sdec: "SDEC-",
+      },
       resolveScalar,
     );
     expect(malformed, "malformed SDEC must be flagged").not.toBeNull();

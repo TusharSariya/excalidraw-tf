@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * STRATA BLINDED PAIRWISE PREFERENCE HARNESS — generator (P1 of the 2026-07-15
  * objective audit, docs/strata-pipeline-objective-audit-2026-07-15.md §P1).
@@ -369,8 +370,7 @@ const regionHullByAccount = (
 ): StrataHullNode | undefined =>
   findHull(
     model.hullRoot,
-    (n) =>
-      n.role === "region" && n.path.some((p) => p.endsWith(accountSuffix)),
+    (n) => n.role === "region" && n.path.some((p) => p.endsWith(accountSuffix)),
   );
 
 const regionHullByName = (
@@ -429,7 +429,12 @@ const buildOrderParams = (recon: Recon, h: StrataHullNode) => {
     contentKey: string;
   };
   const infos: UInfo[] = [];
-  const fullPlacement = placeStrataHulls(model, edgesPrime, rank, engineOptions);
+  const fullPlacement = placeStrataHulls(
+    model,
+    edgesPrime,
+    rank,
+    engineOptions,
+  );
   for (const child of h.children) {
     const bh = fullPlacement.boxedHulls.get(child.id)!;
     const leaves = subtreeLeafIds(child);
@@ -563,7 +568,8 @@ const renderedMetrics = (elements: readonly ExcalidrawElement[]): Rendered => {
   }
   return {
     crossings: diag.dataflow.crossings,
-    sharpShare: Math.round((diag.crossingAngles?.sharpShare ?? 0) * 1000) / 1000,
+    sharpShare:
+      Math.round((diag.crossingAngles?.sharpShare ?? 0) * 1000) / 1000,
     tll: Math.round(tll),
     maxArrowLen: Math.round(maxLen),
     pierce: pm.pierce.total,
@@ -602,7 +608,8 @@ const accountPullIn = (
   const acct = findHull(
     recon.model.hullRoot,
     (n) =>
-      n.role === "account" && n.path[n.path.length - 1]?.endsWith(accountSuffix),
+      n.role === "account" &&
+      n.path[n.path.length - 1]?.endsWith(accountSuffix),
   );
   if (!acct) {
     return undefined;
@@ -656,9 +663,7 @@ const accountPullIn = (
         }
       }
     }
-    const movedBox = (
-      p.boxedHulls.get(acct.id) as unknown as { box: Box }
-    ).box;
+    const movedBox = (p.boxedHulls.get(acct.id) as unknown as { box: Box }).box;
     for (const [oid, obh] of p.boxedHulls) {
       if (subHulls.has(oid) || ancestors.has(oid)) {
         continue;
@@ -699,12 +704,15 @@ const dlqPullIn = (
     preds.set(pe.edge.target, arr);
   }
   const dlqIds = [...engine.leafBoxes.keys()].filter(
-    (id) => /dlq/i.test(recon.model.addressOf(id)) && (outDeg.get(id) ?? 0) === 0,
+    (id) =>
+      /dlq/i.test(recon.model.addressOf(id)) && (outDeg.get(id) ?? 0) === 0,
   );
   if (!dlqIds.length) {
     return undefined;
   }
-  const leafBoxes = new Map([...engine.leafBoxes].map(([k, v]) => [k, { ...v }]));
+  const leafBoxes = new Map(
+    [...engine.leafBoxes].map(([k, v]) => [k, { ...v }]),
+  );
   let moved = 0;
   for (const dlq of dlqIds) {
     const box = leafBoxes.get(dlq)!;
@@ -901,8 +909,12 @@ const sheetMarkdown = (sheet: readonly SheetRow[]): string => {
   lines.push("");
   lines.push(`Proposition (per pair): ${PROPOSITION}`);
   lines.push("");
-  lines.push("| # | pair | look at | choice (A/B/tie) | confidence (1-3) | notes |");
-  lines.push("| - | ---- | ------- | ---------------- | ---------------- | ----- |");
+  lines.push(
+    "| # | pair | look at | choice (A/B/tie) | confidence (1-3) | notes |",
+  );
+  lines.push(
+    "| - | ---- | ------- | ---------------- | ---------------- | ----- |",
+  );
   for (const r of sheet) {
     lines.push(`| ${r.index} | ${r.pairId} | ${r.focusHint} |  |  |  |`);
   }
@@ -1241,7 +1253,8 @@ describe.runIf(!!REPORT_DIR)(
                 left: alt142.ref,
                 right: alt146.ref,
                 focusHint: r4Hint,
-                rationale: "crossings vs pen/sharpness within the same frontier",
+                rationale:
+                  "crossings vs pen/sharpness within the same frontier",
               },
               n++,
             );
@@ -1370,9 +1383,9 @@ describe.runIf(!!REPORT_DIR)(
                 }
               }
               const seqOf = (idx: number): string =>
-                cands[idx]!
-                  .map((u) => classify.get(strataUnitId(u)) ?? "?")
-                  .join(" > ");
+                cands[idx]!.map(
+                  (u) => classify.get(strataUnitId(u)) ?? "?",
+                ).join(" > ");
               const prodOpt =
                 bestIdx >= 0
                   ? addArm(
@@ -1382,7 +1395,10 @@ describe.runIf(!!REPORT_DIR)(
                       `us-west-2 prod-optimum(final) cand#${bestIdx} (cand33-class; S3 exiled) [${seqOf(
                         bestIdx,
                       )}]`,
-                      finalOf(recon2, placeWithHull(recon2, region.id, bestIdx)),
+                      finalOf(
+                        recon2,
+                        placeWithHull(recon2, region.id, bestIdx),
+                      ),
                     )
                   : undefined;
               // owner VPC-swap (Va above V5) of the ENGINE order — cand13-class
@@ -1549,9 +1565,10 @@ describe.runIf(!!REPORT_DIR)(
         }
 
         report.push(`pairs assembled: ${pairs.length}`);
-        expect(pairs.length, "at least 8 pairs required").toBeGreaterThanOrEqual(
-          8,
-        );
+        expect(
+          pairs.length,
+          "at least 8 pairs required",
+        ).toBeGreaterThanOrEqual(8);
 
         // ── render + rendered metrics per unique arm ──────────────────────
         const usedRefs = new Set<string>();
@@ -1577,9 +1594,9 @@ describe.runIf(!!REPORT_DIR)(
             arm.svgFile = file;
             writeFileSync(path.join(outDir, file), svg);
             report.push(
-              `arm ${ref}: rendered ${JSON.stringify(arm.rendered)} svg=${file} (${Math.round(
-                svg.length / 1024,
-              )}kB)`,
+              `arm ${ref}: rendered ${JSON.stringify(
+                arm.rendered,
+              )} svg=${file} (${Math.round(svg.length / 1024)}kB)`,
             );
             if (/crossings|penetration|candidate/i.test(svg)) {
               softFailures.push(`arm ${ref}: SVG leaks score-ish text`);
@@ -1678,7 +1695,9 @@ describe.runIf(!!REPORT_DIR)(
         );
         const rho = Math.abs(pearson(dCr, dTll));
         report.push(
-          `diversity: pairs=${built.key.length} rendered=${withRendered.length} lengthOnly=${hasLengthOnly} crossingsHeavy=${hasCrossingsOnly} |rho(dCr,dTll)|=${
+          `diversity: pairs=${built.key.length} rendered=${
+            withRendered.length
+          } lengthOnly=${hasLengthOnly} crossingsHeavy=${hasCrossingsOnly} |rho(dCr,dTll)|=${
             Math.round(rho * 100) / 100
           }`,
         );
@@ -1738,7 +1757,9 @@ describe.runIf(!!REPORT_DIR)(
         );
         mkdirSync(path.join(outDir, "labels"), { recursive: true });
         // eslint-disable-next-line no-console -- artifact emission IS the deliverable
-        console.log(`\n[PREF-PAIRS]\n${report.join("\n")}\nwritten to ${outDir}`);
+        console.log(
+          `\n[PREF-PAIRS]\n${report.join("\n")}\nwritten to ${outDir}`,
+        );
 
         expect(
           softFailures,

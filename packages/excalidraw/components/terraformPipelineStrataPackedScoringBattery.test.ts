@@ -542,9 +542,7 @@ describe("W7 packed-scoring battery (report-emitting; never asserts gates)", () 
           arms[armLabel] = armSummary(data, pathRows);
           if (data.nSliceB === 0) {
             if (
-              (SLICE_B_ROOT_CUT_ARMS as readonly string[]).includes(
-                armLabel,
-              ) &&
+              (SLICE_B_ROOT_CUT_ARMS as readonly string[]).includes(armLabel) &&
               SLICE_B_ROOT_CUT_EMPTY_PRESETS.has(presetLabel)
             ) {
               // Deferred: whitelisted only if the paired arm empties too.

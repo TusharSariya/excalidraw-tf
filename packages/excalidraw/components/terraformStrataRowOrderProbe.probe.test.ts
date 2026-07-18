@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * SCRATCH read-only probe — Strata region-row-order investigation, ROUND 2
  * (2026-07-14). Supersedes the Round-1 scratch probe (same path). Applies the
@@ -48,10 +49,7 @@ import {
   strataRelocateAdoptable,
   strataWeightedCross,
 } from "./terraformPipelineStrataPackedScoring";
-import type {
-  StrataPackedScore,
-  StrataPackedTrialRecord,
-} from "./terraformPipelineStrataPackedScoring";
+
 import {
   liftStrataEdgesToUnits,
   orderStrataUnits,
@@ -64,6 +62,11 @@ import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
 import { computeStrataPathMetrics } from "./terraformPipelineStrataPathMetrics";
+
+import type {
+  StrataPackedScore,
+  StrataPackedTrialRecord,
+} from "./terraformPipelineStrataPackedScoring";
 
 import type {
   StrataEngineOptions,
@@ -212,7 +215,10 @@ const sceneTLL = (elements: readonly ExcalidrawElement[]): number => {
     }
     const pts = el.points;
     for (let i = 1; i < pts.length; i++) {
-      tll += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]);
+      tll += Math.hypot(
+        pts[i]![0] - pts[i - 1]![0],
+        pts[i]![1] - pts[i - 1]![1],
+      );
     }
   }
   return Math.round(tll);
@@ -242,7 +248,8 @@ const renderedMetrics = (
   const mean = rt.length ? rt.reduce((s, x) => s + x, 0) / rt.length : 0;
   return {
     crossings: diag.dataflow.crossings,
-    sharpShare: Math.round((diag.crossingAngles?.sharpShare ?? 0) * 1000) / 1000,
+    sharpShare:
+      Math.round((diag.crossingAngles?.sharpShare ?? 0) * 1000) / 1000,
     tll: sceneTLL(elements),
     pierce: pm.pierce.total,
     rtHatP50: Math.round(p50 * 1000) / 1000,
@@ -538,7 +545,12 @@ const buildOrderParams = (recon: Recon, h: StrataHullNode) => {
   };
   const columnLeft = (r: number): number => rank.columnX[r]!;
   const infos: UInfo[] = [];
-  const fullPlacement = placeStrataHulls(model, edgesPrime, rank, engineOptions);
+  const fullPlacement = placeStrataHulls(
+    model,
+    edgesPrime,
+    rank,
+    engineOptions,
+  );
   for (const child of h.children) {
     const bh = fullPlacement.boxedHulls.get(child.id)!;
     const leaves = subtreeLeafIds(child);
@@ -761,7 +773,9 @@ describe("Strata row-order probe — ROUND 2", () => {
           m.strataPackedScoringBaselineScore,
         );
         expect(recon.packedScored.trialCount).toBe(m.strataPackedScoringTrials);
-        report.push(`RECON packed: selections/score/baseline/trials MATCH real meta`);
+        report.push(
+          `RECON packed: selections/score/baseline/trials MATCH real meta`,
+        );
 
         // [FIX-2] finalize through the orchestrator guard, [FIX-1] ASSERT parity
         const { placement, fellBack } = finalizeOrchestrator(recon);
@@ -778,7 +792,9 @@ describe("Strata row-order probe — ROUND 2", () => {
           let shown = 0;
           for (let i = 0; i < Math.max(a.length, b.length) && shown < 3; i++) {
             if (a[i] !== b[i]) {
-              report.push(`  DIFF@${i}:\n    recon: ${a[i]}\n    real:  ${b[i]}`);
+              report.push(
+                `  DIFF@${i}:\n    recon: ${a[i]}\n    real:  ${b[i]}`,
+              );
               shown++;
             }
           }
@@ -786,7 +802,9 @@ describe("Strata row-order probe — ROUND 2", () => {
         }
         // [FIX-1] gate: collect failures, assert AFTER logging the full report.
         if (fellBack !== (m.strataPackedScoringFellBack === true)) {
-          gateFailures.push(`${v}: fellBack recon=${fellBack} meta=${m.strataPackedScoringFellBack}`);
+          gateFailures.push(
+            `${v}: fellBack recon=${fellBack} meta=${m.strataPackedScoringFellBack}`,
+          );
         }
         if (!reconMatchesReal) {
           gateFailures.push(`${v}: reconMatchesReal=false`);
@@ -847,12 +865,14 @@ describe("Strata row-order probe — ROUND 2", () => {
 
         // [FIX-5] mirrored enumeration must equal production's candidate count
         report.push(
-          `candidate count: mirrored=${cands.length} production=${prodCount} MATCH=${
-            cands.length === prodCount
-          }`,
+          `candidate count: mirrored=${
+            cands.length
+          } production=${prodCount} MATCH=${cands.length === prodCount}`,
         );
         if (cands.length !== prodCount) {
-          gateFailures.push(`${v}: count mirrored=${cands.length} prod=${prodCount}`);
+          gateFailures.push(
+            `${v}: count mirrored=${cands.length} prod=${prodCount}`,
+          );
         }
 
         // [FIX-5] validate EVERY index: idx<count, force via engine, byte-check
@@ -1046,13 +1066,22 @@ describe("Strata row-order probe — ROUND 2", () => {
           const r = rowOf(label);
           report.push(`${tag} (${label}) order=[${r.orderTag}]`);
           report.push(
-            `  pre-A7 ${fmtScore(recon, r.pre)} rank ${rankIn("pre", label)}/${nClasses}`,
+            `  pre-A7 ${fmtScore(recon, r.pre)} rank ${rankIn(
+              "pre",
+              label,
+            )}/${nClasses}`,
           );
           report.push(
-            `  postA7 ${fmtScore(recon, r.a7)} rank ${rankIn("a7", label)}/${nClasses}`,
+            `  postA7 ${fmtScore(recon, r.a7)} rank ${rankIn(
+              "a7",
+              label,
+            )}/${nClasses}`,
           );
           report.push(
-            `  postRel ${fmtScore(recon, r.rel)} rank ${rankIn("rel", label)}/${nClasses}`,
+            `  postRel ${fmtScore(recon, r.rel)} rank ${rankIn(
+              "rel",
+              label,
+            )}/${nClasses}`,
           );
         };
 
@@ -1062,7 +1091,9 @@ describe("Strata row-order probe — ROUND 2", () => {
         if (ownerLabel) {
           dumpRow(ownerLabel, `OWNER-TARGET[${ownerDesc}]`);
         } else {
-          report.push(`OWNER-TARGET[${ownerDesc}]: NOT REACHABLE among candidates`);
+          report.push(
+            `OWNER-TARGET[${ownerDesc}]: NOT REACHABLE among candidates`,
+          );
         }
 
         // stage-rank inversion summary
@@ -1096,15 +1127,24 @@ describe("Strata row-order probe — ROUND 2", () => {
             const rm = renderedMetrics(scene.elements);
             return `cross=${rm.crossings} sharp=${rm.sharpShare} TLL=${rm.tll} pierce=${rm.pierce} rtHat(p50=${rm.rtHatP50},mean=${rm.rtHatMean},rows=${rm.pathRows})`;
           } catch (e) {
-            return `SCENE-BUILD-FAILED (${String((e as Error).message).slice(0, 90)})`;
+            return `SCENE-BUILD-FAILED (${String((e as Error).message).slice(
+              0,
+              90,
+            )})`;
           }
         };
-        report.push(`RENDERED engine(${engLabel}):   ${await renderOf(engLabel)}`);
         report.push(
-          `RENDERED prod-opt(${bestFinal.label}): ${await renderOf(bestFinal.label)}`,
+          `RENDERED engine(${engLabel}):   ${await renderOf(engLabel)}`,
+        );
+        report.push(
+          `RENDERED prod-opt(${bestFinal.label}): ${await renderOf(
+            bestFinal.label,
+          )}`,
         );
         if (ownerLabel) {
-          report.push(`RENDERED owner(${ownerLabel}):    ${await renderOf(ownerLabel)}`);
+          report.push(
+            `RENDERED owner(${ownerLabel}):    ${await renderOf(ownerLabel)}`,
+          );
         }
 
         // ── S3 X-disjoint verification (does row-order even move S3's Y?)
@@ -1127,7 +1167,9 @@ describe("Strata row-order probe — ROUND 2", () => {
             });
           const xDisjoint = overlaps.length === 0;
           report.push(
-            `S3 colSpan=[${s3Info.colSpan}] X-disjoint=${xDisjoint} (overlapping siblings: ${
+            `S3 colSpan=[${
+              s3Info.colSpan
+            }] X-disjoint=${xDisjoint} (overlapping siblings: ${
               overlaps.map((u) => classify.get(strataUnitId(u))).join(",") ||
               "none"
             })`,
@@ -1211,10 +1253,9 @@ describe("Strata row-order probe — ROUND 2", () => {
         }
         const regionVisits = visits.filter((vv) => vv.hullId === region.id);
         report.push(
-          `descent: ${visits.length} trials total, ${regionVisits.length} at region; final incumbent ${fmtScore(
-            recon,
-            bestScore,
-          )}`,
+          `descent: ${visits.length} trials total, ${
+            regionVisits.length
+          } at region; final incumbent ${fmtScore(recon, bestScore)}`,
         );
 
         // targets to classify
@@ -1268,7 +1309,10 @@ describe("Strata row-order probe — ROUND 2", () => {
               }
               const base = placeWithRegion(recon, contextSel, region.id, i);
               const { stages } = scoreStages(recon, base);
-              if (!bestRel || finalKey(stages.postRelocate) < finalKey(bestRel)) {
+              if (
+                !bestRel ||
+                finalKey(stages.postRelocate) < finalKey(bestRel)
+              ) {
                 bestRel = stages.postRelocate;
                 bestIdx = i;
               }
@@ -1314,17 +1358,22 @@ describe("Strata row-order probe — ROUND 2", () => {
             const line = `  pass${rv.pass} visit: score ${fmtScore(
               recon,
               rv.score,
-            )} vs incumbent ${fmtScore(recon, rv.incumbentBefore)} → recorded adopted=${
-              rv.adopted
-            }, replay adoptable=${adoptable}`;
+            )} vs incumbent ${fmtScore(
+              recon,
+              rv.incumbentBefore,
+            )} → recorded adopted=${rv.adopted}, replay adoptable=${adoptable}`;
             if (!rv.adopted && adoptable) {
               report.push(`${line}  ⇒ (d) BUG-SELECT`);
               sawBug = true;
             } else if (!rv.adopted && !adoptable) {
-              report.push(`${line}  ⇒ (b) legitimate loss on descent's own surface`);
+              report.push(
+                `${line}  ⇒ (b) legitimate loss on descent's own surface`,
+              );
               sawLegitLoss = true;
             } else {
-              report.push(`${line}  ⇒ adopted at this visit (later possibly dropped)`);
+              report.push(
+                `${line}  ⇒ adopted at this visit (later possibly dropped)`,
+              );
             }
           }
 

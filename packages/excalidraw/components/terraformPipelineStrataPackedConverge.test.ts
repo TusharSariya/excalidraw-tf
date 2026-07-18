@@ -247,11 +247,7 @@ describe("G-DESCENT strataPackedConverge validation (real preset, Config 2)", ()
       });
 
       // ── global score report ───────────────────────────────────────────────
-      log(
-        "\n=== strataPackedConverge global geometry (preset " +
-          PRESET +
-          ") ===",
-      );
+      log(`\n=== strataPackedConverge global geometry (preset ${PRESET}) ===`);
       const row = (label: string, s: ArmScore) =>
         log(
           `  ${label.padEnd(16)} edgeEdge=${String(s.crossings).padStart(5)}` +

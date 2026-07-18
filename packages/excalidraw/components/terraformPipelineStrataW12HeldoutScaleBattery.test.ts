@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * W12 held-out transfer + scale battery — TRANSFER BLOCK (WP2 of the W12
  * plan; the pre-registered analysis record is docs/strata-view-w12-heldout-

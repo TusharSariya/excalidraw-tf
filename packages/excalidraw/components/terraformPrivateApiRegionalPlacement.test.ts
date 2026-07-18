@@ -7,9 +7,9 @@ import {
   buildTerraformImportPrepCache,
   clearTerraformImportPrepCache,
 } from "./terraformImportPrepCache";
-import type { TerraformImportPresetSources } from "./terraformImportPresetsTypes";
+
 import { buildPlacementMap } from "./terraformPipelineLayoutShared";
-import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
+
 import { filterPlanByProviderFamily } from "./terraformProviderClassification";
 import {
   extractPrimaryTopologyZones,
@@ -22,6 +22,9 @@ import {
   extractTerraformTopologyFromPlan,
   type ResourceChange,
 } from "./terraformTopologyExtract";
+
+import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
+import type { TerraformImportPresetSources } from "./terraformImportPresetsTypes";
 
 /**
  * End-to-end regression for the private-REST-API topology correctness fix on the

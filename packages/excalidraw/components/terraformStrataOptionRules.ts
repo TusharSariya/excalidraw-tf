@@ -55,7 +55,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataJointNsRank",
 ] as const;
 
-export type StrataRuleOptionKey = (typeof STRATA_RULE_OPTION_KEYS)[number];
+export type StrataRuleOptionKey = typeof STRATA_RULE_OPTION_KEYS[number];
 
 /** A read-only snapshot of the option values a rule predicate evaluates against.
  * Booleans/numbers/strings; absent = the caller's opt-out (engine `?? 0` /

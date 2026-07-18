@@ -56,7 +56,11 @@ type ParsedStackAddress = { stackId: string; address: string } | null;
 const MEMO_CACHE_MAX_ENTRIES = 50_000;
 
 /** Bounded FIFO set for a pure-string memo cache: evict the oldest key on overflow. */
-const setBoundedMemo = <V>(cache: Map<string, V>, key: string, value: V): void => {
+const setBoundedMemo = <V>(
+  cache: Map<string, V>,
+  key: string,
+  value: V,
+): void => {
   if (cache.size >= MEMO_CACHE_MAX_ENTRIES && !cache.has(key)) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) {
@@ -104,7 +108,9 @@ export function parseStackAddress(full: string): ParsedStackAddress {
   }
   // Materialize a fresh object per call so a caller mutating the result can
   // never poison the cache (the cached record is never handed out directly).
-  return cached === null ? null : { stackId: cached.stackId, address: cached.address };
+  return cached === null
+    ? null
+    : { stackId: cached.stackId, address: cached.address };
 }
 
 /** Strip stack prefix before Terraform module-path parsing (`module.foo.bar`). */

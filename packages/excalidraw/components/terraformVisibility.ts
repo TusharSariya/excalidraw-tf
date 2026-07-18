@@ -1147,7 +1147,8 @@ export const repairTerraformEdgeBindings = (
     const isRoutedPolyline = hasRoutedMarker && routedEndpointsOnCards;
     // Strip the flag from any arrow we flatten — including a marked 2-point
     // arrow (no route to preserve), else the stale flag could resurrect later.
-    const stripStaleMarker = hasRoutedFlag && !(hasRoutedMarker && routedEndpointsOnCards);
+    const stripStaleMarker =
+      hasRoutedFlag && !(hasRoutedMarker && routedEndpointsOnCards);
 
     const patch = {
       ...(isRoutedPolyline

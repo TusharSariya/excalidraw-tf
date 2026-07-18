@@ -72,7 +72,10 @@ const BASELINE_PATH = join(
 );
 
 type BaselineCell =
-  | ({ status: "measured" } & Extract<StrataRegressionMeasurement, { ok: true }>)
+  | ({ status: "measured" } & Extract<
+      StrataRegressionMeasurement,
+      { ok: true }
+    >)
   | { status: "measured-error"; error: string }
   | { status: "SKIPPED-SLOW" };
 

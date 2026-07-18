@@ -211,7 +211,9 @@ const buildLayoutOptions = (
   >;
 
   const layoutMode =
-    typeof passThrough.layoutMode === "string" ? passThrough.layoutMode : "strata";
+    typeof passThrough.layoutMode === "string"
+      ? passThrough.layoutMode
+      : "strata";
 
   // Mirror the real app path (finding #4): a bare Strata import defaults
   // `pipelinePrivateApiRegional` ON when the caller omits it
@@ -357,8 +359,7 @@ const runArm = async (
 ): Promise<Record<string, unknown>> => {
   const repeats = Math.max(1, spec.repeats ?? 1);
   const { options, rawStrataOverrides } = buildLayoutOptions(arm.options ?? {});
-  const overrides =
-    rawStrataOverrides.length > 0 ? { rawStrataOverrides } : {};
+  const overrides = rawStrataOverrides.length > 0 ? { rawStrataOverrides } : {};
 
   if (PROFILE) {
     terraformImportProfilerReset();
@@ -611,7 +612,9 @@ if (!spec) {
           // they are explicit non-results, not a scene masquerading as valid.
           expect(
             r.status,
-            `arm ${arm.label} produced a collapsed scene (edge geometry dropped): ${JSON.stringify(
+            `arm ${
+              arm.label
+            } produced a collapsed scene (edge geometry dropped): ${JSON.stringify(
               r,
             )}`,
           ).not.toBe("collapsed");

@@ -300,9 +300,7 @@ describe("OD-15 strataSiftRelocate validation (real preset, owner config)", () =
       });
 
       // ── global score report ───────────────────────────────────────────────
-      log(
-        "\n=== strataSiftRelocate global geometry (preset " + PRESET + ") ===",
-      );
+      log(`\n=== strataSiftRelocate global geometry (preset ${PRESET}) ===`);
       const row = (label: string, s: ArmScore) =>
         log(
           `  ${label.padEnd(16)} edgeEdge=${String(s.crossings).padStart(5)}` +

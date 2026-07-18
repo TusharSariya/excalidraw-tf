@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   isDeBandLevel,
   isRcllLayoutProfile,
@@ -72,9 +73,9 @@ const VALID_LOD_PRESETS = new Set<TerraformLodPreset>([
  * Keyed by lowercase so `SubnetZone`/`ROOT`/etc. all resolve; the emitter still
  * writes the canonical spelling, so round-trips stay byte-stable. */
 const STRATA_BAND_DEPTH_BY_LOWER = new Map<string, StrataHullRole>(
-  (
-    ["root", "provider", "account", "region", "vpc", "subnetZone"] as const
-  ).map((role) => [role.toLowerCase(), role]),
+  (["root", "provider", "account", "region", "vpc", "subnetZone"] as const).map(
+    (role) => [role.toLowerCase(), role],
+  ),
 );
 
 export type TerraformDemoUrlParams = {

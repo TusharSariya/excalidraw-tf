@@ -20,7 +20,9 @@ import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 describe("terraformSceneApply option threading", () => {
   const booleanStrataKeys = Object.entries(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS,
-  ).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean");
+  ).filter(
+    (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+  );
 
   it("replay forwards every registered boolean strata toggle", () => {
     for (const [key] of booleanStrataKeys) {

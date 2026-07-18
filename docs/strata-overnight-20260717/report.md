@@ -1,8 +1,6 @@
 # Overnight strata run — morning report (2026-07-17)
 
-**Branch:** `strata-overnight-20260717` — 33 commits, 51 files, +7959/−188, **UNPUSHED**, base `62950e0f1` (strata-v3.2-w5-w10b).
-**Run:** 03:31 → ~17:30 NDT (incl. a ~6h spend-limit stall 05:15–11:10). ~90+ agents across audit, research, implementation, and adversarial judging (Fable + Codex gpt-5.6-sol judge pairs; **Fable was unavailable mid-run, so post-pause judges were Opus + Codex** — noted per-row below).
-**Companion artifacts in this directory:** [audit-findings.md](audit-findings.md) (15-agent audit, dual-verified), [effect-matrix.md](effect-matrix.md) (62-cell empirical toggle matrix), [collapse-rootcause.md](collapse-rootcause.md) (edge-collapse root-cause investigation), [owner-decisions.md](owner-decisions.md) (the 11 resolved decisions). Full chronological log: `scratchpad/overnight-20260717/status.md`.
+**Branch:** `strata-overnight-20260717` — 33 commits, 51 files, +7959/−188, **UNPUSHED**, base `62950e0f1` (strata-v3.2-w5-w10b). **Run:** 03:31 → ~17:30 NDT (incl. a ~6h spend-limit stall 05:15–11:10). ~90+ agents across audit, research, implementation, and adversarial judging (Fable + Codex gpt-5.6-sol judge pairs; **Fable was unavailable mid-run, so post-pause judges were Opus + Codex** — noted per-row below). **Companion artifacts in this directory:** [audit-findings.md](audit-findings.md) (15-agent audit, dual-verified), [effect-matrix.md](effect-matrix.md) (62-cell empirical toggle matrix), [collapse-rootcause.md](collapse-rootcause.md) (edge-collapse root-cause investigation), [owner-decisions.md](owner-decisions.md) (the 11 resolved decisions). Full chronological log: `scratchpad/overnight-20260717/status.md`.
 
 > **UPDATE — follow-up round complete (branch now 45 commits, +9879/−581).** After the report below was written, the owner reviewed the 11 decisions and had them **all implemented** (§0). Sections 1–9 describe the overnight run as it stood at tip `7cf2104d6`; §0 covers the follow-up.
 
@@ -15,7 +13,7 @@ The owner answered all 11 decisions ([owner-decisions.md](owner-decisions.md)) a
 **The headline: the new defaults measurably improve the default layout.** Reference measurement + the regenerated geometry-regression baseline agree:
 
 | Config | crossings | pierce |
-|---|---|---|
+| --- | --- | --- |
 | Old default | 273 | 226 |
 | **New default (transpose+sift+packedScoring ON)** | **252 (−8%)** | **139 (−38%)** |
 
@@ -24,7 +22,7 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 **All 11 decisions — final status:**
 
 | # | Decision | Shipped |
-|---|---|---|
+| --- | --- | --- |
 | Q1 | UI: wire hybrid, declutter | Static Standard/advanced split — **~8 core controls**, rest behind collapsed `<details>` disclosures. (Full registry-**driven** render honestly deferred — the registry+rules table is the byte-accurate backbone.) |
 | Q2 | transpose default ON | ✅ default ON |
 | Q3 | packedScoring default ON | ✅ default ON |
@@ -37,6 +35,7 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 | Q11 | edge-collapse guard + tripwires | ✅ log-only, dev-gated `Number.isFinite` tripwires on the connector-point path (byte-identical); full flip-hunt deferred |
 
 **Consequences to know:**
+
 - **Your canonical nightly URL changes behavior.** It sets both `strataRankSep=1` and `strataPackedScoring=1`; the new mutual exclusion **suppresses rankSeparate** on it (packedScoring wins) — shifting it to the packedScoring-only layout, which measures **better** (the cr252/pierce139 family vs the old both-on conflict). Deliberate, per your "packedScoring wins" choice.
 - **The frozen audit-config geometry is NOT hash-pinned** (the regression cells for it stay `SKIPPED-SLOW`) because that config collapses nondeterministically headless — the edge-collapse finding biting the test infra. The resolve-bag is pinned; layout quality is pinned via the collapse-blind crossings/pierce.
 - **Deferred (honest follow-ups):** the registry-**driven** panel render (static split shipped instead), and three non-blocking re-judge notes (surface-metadata reconciliation before that render, orphaned `OPTION_HELP` copy, no in-panel note for URL-induced both-on).
@@ -54,7 +53,7 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 - **Layout operators:** A1 blockClamp per-rank snap merged (correct, but **honest null on P2** — the −22cr/−20pierce counterfactual did not survive real gates); A2 leaf X-shift merged (new `strataLeafShift`, default-off, wins on DLQ/C2 fixtures, inert on the P2 audit config); A3 fixed the verified S1-1 ε-cap bug + O4-3 comparator incoherence (empirically confirmed by the matrix: eps 1→0 improved crossings −15).
 - B3 floor memos merged: minus-deband floor **~27.8s → 20.3s** (~27%), byte-identical. B2 worker-heartbeat was **reverted** — judges proved it statically inert (§3).
 - **Track C shipped the simplification backbone** (declarative option registry + engine-pinned dependency-rule table + defaults consolidation + aliases + compat/pin tests, all byte-identical) but the **visible basic/advanced UI reorg is deferred pending your sign-off** (§6).
-- The 15-agent audit's theme — *measurement infrastructure is the least trustworthy layer* — was vindicated at least four separate times during the night (§5).
+- The 15-agent audit's theme — _measurement infrastructure is the least trustworthy layer_ — was vindicated at least four separate times during the night (§5).
 - **Needs you:** 10 queued option-surface decisions + 1 new one (how hard to prioritize the edge-collapse engine fix) — §7.
 - Everything layout-affecting is opt-in and default-off; defaults are byte-identical to base (regression-frozen + verified at every merge).
 
@@ -63,7 +62,7 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 ## 2. Kept (merged)
 
 | # | Change | What it does | Toggle / default | Measured effect | Judges | Caveat |
-|---|--------|--------------|------------------|-----------------|--------|--------|
+| --- | --- | --- | --- | --- | --- | --- |
 | 1 | **W0 instrumentation stack** (`e962579f9`, `673d41607`, `6d31e4ff9`+`af57bec0d`, `9b0b38160`+`7b307b034`) | Shared canonical geometry-hash helper; per-stage profiler spans (zero-overhead, concurrency-safe); parameterized per-arm eval probe (inner-loop gate); geometry-regression freeze harness (geometry matrix + option surface) | Instrumentation only; no layout effect | Enabled every gate tonight; probe's spec-error guard caught the invalid deband arm; freeze harness caught nothing regressing all night (as designed) | Fable+Codex pairs, all approve-after-fix. Judges caught a **proven false-green** in I3 (a labeled treatment arm silently measured baseline — engine-vocab options clobbered by resolver defaults), a span-stack concurrency bug, and stale worktree bases | Probe vocabulary = `STRATA_DEMO_KEYS`, not engine keys — mis-keyed specs exit 1, they don't silently no-op |
 | 2 | **W5 proof-API extension** (`73f6aa87a`, `ef9454e4d`, `25fca5159`, `b4218d8bf`; + matrix-agent `17bd203f3`) | `/api/terraform-layout` now accepts the full strata toggle surface, returns rendered metrics, **id-free** geometryHash, timings, topoFrames role-filter, and edge-aware fields (arrowCount/tfdArrowCount/revealedEdgeCount/edgeGeometryHash) | Dev-only surface | Cross-surface determinism proven (API hash == vitest-node hash, repeatable). Fixed two audit P0/P1s (S5-1 ~16 silently-dropped params; headless edge-pins making API crossings/pierce **structurally 0**) | Fable+Codex; `17bd203f3` was a direct-commit protocol violation, retro-judged AMEND by both (core sound, baselines safe) | Pre-`17bd203f3` proof-API crossings/pierce numbers from any earlier session are untrustworthy; ?describe text still stale (S5-2, deferred) |
 | 3 | **A1 blockClamp per-rank snap** (`ce47d9fec`+`904f900b8`) | Replaces translateBlock's fixed-ΔX with per-rank snap onto `columnX[i−k]` + descendant-containment gate + exact leaf landing; k=3 candidates become reachable | Existing `strataBlockClamp`, default-off | **Honest null on P2**: ON ≡ OFF byte-identical (`7981:1484529:c89d7b99e080d5d8`, cr 138 / pierce 53) — snap unlocks k=3 but R2/scorer veto on this preset | Fable APPROVE + fix-round (frame-overhang containment, 0.5px epsilon hole closed) | The a02-researched −22cr/−20pierce Account-04 counterfactual **did not reproduce** through real gates — treat as unconfirmed-on-preset (§3) |
@@ -78,19 +77,19 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 
 ## 3. Reverted / negative results (numbers included — these are deliverables too)
 
-- **B2 WorkerPool heartbeat — REVERTED.** The b02 diagnosis (60s idle-TTL doubling as job timeout → deband job terminated → guaranteed main-thread double build) motivated a 10s-heartbeat protocol. Judges proved the fix **statically inert**: `setInterval` scheduled on the *same worker thread* cannot fire while that thread runs the synchronous layout it is supposed to keep alive — zero heartbeats would ever be sent in the first 60s. The parity test was also red in full-run order (fake-timer vs birpc timeout) and worker reuse carried a stale prep-cache hazard. With B1 merged, the deband job (~17.6s) fits inside the TTL anyway, so the target case largely vanished. *Follow-up if you ever ship >60s jobs again: cooperative yields or a job-scoped deadline, not a same-thread timer.* Also: the corrected headless deband baseline (~126–130s single build + ~6s ≈ the 132s browser time) had already revised the "double build" theory to "one main-thread build with fast worker fallback".
+- **B2 WorkerPool heartbeat — REVERTED.** The b02 diagnosis (60s idle-TTL doubling as job timeout → deband job terminated → guaranteed main-thread double build) motivated a 10s-heartbeat protocol. Judges proved the fix **statically inert**: `setInterval` scheduled on the _same worker thread_ cannot fire while that thread runs the synchronous layout it is supposed to keep alive — zero heartbeats would ever be sent in the first 60s. The parity test was also red in full-run order (fake-timer vs birpc timeout) and worker reuse carried a stale prep-cache hazard. With B1 merged, the deband job (~17.6s) fits inside the TTL anyway, so the target case largely vanished. _Follow-up if you ever ship >60s jobs again: cooperative yields or a job-scoped deadline, not a same-thread timer._ Also: the corrected headless deband baseline (~126–130s single build + ~6s ≈ the 132s browser time) had already revised the "double build" theory to "one main-thread build with fast worker fallback".
 - **A1's promised win did not survive contact with real gates.** a02's research root-caused the blockClamp self-veto correctly (fixed-ΔX + on-grid gate rejects every k where per-rank column spacing differs) and the snap fix demonstrably unlocks k=3 candidates — but on P2 audit-minus-deband the R2/scorer gates veto them: ON ≡ OFF byte-identical (cr 138 / pierce 53 / h 20174 / w 15009). The −22cr/−20pierce Account-04 counterfactual is **unconfirmed on-preset**. A1 stays merged as a strictly-better operator (correctness + tests); the win claim is downgraded.
 - **Measured dead-ends were honored, not retried.** NS re-ranking (blanket), the constraint layer, and global/grid X-compaction stayed excluded per prior campaigns; Y-compaction (a06/a07) was excluded up-front because height-only wins structurally cannot pass tonight's improvement gate; full Lever-C displacement was NO-GO per a05; a01's C3-leaves claim was dropped when the ranking agent caught that unguarded sink-pull was owner-removed at `e7ae739f0`.
-- **A3 test-hardening stalled.** The agent spawned 5 idle sub-forks and committed nothing in 33min; stopped. A3's *code* is 2-judge-approved-correct (Codex explicitly affirmed all operator/flag combos); per-pass mutation-proven cap tests + builder→guard wiring tests are a clean follow-up.
+- **A3 test-hardening stalled.** The agent spawned 5 idle sub-forks and committed nothing in 33min; stopped. A3's _code_ is 2-judge-approved-correct (Codex explicitly affirmed all operator/flag combos); per-pass mutation-proven cap tests + builder→guard wiring tests are a clean follow-up.
 - **Effect-matrix no-ops** (§6): `strataTransitiveAdopt` is byte-identical in both contexts while costing **~8.6s/layout** in the audit config — pure overhead as currently reachable; blockClamp/heightGate/packedConverge likewise byte-identical no-ops in both contexts (with the A1 caveat above making blockClamp's slot no-longer-decidable-by-matrix).
 
 ---
 
 ## 4. THE EDGE-COLLAPSE FINDING (most important discovery of the run)
 
-**What it is.** The same code + same inputs nondeterministically produce one of two genuinely different scenes: *healthy* — the ~145–161 declared `.tfd` dataflow edges carry routed orbit-bound polylines (geometry hash e.g. `7981:1484529:c89d7b99e080d5d8`) — or *collapsed* — every spanning edge connector's geometry is missing; **no visible linear element spans more than 53px** across a ~12800×16800 canvas (`7981:306293:9348619ddd17a3d7`). The entire ~1.18M-char delta is in the `points` arrays of linear elements; element count, positions, and bounding boxes are identical. The branch is decided **once per process**, is stable within a process, and is environment/load-gated: under heavy overnight multi-agent load this machine produced both branches from one config; on the quiet machine at endgame it produced **29/29 collapsed**.
+**What it is.** The same code + same inputs nondeterministically produce one of two genuinely different scenes: _healthy_ — the ~145–161 declared `.tfd` dataflow edges carry routed orbit-bound polylines (geometry hash e.g. `7981:1484529:c89d7b99e080d5d8`) — or _collapsed_ — every spanning edge connector's geometry is missing; **no visible linear element spans more than 53px** across a ~12800×16800 canvas (`7981:306293:9348619ddd17a3d7`). The entire ~1.18M-char delta is in the `points` arrays of linear elements; element count, positions, and bounding boxes are identical. The branch is decided **once per process**, is stable within a process, and is environment/load-gated: under heavy overnight multi-agent load this machine produced both branches from one config; on the quiet machine at endgame it produced **29/29 collapsed**.
 
-**Why every metric was blind.** `renderedCrossings`/`pierce`/`diagnosePipelineScene` read `customData.relationship` endpoints, **not** `element.points` — a scene missing every visible edge scores byte-identically to a healthy one (cr 138 / pierce 53 in both branches). Only the geometry hash's canonical-*length* band separates them (~1.48M vs ~0.30M chars). Every scalar quality gate tonight was blind to collapse; only byte-identity/hash gates (B1/B3) were structurally safe, because collapse shows up as a hash diff.
+**Why every metric was blind.** `renderedCrossings`/`pierce`/`diagnosePipelineScene` read `customData.relationship` endpoints, **not** `element.points` — a scene missing every visible edge scores byte-identically to a healthy one (cr 138 / pierce 53 in both branches). Only the geometry hash's canonical-_length_ band separates them (~1.48M vs ~0.30M chars). Every scalar quality gate tonight was blind to collapse; only byte-identity/hash gates (B1/B3) were structurally safe, because collapse shows up as a hash diff.
 
 **Pre-existing — proven, airtight (conf 0.9).** At base `62950e0f1` — before all 33 branch commits — the audit config produces the **byte-identical collapsed hash 6/6**. The same hash reproduces at tip 22/22. If tonight's memos had introduced it, base would emit the healthy scene. The memos are further exonerated structurally: 8 warm-cache in-process invocations identical (no cache poisoning), 6 concurrent layouts identical (no race), hash id-independent (no `Math.random`/seed leak), and a 54s run and a 9s run both collapsed (no wall-clock deadline). 28/28 collapsed across four harness shapes at both base and tip. **No revert; nothing tonight is implicated.** Full evidence: [collapse-rootcause.md](collapse-rootcause.md).
 
@@ -99,6 +98,7 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 **Unresolved mechanism (conf 0.4).** The drop is downstream of strata placement, in finalize/edge-point materialization: `convertPipelineSkeletonToElements` → `repairTerraformEdgeBindings` (`terraformVisibility.ts:1002`, skips isDeleted at `:1038`) → orbit-bound routing. Best hypothesis: an **SDEC-34-class import-cycle module-level const frozen NaN/undefined by first-touch load order**, tripping a `Number.isFinite` guard on the connector-polyline path — consistent with the jsdom/ssrLoadModule load-order gating and the browser being healthy. A live flip was never caught (this machine is currently pegged collapsed), so the decision site is narrowed, not proven.
 
 **Recommended follow-up (the new owner decision, §7 Q11).**
+
 1. Instrument `repairTerraformEdgeBindings` / orbit-route materialization to log, per process, whether each declared edge received a multi-point route; add tripwires on every `Number.isFinite` guard on the connector-point path.
 2. Run the arm-eval probe across many separate headless processes **under load** until a flip is caught; bisect the guard that differs.
 3. Keep the P0 guard as a permanent headless gate/filter (it is already merged and proven discriminating).
@@ -126,11 +126,11 @@ Improvement holds across nearly every regression cell (e.g. transpose-sweeps4 cr
 
 **Deferred (needs you):** the **visible basic/advanced panel reorg** (Shape A serialization + Shape B height-axis amendments — recommendation in `scratchpad/overnight-20260717/research/c09-disposition-draft.md` §3); the **engine rewire** to consume the rule table (table is byte-accurate + engine-pinned, so the rewire is a safe mechanical follow-up); the S5-2 ?describe rewrite.
 
-**Empirical dispositions from the 62-cell effect matrix** ([effect-matrix.md](effect-matrix.md); run *after* the S5-1/edge-pin fixes, on P2-audit / P2-default / P1-default contexts):
+**Empirical dispositions from the 62-cell effect matrix** ([effect-matrix.md](effect-matrix.md); run _after_ the S5-1/edge-pin fixes, on P2-audit / P2-default / P1-default contexts):
 
 - **Byte-identical no-ops in BOTH contexts, both presets:** `strataBlockClamp`, `strataHeightGate`, `strataPackedConverge`, `strataTransitiveAdopt` → hide/delete-from-UI candidates (parser stays forever). `strataTransitiveAdopt` additionally **costs ~8.6s/layout** in the audit config for zero geometry change.
 - **eps 1→0 improves crossings −15** in the audit config (eps 1→2 byte-identical) — the empirical signature of the S1-1 bug, now fixed by A3. ε posture remains your call (Q4).
-- **Wall-time attribution (125.8s audit baseline):** packedScoring −119.2s / sweeps −119.9s (overlapping — the packed-scoring sweep machinery *is* the budget), deband −93.2s, sift −36.7s, bandDepth −20.1s, privateApiRegional −15.8s. (All pre-B1; B1 collapses the packed-scoring share.)
+- **Wall-time attribution (125.8s audit baseline):** packedScoring −119.2s / sweeps −119.9s (overlapping — the packed-scoring sweep machinery _is_ the budget), deband −93.2s, sift −36.7s, bandDepth −20.1s, privateApiRegional −15.8s. (All pre-B1; B1 collapses the packed-scoring share.)
 - **`strataNsRank` is reverse-gated:** alone on P2-default it is the single biggest crossing lever (**−78**), yet byte-identical inside the audit config. Flagged to you, deliberately **not acted on** — adjacent to the NS dead-end lore.
 - Other notables: `strataEdgeRouting` trades +192 crossings for −140 pierce (P2-default; only the new edgeGeometryHash sees it); `compact` is gated on `ancillary`; several levers are preset-dependent (weigh P2 over P1 for removal decisions).
 

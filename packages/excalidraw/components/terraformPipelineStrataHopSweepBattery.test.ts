@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * W13 hop-depth × direction sweep battery (WP5 of the W13 vertical slice).
  * Pre-registered analysis record: docs/strata-view-w13-hop-sweep.md

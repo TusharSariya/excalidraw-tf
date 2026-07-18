@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * H0 — SHARED FROZEN HARNESS for the Strata readability investigation
  * (docs/../lets-do-a-real-cozy-eich.md). The ONE experimental substrate all 12
@@ -70,17 +71,15 @@ import {
   scoreStrataPlacementGeometry,
   strataWeightedCross,
 } from "./terraformPipelineStrataPackedScoring";
-import type {
-  StrataPackedScore,
-  StrataPackedTrialRecord,
-} from "./terraformPipelineStrataPackedScoring";
-import { strataUnitId } from "./terraformPipelineStrataOrdering";
+
 import { refineStrataCoordinates } from "./terraformPipelineStrataCoordRefine";
 import { refineStrataVerticalSlots } from "./terraformPipelineStrataVerticalRelocate";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
 import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
 import { computeStrataPathMetrics } from "./terraformPipelineStrataPathMetrics";
+
+import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
 
 import type {
   StrataEngineOptions,
@@ -437,7 +436,7 @@ const frozenEngineOptions = (): StrataEngineOptions =>
     strataSiftRelocate: true,
     packedConverge: true,
     transitiveAdopt: true,
-  }) as unknown as StrataEngineOptions;
+  } as unknown as StrataEngineOptions);
 
 const reconstruct = (): Recon => {
   const { nodes, plan } = loadNodes();
@@ -767,13 +766,15 @@ type CaseTarget = {
 const CASE_TARGETS: CaseTarget[] = [
   {
     case: "C1",
-    label: "/staging/api-6/name Parameter Store — sits too low in middle column",
+    label:
+      "/staging/api-6/name Parameter Store — sits too low in middle column",
     ownerMove: "move HIGHER (shorter edge, fewer crossings)",
     match: (a) => a === "module.api6.aws_ssm_parameter.api_name",
   },
   {
     case: "C2",
-    label: "staging-egress-dlq + staging-events-dlq (SQS DLQs) — far-right column",
+    label:
+      "staging-egress-dlq + staging-events-dlq (SQS DLQs) — far-right column",
     ownerMove: "move LEFT (shorter edge, removes hull penetration, straighter)",
     // egress DLQ is module.egress_queue…dlq; the harness also flags every
     // far-right-column DLQ so the CASE-C2 agent can confirm the exact pair.
@@ -783,7 +784,9 @@ const CASE_TARGETS: CaseTarget[] = [
     case: "C3-s3",
     label: "S3 bucket …-west (us-west-2)",
     ownerMove: "move LEFT/UP (less length, less us-west-2 area)",
-    match: (a) => a === "module.api8_west_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
+    match: (a) =>
+      a ===
+      "module.api8_west_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
   },
   {
     case: "C3-ssm8",
@@ -906,10 +909,7 @@ const captureTargets = (
 
 // ═════════════════════════════════════════════════════════════════════════════
 const OUT_DIR = path.resolve(process.cwd(), "docs/strata-baselines/h0");
-const SCRATCH_DIR = path.resolve(
-  process.cwd(),
-  "scratchpad",
-);
+const SCRATCH_DIR = path.resolve(process.cwd(), "scratchpad");
 
 const writeArtifact = (relFile: string, contents: string) => {
   mkdirSync(OUT_DIR, { recursive: true });
@@ -985,7 +985,9 @@ describe("Strata readability H0 — frozen harness", () => {
       const sig1 = sceneSignature(cold1.elements);
       const sig2 = sceneSignature(cold2.elements);
       report.push(
-        `determinism cold1==cold2: ${sig1 === sig2} (elements=${cold1.elements.length})`,
+        `determinism cold1==cold2: ${sig1 === sig2} (elements=${
+          cold1.elements.length
+        })`,
       );
       expect(sig1).toBe(sig2);
 
@@ -1028,12 +1030,11 @@ describe("Strata readability H0 — frozen harness", () => {
       // ── canonical baseline record (whole scene) ──
       const baselineRecord = await emitRecord(recon, finalPlacement, {
         id: "baseline",
-        provenance: "frozen real-app-path (chooseStrataRefinedPlacement + relocate)",
+        provenance:
+          "frozen real-app-path (chooseStrataRefinedPlacement + relocate)",
         includePolylines: true,
       });
-      report.push(
-        `BASELINE chord: ${JSON.stringify(baselineRecord.chord)}`,
-      );
+      report.push(`BASELINE chord: ${JSON.stringify(baselineRecord.chord)}`);
       report.push(
         `BASELINE rendered: ${JSON.stringify(baselineRecord.rendered)}`,
       );
@@ -1043,10 +1044,19 @@ describe("Strata readability H0 — frozen harness", () => {
       const targets = captureTargets(recon, finalPlacement);
       for (const t of targets) {
         report.push(
-          `\n[${t.case}] ${t.address}\n  region=${t.region} account=${t.account} vpc=${t.vpc} rank=${t.rank}/${t.maxRank} farRight=${t.isFarRightColumn} box=${JSON.stringify(t.leafBox)}\n  edges: ${t.incidentEdges
+          `\n[${t.case}] ${t.address}\n  region=${t.region} account=${
+            t.account
+          } vpc=${t.vpc} rank=${t.rank}/${t.maxRank} farRight=${
+            t.isFarRightColumn
+          } box=${JSON.stringify(t.leafBox)}\n  edges: ${t.incidentEdges
             .map(
               (e) =>
-                `${e.role}->${e.otherAddress.split(".").slice(-2).join(".")}(L1=${e.chordLenL1}${e.leftward ? ",LEFTWARD" : ""}${e.reversed ? ",rev" : ""})`,
+                `${e.role}->${e.otherAddress
+                  .split(".")
+                  .slice(-2)
+                  .join(".")}(L1=${e.chordLenL1}${
+                  e.leftward ? ",LEFTWARD" : ""
+                }${e.reversed ? ",rev" : ""})`,
             )
             .join(" ; ")}`,
         );
@@ -1057,8 +1067,7 @@ describe("Strata readability H0 — frozen harness", () => {
         harness: "H0",
         builtAtSeed: SEED,
         frozenConfig: FROZEN_CONFIG,
-        note:
-          "Frozen baselines for the Strata readability investigation. Every record uses the canonical dual-scoring schema (chord + rendered). Reproduced on the REAL app path (fidelity gate green). Downstream agents: consume these numbers, do not recompute the baseline.",
+        note: "Frozen baselines for the Strata readability investigation. Every record uses the canonical dual-scoring schema (chord + rendered). Reproduced on the REAL app path (fidelity gate green). Downstream agents: consume these numbers, do not recompute the baseline.",
         realMeta: {
           strataPackedScoringSelections: m.strataPackedScoringSelections,
           strataPackedScoringFellBack: m.strataPackedScoringFellBack,
@@ -1067,8 +1076,8 @@ describe("Strata readability H0 — frozen harness", () => {
           strataPackedScoringEffectiveDelta:
             m.strataPackedScoringEffectiveDelta,
           strataPackedScoringConvergeRecovered:
-            (m as Record<string, unknown>).strataPackedScoringConvergeRecovered ??
-            null,
+            (m as Record<string, unknown>)
+              .strataPackedScoringConvergeRecovered ?? null,
         },
         sceneBaseline: {
           chord: baselineRecord.chord,
@@ -1106,7 +1115,11 @@ describe("Strata readability H0 — frozen harness", () => {
         provenance: "frozen real-app-path",
       });
       const fmt = (r: CanonicalRecord) =>
-        `chord{cr:${r.chord.crossings} pen:${r.chord.penetrations} L1:${r.chord.lengthL1} (x:${r.chord.lengthL1X} y:${r.chord.lengthL1Y}) C:${r.chord.weightedC}} rendered{${
+        `chord{cr:${r.chord.crossings} pen:${r.chord.penetrations} L1:${
+          r.chord.lengthL1
+        } (x:${r.chord.lengthL1X} y:${r.chord.lengthL1Y}) C:${
+          r.chord.weightedC
+        }} rendered{${
           "error" in r.rendered
             ? `ERR:${r.rendered.error}`
             : `cr:${r.rendered.crossings} sharp:${r.rendered.sharpShare} pierce:${r.rendered.pierce} tll:${r.rendered.tll}(x:${r.rendered.tllX} y:${r.rendered.tllY}) con:${r.rendered.conP50} rtHat:${r.rendered.rtHatP50}`
@@ -1159,9 +1172,15 @@ describe("Strata readability H0 — frozen harness", () => {
         `\nC2 DLQ clusters: ${dlqIds
           .map(
             (id, i) =>
-              `${recon.model.addressOf(id).split(".").slice(0, 2).join(".")}@rank${dlqRanks[i]}`,
+              `${recon.model
+                .addressOf(id)
+                .split(".")
+                .slice(0, 2)
+                .join(".")}@rank${dlqRanks[i]}`,
           )
-          .join(", ")} (maxRank=${maxRank}; owner said "far-right" but they are NOT at maxRank — a measurement/framing finding)`,
+          .join(
+            ", ",
+          )} (maxRank=${maxRank}; owner said "far-right" but they are NOT at maxRank — a measurement/framing finding)`,
       );
       if (dlqIds.length > 0) {
         const ov = new Map<string, number>();
@@ -1175,7 +1194,13 @@ describe("Strata readability H0 — frozen harness", () => {
         });
         report.push(`RANK(X) C2 DLQ→left  ${fmt(rec)}`);
         report.push(
-          `  Δ vs baseline: chordC ${rec.chord.weightedC - baseline.chord.weightedC}, chordL1 ${Math.round(rec.chord.lengthL1 - baseline.chord.lengthL1)}, chordCross ${rec.chord.crossings - baseline.chord.crossings}, chordPen ${rec.chord.penetrations - baseline.chord.penetrations}`,
+          `  Δ vs baseline: chordC ${
+            rec.chord.weightedC - baseline.chord.weightedC
+          }, chordL1 ${Math.round(
+            rec.chord.lengthL1 - baseline.chord.lengthL1,
+          )}, chordCross ${
+            rec.chord.crossings - baseline.chord.crossings
+          }, chordPen ${rec.chord.penetrations - baseline.chord.penetrations}`,
         );
         expect("error" in rec.rendered || rec.chord.crossings >= 0).toBe(true);
       }

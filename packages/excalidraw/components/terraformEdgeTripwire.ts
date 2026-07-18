@@ -105,7 +105,9 @@ export const isTerraformEdgeTripwireEnabled = (): boolean =>
   forcedEnabled ?? readAmbientEnabled();
 
 /** Force the tripwires on/off (tests, headless flip-hunt). `null` restores env. */
-export const setTerraformEdgeTripwireEnabled = (value: boolean | null): void => {
+export const setTerraformEdgeTripwireEnabled = (
+  value: boolean | null,
+): void => {
   forcedEnabled = value;
 };
 

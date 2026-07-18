@@ -1660,6 +1660,9 @@ export function allocateStrataAncillarySlack(args: {
       // widest candidate is the most permissive, so probe the ceiling with the
       // SHORTEST band the breakpoints could produce, then re-check each candidate
       // against its OWN post-widen ceiling below.
+      // Reads the loop-scoped frozen `simulated` snapshot by design; consumed
+      // synchronously in this iteration.
+      // eslint-disable-next-line no-loop-func
       const probeCeiling = (bandHeight: number): number => {
         const ceilingRight = strataRightSlackCeiling(
           plan.hostId,

@@ -79,9 +79,7 @@ const frameRoles = (scene: { elements: Array<Record<string, unknown>> }) => {
     if (el.type !== "frame") {
       continue;
     }
-    const cd = el.customData as
-      | { terraformTopologyRole?: string }
-      | undefined;
+    const cd = el.customData as { terraformTopologyRole?: string } | undefined;
     const r = cd?.terraformTopologyRole ?? "(none)";
     hist.set(r, (hist.get(r) ?? 0) + 1);
   }

@@ -47,29 +47,45 @@ const WATCH = [
 
 const topoKey = (id: string): string | null => {
   const m = id.match(/^tf:(?:icon|label):(.+)$/);
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   return decodeURIComponent(m[1].split(":#")[0]);
 };
 
 async function run(label: string, options: Record<string, unknown>) {
   clearTerraformImportPrepCache();
   const sources = getTerraformImportPresetSourcesFromDb(PRESET);
-  if (!sources) throw new Error(`preset sources not found: ${PRESET}`);
+  if (!sources) {
+    throw new Error(`preset sources not found: ${PRESET}`);
+  }
   const result: any = await layoutTerraformFromSources(
     // Diagnostic probe: the DB helper returns a loosely-typed sources bag that
     // is structurally sufficient at runtime for this preset.
     sources as unknown as Parameters<typeof layoutTerraformFromSources>[0],
     options,
   );
-  if (!result.ok) throw new Error("layout failed: " + result.error);
+  if (!result.ok) {
+    throw new Error(`layout failed: ${result.error}`);
+  }
   const all: El[] = result.scene.elements ?? [];
   const live = all.filter((el: El) => !el.isDeleted);
 
-  const boxes = new Map<string, { x0: number; y0: number; x1: number; y1: number }>();
+  const boxes = new Map<
+    string,
+    { x0: number; y0: number; x1: number; y1: number }
+  >();
   for (const el of live) {
     const key = topoKey(el.id);
-    if (!key) continue;
-    const b = boxes.get(key) ?? { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    if (!key) {
+      continue;
+    }
+    const b = boxes.get(key) ?? {
+      x0: Infinity,
+      y0: Infinity,
+      x1: -Infinity,
+      y1: -Infinity,
+    };
     b.x0 = Math.min(b.x0, el.x);
     b.y0 = Math.min(b.y0, el.y);
     b.x1 = Math.max(b.x1, el.x + el.width);
@@ -88,13 +104,21 @@ async function run(label: string, options: Record<string, unknown>) {
     const len = Math.hypot(dx, dy);
     totalEuclid += len;
     totalL1 += Math.abs(dx) + Math.abs(dy);
-    edgeList.push({ s: e.customData.relationship.source, t: e.customData.relationship.target, len, dy: Math.round(e.y + dy) - Math.round(e.y) });
+    edgeList.push({
+      s: e.customData.relationship.source,
+      t: e.customData.relationship.target,
+      len,
+      dy: Math.round(e.y + dy) - Math.round(e.y),
+    });
   }
   // suppressions + meta
-  const meta = result.scene.appState?.pipelineLayoutMeta ?? result.scene.meta ?? {};
+  const meta =
+    result.scene.appState?.pipelineLayoutMeta ?? result.scene.meta ?? {};
   // eslint-disable-next-line no-console
   console.log(
-    `\n#### RUN ${label} totalEuclid=${Math.round(totalEuclid)} totalL1=${Math.round(totalL1)} edges=${edges.length}`,
+    `\n#### RUN ${label} totalEuclid=${Math.round(
+      totalEuclid,
+    )} totalL1=${Math.round(totalL1)} edges=${edges.length}`,
   );
   const sup = JSON.stringify(meta.strataToggleSuppressions ?? []);
   // eslint-disable-next-line no-console
@@ -103,35 +127,39 @@ async function run(label: string, options: Record<string, unknown>) {
     const b = boxes.get(k);
     // eslint-disable-next-line no-console
     console.log(
-      `#### ${label} NODE ${k} ${b ? `y=${Math.round(b.y0)} cy=${Math.round((b.y0 + b.y1) / 2)} x=${Math.round(b.x0)}` : "MISSING"}`,
+      `#### ${label} NODE ${k} ${
+        b
+          ? `y=${Math.round(b.y0)} cy=${Math.round(
+              (b.y0 + b.y1) / 2,
+            )} x=${Math.round(b.x0)}`
+          : "MISSING"
+      }`,
     );
   }
   // key edge dys
   for (const e of edgeList) {
     if (/api6|api7/.test(e.s + e.t) && !/api16|api17/.test(e.s + e.t)) {
       // eslint-disable-next-line no-console
-      console.log(`#### ${label} EDGE ${e.s} -> ${e.t} len=${Math.round(e.len)}`);
+      console.log(
+        `#### ${label} EDGE ${e.s} -> ${e.t} len=${Math.round(e.len)}`,
+      );
     }
   }
   return { boxes, edges: edgeList };
 }
 
 describe("strata Y probe matrix", () => {
-  it(
-    "runs matrix",
-    async () => {
-      await run("A_base", BASE_OPTIONS);
-      await run("B_packedScoring", {
-        ...BASE_OPTIONS,
-        strataPackedScoring: true,
-      });
-      await run("C_packedScoring_eps4", {
-        ...BASE_OPTIONS,
-        strataPackedScoring: true,
-        strataPackedScoringEpsilon: 4,
-      });
-      await run("D_leafShift", { ...BASE_OPTIONS, strataLeafShift: true });
-    },
-    1800000,
-  );
+  it("runs matrix", async () => {
+    await run("A_base", BASE_OPTIONS);
+    await run("B_packedScoring", {
+      ...BASE_OPTIONS,
+      strataPackedScoring: true,
+    });
+    await run("C_packedScoring_eps4", {
+      ...BASE_OPTIONS,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 4,
+    });
+    await run("D_leafShift", { ...BASE_OPTIONS, strataLeafShift: true });
+  }, 1800000);
 });

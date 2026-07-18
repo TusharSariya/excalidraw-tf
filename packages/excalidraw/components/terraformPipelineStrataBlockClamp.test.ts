@@ -857,9 +857,9 @@ describe("blockClamp on-grid gate — a sub-0.5px residual is rejected, not carr
       boxedHulls: a0.boxedHulls,
       leafBoxes,
     };
-    expect(refineStrataBlockClamp(perturbed, model, primes, rank, OPTS_ON)).toBe(
-      perturbed,
-    );
+    expect(
+      refineStrataBlockClamp(perturbed, model, primes, rank, OPTS_ON),
+    ).toBe(perturbed);
   });
 });
 

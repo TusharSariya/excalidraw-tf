@@ -130,7 +130,10 @@ const CELL_PAIRS: ReadonlyArray<readonly [string, string]> = [
 type Box = { x: number; y: number; w: number; h: number };
 
 const pointInBox = (px: number, py: number, b: Box, pad = 0): boolean =>
-  px >= b.x - pad && px <= b.x + b.w + pad && py >= b.y - pad && py <= b.y + b.h + pad;
+  px >= b.x - pad &&
+  px <= b.x + b.w + pad &&
+  py >= b.y - pad &&
+  py <= b.y + b.h + pad;
 
 /** Proper segment vs axis-aligned box intersection (either endpoint inside counts). */
 function segmentIntersectsBox(
@@ -226,9 +229,10 @@ function arrowPolyline(el: ExcalidrawElement): Array<[number, number]> {
  * endpoint lies inside the (2px-padded) box — endpoint boxes are the arrow's
  * own legitimate containers/targets.
  */
-function countPenetrations(
-  elements: readonly ExcalidrawElement[],
-): { hullPenetrations: number; cardPenetrations: number } {
+function countPenetrations(elements: readonly ExcalidrawElement[]): {
+  hullPenetrations: number;
+  cardPenetrations: number;
+} {
   const arrows = elements.filter(isTfdArrow);
   const hulls: Box[] = elements
     .filter(isHullFrame)
@@ -377,13 +381,16 @@ function ownerCaseW8(elements: readonly ExcalidrawElement[]): OwnerCaseW8 {
   const sqsAddress =
     (rdsArrow &&
       (
-        (rdsArrow.customData as Record<string, unknown>)
-          .relationship as Record<string, string>
+        (rdsArrow.customData as Record<string, unknown>).relationship as Record<
+          string,
+          string
+        >
       ).source) ||
     [...frameCenterByAddress.keys()].find((a) => SQS_PATH_RE.test(a)) ||
     null;
   const dynamoAddress =
-    [...frameCenterByAddress.keys()].find((a) => DYNAMO_PATH_RE.test(a)) ?? null;
+    [...frameCenterByAddress.keys()].find((a) => DYNAMO_PATH_RE.test(a)) ??
+    null;
   const sqsFrameCenter =
     (sqsAddress && frameCenterByAddress.get(sqsAddress)) ?? null;
   const dynamoFrameCenter =
@@ -564,7 +571,9 @@ function extentCell(
   cand: ReadonlyMap<string, number>,
 ) {
   const run = (statistic: BootstrapStatistic) =>
-    ciView(pairedBootstrapCi({ baseline: base, candidate: cand }, { statistic }));
+    ciView(
+      pairedBootstrapCi({ baseline: base, candidate: cand }, { statistic }),
+    );
   return { p50: run("p50"), p90: run("p90"), meanLegacy: run("mean") };
 }
 
@@ -713,6 +722,8 @@ describe("W8 rank×scorer factorial battery (report-emitting; never asserts gate
         // against the originals; also byte-compare the I→P cell from a rebuilt
         // I. Extending beyond arm I closes the "only I was proven deterministic"
         // gap and re-exercises the two scorer-heavy arms.
+        // Scopes the rebuild probe's locals away from the cell assembly.
+        // eslint-disable-next-line no-lone-blocks
         {
           for (const armLabel of ["I", "P_RS", "ALL"] as const) {
             const rebuilt = await buildArm(sources, ARM_OPTIONS[armLabel]!);

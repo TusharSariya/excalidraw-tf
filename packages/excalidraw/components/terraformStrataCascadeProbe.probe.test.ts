@@ -8,6 +8,8 @@
  * yarn vitest run --config vitest.probe.config.mts \
  *   packages/excalidraw/components/terraformStrataCascadeProbe.probe.test.ts
  */
+import { describe, it } from "vitest";
+
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
@@ -18,8 +20,6 @@ import { layoutTerraformFromSources } from "./terraformLayoutCore";
 import { strataGeometryHash } from "./terraformStrataGeometryHash";
 
 import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
-
-import { describe, it } from "vitest";
 
 const PRESET = "staging-extended-localstack-v2";
 
@@ -130,9 +130,13 @@ const nodeCy = (
 // The api6 primary is a lambda; api7 primary is an ecs_service. Match the PRIMARY
 // card (not the tf-topo:sat: satellites, which have a different key prefix).
 const isLambda6 = (a: string) =>
-  a.includes("api6") && a.includes("aws_lambda_function") && !a.startsWith("tf-topo:");
+  a.includes("api6") &&
+  a.includes("aws_lambda_function") &&
+  !a.startsWith("tf-topo:");
 const isEcs7 = (a: string) =>
-  a.includes("api7") && a.includes("aws_ecs_service") && !a.startsWith("tf-topo:");
+  a.includes("api7") &&
+  a.includes("aws_ecs_service") &&
+  !a.startsWith("tf-topo:");
 
 const run = async (extra: Record<string, unknown>) => {
   clearTerraformImportPrepCache();
@@ -174,182 +178,175 @@ const summarize = (r: Awaited<ReturnType<typeof run>>) => ({
 });
 
 describe("PROBE4 cascade/head-median measurement", () => {
-  it(
-    "dumps OFF baseline + node addresses",
-    async () => {
-      const off = await run({});
-      // eslint-disable-next-line no-console
-      console.log("OFF", JSON.stringify(summarize(off)));
+  it("dumps OFF baseline + node addresses", async () => {
+    const off = await run({});
+    // eslint-disable-next-line no-console
+    console.log("OFF", JSON.stringify(summarize(off)));
 
-      // Arrow representation diagnostic: how many arrows, how many carry >=2
-      // points, distribution of point counts.
-      let arrows = 0;
-      let withPts = 0;
-      let ptSum = 0;
-      const ptCounts: Record<number, number> = {};
-      for (const el of off.els) {
-        if (el.isDeleted || (el.type !== "arrow" && el.type !== "line")) {
-          continue;
+    // Arrow representation diagnostic: how many arrows, how many carry >=2
+    // points, distribution of point counts.
+    let arrows = 0;
+    let withPts = 0;
+    let ptSum = 0;
+    const ptCounts: Record<number, number> = {};
+    for (const el of off.els) {
+      if (el.isDeleted || (el.type !== "arrow" && el.type !== "line")) {
+        continue;
+      }
+      arrows++;
+      const pts = (el as unknown as { points?: number[][] }).points;
+      const n = Array.isArray(pts) ? pts.length : 0;
+      ptCounts[n] = (ptCounts[n] ?? 0) + 1;
+      if (n >= 2) {
+        withPts++;
+        ptSum += n;
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      "ARROWDIAG",
+      JSON.stringify({
+        arrows,
+        withPts,
+        avgPts: withPts ? ptSum / withPts : 0,
+        ptCounts,
+      }),
+    );
+    let withRel = 0;
+    let glyphs = 0;
+    let noCd = 0;
+    const relKeySets = new Set<string>();
+    for (const el of off.els) {
+      if (el.isDeleted || el.type !== "arrow") {
+        continue;
+      }
+      const cd = el.customData as Record<string, unknown> | undefined;
+      if (!cd) {
+        noCd++;
+        continue;
+      }
+      if ("terraformAwsIconGlyph" in cd) {
+        glyphs++;
+        continue;
+      }
+      if ("relationship" in cd) {
+        withRel++;
+        if (relKeySets.size < 3) {
+          relKeySets.add(JSON.stringify(cd.relationship));
         }
-        arrows++;
-        const pts = (el as unknown as { points?: number[][] }).points;
-        const n = Array.isArray(pts) ? pts.length : 0;
-        ptCounts[n] = (ptCounts[n] ?? 0) + 1;
-        if (n >= 2) {
-          withPts++;
-          ptSum += n;
-        }
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(
+      "ARROWCLASS",
+      JSON.stringify({ withRel, glyphs, noCd, sampleRel: [...relKeySets] }),
+    );
+    const typeHist: Record<string, number> = {};
+    for (const el of off.els) {
+      if (el.isDeleted) {
+        continue;
+      }
+      typeHist[el.type] = (typeHist[el.type] ?? 0) + 1;
+    }
+    const diag = diagnosePipelineScene(off.els as ExcalidrawElement[]);
+    // eslint-disable-next-line no-console
+    console.log(
+      "SCENEDIAG",
+      JSON.stringify({
+        typeHist,
+        tfdArrowCount: diag.dataflow.tfdArrowCount,
+        crossings: diag.dataflow.crossings,
+        meanVDev: Math.round(diag.dataflow.meanVerticalDeviationPx),
+        medianVDev: Math.round(diag.dataflow.medianVerticalDeviationPx),
+        nearStraight: diag.dataflow.fractionNearStraight,
+      }),
+    );
+
+    // ── Fix B feasibility: dump the api7 ecs cluster frame + its member cards
+    // (head + satellites) with y positions, to gauge slack for a head shift.
+    for (const fr of off.els) {
+      if (fr.isDeleted || fr.type !== "frame") {
+        continue;
+      }
+      const fcd = fr.customData as Record<string, unknown> | undefined;
+      const pa = fcd?.terraformPrimaryAddress as string | undefined;
+      if (!pa || !(pa.includes("api7") && pa.includes("ecs_service"))) {
+        continue;
       }
       // eslint-disable-next-line no-console
       console.log(
-        "ARROWDIAG",
-        JSON.stringify({ arrows, withPts, avgPts: withPts ? ptSum / withPts : 0, ptCounts }),
-      );
-      let withRel = 0;
-      let glyphs = 0;
-      let noCd = 0;
-      const relKeySets = new Set<string>();
-      for (const el of off.els) {
-        if (el.isDeleted || el.type !== "arrow") {
-          continue;
-        }
-        const cd = el.customData as Record<string, unknown> | undefined;
-        if (!cd) {
-          noCd++;
-          continue;
-        }
-        if ("terraformAwsIconGlyph" in cd) {
-          glyphs++;
-          continue;
-        }
-        if ("relationship" in cd) {
-          withRel++;
-          if (relKeySets.size < 3) {
-            relKeySets.add(JSON.stringify(cd.relationship));
-          }
-        }
-      }
-      // eslint-disable-next-line no-console
-      console.log(
-        "ARROWCLASS",
-        JSON.stringify({ withRel, glyphs, noCd, sampleRel: [...relKeySets] }),
-      );
-      const typeHist: Record<string, number> = {};
-      for (const el of off.els) {
-        if (el.isDeleted) {
-          continue;
-        }
-        typeHist[el.type] = (typeHist[el.type] ?? 0) + 1;
-      }
-      const diag = diagnosePipelineScene(off.els as ExcalidrawElement[]);
-      // eslint-disable-next-line no-console
-      console.log(
-        "SCENEDIAG",
+        "B_FRAME",
         JSON.stringify({
-          typeHist,
-          tfdArrowCount: diag.dataflow.tfdArrowCount,
-          crossings: diag.dataflow.crossings,
-          meanVDev: Math.round(diag.dataflow.meanVerticalDeviationPx),
-          medianVDev: Math.round(diag.dataflow.medianVerticalDeviationPx),
-          nearStraight: diag.dataflow.fractionNearStraight,
+          primary: pa,
+          frameY: Math.round(fr.y),
+          frameH: Math.round(fr.height ?? 0),
+          frameBottom: Math.round(fr.y + (fr.height ?? 0)),
         }),
       );
-
-      // ── Fix B feasibility: dump the api7 ecs cluster frame + its member cards
-      // (head + satellites) with y positions, to gauge slack for a head shift.
-      for (const fr of off.els) {
-        if (fr.isDeleted || fr.type !== "frame") {
+      const members: Array<{ t: string; y: number; h: number; k: string }> = [];
+      for (const m of off.els) {
+        if (m.isDeleted || m.frameId !== fr.id) {
           continue;
         }
-        const fcd = fr.customData as Record<string, unknown> | undefined;
-        const pa = fcd?.terraformPrimaryAddress as string | undefined;
-        if (!pa || !(pa.includes("api7") && pa.includes("ecs_service"))) {
-          continue;
-        }
-        // eslint-disable-next-line no-console
-        console.log(
-          "B_FRAME",
-          JSON.stringify({
-            primary: pa,
-            frameY: Math.round(fr.y),
-            frameH: Math.round(fr.height ?? 0),
-            frameBottom: Math.round(fr.y + (fr.height ?? 0)),
-          }),
-        );
-        const members: Array<{ t: string; y: number; h: number; k: string }> = [];
-        for (const m of off.els) {
-          if (m.isDeleted || m.frameId !== fr.id) {
-            continue;
-          }
-          const mcd = m.customData as Record<string, unknown> | undefined;
-          members.push({
-            t: m.type,
-            y: Math.round(m.y),
-            h: Math.round(m.height ?? 0),
-            k: String(
-              mcd?.terraformVisibilityKey ?? mcd?.terraformAwsIconGlyph ?? "",
-            ).slice(0, 30),
-          });
-        }
-        members.sort((a, b) => a.y - b.y);
-        // eslint-disable-next-line no-console
-        console.log(
-          "B_MEMBERS",
-          JSON.stringify(members.filter((m) => m.t === "rectangle")),
-        );
-        break;
+        const mcd = m.customData as Record<string, unknown> | undefined;
+        members.push({
+          t: m.type,
+          y: Math.round(m.y),
+          h: Math.round(m.height ?? 0),
+          k: String(
+            mcd?.terraformVisibilityKey ?? mcd?.terraformAwsIconGlyph ?? "",
+          ).slice(0, 30),
+        });
       }
+      members.sort((a, b) => a.y - b.y);
+      // eslint-disable-next-line no-console
+      console.log(
+        "B_MEMBERS",
+        JSON.stringify(members.filter((m) => m.t === "rectangle")),
+      );
+      break;
+    }
 
-      const seen = new Set<string>();
-      for (const el of off.els) {
-        if (el.isDeleted || el.type !== "rectangle") {
-          continue;
-        }
-        const cd = el.customData as Record<string, unknown> | undefined;
-        const addr =
-          (cd?.terraformVisibilityKey as string) ??
-          (cd?.terraformPrimaryAddress as string) ??
-          "";
-        if (
-          typeof addr === "string" &&
-          /api6|api7|lambda|ecs_service|ssm_parameter|aurora|api8|api15|api9/.test(
-            addr,
-          )
-        ) {
-          if (!seen.has(addr)) {
-            seen.add(addr);
-            // eslint-disable-next-line no-console
-            console.log(
-              "NODE",
-              Math.round(el.y + (el.height ?? 0) / 2),
-              addr,
-            );
-          }
+    const seen = new Set<string>();
+    for (const el of off.els) {
+      if (el.isDeleted || el.type !== "rectangle") {
+        continue;
+      }
+      const cd = el.customData as Record<string, unknown> | undefined;
+      const addr =
+        (cd?.terraformVisibilityKey as string) ??
+        (cd?.terraformPrimaryAddress as string) ??
+        "";
+      if (
+        typeof addr === "string" &&
+        /api6|api7|lambda|ecs_service|ssm_parameter|aurora|api8|api15|api9/.test(
+          addr,
+        )
+      ) {
+        if (!seen.has(addr)) {
+          seen.add(addr);
+          // eslint-disable-next-line no-console
+          console.log("NODE", Math.round(el.y + (el.height ?? 0) / 2), addr);
         }
       }
-    },
-    600_000,
-  );
+    }
+  }, 600_000);
 
-  it(
-    "A/B/AB comparison",
-    async () => {
-      const off = await run({});
-      const a = await run({ strataCoordCascade: true });
-      const b = await run({ strataClusterHeadMedian: true });
-      const ab = await run({
-        strataCoordCascade: true,
-        strataClusterHeadMedian: true,
-      });
-      // eslint-disable-next-line no-console
-      console.log("OFF", JSON.stringify(summarize(off)));
-      // eslint-disable-next-line no-console
-      console.log("A  ", JSON.stringify(summarize(a)));
-      // eslint-disable-next-line no-console
-      console.log("B  ", JSON.stringify(summarize(b)));
-      // eslint-disable-next-line no-console
-      console.log("AB ", JSON.stringify(summarize(ab)));
-    },
-    600_000,
-  );
+  it("A/B/AB comparison", async () => {
+    const off = await run({});
+    const a = await run({ strataCoordCascade: true });
+    const b = await run({ strataClusterHeadMedian: true });
+    const ab = await run({
+      strataCoordCascade: true,
+      strataClusterHeadMedian: true,
+    });
+    // eslint-disable-next-line no-console
+    console.log("OFF", JSON.stringify(summarize(off)));
+    // eslint-disable-next-line no-console
+    console.log("A  ", JSON.stringify(summarize(a)));
+    // eslint-disable-next-line no-console
+    console.log("B  ", JSON.stringify(summarize(b)));
+    // eslint-disable-next-line no-console
+    console.log("AB ", JSON.stringify(summarize(ab)));
+  }, 600_000);
 });

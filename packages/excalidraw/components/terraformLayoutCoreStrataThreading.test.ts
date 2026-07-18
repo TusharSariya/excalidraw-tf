@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Strata threading test — pattern: `terraformLayoutCoreRcllThreading.test.ts`.
  *

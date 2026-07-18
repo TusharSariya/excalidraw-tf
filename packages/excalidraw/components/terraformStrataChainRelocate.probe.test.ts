@@ -12,9 +12,9 @@
  *   node_modules/.bin/vitest run --config vitest.probe.config.mts \
  *     packages/excalidraw/components/terraformStrataChainRelocate.probe.test.ts
  */
-import type { ExcalidrawElement } from "@excalidraw/element/types";
-
 import { describe, expect, it } from "vitest";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
 
@@ -146,7 +146,9 @@ const measure = async (chainRelocate: boolean): Promise<Metrics> => {
   const scorer = (result.scene.meta as { strataChainRelocateScore?: unknown })
     ?.strataChainRelocateScore as Metrics["scorer"] | undefined;
   return {
-    geometryHash: strataGeometryHash(result.scene.elements as ExcalidrawElement[]),
+    geometryHash: strataGeometryHash(
+      result.scene.elements as ExcalidrawElement[],
+    ),
     sceneHeight: sceneHeight(els),
     totalEdgeLength: totalEdgeLength(els),
     crossings: diagnosePipelineScene(
@@ -163,7 +165,9 @@ describe("strata chain-relocate probe (api6/api7 stranding)", () => {
     const on = await measure(true);
 
     // eslint-disable-next-line no-console
-    console.log("CHAIN-RELOCATE PROBE RESULTS\n" + JSON.stringify({ off, on }, null, 2));
+    console.log(
+      `CHAIN-RELOCATE PROBE RESULTS\n${JSON.stringify({ off, on }, null, 2)}`,
+    );
     const movedDown = (k: string): string => {
       const a = off.cy[k];
       const b = on.cy[k];
@@ -171,10 +175,9 @@ describe("strata chain-relocate probe (api6/api7 stranding)", () => {
     };
     // eslint-disable-next-line no-console
     console.log(
-      "NODE cy OFF→ON:\n" +
-        Object.keys(NODES)
-          .map((k) => `  ${k}: ${movedDown(k)}`)
-          .join("\n"),
+      `NODE cy OFF→ON:\n${Object.keys(NODES)
+        .map((k) => `  ${k}: ${movedDown(k)}`)
+        .join("\n")}`,
     );
     // eslint-disable-next-line no-console
     console.log(

@@ -388,13 +388,13 @@ describe("strataHeightGateAdmitsWithin — bounded slack (A01)", () => {
     ).toBe(false);
 
     // {absPx:0, relFrac:0} recovers the strict maintain-or-decrease gate exactly.
-    expect(strataHeightGateAdmitsWithin(grown120, a0, { absPx: 0, relFrac: 0 })).toBe(
-      strataHeightGateAdmits(grown120, a0),
-    );
+    expect(
+      strataHeightGateAdmitsWithin(grown120, a0, { absPx: 0, relFrac: 0 }),
+    ).toBe(strataHeightGateAdmits(grown120, a0));
     const shrunk = moveLeaf(a0, "a3", 0, -10);
-    expect(strataHeightGateAdmitsWithin(shrunk, a0, { absPx: 0, relFrac: 0 })).toBe(
-      strataHeightGateAdmits(shrunk, a0),
-    );
+    expect(
+      strataHeightGateAdmitsWithin(shrunk, a0, { absPx: 0, relFrac: 0 }),
+    ).toBe(strataHeightGateAdmits(shrunk, a0));
   });
 });
 
@@ -423,13 +423,17 @@ describe("strataHeightGateAdmitsWithinBaseline — globally bounded total growth
     // BASELINE-ANCHORED gate (the FIX): step 1 admits (+100 <= 150), step 2 is
     // REJECTED (+200 > baseline+150). Total growth can never exceed one slack
     // allowance no matter how many candidates are checked against the fixed ceiling.
-    expect(strataHeightGateAdmitsWithinBaseline(cand1, baseline, budget)).toBe(true);
-    expect(strataHeightGateAdmitsWithinBaseline(cand2, baseline, budget)).toBe(false);
+    expect(strataHeightGateAdmitsWithinBaseline(cand1, baseline, budget)).toBe(
+      true,
+    );
+    expect(strataHeightGateAdmitsWithinBaseline(cand2, baseline, budget)).toBe(
+      false,
+    );
 
     // A hull absent from the baseline is rejected (new content — defensive).
-    expect(
-      strataHeightGateAdmitsWithinBaseline(a0, new Map(), budget),
-    ).toBe(false);
+    expect(strataHeightGateAdmitsWithinBaseline(a0, new Map(), budget)).toBe(
+      false,
+    );
 
     // {absPx:0, relFrac:0} recovers the strict maintain-or-decrease gate against
     // the baseline: any grow rejects, a shrink/hold admits.

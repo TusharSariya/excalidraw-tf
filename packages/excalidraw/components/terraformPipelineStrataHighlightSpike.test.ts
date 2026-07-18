@@ -275,10 +275,8 @@ describe("W6 highlight-spike battery (report-emitting; REPORT-only cells; never 
           .reverse()
           .find(
             (alpha) =>
-              (
-                (sweep[`alpha_${alpha}`] as { p50: { parityOrBetter: boolean } })
-                  .p50
-              ).parityOrBetter,
+              (sweep[`alpha_${alpha}`] as { p50: { parityOrBetter: boolean } })
+                .p50.parityOrBetter,
           );
 
         // (b) symmetric cell: strata-I+HL(alpha) vs unaided strata-I.
@@ -321,21 +319,45 @@ describe("W6 highlight-spike battery (report-emitting; REPORT-only cells; never 
         // (v2 baseline, matching W5's direction): Δ > 0 ⇒ strata worse,
         // i.e. v2+HL better on that residual.
         const tllOf = (rows: readonly PathMetricsRow[]) =>
-          pickMapOf(rows, (r) => r.pathKey, (r) => r.tll);
+          pickMapOf(
+            rows,
+            (r) => r.pathKey,
+            (r) => r.tll,
+          );
         const coneOf = (rows: readonly ConeMetricsRow[]) =>
-          pickMapOf(rows, (r) => r.anchor, (r) => r.coneCrossings);
+          pickMapOf(
+            rows,
+            (r) => r.anchor,
+            (r) => r.coneCrossings,
+          );
         const residual = {
           tll: {
-            p50: pairedCi(tllOf(v2.paths.rows), tllOf(strata.paths.rows), "p50"),
-            p90: pairedCi(tllOf(v2.paths.rows), tllOf(strata.paths.rows), "p90"),
+            p50: pairedCi(
+              tllOf(v2.paths.rows),
+              tllOf(strata.paths.rows),
+              "p50",
+            ),
+            p90: pairedCi(
+              tllOf(v2.paths.rows),
+              tllOf(strata.paths.rows),
+              "p90",
+            ),
           },
           extentSliceB: {
             p50: pairedCi(v2.sliceB, strata.sliceB, "p50"),
             p90: pairedCi(v2.sliceB, strata.sliceB, "p90"),
           },
           coneCrossings: {
-            p50: pairedCi(coneOf(v2.cones.rows), coneOf(strata.cones.rows), "p50"),
-            p90: pairedCi(coneOf(v2.cones.rows), coneOf(strata.cones.rows), "p90"),
+            p50: pairedCi(
+              coneOf(v2.cones.rows),
+              coneOf(strata.cones.rows),
+              "p50",
+            ),
+            p90: pairedCi(
+              coneOf(v2.cones.rows),
+              coneOf(strata.cones.rows),
+              "p90",
+            ),
           },
         };
 

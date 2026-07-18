@@ -618,16 +618,21 @@ describe("terraformSceneApply", () => {
     const preset = { id: "demo-preset" } as unknown as TerraformImportPreset;
     const sources = { planDotBundles: [], states: [], tfdTexts: [] };
 
-    await runTerraformImportFromSources(mockApp(), hoisted.setAppState, sources, {
-      semanticLayout: false,
-      layoutMode: "strata",
-      strataLeafShift: true,
-      strataLeafShiftHeightBudgetPx: 200,
-      strataLeafShiftHeightBudgetFrac: 0.02,
-      strataLeafShiftRankBudget: 5,
-      strataLeafShiftRightEdgeGuardPx: 400,
-      preset,
-    });
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "strata",
+        strataLeafShift: true,
+        strataLeafShiftHeightBudgetPx: 200,
+        strataLeafShiftHeightBudgetFrac: 0.02,
+        strataLeafShiftRankBudget: 5,
+        strataLeafShiftRightEdgeGuardPx: 400,
+        preset,
+      },
+    );
     expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -651,15 +656,18 @@ describe("terraformSceneApply", () => {
     // Default import (no leaf-shift): the flag rides as false and the optional
     // budget knobs are ABSENT — the on-with-default / off shape stays minimal.
     vi.mocked(layoutTerraformViaWorkers).mockClear();
-    await runTerraformImportFromSources(mockApp(), hoisted.setAppState, sources, {
-      semanticLayout: false,
-      layoutMode: "strata",
-      preset,
-    });
-    const call = vi.mocked(layoutTerraformViaWorkers).mock.calls[0]![1] as Record<
-      string,
-      unknown
-    >;
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "strata",
+        preset,
+      },
+    );
+    const call = vi.mocked(layoutTerraformViaWorkers).mock
+      .calls[0]![1] as Record<string, unknown>;
     expect(call.strataLeafShift).toBe(false);
     expect(
       Object.prototype.hasOwnProperty.call(

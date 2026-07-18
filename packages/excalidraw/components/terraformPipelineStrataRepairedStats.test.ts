@@ -211,7 +211,9 @@ function extentCell(
   cand: ReadonlyMap<string, number>,
 ) {
   const run = (statistic: BootstrapStatistic) =>
-    ciView(pairedBootstrapCi({ baseline: base, candidate: cand }, { statistic }));
+    ciView(
+      pairedBootstrapCi({ baseline: base, candidate: cand }, { statistic }),
+    );
   return {
     p50: run("p50"),
     p90: run("p90"),

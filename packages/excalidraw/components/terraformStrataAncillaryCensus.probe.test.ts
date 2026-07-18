@@ -57,7 +57,13 @@ const PRESET = "staging-extended-localstack-v2";
 const BAND_DEPTH = "root" as const;
 const OUT = path.resolve("scratchpad", "ancillary-census");
 
-const TOPO_ROLES = new Set(["provider", "account", "region", "vpc", "subnetZone"]);
+const TOPO_ROLES = new Set([
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
+]);
 const ROOT = "__root__";
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -90,7 +96,10 @@ const rowsOf = (
 };
 
 type Arm = { name: string; deBand: string };
-const ARMS: Arm[] = [{ name: "deBand=none", deBand: "none" }, { name: "deBand=vpc", deBand: "vpc" }];
+const ARMS: Arm[] = [
+  { name: "deBand=none", deBand: "none" },
+  { name: "deBand=vpc", deBand: "vpc" },
+];
 
 const measure = async (arm: Arm) => {
   clearTerraformImportPrepCache();
@@ -264,7 +273,8 @@ const measure = async (arm: Arm) => {
   const slacks = rows.map((r) => r.rightSlackPx as number);
   const rHost = rows.map((r) => r.rowsAtHostWrap as number);
   const rSlack = rows.map((r) => r.rowsAtHostWrapPlusSlack as number);
-  const cardW = rows.length > 0 ? median(rows.map((r) => r.widestCard as number)) : NaN;
+  const cardW =
+    rows.length > 0 ? median(rows.map((r) => r.widestCard as number)) : NaN;
 
   return {
     arm: arm.name,
@@ -296,7 +306,8 @@ const measure = async (arm: Arm) => {
       ).length,
       hostsWithZeroSlack: slacks.filter((s) => s < 1).length,
       stripsWithAnySaving: rows.filter(
-        (r) => (r.rowsAtHostWrap as number) > (r.rowsAtHostWrapPlusSlack as number),
+        (r) =>
+          (r.rowsAtHostWrap as number) > (r.rowsAtHostWrapPlusSlack as number),
       ).length,
     },
     strips: rows,
@@ -314,7 +325,11 @@ describe("Step 0 census — ancillary host right slack", () => {
         mkdirSync(OUT, { recursive: true });
         writeFileSync(
           path.join(OUT, "census.json"),
-          `${JSON.stringify({ preset: PRESET, bandDepth: BAND_DEPTH, n: 1, results }, null, 2)}\n`,
+          `${JSON.stringify(
+            { preset: PRESET, bandDepth: BAND_DEPTH, n: 1, results },
+            null,
+            2,
+          )}\n`,
         );
         // eslint-disable-next-line no-console
         console.log(`ARM ${arm.name} ->`, JSON.stringify(r, null, 2));

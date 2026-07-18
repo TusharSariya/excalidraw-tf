@@ -190,7 +190,10 @@ describe("repairTerraformEdgeBindings — routed polyline validate-before-trust"
     // Derive the exact repaired chord, then re-tag it with the routed flag but
     // only 2 points — the resurrection hazard: geometry is already correct, so
     // a geometry-equality short-circuit must not skip the marker strip.
-    const straight = repairEdge([rectA, rectB, depEdge("routed", A, B)], "routed");
+    const straight = repairEdge(
+      [rectA, rectB, depEdge("routed", A, B)],
+      "routed",
+    );
     const marked = depEdge("routed", A, B, {
       x: straight.x,
       y: straight.y,

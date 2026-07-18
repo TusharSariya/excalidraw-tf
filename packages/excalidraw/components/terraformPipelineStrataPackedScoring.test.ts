@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Round-9 packed candidate-set scoring tests (SDEC-57;
  * docs/rcll-v2-shit-test-round9.md).

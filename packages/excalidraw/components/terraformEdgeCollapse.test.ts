@@ -1,6 +1,6 @@
-import type { ExcalidrawElement } from "@excalidraw/element/types";
-
 import { describe, expect, it } from "vitest";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import {
   EDGE_COLLAPSE_MIN_POPULATION,
@@ -25,7 +25,11 @@ const linear = (
   } as unknown as ExcalidrawElement);
 
 const box = (type: "rectangle" | "frame" | "text"): ExcalidrawElement =>
-  ({ type, points: undefined, isDeleted: false } as unknown as ExcalidrawElement);
+  ({
+    type,
+    points: undefined,
+    isDeleted: false,
+  } as unknown as ExcalidrawElement);
 
 /** A spanning routed connector (well above the 64px threshold). */
 const routedConnector = (n: number): ExcalidrawElement[] =>

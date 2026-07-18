@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * W10b `strataBandCompact` adjudication battery (WP3 of the W10 Stage-2 plan;
  * follows the Stage-1 ceiling probe terraformPipelineStrataBandCompactProbe

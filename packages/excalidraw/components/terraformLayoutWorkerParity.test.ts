@@ -17,11 +17,12 @@ import {
   type TerraformLayoutSnapshot,
 } from "./terraformLayoutSnapshot";
 
-import type { TerraformLayoutWorkerJob } from "./terraformLayoutWorkerTypes";
 import {
   stagingMultiStateLayoutSources,
   stagingMultiStatePipelineLayoutSources,
 } from "./terraformLayoutSnapshotFixtures";
+
+import type { TerraformLayoutWorkerJob } from "./terraformLayoutWorkerTypes";
 
 import type { TerraformExcalidrawScenePayload } from "./terraformSceneApply";
 import type { TerraformPlanParsingSources } from "./terraformPlanParsing";

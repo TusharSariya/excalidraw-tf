@@ -37,6 +37,7 @@ import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
 import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
 import { computeSliceMetrics } from "./terraformPipelineSliceMetrics";
 import { computeStrataPathMetrics } from "./terraformPipelineStrataPathMetrics";
+
 import type {
   FrozenArmRows,
   FrozenRowsArtifact,
@@ -168,10 +169,7 @@ describe("v3.2 baseline freeze harness (flag-gated regen; see header)", () => {
         );
         const arms: Record<string, FrozenArmRows> = {};
         for (const armLabel of Object.keys(ARM_OPTIONS)) {
-          arms[armLabel] = await buildArmRows(
-            sources,
-            ARM_OPTIONS[armLabel]!,
-          );
+          arms[armLabel] = await buildArmRows(sources, ARM_OPTIONS[armLabel]!);
           expect(
             arms[armLabel]!.paths.length,
             `${cell.preset}/${armLabel} path rows non-empty`,

@@ -162,7 +162,11 @@ describe("OD-15 de-band focused A/B", () => {
         // WRITE AFTER EVERY ARM — partial data survives a later hang.
         writeFileSync(
           path.join(OUT, "focused.json"),
-          `${JSON.stringify({ preset: PRESET, bandDepth: BAND_DEPTH, results }, null, 2)}\n`,
+          `${JSON.stringify(
+            { preset: PRESET, bandDepth: BAND_DEPTH, results },
+            null,
+            2,
+          )}\n`,
         );
         // eslint-disable-next-line no-console
         console.log(`ARM ${arm.name} ->`, JSON.stringify(r));

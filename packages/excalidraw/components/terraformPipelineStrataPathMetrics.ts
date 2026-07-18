@@ -243,13 +243,13 @@ function digraphOf(
   }
   const out = new Map<string, string[]>();
   const degree = new Map<string, number>();
-  const sortedNodes = [...nodes].sort((a, b) =>
-    a === b ? 0 : a < b ? -1 : 1,
-  );
+  const sortedNodes = [...nodes].sort((a, b) => (a === b ? 0 : a < b ? -1 : 1));
   for (const n of sortedNodes) {
     out.set(
       n,
-      [...(outSets.get(n) ?? [])].sort((a, b) => (a === b ? 0 : a < b ? -1 : 1)),
+      [...(outSets.get(n) ?? [])].sort((a, b) =>
+        a === b ? 0 : a < b ? -1 : 1,
+      ),
     );
     degree.set(n, (outSets.get(n)?.size ?? 0) + (inSets.get(n)?.size ?? 0));
   }
@@ -313,7 +313,11 @@ function uniqueShortestPathsFrom(
 /** Deterministic uniform sample of `max` keys from the ascending-sorted list:
  * partial Fisher–Yates over indices driven by mulberry32(seed), then the
  * selected keys are re-sorted ascending. */
-function sampleSorted<T>(sortedItems: readonly T[], max: number, seed: number): T[] {
+function sampleSorted<T>(
+  sortedItems: readonly T[],
+  max: number,
+  seed: number,
+): T[] {
   if (sortedItems.length <= max) {
     return [...sortedItems];
   }
@@ -388,7 +392,10 @@ export function computeStrataPathMetrics(
   const allPaths: Array<{ key: string; addresses: string[] }> = [];
   for (const source of g.nodes) {
     for (const p of uniqueShortestPathsFrom(g, source)) {
-      allPaths.push({ key: canonicalPathKey(p.addresses), addresses: p.addresses });
+      allPaths.push({
+        key: canonicalPathKey(p.addresses),
+        addresses: p.addresses,
+      });
     }
   }
   allPaths.sort((a, b) => (a.key === b.key ? 0 : a.key < b.key ? -1 : 1));
@@ -405,7 +412,9 @@ export function computeStrataPathMetrics(
     }
     const start = info.poly[0]!;
     const end = info.poly[info.poly.length - 1]!;
-    return dist2(start, c) <= dist2(end, c) ? info.poly : [...info.poly].reverse();
+    return dist2(start, c) <= dist2(end, c)
+      ? info.poly
+      : [...info.poly].reverse();
   };
 
   const rows: PathMetricsRow[] = [];
@@ -545,9 +554,7 @@ export function computeStrataPathMetrics(
     sampled: sampledPaths.length,
     hopHistogram,
     edgeCoverage:
-      arrowByEdge.size > 0
-        ? round2(coveredEdges.size / arrowByEdge.size)
-        : 0,
+      arrowByEdge.size > 0 ? round2(coveredEdges.size / arrowByEdge.size) : 0,
     unresolvedPathCount,
     rows,
   };

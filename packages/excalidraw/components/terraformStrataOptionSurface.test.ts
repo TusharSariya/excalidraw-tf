@@ -203,10 +203,7 @@ describe("strata option-surface regression (W0-I4)", () => {
     //
     // A key present in only one seam is exactly the failure this must catch, so
     // every REQUIRED option must appear in BOTH match sets.
-    const src = readFileSync(
-      join(__dirname, "terraformLayoutCore.ts"),
-      "utf8",
-    );
+    const src = readFileSync(join(__dirname, "terraformLayoutCore.ts"), "utf8");
     const seam1 = new Set(
       [...src.matchAll(/options\?\.(strata[A-Za-z0-9]+)/g)].map((m) => m[1]!),
     );
@@ -245,11 +242,15 @@ describe("strata option-surface regression (W0-I4)", () => {
     const missingSeam2 = REQUIRED.filter((k) => !seam2.has(k));
     expect(
       missingSeam1,
-      `strata options no longer read into the sceneContext (seam 1): ${missingSeam1.join(", ")}`,
+      `strata options no longer read into the sceneContext (seam 1): ${missingSeam1.join(
+        ", ",
+      )}`,
     ).toEqual([]);
     expect(
       missingSeam2,
-      `strata options no longer forwarded to the builder (seam 2): ${missingSeam2.join(", ")}`,
+      `strata options no longer forwarded to the builder (seam 2): ${missingSeam2.join(
+        ", ",
+      )}`,
     ).toEqual([]);
   });
 });

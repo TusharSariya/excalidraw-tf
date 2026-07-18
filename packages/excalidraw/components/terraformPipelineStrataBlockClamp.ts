@@ -420,7 +420,12 @@ export function refineStrataBlockClamp(
         snapOk = false;
         return box;
       }
-      return { x: columnX[dest]!, y: box.y, width: box.width, height: box.height };
+      return {
+        x: columnX[dest]!,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+      };
     };
 
     const leafBoxes = new Map<string, StrataBox>();

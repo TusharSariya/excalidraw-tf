@@ -89,9 +89,9 @@ import { copyTextToSystemClipboard } from "../../clipboard";
 
 import { isValidTerraformFocusHopCount } from "../terraformRelationshipFocus";
 
-import type { TerraformFocusDirection } from "../terraformRelationshipFocus";
-
 import "./DefaultItems.scss";
+
+import type { TerraformFocusDirection } from "../terraformRelationshipFocus";
 
 type TerraformEdgeLayer =
   | "dependency"

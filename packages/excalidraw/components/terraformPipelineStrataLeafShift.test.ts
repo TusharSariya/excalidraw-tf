@@ -240,9 +240,9 @@ describe("leafShift A — zero-growth win", () => {
     expect(out.leafBoxes.get("l")!.x).toBe(rank.columnX[1]); // srcRank+1.
     expect(out.leafBoxes.get("l")!.y).toBe(lY); // Y unchanged (free column).
     expect(out.boxedHulls.get(ownerId)!.box.height).toBe(hBefore); // no growth.
-    expect(scoreStrataPlacementGeometry(out, model, primes).lengthL1).toBeLessThan(
-      before.lengthL1,
-    );
+    expect(
+      scoreStrataPlacementGeometry(out, model, primes).lengthL1,
+    ).toBeLessThan(before.lengthL1);
     // LR law (a13 helper 4): moved leaf left edge ≥ source right edge.
     expect(out.leafBoxes.get("l")!.x).toBeGreaterThanOrEqual(
       out.leafBoxes.get("s")!.x + out.leafBoxes.get("s")!.width,
@@ -525,10 +525,7 @@ describe("leafShift RE — right-edge column guard", () => {
       frameCluster("s", reg("s"), "aws.1.s", 150, 100),
       frameCluster("l", reg("l"), "aws.1.l", 150, 100),
     ];
-    const model = buildStrataModel(
-      prep(clustersFlush, [edge("s", "l")]),
-      OPTS,
-    );
+    const model = buildStrataModel(prep(clustersFlush, [edge("s", "l")]), OPTS);
     const primes = primeEdges([["s", "l"]]);
     const rank = rankStub({ s: 0, l: 3 });
     const a0 = placeStrataHulls(model, primes, rank, OPTS);
@@ -555,10 +552,7 @@ describe("leafShift RE — right-edge column guard", () => {
       frameCluster("l", reg("l"), "aws.1.l", 150, 100),
       frameCluster("filler", reg("filler"), "aws.1.filler", 150, 100),
     ];
-    const model2 = buildStrataModel(
-      prep(clustersMid, [edge("s", "l")]),
-      OPTS,
-    );
+    const model2 = buildStrataModel(prep(clustersMid, [edge("s", "l")]), OPTS);
     const rank2 = rankStub({ s: 0, l: 3, filler: 5 });
     const b0 = placeStrataHulls(model2, primes, rank2, OPTS);
     const out2 = refineStrataLeafShift(b0, model2, primes, rank2, ON);
@@ -589,7 +583,10 @@ describe("leafShift RE — right-edge column guard", () => {
       // seating `l` in the protected cohort band (100 < distFromRight <= 250).
       frameCluster("filler", reg(), "aws.1.filler", 150, 100),
     ];
-    const model = buildStrataModel(prep(cohortClusters, [edge("s", "l")]), OPTS);
+    const model = buildStrataModel(
+      prep(cohortClusters, [edge("s", "l")]),
+      OPTS,
+    );
     const primes = primeEdges([["s", "l"]]);
     const rank = rankStub({ s: 0, l: 3, filler: 4 });
     const a0 = placeStrataHulls(model, primes, rank, OPTS);

@@ -173,8 +173,9 @@ const countTopoFrames = (elements: readonly ExcalidrawElement[]): number =>
       el.type === "frame" &&
       !el.isDeleted &&
       TOPOLOGY_ROLES.has(
-        typeof (el.customData as { terraformTopologyRole?: unknown } | undefined)
-          ?.terraformTopologyRole === "string"
+        typeof (
+          el.customData as { terraformTopologyRole?: unknown } | undefined
+        )?.terraformTopologyRole === "string"
           ? ((el.customData as { terraformTopologyRole?: string })
               .terraformTopologyRole as string)
           : "",

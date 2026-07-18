@@ -217,7 +217,10 @@ function segmentAngleDeg(a: Seg, b: Seg): number {
  * iff it contributes to `dataflow.crossings`; when several segment pairs of
  * the two polylines cross, the pair's angle is the WORST (minimum θ).
  */
-function minCrossingAngleDeg(a: ArrowGeometry, b: ArrowGeometry): number | null {
+function minCrossingAngleDeg(
+  a: ArrowGeometry,
+  b: ArrowGeometry,
+): number | null {
   let min: number | null = null;
   for (const sa of a.segments) {
     for (const sb of b.segments) {

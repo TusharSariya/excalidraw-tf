@@ -59,7 +59,6 @@ import type {
   StrataEngineOptions,
   StrataHullNode,
   StrataModel,
-  StrataPlacedUnit,
   StrataPlacementResult,
   StrataPrimeEdge,
   StrataRankResult,
@@ -165,8 +164,7 @@ export function refineStrataChainRelocate(
     regionAncestorId: string | undefined,
     shallowestNonRootId: string | undefined,
   ): void => {
-    const nextRegion =
-      hull.role === "region" ? hull.id : regionAncestorId;
+    const nextRegion = hull.role === "region" ? hull.id : regionAncestorId;
     const nextShallow =
       shallowestNonRootId ?? (hull.role === "root" ? undefined : hull.id);
     const key = nextRegion ?? nextShallow ?? hull.id;
@@ -323,9 +321,7 @@ export function refineStrataChainRelocate(
   // unit id → parent hull id, rebuilt from the ROLLING incumbent each pass so a
   // prior adoption is respected. Leaf/child-hull units both resolve to the hull
   // whose `placed` list contains them (a leaf's DEEPEST hull).
-  const buildParentIndex = (
-    p: StrataPlacementResult,
-  ): Map<string, string> => {
+  const buildParentIndex = (p: StrataPlacementResult): Map<string, string> => {
     const idx = new Map<string, string>();
     for (const [hullId, bh] of p.boxedHulls) {
       for (const pu of bh.placed) {
@@ -471,6 +467,9 @@ export function refineStrataChainRelocate(
         // Feasible dy = ∩ per-member containment inside its stationary parent.
         let dyLo = Number.NEGATIVE_INFINITY;
         let dyHi = Number.POSITIVE_INFINITY;
+        // Reads the loop-scoped rolling incumbent by design; consumed
+        // synchronously within this iteration only.
+        // eslint-disable-next-line no-loop-func
         const liveBoxOf = (unit: StrataUnit): StrataBox | undefined =>
           unit.kind === "leaf"
             ? incumbent.leafBoxes.get(unit.clusterId)
@@ -485,7 +484,10 @@ export function refineStrataChainRelocate(
           }
           const minTop = parentBH.box.y + topInsetOf(parentBH.hull.role);
           const maxTop =
-            parentBH.box.y + parentBH.box.height - framePad() - memberBox.height;
+            parentBH.box.y +
+            parentBH.box.height -
+            framePad() -
+            memberBox.height;
           if (maxTop < minTop) {
             feasible = false;
             break;
@@ -533,9 +535,7 @@ export function refineStrataChainRelocate(
           sibBoundaries.push(pu.box.y - anchorBox.y);
           sibBoundaries.push(pu.box.y + pu.box.height - anchorBox.y);
         }
-        sibBoundaries.sort(
-          (a, b) => Math.abs(a) - Math.abs(b) || a - b,
-        );
+        sibBoundaries.sort((a, b) => Math.abs(a) - Math.abs(b) || a - b);
         rawDys.push(...sibBoundaries.slice(0, CHAIN_SLOT_BUDGET));
 
         // Clamp to the feasible interval, integer-round, dedupe, drop 0.

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * W11 task-tracing battery (WP3 of the W11 task-evidence vertical slice;
  * plan decisions 9, 10, 11, 12). Report-emitting, W6/W10b-style: this file

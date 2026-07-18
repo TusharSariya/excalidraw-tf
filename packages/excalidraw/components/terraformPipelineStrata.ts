@@ -388,7 +388,8 @@ export async function buildTerraformStrataExcalidrawScene(
   // in `strataToggleSuppressions`, never silently). The UI enforces the same
   // exclusion (toggling one off the other); this is the engine-side backstop
   // and the `terraformStrataOptionRules` conflict-table winner.
-  const strataRankSeparate = strataRankSeparateRequested && !strataPackedScoring;
+  const strataRankSeparate =
+    strataRankSeparateRequested && !strataPackedScoring;
   if (strataRankSeparateRequested && strataPackedScoring) {
     strataToggleSuppressions.push(
       "rankseparate-packedscoring-conflict-packedscoring-wins-rankseparate",

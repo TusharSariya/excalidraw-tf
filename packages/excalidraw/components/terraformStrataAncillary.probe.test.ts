@@ -120,10 +120,13 @@ const TOPOLOGY_ROLES: ReadonlySet<string> = new Set([
 
 const topoFrameCount = (elements: readonly ExcalidrawElement[]): number =>
   elements.filter((el) => {
-    const role = (el.customData as { terraformTopologyRole?: string } | undefined)
-      ?.terraformTopologyRole;
+    const role = (
+      el.customData as { terraformTopologyRole?: string } | undefined
+    )?.terraformTopologyRole;
     return (
-      el.type === "frame" && typeof role === "string" && TOPOLOGY_ROLES.has(role)
+      el.type === "frame" &&
+      typeof role === "string" &&
+      TOPOLOGY_ROLES.has(role)
     );
   }).length;
 

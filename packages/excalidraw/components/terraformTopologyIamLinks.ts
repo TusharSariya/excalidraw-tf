@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Semantic topology: resolve Lambda execution IAM roles and attached policies from the
  * Terraform plan-shaped `nodes` map (no backend pipeline).

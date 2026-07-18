@@ -219,7 +219,10 @@ describe("O1 candidate-sequence memo — hit/miss on child extents", () => {
     // shared cache ⇒ a MISS ⇒ regeneration (new cache entry). This is the
     // adversarial b09 obligation: a keyed input (a child extent) is load-bearing.
     const tall = blindSpotFixture(300);
-    const tallRegion = findHull(tall.model.hullRoot, (h) => h.role === "region")!;
+    const tallRegion = findHull(
+      tall.model.hullRoot,
+      (h) => h.role === "region",
+    )!;
     expect(tallRegion.id).toBe(regionId); // same hull id, different geometry
     genSpy.mockClear();
     placeStrataHulls(
