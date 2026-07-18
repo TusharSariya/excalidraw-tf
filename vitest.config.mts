@@ -69,6 +69,10 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       "**/.claude/**",
+      // `.superpowers/**` holds committed agent work-note artifacts (copied
+      // probe snapshots etc.) whose relative imports don't resolve from there
+      // — never test-runner scope (knip ignores it for the same reason).
+      "**/.superpowers/**",
       // `*.probe.test.*` are heavy (30× timeout) real-app-path research probes
       // (e.g. the Strata readability H0 harness). They are NOT part of the
       // normal suite or the coverage gauntlet — run them explicitly via the
