@@ -1417,7 +1417,8 @@ describe.runIf(!!REPORT_DIR)(
                 const sw = [...engIds];
                 [sw[v5i], sw[vai]] = [sw[vai]!, sw[v5i]!];
                 const oi = cands.findIndex(
-                  (c) => c.map(strataUnitId).join("\u0001") === sw.join("\u0001"),
+                  (c) =>
+                    c.map(strataUnitId).join("\u0001") === sw.join("\u0001"),
                 );
                 if (oi >= 0 && oi < prodCount) {
                   ownerSwap = addArm(
