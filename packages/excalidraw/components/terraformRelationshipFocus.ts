@@ -29,6 +29,18 @@ const TERRAFORM_FOCUS_NODE_LEVEL = 100;
 const TERRAFORM_RELATED_LEVEL = 85;
 /** Multi-hop focus: nodes two-plus hops out along the dataflow path. */
 const TERRAFORM_RELATED_FAR_LEVEL = 55;
+/**
+ * Extended falloff (only when the effective hop cap exceeds the legacy
+ * {@link TERRAFORM_FOCUS_MAX_HOPS}): nodes 3–4 hops out. At hop caps ≤ 3 the
+ * far level above stays the terminal tier so legacy output is byte-identical.
+ */
+const TERRAFORM_RELATED_DEEP_LEVEL = 42;
+/**
+ * Extended falloff: nodes 5+ hops out. Deliberately above
+ * {@link TERRAFORM_DIM_NODE_LEVEL} (25) so in-cone nodes always read brighter
+ * than unrelated ones (figure-ground), no matter how deep the cone goes.
+ */
+const TERRAFORM_RELATED_VERY_DEEP_LEVEL = 34;
 const TERRAFORM_CONTAINER_LEVEL = 60;
 const TERRAFORM_DIM_NODE_LEVEL = 25;
 const TERRAFORM_DIM_EDGE_LEVEL = 15;
@@ -158,7 +170,64 @@ const isParentGroupOfFocusedNode = (
   );
 };
 
+/**
+ * Like {@link isParentGroupOfFocusedNode}, but only counts children within one
+ * hop of the focus. Group reveal must obey the same ≤1-hop invariant as edges
+ * and resources: with an uncapped hop budget the full `focusedNodePaths` cone
+ * can reach arbitrarily far, and revealing a soft-deleted group that deep
+ * fights the collapsed-overview visibility reconciler and never settles.
+ */
+const isParentGroupOfNearFocusedNode = (
+  element: ExcalidrawElement,
+  nodeDistance: ReadonlyMap<string, number>,
+) => {
+  const childKeys = element.customData?.terraformGroupChildKeys;
+  return Boolean(
+    Array.isArray(childKeys) &&
+      childKeys.some(
+        (key) => typeof key === "string" && (nodeDistance.get(key) ?? 99) <= 1,
+      ),
+  );
+};
+
 type PreviewAction = "set" | "clear" | "leave";
+
+/**
+ * Traversal direction over the declared-dependency edge graph
+ * (`customData.relationship.source → target` is the declared dependency:
+ * source *references* target).
+ *
+ * - `"both"`         — undirected (legacy behavior; the default).
+ * - `"dependencies"` — follow `relationship.source → target` from the anchor:
+ *                      what the anchor declares a dependency on (transitively).
+ * - `"dependents"`   — follow the reverse (`target → source`): what declares a
+ *                      dependency on the anchor (transitively).
+ *
+ * These names deliberately describe the declared-dependency direction only.
+ * Whether readers perceive that axis as "flow" (and in which direction) is the
+ * open Q7-AXIS question — no flow semantics are claimed here.
+ */
+export type TerraformFocusDirection = "both" | "dependencies" | "dependents";
+
+export type TerraformFocusOptions = {
+  direction?: TerraformFocusDirection;
+  maxHops?: number;
+};
+
+/**
+ * W13 F3 — THE hop-cap domain validator, shared by every boundary that
+ * consumes or emits a finite hop cap (AppState ingress in
+ * `useTerraformRelationshipFocusEffect`, the menu radio derivation in
+ * `DefaultItems.TerraformFocusControls`, the share-URL emit in
+ * `terraformCanvasShareUrl`, and the URL parse in `terraformDemoUrlParams`).
+ * A finite hop cap is valid iff it is a non-negative SAFE integer —
+ * `Number.isInteger` alone admits values like `1e21` that survive no JSON /
+ * URL round-trip faithfully. The `-1` "unlimited" sentinel and `Infinity`
+ * are handled separately at each boundary and are deliberately NOT part of
+ * this predicate.
+ */
+export const isValidTerraformFocusHopCount = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 0;
 
 /**
  * Builds the wash + opacity + customData patch for one focus update step. Returns
@@ -240,7 +309,22 @@ export const getTerraformRelationshipFocus = (
   allElements: readonly ExcalidrawElement[],
   focusNodePath: string | null,
   maxHops: number = TERRAFORM_FOCUS_MAX_HOPS,
+  options?: TerraformFocusOptions,
 ) => {
+  // Explicit matching, not a "non-both ⇒ dependents" ternary: AppState can
+  // carry junk direction strings via public `updateScene`/`restore` (the type
+  // is a compile-time promise only), and anything unrecognized must take the
+  // undirected legacy ("both") path rather than silently becoming a directed
+  // walk. See `buildTerraformRuntimeFocusUpdate` for the AppState-side
+  // normalization; this keeps the traversal safe for direct API callers too.
+  const direction: TerraformFocusDirection =
+    options?.direction === "dependencies" || options?.direction === "dependents"
+      ? options.direction
+      : "both";
+  // `options.maxHops` wins over the legacy positional param when both are given.
+  // `Infinity` means uncapped: the BFS below still terminates because visited
+  // nodes (`nodeDistance`) are never re-entered, so cycles cannot loop.
+  const effectiveMaxHops = options?.maxHops ?? maxHops;
   const focusedNodePaths = new Set<string>();
   const relatedNodePaths = new Set<string>();
   const focusedEdgeIds = new Set<string>();
@@ -260,22 +344,54 @@ export const getTerraformRelationshipFocus = (
     };
   }
 
-  // Undirected adjacency from layer edges (follow flow both up and downstream).
   const adjacency = new Map<string, Set<string>>();
-  const link = (a: string, b: string) => {
-    (adjacency.get(a) ?? adjacency.set(a, new Set()).get(a)!).add(b);
-    (adjacency.get(b) ?? adjacency.set(b, new Set()).get(b)!).add(a);
-  };
-  for (const element of allElements) {
-    if (!isTerraformLayerEdge(element)) {
-      continue;
+  if (direction === "both") {
+    // Undirected adjacency from layer edges (follow flow both up and downstream).
+    // This branch is taken BEFORE any directed adjacency exists so the default
+    // ("both" / options omitted) path is byte-identical to the legacy behavior.
+    const link = (a: string, b: string) => {
+      (adjacency.get(a) ?? adjacency.set(a, new Set()).get(a)!).add(b);
+      (adjacency.get(b) ?? adjacency.set(b, new Set()).get(b)!).add(a);
+    };
+    for (const element of allElements) {
+      if (!isTerraformLayerEdge(element)) {
+        continue;
+      }
+      const endpoints = getRelationshipEndpoints(element);
+      if (endpoints) {
+        link(endpoints.source, endpoints.target);
+      }
+      for (const hint of getDirectionEndpointHints(element)) {
+        link(hint.source, hint.target);
+      }
     }
-    const endpoints = getRelationshipEndpoints(element);
-    if (endpoints) {
-      link(endpoints.source, endpoints.target);
-    }
-    for (const direction of getDirectionEndpointHints(element)) {
-      link(direction.source, direction.target);
+  } else {
+    // Directed adjacency over the declared-dependency direction
+    // (`relationship.source → target`; source references target). "dependencies"
+    // walks source→target from the anchor; "dependents" walks the reverse.
+    // Coalesced hint edges (`relationship.directions[]`) carry the same
+    // declared-dependency orientation and get identical treatment. What this
+    // axis semantically reads as on canvas is owned by Q7-AXIS — no claim here.
+    const linkDirected = (source: string, target: string) => {
+      // Only reachable with a validated direction (see the explicit matching
+      // above), so this two-way pick cannot swallow junk values.
+      const [from, to] =
+        direction === "dependencies" ? [source, target] : [target, source];
+      (adjacency.get(from) ?? adjacency.set(from, new Set()).get(from)!).add(
+        to,
+      );
+    };
+    for (const element of allElements) {
+      if (!isTerraformLayerEdge(element)) {
+        continue;
+      }
+      const endpoints = getRelationshipEndpoints(element);
+      if (endpoints) {
+        linkDirected(endpoints.source, endpoints.target);
+      }
+      for (const hint of getDirectionEndpointHints(element)) {
+        linkDirected(hint.source, hint.target);
+      }
     }
   }
 
@@ -283,7 +399,7 @@ export const getTerraformRelationshipFocus = (
   nodeDistance.set(focusNodePath, 0);
   focusedNodePaths.add(focusNodePath);
   let frontier = [focusNodePath];
-  for (let hop = 1; hop <= maxHops && frontier.length > 0; hop++) {
+  for (let hop = 1; hop <= effectiveMaxHops && frontier.length > 0; hop++) {
     const next: string[] = [];
     for (const node of frontier) {
       for (const neighbor of adjacency.get(node) ?? []) {
@@ -300,6 +416,12 @@ export const getTerraformRelationshipFocus = (
   }
 
   // Light every edge whose endpoints are both inside the focused neighborhood.
+  // This keys off `nodeDistance`, so in directed modes it lights exactly the
+  // edges within the directed cone — no direction-specific change needed here.
+  // `nearEdgeIds` (≤1-hop) stays capped regardless of direction/maxHops: only
+  // near edges may reveal soft-deleted elements, because unbounded reveal
+  // fights the collapsed-overview visibility reconciler (see the nearEdgeIds
+  // comment above) and never settles.
   for (const element of allElements) {
     if (!isTerraformLayerEdge(element)) {
       continue;
@@ -345,6 +467,7 @@ export const applyTerraformRelationshipFocus = (
   allElements: readonly ExcalidrawElement[],
   focusNodePath: string | null,
   viewBackgroundColor: string = DEFAULT_VIEW_BACKGROUND_COLOR,
+  options?: TerraformFocusOptions,
 ) => {
   const {
     focusedNodePaths,
@@ -352,7 +475,18 @@ export const applyTerraformRelationshipFocus = (
     focusedEdgeIds,
     nearEdgeIds,
     nodeDistance,
-  } = getTerraformRelationshipFocus(allElements, focusNodePath);
+  } = getTerraformRelationshipFocus(
+    allElements,
+    focusNodePath,
+    TERRAFORM_FOCUS_MAX_HOPS,
+    options,
+  );
+  // Mirror of the traversal's hop cap (`options.maxHops` over the legacy
+  // default). The extended dim falloff below gates on this VALUE only — never
+  // on whether options were passed — so an explicit `{ maxHops: 3 }` and the
+  // no-options legacy path produce byte-identical output.
+  const effectiveMaxHops = options?.maxHops ?? TERRAFORM_FOCUS_MAX_HOPS;
+  const useExtendedDimFalloff = effectiveMaxHops > TERRAFORM_FOCUS_MAX_HOPS;
   const elementById = new Map(allElements.map((e) => [e.id, e]));
   const duplicateHighlightCanonical = (() => {
     if (!focusNodePath) {
@@ -526,10 +660,17 @@ export const applyTerraformRelationshipFocus = (
       const isRelatedNode = Boolean(nodePath && relatedNodePaths.has(nodePath));
       // Degree-of-interest falloff: 1 hop reads as related, 2+ hops are dimmer
       // but still legible, so a multi-hop path stays traceable without flooding.
+      // With an extended hop cap (> 3), distance keeps attenuating past 2 hops
+      // (3–4 → deep, 5+ → very deep) so at K=∞ the cone doesn't flatten into a
+      // single tier; at caps ≤ 3 the legacy two-tier wash is untouched.
       const hopDistance = nodePath ? nodeDistance.get(nodePath) : undefined;
       const relatedLevel =
         hopDistance != null && hopDistance >= 2
-          ? TERRAFORM_RELATED_FAR_LEVEL
+          ? useExtendedDimFalloff && hopDistance >= 5
+            ? TERRAFORM_RELATED_VERY_DEEP_LEVEL
+            : useExtendedDimFalloff && hopDistance >= 3
+            ? TERRAFORM_RELATED_DEEP_LEVEL
+            : TERRAFORM_RELATED_FAR_LEVEL
           : TERRAFORM_RELATED_LEVEL;
       const cardLevel = isFocusNode
         ? TERRAFORM_FOCUS_NODE_LEVEL
@@ -583,11 +724,18 @@ export const applyTerraformRelationshipFocus = (
         element,
         focusedNodePaths,
       );
+      // Reveal only groups containing the focus or a direct (1-hop) neighbor;
+      // parents of deeper cone nodes are highlighted (via `nextLevel`) when
+      // already visible but never un-deleted — mirrors the edge/resource
+      // ≤1-hop reveal gating above.
+      const isNearParent =
+        isFocusedParent &&
+        isParentGroupOfNearFocusedNode(element, nodeDistance);
       const nextLevel = isFocusedParent
         ? TERRAFORM_CONTAINER_LEVEL
         : TERRAFORM_DIM_NODE_LEVEL;
-      const shouldReveal = isFocusedParent && element.isDeleted;
-      const shouldHideExpiredPreview = !isFocusedParent && isPreview;
+      const shouldReveal = isNearParent && element.isDeleted;
+      const shouldHideExpiredPreview = !isNearParent && isPreview;
       const nextIsDeleted = shouldHideExpiredPreview
         ? true
         : shouldReveal

@@ -49,6 +49,9 @@ import {
   type RcllLayoutProfile,
 } from "./terraformPipelineLayoutProfiles";
 import { buildTerraformDemoUrlFromSettings } from "./terraformDemoUrlParams";
+import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
+
+import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 
 import type {
   TerraformImportArtifact,
@@ -112,17 +115,134 @@ export const useTerraformImportDialog = ({
   // ON (true) — turning it off (Stacked) makes cyclic groups taller.
   const [pipelineStaircaseBandOverlap, setPipelineStaircaseBandOverlap] =
     useState(true);
-  // Strata (rcll-v2) OD-1/OD-2/A7 flags (strata-only). S0a: accepted + threaded
-  // end-to-end (URL → here → sceneContext → builder → scene meta), unused until
-  // the engine lands (M1) — no Advanced UI control yet, so these thread only via
-  // the demo URL / preset options for now.
-  const [strataNetworkSimplexRank, setStrataNetworkSimplexRank] =
-    useState(false);
-  const [strataSweeps, setStrataSweeps] = useState(0);
-  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(false);
+  // Strata (rcll-v2) OD-1/OD-2/A7 flags (strata-only), threaded end-to-end
+  // (URL → here → sceneContext → builder → scene meta); UI toggles in
+  // TerraformStrataSettings.tsx (SDEC-49). K=4 + A7 seed ON: the W5 repaired-stats
+  // battery showed K=0 is the worst arm on every metric while K=4+A7 is the
+  // validated arm (first task-metric win over v2) — owner-directed default flip,
+  // superseding SDEC-48's opt-in ruling (see the decision log).
+  const [strataNetworkSimplexRank, setStrataNetworkSimplexRank] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataNetworkSimplexRank as boolean,
+  );
+  const [strataSweeps, setStrataSweeps] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSweeps as number,
+  );
+  const [strataCoordinateRefine, setStrataCoordinateRefine] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordinateRefine as boolean,
+  );
   // Strata OD-14 (strata-only): whole-model sibling-separation ranking (the
-  // height lever). Same S0a passthrough status as the other Strata flags.
-  const [strataRankSeparate, setStrataRankSeparate] = useState(false);
+  // height lever). Deliberately default-OFF: W5 measured it as a trade — shorter
+  // canvas + better crossing angles bought with MORE crossings on dependency
+  // paths (it flips the K=4+A7 task-metric win to a loss).
+  const [strataRankSeparate, setStrataRankSeparate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRankSeparate as boolean,
+  );
+  // Strata round 9 (SDEC-57, strata-only): packed-hull whole-layout candidate
+  // scoring — fixes the blind local-crossings acceptance (R9-F1). Default OFF
+  // pending its v3.2 gate battery.
+  const [strataPackedScoring, setStrataPackedScoring] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoring as boolean,
+  );
+  // Strata W8b (strata-only): ε-constraint crossings budget for the packed
+  // scorer. Default 0 = the strict round-9 rule; REPORT lever — a nonzero
+  // default is an owner adjudication, never a silent pick.
+  const [strataPackedScoringEpsilon, setStrataPackedScoringEpsilon] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon as number,
+  );
+  // Strata G-DESCENT converge (strata-only): return the best-seen adopted
+  // snapshot instead of the packed descent's last rolling incumbent. Default
+  // OFF (byte-identical off); inert unless strataPackedScoringEpsilon >= 1.
+  const [strataPackedConverge, setStrataPackedConverge] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedConverge as boolean,
+  );
+  // Strata transitive-adopt (strata-only): replace the ε adoption gate with a
+  // strict total order so the descent can't adopt-then-drop a layout for a
+  // strictly worse one. Default OFF (byte-identical off); descent-scoped;
+  // gated on the preference-calibration work.
+  const [strataTransitiveAdopt, setStrataTransitiveAdopt] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTransitiveAdopt as boolean,
+  );
+  // P4 pure-sink account block clamp (strata-only): post-A7 pass that rigid-
+  // translates a whole dead-end account subtree left. Default OFF (byte-identical).
+  const [strataBlockClamp, setStrataBlockClamp] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBlockClamp as boolean,
+  );
+  // P2 within-column transpose (strata-only): post-A7 pass that swaps Y-adjacent
+  // X-overlapping sibling pairs to remove leftover crossings. Default OFF
+  // (envelope-preserving, byte-identical).
+  const [strataTranspose, setStrataTranspose] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose as boolean,
+  );
+  // Strata P5 (Lever C, strata-only): per-hull implied-height maintain-or-
+  // decrease referee on the sink-pull-in / block-clamp adoptions. Default OFF
+  // (inert under phase 1 — byte-identical).
+  const [strataHeightGate, setStrataHeightGate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate as boolean,
+  );
+  // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
+  // routing — penetrating edges only. Default OFF pending its gate battery.
+  const [strataEdgeRouting, setStrataEdgeRouting] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting as boolean,
+  );
+  // Strata P3-pierce (strata-only): clean single-side container-exit routing.
+  // Default OFF / byte-identical pending owner adjudication.
+  const [strataBorderRoute, setStrataBorderRoute] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute as boolean,
+  );
+  // Strata band-depth slider (v3.2, strata-only): the deepest role still
+  // banded — deeper roles pack X-disjoint siblings into shared rows. Default
+  // "account" reproduces today's fixed role→policy map byte-identically.
+  // Legacy `strataBandCompact` boolean lives on only as an engine-side alias
+  // for `strataBandDepth: "root"` (old share links); this hook's UI state is
+  // the enum directly and no longer forwards the boolean.
+  const [strataBandDepth, setStrataBandDepth] = useState<StrataHullRole>(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandDepth as StrataHullRole,
+  );
+  // OD-15 de-band ladder (strata-only): dissolve this hierarchy level and every
+  // deeper one at the model build. Default "none" (byte-identical). Coupled to
+  // `strataBandDepth` — the engine suppresses a level whose absorbing parent is
+  // still banded, and the settings panel mirrors that gate.
+  const [strataDeBandLevel, setStrataDeBandLevel] = useState<DeBandLevel>(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataDeBandLevel as DeBandLevel,
+  );
+  // OD-15 crossings-≻-length relocate (strata-only). Default OFF pending its
+  // gate battery.
+  const [strataSiftRelocate, setStrataSiftRelocate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataSiftRelocate as boolean,
+  );
+  // Exclusive-downstream chain relocate (strata-only): post-A7 pass that rigid-
+  // translates a unit plus its exclusive downstream chain vertically to shorten
+  // edges. Default OFF (byte-identical off) pending its gate battery.
+  const [strataChainRelocate, setStrataChainRelocate] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChainRelocate as boolean,
+  );
+  // A7 tie-cascade (strata-only): extends strataCoordinateRefine — escapes net-
+  // zero fixed-point columns to their two-sided median + chase. Default OFF
+  // (byte-identical off); inert unless strataCoordinateRefine is on.
+  const [strataCoordCascade, setStrataCoordCascade] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCoordCascade as boolean,
+  );
+  // Relocate objective weights (strata-only, inert without strataSiftRelocate).
+  const [strataCrossWeightPenetration, setStrataCrossWeightPenetration] =
+    useState(
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightPenetration as number,
+    );
+  const [strataCrossWeightEdge, setStrataCrossWeightEdge] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataCrossWeightEdge as number,
+  );
+  // Edge-edge regression cap — OPTIONAL, no seeded default (absent ⇒ the
+  // engine inherits `strataPackedScoringEpsilon`).
+  const [strataEdgeCrossCap, setStrataEdgeCrossCap] = useState<
+    number | undefined
+  >(undefined);
+  // Private REST APIs at account+region level instead of nested in a VPC.
+  // Strata-only: seeded ON (the strata view is the only one wired for it), but
+  // `runTerraformImportWithView` view-scopes the value so it never reaches a
+  // non-strata engine/worker call — those keep forcing it false, byte-identical
+  // to today. The toggle is exposed only in the strata settings panel.
+  const [pipelinePrivateApiRegional, setPipelinePrivateApiRegional] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional as boolean,
+  );
   const [moduleLayoutOptions, setModuleLayoutOptions] = useState(
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
@@ -407,6 +527,10 @@ export const useTerraformImportDialog = ({
         pipelinePacked,
         pipelinePackedPullLeft,
         pipelineIncludeAncillary,
+        // Threaded for every view; `runTerraformImportWithView` view-scopes it
+        // (non-strata → false), so the strata-ON seed never leaks to another
+        // pipeline.
+        pipelinePrivateApiRegional,
         pipelineSemanticPlacement,
         pipelineSwimlaneLaneRise,
         pipelineReorder,
@@ -421,6 +545,25 @@ export const useTerraformImportDialog = ({
         strataSweeps,
         strataCoordinateRefine,
         strataRankSeparate,
+        strataPackedScoring,
+        strataPackedScoringEpsilon,
+        strataPackedConverge,
+        strataTransitiveAdopt,
+        strataBlockClamp,
+        strataTranspose,
+        strataHeightGate,
+        strataEdgeRouting,
+        strataBorderRoute,
+        strataBandDepth,
+        strataDeBandLevel,
+        strataSiftRelocate,
+        strataChainRelocate,
+        strataCoordCascade,
+        strataCrossWeightPenetration,
+        strataCrossWeightEdge,
+        // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+        // inherits `strataPackedScoringEpsilon`).
+        ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -547,6 +690,9 @@ export const useTerraformImportDialog = ({
           pipelinePacked,
           pipelinePackedPullLeft,
           pipelineIncludeAncillary,
+          // View-scoped downstream (non-strata → false); the strata-ON seed
+          // never reaches another pipeline's engine call.
+          pipelinePrivateApiRegional,
           pipelineSemanticPlacement,
           pipelineSwimlaneLaneRise,
           pipelineReorder,
@@ -561,6 +707,25 @@ export const useTerraformImportDialog = ({
           strataSweeps,
           strataCoordinateRefine,
           strataRankSeparate,
+          strataPackedScoring,
+          strataPackedScoringEpsilon,
+          strataPackedConverge,
+          strataTransitiveAdopt,
+          strataBlockClamp,
+          strataTranspose,
+          strataHeightGate,
+          strataEdgeRouting,
+          strataBorderRoute,
+          strataBandDepth,
+          strataDeBandLevel,
+          strataSiftRelocate,
+          strataChainRelocate,
+          strataCoordCascade,
+          strataCrossWeightPenetration,
+          strataCrossWeightEdge,
+          // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+          // inherits `strataPackedScoringEpsilon`).
+          ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -667,6 +832,27 @@ export const useTerraformImportDialog = ({
         strataSweeps,
         strataCoordinateRefine,
         strataRankSeparate,
+        strataPackedScoring,
+        strataPackedScoringEpsilon,
+        strataPackedConverge,
+        strataTransitiveAdopt,
+        strataBlockClamp,
+        strataTranspose,
+        strataHeightGate,
+        strataEdgeRouting,
+        strataBorderRoute,
+        strataBandDepth,
+        strataDeBandLevel,
+        // Keep this handler's strata option shape identical to the regular
+        // preset-import path above: the sift/sink-pull-in operators consume
+        // these weights + cap, so dropping them here would make the same UI
+        // state adopt differently between the two import buttons.
+        strataSiftRelocate,
+        strataChainRelocate,
+        strataCoordCascade,
+        strataCrossWeightPenetration,
+        strataCrossWeightEdge,
+        ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -872,6 +1058,11 @@ export const useTerraformImportDialog = ({
         pipelinePacked,
         pipelinePackedPullLeft,
         pipelineIncludeAncillary,
+        // Strata exposes a toggle for this (default ON); the share URL round-
+        // trips its current state. The strata serialize branch emits it in both
+        // states so an explicit OFF survives share→reload. For non-strata views
+        // it stays truthy-only downstream and the engine ignores it anyway.
+        pipelinePrivateApiRegional,
         pipelineSemanticPlacement,
         pipelineSwimlaneLaneRise,
         pipelineReorder,
@@ -887,6 +1078,28 @@ export const useTerraformImportDialog = ({
         strataSweeps,
         strataCoordinateRefine,
         strataRankSeparate,
+        strataPackedScoring,
+        strataPackedScoringEpsilon,
+        strataPackedConverge,
+        strataTransitiveAdopt,
+        strataBlockClamp,
+        strataTranspose,
+        strataHeightGate,
+        strataEdgeRouting,
+        strataBorderRoute,
+        // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
+        // the band-depth cut exclusively via `strataBandDepth` below; always
+        // false so a new share URL never re-emits the old `strataBandCompact`
+        // param (the required-legacy-field snapshot shape is unchanged here).
+        strataBandCompact: false,
+        strataBandDepth,
+        strataDeBandLevel,
+        strataSiftRelocate,
+        strataChainRelocate,
+        strataCoordCascade,
+        strataCrossWeightPenetration,
+        strataCrossWeightEdge,
+        strataEdgeCrossCap,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -899,6 +1112,7 @@ export const useTerraformImportDialog = ({
     pipelinePacked,
     pipelinePackedPullLeft,
     pipelineIncludeAncillary,
+    pipelinePrivateApiRegional,
     pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise,
     pipelineReorder,
@@ -914,6 +1128,23 @@ export const useTerraformImportDialog = ({
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
+    strataPackedScoring,
+    strataPackedScoringEpsilon,
+    strataPackedConverge,
+    strataTransitiveAdopt,
+    strataBlockClamp,
+    strataTranspose,
+    strataHeightGate,
+    strataEdgeRouting,
+    strataBorderRoute,
+    strataBandDepth,
+    strataDeBandLevel,
+    strataSiftRelocate,
+    strataChainRelocate,
+    strataCoordCascade,
+    strataCrossWeightPenetration,
+    strataCrossWeightEdge,
+    strataEdgeCrossCap,
     moduleLayoutOptions.mode,
   ]);
 
@@ -927,6 +1158,7 @@ export const useTerraformImportDialog = ({
     pipelinePacked,
     pipelinePackedPullLeft,
     pipelineIncludeAncillary,
+    pipelinePrivateApiRegional,
     pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise,
     pipelineReorder,
@@ -942,6 +1174,23 @@ export const useTerraformImportDialog = ({
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
+    strataPackedScoring,
+    strataPackedScoringEpsilon,
+    strataPackedConverge,
+    strataTransitiveAdopt,
+    strataBlockClamp,
+    strataTranspose,
+    strataHeightGate,
+    strataEdgeRouting,
+    strataBorderRoute,
+    strataBandDepth,
+    strataDeBandLevel,
+    strataSiftRelocate,
+    strataChainRelocate,
+    strataCoordCascade,
+    strataCrossWeightPenetration,
+    strataCrossWeightEdge,
+    strataEdgeCrossCap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -975,6 +1224,7 @@ export const useTerraformImportDialog = ({
     setPipelinePacked,
     setPipelinePackedPullLeft,
     setPipelineIncludeAncillary,
+    setPipelinePrivateApiRegional,
     setPipelineSemanticPlacement,
     // The RCLL-flag setters are the "custom"-marking wrappers, so any Advanced edit
     // flips the primary Layout control to "Custom" (the raw setters stay internal).
@@ -992,6 +1242,23 @@ export const useTerraformImportDialog = ({
     setStrataSweeps,
     setStrataCoordinateRefine,
     setStrataRankSeparate,
+    setStrataPackedScoring,
+    setStrataPackedScoringEpsilon,
+    setStrataPackedConverge,
+    setStrataTransitiveAdopt,
+    setStrataBlockClamp,
+    setStrataTranspose,
+    setStrataHeightGate,
+    setStrataEdgeRouting,
+    setStrataBorderRoute,
+    setStrataBandDepth,
+    setStrataDeBandLevel,
+    setStrataSiftRelocate,
+    setStrataChainRelocate,
+    setStrataCoordCascade,
+    setStrataCrossWeightPenetration,
+    setStrataCrossWeightEdge,
+    setStrataEdgeCrossCap,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

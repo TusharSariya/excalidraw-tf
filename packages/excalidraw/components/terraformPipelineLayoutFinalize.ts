@@ -12,11 +12,17 @@ import { collectDeclaredDataFlowEdges } from "./terraformExplodeGraph";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import { reorderTopologyElementsZStack } from "./terraformTopologyLayout";
 import {
+  getTerraformEdgeLayer,
   reconcileTerraformVisibility,
   repairTerraformEdgeBindings,
   TERRAFORM_IMPORT_EDGE_LAYER_PINS,
 } from "./terraformVisibility";
 import { injectTerraformAwsIconsIntoElements } from "./terraformAwsIcons";
+import { detectEdgeCollapse } from "./terraformEdgeCollapse";
+import {
+  isTerraformEdgeTripwireEnabled,
+  tripwireRecordFinalizeSummary,
+} from "./terraformEdgeTripwire";
 
 import type { CollapsedPipelineEdge } from "./terraformPipelineLayoutShared";
 
@@ -108,6 +114,38 @@ export async function convertPipelineSkeletonToElements(
     },
   );
   elements = reorderTopologyElementsZStack(elements);
+
+  // TRIPWIRE (c) — scene-finalize census (owner Q11, LOG-ONLY). Emit how many
+  // declared edges left spanning visible geometry vs how many were declared, so
+  // a process-level collapse is logged with the numbers. Gated OFF by default
+  // (zero overhead in prod); observes only — the returned scene is unchanged.
+  if (isTerraformEdgeTripwireEnabled()) {
+    let declaredEdgeCount = 0;
+    for (const element of elements) {
+      if (!getTerraformEdgeLayer(element)) {
+        continue;
+      }
+      const relationship = (
+        element.customData as
+          | { relationship?: { source?: unknown; target?: unknown } }
+          | undefined
+      )?.relationship;
+      if (
+        typeof relationship?.source === "string" &&
+        typeof relationship?.target === "string"
+      ) {
+        declaredEdgeCount += 1;
+      }
+    }
+    const stats = detectEdgeCollapse(elements, declaredEdgeCount);
+    tripwireRecordFinalizeSummary({
+      declaredEdgeCount: stats.declaredEdgeCount,
+      spanningVisibleLinearCount: stats.spanningVisibleLinearCount,
+      edgeSpanningFraction: stats.edgeSpanningFraction,
+      edgeCollapseDetected: stats.edgeCollapseDetected,
+    });
+  }
+
   return elements;
 }
 

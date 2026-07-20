@@ -90,6 +90,11 @@ describe("staging multi-state import", () => {
         );
         expect(clusterFrame?.terraformTopologyRole).toBe("primaryCluster");
         const path = clusterFrame?.terraformTopologyPath ?? [];
+        // Legacy (pre-`pipelinePrivateApiRegional`) SEMANTIC behavior: the flag
+        // is strata-only and the engine core forces it false for every other
+        // layoutMode (terraformLayoutCore.ts sceneContext scoping), so the
+        // semantic view still VPC-nests private REST APIs — the cluster path
+        // has a `vpc-*` segment at index 2 and is 4+ segments deep.
         expect(path.length).toBeGreaterThanOrEqual(4);
         expect(path[2]).toMatch(/^vpc-/);
       }

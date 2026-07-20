@@ -24,15 +24,16 @@
  * `build.width/height`.
  */
 import {
-  PIPELINE_CLUSTER_GAP_Y,
   PIPELINE_FRAME_PAD,
   PIPELINE_LANE_GAP_Y,
   PIPELINE_MARGIN,
 } from "./terraformPipelineLayoutShared";
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
+import { strataGapBetween } from "./terraformPipelineStrataSeparation";
 import {
   liftStrataEdgesToUnits,
   orderStrataUnits,
+  strataPackedCandidateSequences,
   strataUnitId,
 } from "./terraformPipelineStrataOrdering";
 
@@ -49,25 +50,114 @@ import type {
   StrataUnit,
 } from "./terraformPipelineStrataTypes";
 
+/**
+ * O1 per-descent candidate-sequence memo (import-speed, purely additive).
+ *
+ * A single descent (`placeStrataHullsPackedScored`) re-invokes `placeStrataHulls`
+ * up to `2 × Σ_hull candidateCount` times, and each `layoutHull(h)` regenerates
+ * hull `h`'s FULL `strataPackedCandidateSequences` list from scratch — an O(n²)
+ * (candidates) × O(n·idlen) (join) rebuild that the trace attributes ~85% of the
+ * deband=vpc felt import to. The candidate list of a packed hull `h` depends ONLY
+ * on `h`'s `orderParams`, and for a fixed `(model, edgesPrime, rank, options)`
+ * quadruple — all frozen for the descent's lifetime — the ONLY trial-varying
+ * inputs are the child-hull unit extents (`x0`, `x1`, `height`) carried in
+ * `infos`. Everything else `strataPackedCandidateSequences` reads
+ * (contentKey / colSpan / liftedEdges / membership / policy / sweeps /
+ * siftRelocate / edgesPrime) is a pure function of that frozen quadruple. So a
+ * `Map` keyed on `hull.id` + the per-unit `(unitId, x0, x1, height)` extents is a
+ * SOUND, staleness-proof memo: same key ⇒ byte-identical output of a deterministic
+ * pure function. The cache is passed in by the descent and scoped to that single
+ * invocation (dies on return ⇒ no cross-import leakage), and `undefined` ⇒ the
+ * legacy code path runs verbatim (byte-identical). See
+ * scratchpad/overnight-20260717/research/b01-trace-analysis.md (O1) +
+ * b09-memo-key-audit.md.
+ */
+export type StrataCandidateCache = Map<
+  string,
+  readonly (readonly StrataUnit[])[]
+>;
+
+// Env-gated false-green tripwire (default OFF ⇒ zero cost — a single boolean read
+// on cache hits). When enabled, every candidate-cache hit recomputes the
+// sequences from scratch and asserts byte-equality with the cached value, so a
+// key that silently missed a real input (a stale hit) throws deterministically
+// instead of surfacing as a luck-dependent geometry drift. Enabled by
+// `STRATA_CANDIDATE_MEMO_DEBUG=1` at module init, or per-test via the exported
+// setter below (used by the memo transparency test to exercise the assertion on
+// a real descent's cache hits).
+let strataCandidateMemoDebug =
+  typeof process !== "undefined" &&
+  process.env?.STRATA_CANDIDATE_MEMO_DEBUG === "1";
+
+/** TEST-ONLY: toggle the candidate-memo recompute-and-assert tripwire at runtime
+ * (production leaves it at the env-derived default). Returns the prior value so a
+ * test can restore it in a `finally`. */
+export const __setStrataCandidateMemoDebug = (on: boolean): boolean => {
+  const prev = strataCandidateMemoDebug;
+  strataCandidateMemoDebug = on;
+  return prev;
+};
+
+// Field delimiter for the O1 candidate-memo key: NUL, which cannot occur in a
+// terraform-derived hull/cluster id or in a numeric extent. This makes the key
+// encoding INJECTIVE — two distinct (hull, extents) states can never collide to
+// one key — so a false cache hit (which would return the wrong candidate list
+// and break byte-identity) is impossible, not merely improbable.
+const STRATA_CANDIDATE_MEMO_KEY_SEP = String.fromCharCode(0);
+
+/** Structural equality of two candidate-sequence lists by unit id, order-exact. */
+const strataCandidateListsEqual = (
+  a: readonly (readonly StrataUnit[])[],
+  b: readonly (readonly StrataUnit[])[],
+): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i++) {
+    const ca = a[i]!;
+    const cb = b[i]!;
+    if (ca.length !== cb.length) {
+      return false;
+    }
+    for (let j = 0; j < ca.length; j++) {
+      if (strataUnitId(ca[j]!) !== strataUnitId(cb[j]!)) {
+        return false;
+      }
+    }
+  }
+  return true;
+};
+
 // The three derived spacing values are CALL-TIME reads, never module-level
 // consts: this module sits inside the repo's pre-existing
 // terraformPlanParsing→terraformLayoutCore import cycle (via the Strata engine
 // dispatch), so at module-init time the LayoutShared constants can still be
 // uninitialized (undefined ⇒ a module-level `PAD * 2` freezes as NaN — a real,
 // test-caught failure). Call-time reads always see the initialized bindings.
-/** Title strip reserved at the top of a hull box (v3.1-frozen HULL_TITLE_BAND). */
-const strataTitleReserve = (): number => PIPELINE_FRAME_PAD * 2;
-/** Stacked-gap when a framed hull is involved (clears its border + title). */
-const strataHullGapY = (): number => PIPELINE_LANE_GAP_Y;
-/** Stacked-gap between two plain leaf cards. */
-const strataLeafGapY = (): number => PIPELINE_CLUSTER_GAP_Y;
+/** Title strip reserved at the top of a hull box (v3.1-frozen HULL_TITLE_BAND).
+ * Exported for the ancillary band re-stack (terraformPipelineStrataAncillary.ts),
+ * which must reproduce this hull's top inset EXACTLY rather than re-derive it. */
+export const strataTitleReserve = (): number => PIPELINE_FRAME_PAD * 2;
 
 /** A rectangle already occupied in a hull's local frame (for geometric drop). */
-type SkylineRect = { x0: number; x1: number; y1: number; isHull: boolean };
+export type SkylineRect = {
+  x0: number;
+  x1: number;
+  y1: number;
+  isHull: boolean;
+};
 
-/** Stacked gap between two blocks: wide if either is a framed hull. */
+/**
+ * Stacked gap between two blocks: wide if either is a framed hull.
+ *
+ * Delegates to the SHARED `strataGapBetween` so the post-A7 movers (which
+ * re-place boxes without `dropY` and must re-assert this invariant themselves)
+ * cannot drift from the canonical rule. This is the packed arm by construction —
+ * `dropY` is only used by the packed policy; the banded policy stacks with
+ * LANE_GAP_Y directly in `layoutHull`.
+ */
 function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
-  return aIsHull || bIsHull ? strataHullGapY() : strataLeafGapY();
+  return strataGapBetween("packed", aIsHull, bIsHull);
 }
 
 /**
@@ -75,8 +165,13 @@ function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
  * hull/leaf stacked gap). Monotone downward, no gap back-fill (OD-6). Strata's
  * own copy of the Pack.ts:137-208 skyline geometry (no coupling to V2Pack's Block
  * machinery, D3′).
+ *
+ * Exported for the ancillary band re-stack (terraformPipelineStrataAncillary.ts):
+ * growing a hull to host a band forces its siblings to re-settle, and that
+ * re-settle MUST use this exact rule — a private re-implementation there would be
+ * a second copy of the skyline free to drift from this one.
  */
-function dropY(
+export function dropY(
   rects: readonly SkylineRect[],
   x0: number,
   x1: number,
@@ -133,6 +228,32 @@ export function placeStrataHulls(
   edgesPrime: readonly StrataPrimeEdge[],
   rank: StrataRankResult,
   options: StrataEngineOptions,
+  /**
+   * ADDITIVE-OPTIONAL (round 9, `strataPackedScoring`): when set, PACKED hulls
+   * use their unconditional sweep-chain snapshot instead of the v2.0
+   * acceptance-chain order — the whole-layout scorer trial-places candidates
+   * and picks the winner. A plain number applies that snapshot index to every
+   * packed hull (clamped per hull); a map selects PER HULL by `hull.id`, and a
+   * packed hull absent from the map keeps the legacy acceptance-chain order.
+   * Banded hulls are unaffected. `undefined` ⇒ byte-identical legacy behavior.
+   */
+  packedCandidateIndex?: number | ReadonlyMap<string, number>,
+  /**
+   * ADDITIVE-OPTIONAL: when provided, reports each packed hull's candidate
+   * count (snapshots + sifting variants) so the whole-layout descent can
+   * iterate exact per-hull candidate ranges. Costs one extra candidate
+   * generation per packed hull on the reporting run only.
+   */
+  onPackedCandidateCount?: (hullId: string, count: number) => void,
+  /**
+   * ADDITIVE-OPTIONAL (O1 import-speed memo): a per-descent cache of packed-hull
+   * candidate sequences keyed by `hull.id` + child-unit extents. When supplied,
+   * `layoutHull` reuses an already-generated candidate list instead of rebuilding
+   * it (the descent regenerates the same lists across most trials). `undefined` ⇒
+   * every candidate list is regenerated exactly as before (byte-identical). The
+   * cache is descent-scoped, so a stale hit is impossible (see the type doc).
+   */
+  candidateCache?: StrataCandidateCache,
 ): StrataPlacementResult {
   const rankOf = (clusterId: string): number => {
     const r = rank.rank.get(clusterId);
@@ -250,19 +371,78 @@ export function placeStrataHulls(
     // `infos` / the lift over this hull), and inside the engine's failure
     // contract a deterministic degenerate answer for an unreachable case beats
     // adding a new throw path (so no new "Strata A2"-prefixed throw is needed).
-    const ordered = orderStrataUnits({
+    const orderParams = {
       units: infos.map((info) => info.unit),
-      contentKeyOf: (unit) => infoByUnitId.get(strataUnitId(unit))!.contentKey,
+      contentKeyOf: (unit: StrataUnit) =>
+        infoByUnitId.get(strataUnitId(unit))!.contentKey,
       liftedEdges,
-      unitHeightOf: (id) => infoByUnitId.get(id)?.height ?? 0,
+      unitHeightOf: (id: string) => infoByUnitId.get(id)?.height ?? 0,
       policy: hull.policy,
       sweeps: options.sweeps,
-      unitXSpanOf: (id): readonly [number, number] => {
+      unitXSpanOf: (id: string): readonly [number, number] => {
         const info = infoByUnitId.get(id);
         return info ? [info.x0, info.x1] : [0, 0];
       },
-      unitColSpanOf: (id) => infoByUnitId.get(id)?.colSpan ?? [0, 0],
-    });
+      unitColSpanOf: (id: string): readonly [number, number] =>
+        infoByUnitId.get(id)?.colSpan ?? [0, 0],
+      // OD-15 sift-relocate: external-incidence candidate eligibility. `edgesPrime`
+      // is the raw E′ multiset (pre-lift) and `unitOfCluster` is THIS hull's
+      // membership (external clusters → undefined), so a unit whose only edge
+      // LEAVES the hull becomes a relocation candidate — the case the lift drops.
+      // Gated inside strataPackedCandidateSequences by `siftRelocate`; inert and
+      // byte-identical when strataSiftRelocate is off/absent.
+      siftRelocate: options.strataSiftRelocate,
+      edgesPrime,
+      unitOfCluster: (cid: string) => unitOfCluster.get(cid),
+    };
+    let ordered: readonly StrataUnit[];
+    const packedIndexForHull =
+      packedCandidateIndex === undefined
+        ? undefined
+        : typeof packedCandidateIndex === "number"
+        ? packedCandidateIndex
+        : packedCandidateIndex.get(hull.id);
+    // O1 memo: `strataPackedCandidateSequences(orderParams)` is a pure function
+    // of `orderParams`, whose only descent-varying inputs (the child-unit x0/x1/
+    // height extents) are folded into `key` alongside `hull.id`; everything else
+    // is frozen for the descent. So a cache hit returns the identical list. When
+    // `candidateCache` is undefined the call is verbatim (byte-identical).
+    const packedCandidates = (): readonly (readonly StrataUnit[])[] => {
+      if (candidateCache === undefined) {
+        return strataPackedCandidateSequences(orderParams);
+      }
+      const S = STRATA_CANDIDATE_MEMO_KEY_SEP;
+      let key = hull.id;
+      for (const info of infos) {
+        key += `${S}${info.unitId}${S}${info.x0}${S}${info.x1}${S}${info.height}`;
+      }
+      const cached = candidateCache.get(key);
+      if (cached !== undefined) {
+        if (strataCandidateMemoDebug) {
+          const fresh = strataPackedCandidateSequences(orderParams);
+          if (!strataCandidateListsEqual(cached, fresh)) {
+            throw new Error(
+              `Strata O1 candidate-memo FALSE HIT for hull ${hull.id}: the ` +
+                `cached candidate sequences differ from a fresh recompute — a ` +
+                `keyed input changed but the cache key did not (stale hit).`,
+            );
+          }
+        }
+        return cached;
+      }
+      const fresh = strataPackedCandidateSequences(orderParams);
+      candidateCache.set(key, fresh);
+      return fresh;
+    };
+    if (hull.policy === "packed" && onPackedCandidateCount) {
+      onPackedCandidateCount(hull.id, packedCandidates().length);
+    }
+    if (packedIndexForHull !== undefined && hull.policy === "packed") {
+      const cands = packedCandidates();
+      ordered = cands[Math.min(packedIndexForHull, cands.length - 1)]!;
+    } else {
+      ordered = orderStrataUnits(orderParams);
+    }
 
     // Step 4: place by policy. Content starts below FRAME_PAD + TITLE_RESERVE
     // (root carries no title strip — it is the canvas, not a titled frame).
@@ -270,6 +450,10 @@ export function placeStrataHulls(
       PIPELINE_FRAME_PAD + (hull.role === "root" ? 0 : strataTitleReserve());
     const placed: LocalPlaced[] = [];
 
+    // Place by RESOLVED policy. A packed hull (region/vpc/subnet, plus
+    // provider/account when the band-depth cut is left of them) uses the dropY
+    // skyline so X-disjoint siblings share a Y-row; a banded hull is a
+    // full-width stack (the root always lands here — v3.1 §1.4).
     if (hull.policy === "packed") {
       const rects: SkylineRect[] = [];
       for (const unit of ordered) {

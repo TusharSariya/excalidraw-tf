@@ -13,6 +13,7 @@ import {
   canonicalEdgeKey,
   mulberry32,
   pairedBootstrapCi,
+  statisticGateEligible,
 } from "./terraformPipelineBootstrapCi";
 
 describe("mulberry32 pinned PRNG", () => {
@@ -157,6 +158,77 @@ describe("bootstrapGatePolicy (v3.1 §12)", () => {
 
   it("… unless the CI is degenerate, which voids the p90 gate even at n ≥ 30", () => {
     expect(bootstrapGatePolicy(50, true).gate).toBe("p50");
+  });
+});
+
+describe("pairedBootstrapCi — statistic parameter (v3.2, R8-F1)", () => {
+  // 19 deltas of −1 plus one +100 outlier: the mean says "worse" (+4.05) while
+  // the median says "better" (−1). This is exactly the mean-vs-tail class of
+  // error R8-F1 documented — the named statistics must genuinely differ.
+  const outlierInput = () => {
+    const baseline = new Map<string, number>();
+    const candidate = new Map<string, number>();
+    for (let i = 0; i < 19; i++) {
+      baseline.set(`k${i.toString().padStart(2, "0")}`, 0);
+      candidate.set(`k${i.toString().padStart(2, "0")}`, -1);
+    }
+    baseline.set("k19", 0);
+    candidate.set("k19", 100);
+    return { baseline, candidate };
+  };
+
+  it("default statistic is mean and matches an explicit statistic:'mean' call", () => {
+    const def = pairedBootstrapCi(outlierInput());
+    const explicit = pairedBootstrapCi(outlierInput(), { statistic: "mean" });
+    expect(def).toEqual(explicit);
+    expect(def.statistic).toBe("mean");
+    expect(def.point).toBeCloseTo(4.05, 10);
+  });
+
+  it("p50 bootstraps the median itself (outlier cannot drag it)", () => {
+    const r = pairedBootstrapCi(outlierInput(), { statistic: "p50" });
+    expect(r.statistic).toBe("p50");
+    expect(r.point).toBe(-1);
+    // A resampled median of 100 would need ≥11/20 outlier draws — never seen
+    // at B=1000. The p50 CI is entirely below zero while the mean point is +4.
+    expect(r.lo).toBe(-1);
+    expect(r.hi).toBe(-1);
+    // hi is the max REPLICATE (−1) but NOT the sample max (100) — a collapsed
+    // quantile CI away from the extreme is not "degenerate".
+    expect(r.degenerate).toBe(false);
+  });
+
+  it("p90 pinned to the sample max is degenerate", () => {
+    const r = pairedBootstrapCi(outlierInput(), { statistic: "p90" });
+    expect(r.statistic).toBe("p90");
+    // Observed p90 (index floor(0.9·20)=18) is −1, but resampled p90 hits the
+    // outlier whenever ≥2 copies land in the top slots (~26% of draws), so the
+    // CI upper bound IS the sample max ⇒ degenerate per the v3.2 rule.
+    expect(r.point).toBe(-1);
+    expect(r.hi).toBe(100);
+    expect(r.degenerate).toBe(true);
+  });
+
+  it("is deterministic per statistic", () => {
+    const a = pairedBootstrapCi(outlierInput(), { statistic: "p90" });
+    const b = pairedBootstrapCi(outlierInput(), { statistic: "p90" });
+    expect(a).toEqual(b);
+  });
+});
+
+describe("statisticGateEligible (v3.2 floors)", () => {
+  it("p90 requires n ≥ 31 (off-by-one fix vs v3.1 §12.2's 30)", () => {
+    expect(statisticGateEligible("p90", 30)).toBe(false);
+    expect(statisticGateEligible("p90", 31)).toBe(true);
+  });
+
+  it("p50 requires n ≥ 10", () => {
+    expect(statisticGateEligible("p50", 9)).toBe(false);
+    expect(statisticGateEligible("p50", 10)).toBe(true);
+  });
+
+  it("mean is never a v3.2 gate statistic", () => {
+    expect(statisticGateEligible("mean", 1000)).toBe(false);
   });
 });
 

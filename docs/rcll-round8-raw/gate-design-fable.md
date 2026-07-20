@@ -1,0 +1,89 @@
+# Strata readability gate family — independent design (Fable, round-8 follow-up)
+
+Design goal: replace the §2.5-era extent-centric family with a machine-computable, literature-cited gate family whose headline measures **predicted impact-tracing cost**, under the binding constraints: no human trials; nodes hard-bound to hierarchy bands (metrics judge quality _within_ the constraint); R8-F1 (bootstrap the named statistic) and R8-F3 (frozen baselines loaded + CI-asserted) repaired by construction.
+
+Key primary-source anchor (verified against the PDF, pp. 7–13): **Ware, Purchase, Colpoys, McGill 2002**, _Cognitive Measurements of Graph Aesthetics_ (Information Visualization 1(2); corpus `doi-10-1057-palgrave-ivs-9500013`). Shortest-path task, 137 drawings, 43 subjects. Stepwise regression (their eq. 1/2):
+
+```
+rt = −4.970 + 1.390·spl + 0.01699·con + 0.654·cr + 0.295·br      (seconds)
+normalized: rt = 0.414·spl + 0.406·con + 0.317·cr + 0.172·br
+R² ladder: spl .542 → +con .642 → +cr .760 → +br .784
+```
+
+where `spl` = path length (hops), `con` = **path continuity** = Σ over intermediate path nodes of the angular deviation (degrees) from straight-through of the two path edges at that node, `cr` = number of edges crossing the path, `br` = Σ (degree−2) over intermediate path nodes. Their own cost equivalence: **1 crossing-on-path ≈ 38° of continuity ≈ 0.65 s; 100° of bendiness ≈ 1.7 s**. Critically for us: **total crossings in the drawing (tcr, r=.216) was NOT a significant predictor** for path tasks — only crossings _on the path_ were — and average crossing angle was not significant in their spring-layout stimuli (their aca had little variance; the angle effect is established separately by Huang's eye-tracking work below). This is the empirical license to demote global/aggregate metrics and gate path-level ones.
+
+Scale caveat (stated honestly, per v3.0 §10 convention): Ware's stimuli were 42-node spring layouts; the coefficients are treated as **literature-derived engineering weights**, and the composite's components are also gated individually so no conclusion rests on the exact weights.
+
+---
+
+## Proposed metric family
+
+Population conventions: TFD arrows = engine-emitted non-aggregated dataflow arrows (existing `tfdArrowsOf`); geometry from rendered polylines (existing `arrowGeometry` segments); crossings via the existing `segmentsCross` proper-crossing kernel, extended to return the intersection angle θ = the acute angle between the two segment direction vectors, θ ∈ (0°, 90°]. All layouts are deterministic (seeded), so scene-scalar metrics compare **exactly** against loaded frozen baselines; bootstrap CIs are reserved for per-edge/per-path populations (the CI models generalization over the edge/path population, not run noise).
+
+| # | Metric | Computable definition | Citation | Gate? | Gated statistic | Goodhart risk / structural limiter |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M-RT | **Predicted tracing cost (headline)** | Per path p (population §below), `rt̂(p) = 1.390·k + 0.01699·con(p) + 0.654·cr(p) + 0.295·br(p)`, k = hop count. Δ paired per-path (candidate − baseline); br and k cancel in Δ (layout-invariant), so Δrt̂ isolates the layout's continuity + crossings contribution — exactly what a layout A/B can change. | Ware et al. 2002 eq. (1), R²=.784 | **GATED** | paired **p50 AND p90** (separately bootstrapped; tail because a view is judged by its worst traces, center because typical traces dominate use) | Weights frozen from the paper, not tunable; components gated separately below, so a weight-exploit still trips a component gate. |
+| M-CON | **Path continuity** | `con(p) = Σ_i dev(v_i)` over intermediate nodes; `dev = 180° − angle(incoming polyline direction at v_i, outgoing polyline direction at v_i)` using the arriving edge's last segment and departing edge's first segment; degrees; straight-through ⇒ 0. | Ware 2002 (con r=.633, strongest aesthetic factor; "good continuation", Field et al. via Ware §Fig 3–5) | **GATED** | paired p90 (tail: one zigzag node ruins a trace) | Can't be gamed by stacking nodes (collision gate 0 stands); band-binding caps achievable straightness — gate is A/B vs baseline, not absolute. |
+| M-CRP | **Crossings-on-path** | `cr(p)` = number of distinct TFD arrows not in p whose any segment properly crosses any segment of p's edges (count each crossing arrow once, matching Ware's cr). | Ware 2002 (cr r=.449 vs tcr r=.216 n.s.; "it is the number of edges that cross the shortest path itself that is important") | **GATED** | paired p90 | Path sampling frozen+seeded (below) — no cherry-picking; global backstop M-TCR catches displacement of crossings off sampled paths. |
+| M-ANG | **Sharp-crossing share** | Over all proper crossings between TFD arrows in the scene: `share = | {θ < 30°} | / max(1, ncross)`; also report p10(θ). 30° per the established large-angle threshold. | Huang 2008 eye-tracking (`forward-10-48550-arxiv-0810-4431`: small angles trigger extra eye movements, delay path search); Huang/Eades/Hong large-angle result as cited in RAC literature (`jgaa-2273…`: "large angles improve readability… need not be right angles"); 30° convention per `doi-10-1007-978-3-642-18469-7-15` | **GATED** | exact scalar: candidate.share ≤ baseline.share + 0.02 (deterministic scenes ⇒ no CI needed) | Reducing share by deleting crossings is fine (that's a win); adding near-parallel _non-crossing_ clutter is caught by M-TLL/M-EXT. |
+| M-TLL | **Path geometric length** | `tll(p)` = Σ polyline arc length of p's edges (px). | Ware 2002 (tll r=.623); metro-map objective "edge curve lengths should be minimized" (`doi-10-1111-cgf-13986` constraint 2; Nöllenburg & Wolff 2010 `forward-10-1109-tvcg-2010-81`; Stott & Rodgers 2004 `forward-10-1109-iv-2004-1320168`) | **GATED** | paired p50 (lengths are smooth; tails covered by M-RT p90) | Shrinking cards to shorten paths is blocked: card sizes are engine constants, band-bound. |
+| M-TCR | **Global crossings** | Existing `crossings` count (edge pairs that cross). | Purchase 1997 validating-aesthetics (`s2-10-1007-bfb0021827`): crossings/bends hurt comprehension tasks; kept as global backstop though Ware shows n.s. for path tasks | **GATED (weak)** | exact scalar: candidate ≤ baseline (non-regress) | Prevents "clean sampled paths, chaotic elsewhere"; weak (non-regress only) so it can't dominate the path gates it empirically ranks below. |
+| M-EXT | **Slice-B vertical extent** | Existing per-edge `extentPx`, slice B. **Statistic repaired per R8-F1.** | Owner-calibrated engineering prior (v3.0 §10's honest note: no study isolates vertical-vs-horizontal cost); supported indirectly by tll | **GATED (supporting, non-headline)** | paired p50 and p90, **each bootstrapped on its own statistic** | The old headline; demoted so it can no longer be traded against path metrics invisibly. |
+| M-GEO | Geodesic-tendency violation | Per path edge (v*i→v*{i+1}): `gdev = angle(rendered edge direction, straight line v_i→v_k(target))`; per path max; scene p90 across paths. | Huang/Eades/Hong 2009, _A graph reading behavior: Geodesic-path tendency_ (`doi-10-1109-pacificvis-2009-4906848`); Huang 2008 (subjects searched paths near the geometric path first) | report-only (novel formalization = engineering prior; candidate to gate after one milestone of data) | — |
+| M-TRAP | Branch confusability ("trap edges") | At each intermediate path node v_i: count non-path dep edges leaving v_i whose rendered direction is within 30° of the straight line v_i→target while the true path edge deviates by more. Σ over path. | Grounded in geodesic tendency (above) + Ware's br; the specific form is an engineering prior, marked as such | report-only | — |
+| M-BND | Bends within edges | Per edge: polyline vertices with direction change > 15°; per path Σ. (Mostly for the future OD-9 ports/routing milestone — today's arrows are near-monotone.) | Purchase 1997 (bend increase → worse); metro-map bend minimization (`doi-10-1111-cgf-13986` constraint 1) | report-only now; **gate when OD-9 routing lands** | — |
+| — | fractionNearStraight (24px), stackedBandHeight, bands-skipped, areaUtilization, normalizedDeviation, raw canvas height | unchanged | 24px threshold and height are unvalidated priors | report-only (see Demote) | — |
+
+## Path-level metrics for impact tracing
+
+**Path population P (deterministic, frozen per preset):** from the dependency digraph G = (resources, TFD edges source→target). Take every ordered pair (r, d) with a **unique shortest directed path** of length 2–5 hops (mirrors Ware's spl 3–5 nodes; uniqueness makes the target trace well-defined without a human answer key). Sort paths by canonical key = joined address chain (`"\0"`-joined, code-unit order). If |P| > 500, keep a uniform sample of 500 drawn with `mulberry32(20260704)` over the sorted list (deterministic, seed-frozen — same convention as §2.5). Frozen at S0b-style baseline time; the SAME path set (by key) is evaluated in both arms; pairing key = the canonical path key; unmatched-path void rule inherits §2.5's 20% threshold. Report |P|, length histogram, and the sampling ratio (no silent truncation).
+
+Formulas (all from rendered geometry):
+
+- **con(p)** = Σ over intermediate nodes of `180° − ∠(d_in, d_out)`, d_in = direction of the arriving arrow's final segment at v_i, d_out = direction of the departing arrow's first segment. Degrees; 0 = straight-through. (Ware's exact construct.)
+- **cr(p)** = |{arrows a ∉ p : ∃ segment of a properly crossing a segment of some edge of p}| (per-arrow, not per-intersection — Ware's cr).
+- **br(p)** = Σ over intermediate nodes of (in+out degree in G − 2). Layout-invariant: **identical in both arms, hence excluded from gating and cancelled in Δrt̂** — reported for absolute-cost context only. (An honest gate never claims credit for graph-intrinsic structure.)
+- **gdev/trap** as in M-GEO/M-TRAP above.
+- **rt̂(p)** per M-RT; report both absolute rt̂ distributions and paired Δrt̂.
+
+## Gate policy
+
+**Statistic repair (R8-F1).** `pairedBootstrapCi(input, {statistic: "mean" | "p50" | "p90"})`: build the address/path-keyed paired delta vector as today; each of B=1000 draws resamples n-of-n with replacement via `mulberry32(20260704)` and computes the **named statistic** of the resampled vector using the frozen nearest-rank convention `sorted[min(n−1, floor(n·f))]`; CI = [2.5%, 97.5%] percentiles of the B statistic values. The mean remains available as a report-only companion. Degenerate rule retained per statistic: p90-CI upper == sample max ⇒ that p90 cell is VOID → gating falls to p50 (existing §12 wording). Floors: p90 gating requires n ≥ **31** (fixes the R8 off-by-one: at n=31, index floor(31·0.9)=27 is the 28th observation with 3 above); p50 gating requires n ≥ 10 (existing pin). Path cells use the same floors over |P∩matched|.
+
+**Frozen baselines loaded, not rebuilt (R8-F3).** Freeze per-preset v2-arm artifacts into `docs/strata-baselines/`: (a) per-edge rows (`canonicalEdgeKey → {slice, extentPx}`), (b) per-path rows (`pathKey → {k, con, cr, tll, rt̂}`), (c) scene scalars (`crossings, sharpCrossingShare, p10θ`), each SHA-256-pinned in the spec register. The harness **loads** these (asserting the SHA), computes only the candidate arm live, and pairs against the loaded rows. A machine-readable `gateRegister.json` maps cell → claimed status ∈ {PASS, PARITY, FAIL-WAIVED, REPORT}; a CI test recomputes every claimed cell and **fails** if the recomputed verdict differs from the claim. WAIVED is a legal recorded status (the owner-override, made explicit); claiming PASS when the computation says otherwise is a red build. This converts SDEC-47/53-style overrides from spec ambiguity into an auditable register entry.
+
+**Verdict composition (no human in the loop).** Lexicographic, all machine-checked:
+
+1. Correctness gates unchanged (collision count 0, R2 zeros, determinism/churn A4).
+2. **Headline: M-RT** paired Δ on ≥2 presets — IMPROVED iff CI hi < 0 for the named statistic; PARITY iff CI straddles 0 AND |point| ≤ ε_rt (propose ε_rt = 0.25 s ≈ the cost of ~15° continuity, from Ware's equivalences); else REGRESSED.
+3. Supporting gates: M-CON/M-CRP/M-TLL (paired, as tabled), M-ANG and M-TCR (exact scalars).
+4. Report block: M-EXT trend + all report-only metrics. Milestone exit = every register cell PASS/PARITY or explicitly FAIL-WAIVED; the arm-E owner checkpoint remains as a _veto_ (owner can reject a machine-green build), never as a _waiver_ that flips FAIL to PASS.
+
+## What to demote/drop
+
+- **Slice-B extent as headline → supporting (M-EXT).** It is the owner's asymmetric-cost prior, not an empirically validated tracing predictor; Ware's significant length factor is per-path geometric length (M-TLL), which replaces it as the gated length signal. Keep extent gated-but-non-headline so band-height work stays observable.
+- **Mean-CI extent gate → deleted as a gate.** It is the R8-F1 defect. Mean stays as a reported companion.
+- **Raw canvas height / stackedBandHeight → report-only.** Compactness is a means, not the end; W4 showed it can improve while the p90 tail stays bad.
+- **fractionNearStraight (24px) → report-only.** Unvalidated binary threshold; M-CON supersedes it with the validated continuous construct.
+- **Global crossings → weak non-regress backstop only** (Ware: n.s. for path tasks; Purchase keeps it from being dropped entirely).
+- **bands-skipped stays** as A2's objective diagnostic (report), untouched — it is the optimizer's own objective, and gating a system on its own objective is Goodhart by construction (`arxiv-2508-15557v1`'s core warning; their morph attack is already structurally blocked by rank-pinning + hull contiguity, per v3.0 §10's scoped claim — the breadth of this family is the general defense).
+
+## Migration & cost
+
+Order (each lands with its own tests):
+
+1. **`pairedBootstrapCi` statistic parameter** + floor fixes + degenerate-per-statistic rules (~1 day; pure extension of the existing module; existing mean callers unchanged).
+2. **Crossing-angle capture**: extend the existing crossings double-loop (`terraformPipelineCollisionDiagnostics.ts:365`) to record θ per crossing pair from segment direction vectors (atan2); emit `sharpCrossingShare`, `p10θ`. Same O(A²·s²) loop as today — no new asymptotics.
+3. **`terraformPipelineStrataPathMetrics.ts`** (new, additive module mirroring sliceMetrics conventions): dep graph from the existing `relOf` source/target; BFS unique-shortest-paths 2–5 hops; seeded sampling; con/cr/tll/br/rt̂/gdev/trap per path. Reuses `arrowGeometry`-style polyline access and the `segmentsCross` kernel (import the exported `Seg`/`segmentsCross`). Cost at P1 (~123 clusters, ~200–300 TFD arrows): |P| ≤ 500; crossings-on-path ≈ 500 paths × 300 arrows × ~4 segment pairs ≈ 6×10⁵ orientation tests — well under a second next to the ~seconds-scale Q2 harness.
+4. **Freeze + register**: v2 per-path/per-edge/scalar baseline JSONs + SHA pins + `gateRegister.json` + the CI assertion test (this is the R8-F3 repair and should ship in the same amendment as 1).
+5. Re-run W3/W4 tables under the repaired statistics; restate the W4 verdict in the register's vocabulary (expected: extent p90 cell = FAIL-WAIVED, not PARITY).
+
+**Minimal first slice (most value, 3 metrics):** (1) statistic-repaired slice-B p50/p90 gate — stops the current mislabeled claim; (2) **M-RT paired per-path composite** — the impact-tracing headline, one new module; (3) **M-ANG sharp-crossing share** — cheap, orthogonal, catches the failure mode extent never sees.
+
+## Research log
+
+Corpus queries (`bin/rag graph`): metro map octilinearity/MIP (hits: `forward-10-1109-tvcg-2010-81` Nöllenburg & Wolff 2010; `forward-10-1109-iv-2004-1320168` Stott & Rodgers 2004; `doi-10-1111-cgf-13986` octilinear grid soft constraints; `handbook-cartography`); crossing-angle/RAC (`jgaa-2700…`, `jgaa-2273…` quoting Huang/Eades/Hong large-angle conclusion; `doi-10-1007-978-3-642-18469-7-15` 30° convention; `doi-10-1142-s021819591250015x`); path-tracing empirical (`doi-10-1057-palgrave-ivs-9500013` Ware; `forward-10-48550-arxiv-0810-4431` Huang 2008; `s2-10-1109-access-2020-3047616` survey incl. Purchase bends result; `s2-10-1007-bfb0021827` Purchase validating aesthetics); geodesic tendency (`doi-10-1109-pacificvis-2009-4906848`); fooling/metrics (`arxiv-2508-15557v1`, `s2-10-4230-lipics-gd-2025-30`, `arxiv-2008-07764v2`).
+
+Primary deep-read: Ware et al. 2002 full PDF (vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf, pp. 5–14) — task, factor definitions (con/cr/aca/br/spl/tll/tcr), correlation table (con .633, cr .449, tcr .216, tll .623, aca .148 n.s.), stepwise regression eq. (1)/(2) + R² ladder, 38°≈1-crossing equivalence, tcr-not-significant discussion. `bin/rag read` for this doc_id returned metadata-only (no PDF in corpus) — web PDF used instead. Huang 2008 abstract verified via arxiv.org/abs/0810.4431 (small angles delay path search; specific medians not re-verified, deliberately not cited).
+
+Repo verification: `terraformPipelineSliceMetrics.ts` (full read — perEdge rows, slice classification, band reconstruction, percentile convention), `terraformPipelineCollisionDiagnostics.ts` (exports survey — Seg/segmentsCross kernel, crossings loop at L365, arrowGeometry), `terraformPipelineBootstrapCi.ts` (from round-8 context: mean-only bootstrap, mulberry32, degenerate/void rules), v3.1 §2.5/§12/§13 conventions (round-8 context, quoted in session).

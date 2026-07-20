@@ -1,7 +1,10 @@
+/* eslint-disable max-lines */
 /**
  * Derive AWS account / region / VPC / subnet topology from `terraform show -json` plan shape
  * (`resource_changes`) for semantic (topology) layout.
  */
+
+import { parseStackAddress } from "./terraformStackAddress";
 
 export const TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT = "unknown-account";
 export const TERRAFORM_TOPOLOGY_UNKNOWN_REGION = "unknown-region";
@@ -627,12 +630,19 @@ export function mergeTerraformTopologyAccountRegionFromSubnets(
 
 /**
  * When a resource has no ARN/owner yet (e.g. create-only `aws_sqs_queue`) but lists a concrete
- * region, inherit account from any `aws_subnet` row in the plan with that region — matches real
- * single-account modules.
+ * region, inherit account from the `aws_subnet` rows in the plan with that region.
+ *
+ * Default (OFF): inherit the first sorted subnet's account in that region (legacy behavior).
+ *
+ * `privateApiRegional` (opt-in P2.2 multi-account guard): inherit ONLY when the region is genuinely
+ * single-account. If the region hosts more than one account, guessing the first sorted subnet's
+ * account silently misplaces the resource (splitting a VPC across account hulls); leaving the
+ * account UNKNOWN keeps the frame unemitted, which is the correct failure mode.
  */
 export function mergeTerraformTopologyAccountRegionFromSameRegionSubnets(
   base: { account: string; region: string },
   subnetOwners: Map<string, TerraformSubnetOwnerHint>,
+  opts?: { privateApiRegional?: boolean },
 ): { account: string; region: string } {
   if (base.account !== TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT) {
     return base;
@@ -640,18 +650,204 @@ export function mergeTerraformTopologyAccountRegionFromSameRegionSubnets(
   if (base.region === TERRAFORM_TOPOLOGY_UNKNOWN_REGION) {
     return base;
   }
-  const orderedSubnetIds = [...subnetOwners.keys()].sort();
-  for (const sid of orderedSubnetIds) {
-    const hint = subnetOwners.get(sid);
+  if (!opts?.privateApiRegional) {
+    // Legacy behavior: first sorted subnet in the region wins.
+    const orderedSubnetIds = [...subnetOwners.keys()].sort();
+    for (const sid of orderedSubnetIds) {
+      const hint = subnetOwners.get(sid);
+      if (
+        hint &&
+        hint.region === base.region &&
+        hint.account !== TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT
+      ) {
+        return { account: hint.account, region: base.region };
+      }
+    }
+    return base;
+  }
+  const sameRegionAccounts = new Set<string>();
+  for (const hint of subnetOwners.values()) {
     if (
       hint &&
       hint.region === base.region &&
       hint.account !== TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT
     ) {
-      return { account: hint.account, region: base.region };
+      sameRegionAccounts.add(hint.account);
     }
   }
-  return base;
+  if (sameRegionAccounts.size !== 1) {
+    return base;
+  }
+  const [onlyAccount] = [...sameRegionAccounts];
+  return { account: onlyAccount!, region: base.region };
+}
+
+/**
+ * Terraform module prefix for a (stack-stripped) resource address, e.g. `module.a.module.b`, or
+ * `""` for root. Mirrors `terraformModulePrefixForAddress` in `terraformTopologyIamLinks.ts`; kept
+ * local because that module transitively imports this one (importing it would form a cycle).
+ */
+function terraformModuleScopePrefix(bareAddress: string): string {
+  const parts = bareAddress.split(".");
+  const segments: string[] = [];
+  for (let i = 0; i < parts.length - 1; ) {
+    if (parts[i] === "module" && parts[i + 1]) {
+      segments.push("module", parts[i + 1]!);
+      i += 2;
+    } else {
+      break;
+    }
+  }
+  return segments.join(".");
+}
+
+/** Stack identity + bare module scope for a (possibly stack-qualified) TF address. */
+function stackAndModuleScope(address: string): {
+  stackId: string;
+  modulePrefix: string;
+} {
+  const parsed = parseStackAddress(address);
+  const stackId = parsed ? parsed.stackId : "";
+  const bare = parsed ? parsed.address : address;
+  return { stackId, modulePrefix: terraformModuleScopePrefix(bare) };
+}
+
+/** `true` when `companionPrefix` is `apiPrefix` itself or a module descendant of it. */
+function isSameModuleOrDescendant(
+  apiPrefix: string,
+  companionPrefix: string,
+): boolean {
+  if (apiPrefix === "") {
+    // Root-scoped API owns every module in its (already region-scoped) stack.
+    return true;
+  }
+  return (
+    companionPrefix === apiPrefix || companionPrefix.startsWith(`${apiPrefix}.`)
+  );
+}
+
+/**
+ * Owning account carried by a companion resource's OWN top-level fields only: a canonical
+ * top-level `arn` whose 5th segment is a 12-digit account, or a 12-digit `owner_id`. Nested ARNs
+ * (VPC-link targets, IAM principals, cross-account integration refs) are deliberately NOT scanned —
+ * they reference other resources and do not prove ownership. Returns `null` when neither is present.
+ */
+function ownershipAccountRegionForValues(
+  values: Record<string, unknown>,
+): { account: string; region: string } | null {
+  const topArn = stringField(values.arn);
+  if (topArn) {
+    const loc = parseAwsArnLocation(topArn);
+    if (loc) {
+      const region =
+        loc.region ||
+        stringField(values.region) ||
+        TERRAFORM_TOPOLOGY_UNKNOWN_REGION;
+      return { account: loc.account, region };
+    }
+  }
+  const owner = stringField(values.owner_id);
+  if (owner && /^\d{12}$/.test(owner)) {
+    const region =
+      stringField(values.region) || TERRAFORM_TOPOLOGY_UNKNOWN_REGION;
+    return { account: owner, region };
+  }
+  return null;
+}
+
+type ModuleCompanionAccountEntry = {
+  /** Companion's stack-stripped module scope (`module.a.module.b`, or `""` for root). */
+  modulePrefix: string;
+  /** 12-digit owning account carried by the companion's own ownership-bearing fields. */
+  account: string;
+};
+
+/** Opaque prebuilt index; build once per extraction. */
+export interface ModuleCompanionAccountIndex {
+  /** `${stackId}\0${region}` → companions in that stack+region that carry an owning account. */
+  readonly byStackRegion: ReadonlyMap<
+    string,
+    ReadonlyArray<ModuleCompanionAccountEntry>
+  >;
+}
+
+const MODULE_COMPANION_SCOPE_SEP = "\0";
+
+function moduleCompanionBucketKey(stackId: string, region: string): string {
+  return `${stackId}${MODULE_COMPANION_SCOPE_SEP}${region}`;
+}
+
+/** Build the (stack, module-scope, region) -> owning-account index from all resource changes. */
+export function buildModuleCompanionAccountIndex(
+  changes: ResourceChange[],
+): ModuleCompanionAccountIndex {
+  const byStackRegion = new Map<string, ModuleCompanionAccountEntry[]>();
+  for (const rc of changes) {
+    if (!isAwsResourceChange(rc)) {
+      continue;
+    }
+    const address = rc.address;
+    if (typeof address !== "string" || address.length === 0) {
+      continue;
+    }
+    // Match the placement path's snapshot semantics (destroy / empty-`after` prefer `before`) so a
+    // resource being destroyed still contributes its ownership fields to the index.
+    const values = pickResourceValuesForTopologyPlacement(rc);
+    if (!values) {
+      continue;
+    }
+    // Require a real region signal (top-level ARN region or `values.region`); a region-less
+    // companion is DROPPED rather than bucketed under a provider default — falling back could
+    // silently mis-attribute an account that actually belongs to another region via a non-default
+    // provider alias. "Obviously unresolved beats silently misplaced."
+    const ownership = ownershipAccountRegionForValues(values);
+    if (
+      !ownership ||
+      ownership.account === TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT ||
+      ownership.region === TERRAFORM_TOPOLOGY_UNKNOWN_REGION
+    ) {
+      continue;
+    }
+    const { stackId, modulePrefix } = stackAndModuleScope(address);
+    const key = moduleCompanionBucketKey(stackId, ownership.region);
+    let bucket = byStackRegion.get(key);
+    if (!bucket) {
+      bucket = [];
+      byStackRegion.set(key, bucket);
+    }
+    bucket.push({ modulePrefix, account: ownership.account });
+  }
+  return { byStackRegion };
+}
+
+/**
+ * Authoritative owning account for a resource (e.g. a private REST API) that has no account of
+ * its own, inferred from same-stack + same-module(-or-descendant) + same-region companion
+ * resources. Returns the single distinct 12-digit account, or null if zero or ambiguous(>1).
+ */
+export function resolveModuleCompanionAccount(
+  address: string,
+  region: string,
+  index: ModuleCompanionAccountIndex,
+): string | null {
+  const { stackId, modulePrefix } = stackAndModuleScope(address);
+  const bucket = index.byStackRegion.get(
+    moduleCompanionBucketKey(stackId, region),
+  );
+  if (!bucket) {
+    return null;
+  }
+  const accounts = new Set<string>();
+  for (const entry of bucket) {
+    if (isSameModuleOrDescendant(modulePrefix, entry.modulePrefix)) {
+      accounts.add(entry.account);
+    }
+  }
+  if (accounts.size !== 1) {
+    return null;
+  }
+  const [only] = [...accounts].sort();
+  return only ?? null;
 }
 
 export function isAwsTerraformResourceChange(rc: {

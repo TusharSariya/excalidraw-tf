@@ -1,0 +1,750 @@
+{
+  "preset": "staging-extended-localstack-v2",
+  "seed": 20260715,
+  "proposition": "Which layout is easier to read and trace dependencies in? (A / B / tie; confidence 1=slight 2=clear 3=strong)",
+  "sealed": "DO NOT OPEN before all raters have submitted labels. Never feed these scores into any optimizer or default decision — fit the exchange rate via scripts/strata-pref-fit.mjs only.",
+  "configs": {
+    "AUDIT": {
+      "eps": 2,
+      "converge": true
+    },
+    "B": {
+      "eps": 0,
+      "converge": false
+    },
+    "C": {
+      "eps": 1,
+      "converge": false
+    }
+  },
+  "entries": [
+    {
+      "index": 1,
+      "pairId": "P01",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:r4#142",
+        "note": "region-04 alt#142 — descent-rejected for +3 chord crossings; renders 162 vs engine 169 (audit §1.6) [hull region:aws/000000000004/us-east-1 cand#142]",
+        "chord": {
+          "crossings": 205,
+          "penetrations": 80,
+          "lengthL1": 717267
+        },
+        "rendered": {
+          "crossings": 162,
+          "sharpShare": 0.3,
+          "tll": 279551,
+          "maxArrowLen": 13136,
+          "pierce": 80,
+          "rtHatP50": 13.05
+        },
+        "placementSigSha1": "8669f7b11c79",
+        "svgSha1": "dd041e8e42b6"
+      },
+      "slotB": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "deltas": {
+        "chordCrossings": -3,
+        "chordPenetrations": -11,
+        "chordLengthL1": 14512,
+        "renderedCrossings": 7,
+        "renderedPierce": -11,
+        "renderedTll": 4386,
+        "renderedSharpShare": 0.19,
+        "renderedRtHatP50": -0.1
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "chord-proxy sign-inversion case: engine kept +3 chord crossings that render as -7; +11 pierce vs shorter/less-sharp",
+      "focusHint": "account 000000000004 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 2,
+      "pairId": "P02",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:r4#146",
+        "note": "region-04 alt#146 — missed by descent; renders 143 vs engine 169 (audit §1.6) [hull region:aws/000000000004/us-east-1 cand#146]",
+        "chord": {
+          "crossings": 183,
+          "penetrations": 86,
+          "lengthL1": 727532
+        },
+        "rendered": {
+          "crossings": 143,
+          "sharpShare": 0.37,
+          "tll": 282606,
+          "maxArrowLen": 13129,
+          "pierce": 86,
+          "rtHatP50": 12.41
+        },
+        "placementSigSha1": "59ee2fbf5590",
+        "svgSha1": "a18c466d1f4b"
+      },
+      "slotB": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "deltas": {
+        "chordCrossings": 19,
+        "chordPenetrations": -17,
+        "chordLengthL1": 4247,
+        "renderedCrossings": 26,
+        "renderedPierce": -17,
+        "renderedTll": 1331,
+        "renderedSharpShare": 0.12,
+        "renderedRtHatP50": 0.54
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "crossings-dominant axis: -26 chord / -15% rendered crossings at +17 pen, similar length",
+      "focusHint": "account 000000000004 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 3,
+      "pairId": "P03",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:r4#142",
+        "note": "region-04 alt#142 — descent-rejected for +3 chord crossings; renders 162 vs engine 169 (audit §1.6) [hull region:aws/000000000004/us-east-1 cand#142]",
+        "chord": {
+          "crossings": 205,
+          "penetrations": 80,
+          "lengthL1": 717267
+        },
+        "rendered": {
+          "crossings": 162,
+          "sharpShare": 0.3,
+          "tll": 279551,
+          "maxArrowLen": 13136,
+          "pierce": 80,
+          "rtHatP50": 13.05
+        },
+        "placementSigSha1": "8669f7b11c79",
+        "svgSha1": "dd041e8e42b6"
+      },
+      "slotB": {
+        "armRef": "AUDIT:r4#146",
+        "note": "region-04 alt#146 — missed by descent; renders 143 vs engine 169 (audit §1.6) [hull region:aws/000000000004/us-east-1 cand#146]",
+        "chord": {
+          "crossings": 183,
+          "penetrations": 86,
+          "lengthL1": 727532
+        },
+        "rendered": {
+          "crossings": 143,
+          "sharpShare": 0.37,
+          "tll": 282606,
+          "maxArrowLen": 13129,
+          "pierce": 86,
+          "rtHatP50": 12.41
+        },
+        "placementSigSha1": "59ee2fbf5590",
+        "svgSha1": "a18c466d1f4b"
+      },
+      "deltas": {
+        "chordCrossings": -22,
+        "chordPenetrations": 6,
+        "chordLengthL1": 10265,
+        "renderedCrossings": -19,
+        "renderedPierce": 6,
+        "renderedTll": 3055,
+        "renderedSharpShare": 0.07,
+        "renderedRtHatP50": -0.64
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "crossings vs pen/sharpness within the same frontier",
+      "focusHint": "account 000000000004 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 4,
+      "pairId": "P04",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:acct04-pull",
+        "note": "Account-04 subtree pulled left dx=1470px (X search-space gap; audit §1.4)",
+        "chord": {
+          "crossings": 209,
+          "penetrations": 75,
+          "lengthL1": 696499
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.52,
+          "tll": 266398,
+          "maxArrowLen": 11652,
+          "pierce": 75,
+          "rtHatP50": 12.89
+        },
+        "placementSigSha1": "f8c2a5a1e367",
+        "svgSha1": "8ce89ea353af"
+      },
+      "slotB": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "deltas": {
+        "chordCrossings": -7,
+        "chordPenetrations": -6,
+        "chordLengthL1": 35280,
+        "renderedCrossings": 0,
+        "renderedPierce": -6,
+        "renderedTll": 17539,
+        "renderedSharpShare": -0.03,
+        "renderedRtHatP50": 0.06
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "THE exchange-rate case: +7 chord crossings / +6 pen buys -5.5% TEL, -11% max edge, -10% area (audit Account-04)",
+      "focusHint": "horizontal position of the whole account 000000000004 block (dead gap vs crossings)"
+    },
+    {
+      "index": 5,
+      "pairId": "P05",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:dlq-pull",
+        "note": "DLQ pure-sink pull-in (2 moved; engine-objective STRICTLY better; audit §1.5)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 721659
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 278885,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "41970383c931",
+        "svgSha1": "193128035f45"
+      },
+      "slotB": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "deltas": {
+        "chordCrossings": 0,
+        "chordPenetrations": 0,
+        "chordLengthL1": 10120,
+        "renderedCrossings": 0,
+        "renderedPierce": 0,
+        "renderedTll": 5052,
+        "renderedSharpShare": 0,
+        "renderedRtHatP50": 0
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "pure length axis: crossings and pen UNCHANGED, only edge length differs — anchors the length coefficient at zero crossings cost",
+      "focusHint": "the ingress/egress DLQ queue cards (top area) — horizontal distance from their sources"
+    },
+    {
+      "index": 6,
+      "pairId": "P06",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "slotB": {
+        "armRef": "AUDIT:r1#249",
+        "note": "region-01 alt#249 — missed joint win (chord cr 182) [hull region:aws/000000000001/us-east-1 cand#249]",
+        "chord": {
+          "crossings": 182,
+          "penetrations": 69,
+          "lengthL1": 730393
+        },
+        "rendered": {
+          "crossings": 152,
+          "sharpShare": 0.43,
+          "tll": 284077,
+          "maxArrowLen": 13124,
+          "pierce": 69,
+          "rtHatP50": 12.11
+        },
+        "placementSigSha1": "07115d1917ee",
+        "svgSha1": "d019556e3ff8"
+      },
+      "deltas": {
+        "chordCrossings": -20,
+        "chordPenetrations": 0,
+        "chordLengthL1": -1386,
+        "renderedCrossings": -17,
+        "renderedPierce": 0,
+        "renderedTll": 140,
+        "renderedSharpShare": -0.06,
+        "renderedRtHatP50": -0.84
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "cross-hull sample: crossings-improving alternative",
+      "focusHint": "account 000000000001 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 7,
+      "pairId": "P07",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "slotB": {
+        "armRef": "AUDIT:r2#528",
+        "note": "region-02 min-TEL alt#528 — +23 chord cr, +8 pen for -0.1% TEL (expected-dominated anchor) [hull region:aws/000000000002/us-east-1 cand#528]",
+        "chord": {
+          "crossings": 225,
+          "penetrations": 77,
+          "lengthL1": 739918
+        },
+        "rendered": {
+          "crossings": 188,
+          "sharpShare": 0.44,
+          "tll": 283606,
+          "maxArrowLen": 13122,
+          "pierce": 77,
+          "rtHatP50": 13.36
+        },
+        "placementSigSha1": "6780e16db278",
+        "svgSha1": "fe72a13e5a82"
+      },
+      "deltas": {
+        "chordCrossings": 23,
+        "chordPenetrations": 8,
+        "chordLengthL1": 8139,
+        "renderedCrossings": 19,
+        "renderedPierce": 8,
+        "renderedTll": -331,
+        "renderedSharpShare": -0.05,
+        "renderedRtHatP50": 0.41
+      },
+      "expectedDominatedSlot": "B",
+      "rationale": "attention check: alternative is worse on crossings AND pen for a negligible length win — engine arm should be preferred by an attentive rater",
+      "focusHint": "account 000000000002 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 8,
+      "pairId": "P08",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:r3#120",
+        "note": "region-03 alt#120 — missed joint win (chord cr 193) [hull region:aws/000000000003/us-east-1 cand#120]",
+        "chord": {
+          "crossings": 193,
+          "penetrations": 71,
+          "lengthL1": 731403
+        },
+        "rendered": {
+          "crossings": 165,
+          "sharpShare": 0.5,
+          "tll": 284113,
+          "maxArrowLen": 13122,
+          "pierce": 71,
+          "rtHatP50": 12.82
+        },
+        "placementSigSha1": "3744431149db",
+        "svgSha1": "3280ce77d145"
+      },
+      "slotB": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "deltas": {
+        "chordCrossings": 9,
+        "chordPenetrations": -2,
+        "chordLengthL1": 376,
+        "renderedCrossings": 4,
+        "renderedPierce": -2,
+        "renderedTll": -176,
+        "renderedSharpShare": -0.01,
+        "renderedRtHatP50": 0.13
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "cross-hull sample: crossings-improving alternative",
+      "focusHint": "account 000000000003 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 9,
+      "pairId": "P09",
+      "cfg": "AUDIT",
+      "slotA": {
+        "armRef": "AUDIT:engine",
+        "note": "engine pick, full pipeline (packed+sift+converge, eps=2)",
+        "chord": {
+          "crossings": 202,
+          "penetrations": 69,
+          "lengthL1": 731779
+        },
+        "rendered": {
+          "crossings": 169,
+          "sharpShare": 0.49,
+          "tll": 283937,
+          "maxArrowLen": 13122,
+          "pierce": 69,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "1070b927a361",
+        "svgSha1": "26bf79e4c152"
+      },
+      "slotB": {
+        "armRef": "AUDIT:r3#1080",
+        "note": "region-03 min-TEL alt#1080 — +73 chord cr for -1.2% TEL (expected-dominated anchor) [hull region:aws/000000000003/us-east-1 cand#1080]",
+        "chord": {
+          "crossings": 275,
+          "penetrations": 75,
+          "lengthL1": 741892
+        },
+        "rendered": {
+          "crossings": 234,
+          "sharpShare": 0.4,
+          "tll": 279925,
+          "maxArrowLen": 13263,
+          "pierce": 75,
+          "rtHatP50": 14.56
+        },
+        "placementSigSha1": "142b01322fcf",
+        "svgSha1": "1a4ee25cac34"
+      },
+      "deltas": {
+        "chordCrossings": 73,
+        "chordPenetrations": 6,
+        "chordLengthL1": 10113,
+        "renderedCrossings": 65,
+        "renderedPierce": 6,
+        "renderedTll": -4012,
+        "renderedSharpShare": -0.09,
+        "renderedRtHatP50": 1.61
+      },
+      "expectedDominatedSlot": "B",
+      "rationale": "attention check / extreme point: +73 chord crossings for -1.2% TEL — the trade the objective correctly refuses",
+      "focusHint": "account 000000000003 / region us-east-1 — row ordering inside this region differs"
+    },
+    {
+      "index": 10,
+      "pairId": "P10",
+      "cfg": "C",
+      "slotA": {
+        "armRef": "C:engine",
+        "note": "engine pick, full pipeline (eps=1) — region us-west-2 selection=legacy",
+        "chord": {
+          "crossings": 212,
+          "penetrations": 74,
+          "lengthL1": 737737
+        },
+        "rendered": {
+          "crossings": 174,
+          "sharpShare": 0.54,
+          "tll": 286007,
+          "maxArrowLen": 13122,
+          "pierce": 74,
+          "rtHatP50": 12.89
+        },
+        "placementSigSha1": "b06e811050a2",
+        "svgSha1": "928e558baaca"
+      },
+      "slotB": {
+        "armRef": "C:uswest2#33",
+        "note": "us-west-2 prod-optimum(final) cand#33 (cand33-class; S3 exiled) [singleton:aws_dynamodb_table.regional_events_west > singleton:aws_sqs_queue.regional_writer_west > Va-rds:vpc-a0fcf7a066cd52312 > V5-apis:vpc-5b587bc4a0510e356 > S3:aws_s3_bucket.lake_replica_west[\"raw\"]]",
+        "chord": {
+          "crossings": 206,
+          "penetrations": 67,
+          "lengthL1": 733703
+        },
+        "rendered": {
+          "crossings": 170,
+          "sharpShare": 0.51,
+          "tll": 284266,
+          "maxArrowLen": 13122,
+          "pierce": 67,
+          "rtHatP50": 12.89
+        },
+        "placementSigSha1": "fdb30d0d03fd",
+        "svgSha1": "69c446cd7c4e"
+      },
+      "deltas": {
+        "chordCrossings": -6,
+        "chordPenetrations": -7,
+        "chordLengthL1": -4034,
+        "renderedCrossings": -4,
+        "renderedPierce": -7,
+        "renderedTll": -1741,
+        "renderedSharpShare": -0.03,
+        "renderedRtHatP50": 0
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "descent non-convergence case: crossings-optimal order the engine failed to return",
+      "focusHint": "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs"
+    },
+    {
+      "index": 11,
+      "pairId": "P11",
+      "cfg": "C",
+      "slotA": {
+        "armRef": "C:engine",
+        "note": "engine pick, full pipeline (eps=1) — region us-west-2 selection=legacy",
+        "chord": {
+          "crossings": 212,
+          "penetrations": 74,
+          "lengthL1": 737737
+        },
+        "rendered": {
+          "crossings": 174,
+          "sharpShare": 0.54,
+          "tll": 286007,
+          "maxArrowLen": 13122,
+          "pierce": 74,
+          "rtHatP50": 12.89
+        },
+        "placementSigSha1": "b06e811050a2",
+        "svgSha1": "928e558baaca"
+      },
+      "slotB": {
+        "armRef": "C:uswest2#13",
+        "note": "us-west-2 owner VPC-swap (Va above V5, S3 kept high) cand#13 (cand13-class) [singleton:aws_dynamodb_table.regional_events_west > S3:aws_s3_bucket.lake_replica_west[\"raw\"] > singleton:aws_sqs_queue.regional_writer_west > Va-rds:vpc-a0fcf7a066cd52312 > V5-apis:vpc-5b587bc4a0510e356]",
+        "chord": {
+          "crossings": 214,
+          "penetrations": 72,
+          "lengthL1": 723516
+        },
+        "rendered": {
+          "crossings": 175,
+          "sharpShare": 0.55,
+          "tll": 280006,
+          "maxArrowLen": 13122,
+          "pierce": 72,
+          "rtHatP50": 12.97
+        },
+        "placementSigSha1": "9db36a09557d",
+        "svgSha1": "edda909732e4"
+      },
+      "deltas": {
+        "chordCrossings": 2,
+        "chordPenetrations": -2,
+        "chordLengthL1": -14221,
+        "renderedCrossings": 1,
+        "renderedPierce": -2,
+        "renderedTll": -6001,
+        "renderedSharpShare": 0.01,
+        "renderedRtHatP50": 0.08
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "owner's eyeballed swap vs engine: semantic placement (S3 high) at +1 rendered crossing",
+      "focusHint": "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs"
+    },
+    {
+      "index": 12,
+      "pairId": "P12",
+      "cfg": "C",
+      "slotA": {
+        "armRef": "C:uswest2#33",
+        "note": "us-west-2 prod-optimum(final) cand#33 (cand33-class; S3 exiled) [singleton:aws_dynamodb_table.regional_events_west > singleton:aws_sqs_queue.regional_writer_west > Va-rds:vpc-a0fcf7a066cd52312 > V5-apis:vpc-5b587bc4a0510e356 > S3:aws_s3_bucket.lake_replica_west[\"raw\"]]",
+        "chord": {
+          "crossings": 206,
+          "penetrations": 67,
+          "lengthL1": 733703
+        },
+        "rendered": {
+          "crossings": 170,
+          "sharpShare": 0.51,
+          "tll": 284266,
+          "maxArrowLen": 13122,
+          "pierce": 67,
+          "rtHatP50": 12.89
+        },
+        "placementSigSha1": "fdb30d0d03fd",
+        "svgSha1": "69c446cd7c4e"
+      },
+      "slotB": {
+        "armRef": "C:uswest2#13",
+        "note": "us-west-2 owner VPC-swap (Va above V5, S3 kept high) cand#13 (cand13-class) [singleton:aws_dynamodb_table.regional_events_west > S3:aws_s3_bucket.lake_replica_west[\"raw\"] > singleton:aws_sqs_queue.regional_writer_west > Va-rds:vpc-a0fcf7a066cd52312 > V5-apis:vpc-5b587bc4a0510e356]",
+        "chord": {
+          "crossings": 214,
+          "penetrations": 72,
+          "lengthL1": 723516
+        },
+        "rendered": {
+          "crossings": 175,
+          "sharpShare": 0.55,
+          "tll": 280006,
+          "maxArrowLen": 13122,
+          "pierce": 72,
+          "rtHatP50": 12.97
+        },
+        "placementSigSha1": "9db36a09557d",
+        "svgSha1": "edda909732e4"
+      },
+      "deltas": {
+        "chordCrossings": 8,
+        "chordPenetrations": 5,
+        "chordLengthL1": -10187,
+        "renderedCrossings": 5,
+        "renderedPierce": 5,
+        "renderedTll": -4260,
+        "renderedSharpShare": 0.04,
+        "renderedRtHatP50": 0.08
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "THE owner-tension pair (cand33 vs cand13): crossings-optimal exiles S3 to the bottom; owner order keeps S3 high at +1 crossing — directly prices semantic placement in crossings",
+      "focusHint": "region us-west-2 — vertical order of the two VPCs and the S3 bucket differs"
+    },
+    {
+      "index": 13,
+      "pairId": "P13",
+      "cfg": "B",
+      "slotA": {
+        "armRef": "B:engine",
+        "note": "engine pick, full pipeline (eps=0)",
+        "chord": {
+          "crossings": 204,
+          "penetrations": 77,
+          "lengthL1": 728636
+        },
+        "rendered": {
+          "crossings": 174,
+          "sharpShare": 0.45,
+          "tll": 283384,
+          "maxArrowLen": 13136,
+          "pierce": 77,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "710e1a388994",
+        "svgSha1": "9965e6c8823f"
+      },
+      "slotB": {
+        "armRef": "B:uswest2#9",
+        "note": "us-west-2 owner S3-lift best-final cand#9 (cand9-class; wins only post-relocation)",
+        "chord": {
+          "crossings": 207,
+          "penetrations": 72,
+          "lengthL1": 736521
+        },
+        "rendered": {
+          "crossings": 174,
+          "sharpShare": 0.53,
+          "tll": 285930,
+          "maxArrowLen": 13122,
+          "pierce": 72,
+          "rtHatP50": 12.95
+        },
+        "placementSigSha1": "ca199ab7b64b",
+        "svgSha1": "9a2672477cb3"
+      },
+      "deltas": {
+        "chordCrossings": 3,
+        "chordPenetrations": -5,
+        "chordLengthL1": 7885,
+        "renderedCrossings": 0,
+        "renderedPierce": -5,
+        "renderedTll": 2546,
+        "renderedSharpShare": 0.08,
+        "renderedRtHatP50": 0
+      },
+      "expectedDominatedSlot": null,
+      "rationale": "selection-surface staleness case: order that lifts S3 off the bottom, a tradeoff (crossings/L1 slightly worse)",
+      "focusHint": "region us-west-2 — position of the S3 bucket row differs"
+    }
+  ]
+}

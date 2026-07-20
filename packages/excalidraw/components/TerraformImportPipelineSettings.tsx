@@ -360,12 +360,15 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.ordering.on": {
-    title: "Layer ordering · On (K=4)",
-    body: "Runs 4 barycenter sweeps per hull to reorder bands and cut crossing arrows between adjacent layers, keeping only the best-scoring order found.",
+    title: "Layer ordering · On (K=4) — default",
+    body: "Runs 4 barycenter sweeps per hull to reorder bands and cut crossing arrows between adjacent layers, keeping only the best-scoring order found. Validated default: the W5 battery measured K=4 (+A7) as the first Strata arm to beat the v2 view on predicted dependency-tracing cost.",
     dev: {
       implements:
-        "strataSweeps=4 (A2, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain).",
-      refs: ["Sugiyama, Tagawa & Toda 1981 (barycenter ordering)"],
+        "strataSweeps=4 (A2, K=4, WP-3a): 4 barycenter sweeps per hull; the banded/packed selector scores {initial, sweep 1..4, height-aware greedy seed} and keeps the best (banded: weightedBandsSkippedCost + crossings tiebreak; packed: strict-crossings-decrease chain). Default ON since the W5 default flip.",
+      refs: [
+        "Sugiyama, Tagawa & Toda 1981 (barycenter ordering)",
+        "docs/strata-view-w5-repaired-stats-report.md",
+      ],
     },
   },
   "strata.straighten.off": {
@@ -377,8 +380,8 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.straighten.on": {
-    title: "Straighten (A7) · On",
-    body: "Nudges each container's Y toward the median of the containers it connects to, straightening edges — kept only where it doesn't worsen order, bands, or overlap.",
+    title: "Straighten (A7) · On — default",
+    body: "Nudges each container's Y toward the median of the containers it connects to, straightening edges — kept only where it doesn't worsen order, bands, or overlap. Validated default: part of the K=4+A7 arm the W5 battery measured as the first task-metric win over v2.",
     dev: {
       implements:
         "strataCoordinateRefine=true (A7): refineStrataCoordinates runs a fixed 2-down/2-up sweep median/PAV nudge per hull, accepting a column only if total Σ|Δy| over its chords strictly decreases and stays order-preserving/non-overlapping.",
@@ -394,12 +397,317 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.rankseparate.on": {
-    title: "Compact height · On",
-    body: "Re-ranks one-way-dependent sibling stacks into disjoint column ranges so the packed skyline can place them side-by-side instead of stacking them — shorter canvas at the cost of more width. Wins over network-simplex rank when both are requested (network-simplex is dropped, surfaced in scene meta).",
+    title: "Compact height · On — trade-off",
+    body: "Re-ranks one-way-dependent sibling stacks into disjoint column ranges so the packed skyline can place them side-by-side — a measured TRADE (W5): shorter canvas and better crossing angles, at the cost of more crossings on dependency paths (it undoes the K=4+A7 tracing win). Wins over network-simplex rank when both are requested (network-simplex is dropped, surfaced in scene meta).",
     dev: {
       implements:
         "strataRankSeparate=true (OD-14): computeStrataSeparatedFloor — whole-model-global Sander base-node layering (SCC-quotient + one-way-pair condensation, all-to-all leaf precedence per quotient pair; mutual cycles stay co-axial) REPLACES the A1 rank in rankStrataClusters. Mutually exclusive with strataNetworkSimplexRank — both rewrite the same column axis, so when both are requested rankSeparate wins and NS is suppressed (strataToggleSuppressions: rank-floor-conflict-rankseparate-wins-network-simplex).",
       refs: ["Sander 1996 — Layout of Compound Directed Graphs"],
+    },
+  },
+  "strata.packedscoring.off": {
+    title: "Packed edge scoring · Off",
+    body: "Region/VPC sibling order keeps the legacy per-sweep acceptance: a reorder is accepted only when the LOCAL sibling-chord crossing count strictly decreases. Round 9 proved that counter blind to crossings against a sibling container's internal edges, so edge-shortening moves are often rejected.",
+    dev: {
+      implements:
+        "strataPackedScoring=false: packed hulls keep the v2.0 strict-crossings-decrease acceptance chain in orderStrataUnits; byte-identical to the pre-round-9 engine.",
+    },
+  },
+  "strata.packedscoring.on": {
+    title: "Packed edge scoring · On — round-9 probe",
+    body: "Every packed ordering candidate (initial + each sweep) is trial-placed on the real skyline and the WHOLE layout is scored: global edge crossings, then edges tunneling through unrelated containers, then total edge length. Fixes the round-9 blind spot (e.g. a regional SQS parked above a VPC it never talks to). Probe lever pending its gate battery.",
+    dev: {
+      implements:
+        "strataPackedScoring=true (SDEC-57): placeStrataHullsPackedScored trial-places every packed sweep snapshot (chained unconditionally, no per-sweep gate) and selects the lexicographic (crossings, penetrations, L1 length) winner on real leaf-level geometry; banded hulls unchanged.",
+      refs: [
+        "Förster 2002 — Crossings in Clustered Level Graphs (properness precondition)",
+      ],
+    },
+  },
+  "strata.converge.off": {
+    title: "Keep best order found · Off",
+    body: "The packed scorer returns the LAST hull order its bounded-greedy descent was holding when it stopped — even when an earlier candidate it visited scored strictly better. Non-convergence measured on the owner's real config: the dominant candidate was held then dropped between passes.",
+    dev: {
+      implements:
+        "strataPackedConverge=false: orderStrataUnits keeps the rolling incumbent as-is; byte-identical to the pre-converge engine.",
+    },
+  },
+  "strata.converge.on": {
+    title: "Keep best order found · On — G-DESCENT remedy",
+    body: "Returns the best hull order the packed scorer found across the whole descent instead of the last one it tried — recovers a strictly-better order the descent visited then dropped (measured 174→169 crossings on the staging-extended-localstack-v2 preset). Inert unless the Crossing budget (ε) is 1 or more: with ε at 0 (strict) the incumbent can never regress, so best-seen and last-tried coincide.",
+    dev: {
+      implements:
+        "strataPackedConverge / packedConverge — best-seen adopted snapshot under the active comparator (G-DESCENT remedy).",
+      refs: ["strata-methodology-audit-2026-07-15"],
+    },
+  },
+  "strata.transitive.off": {
+    title: "Stable adoption rule · Off",
+    body: "The packed scorer keeps the legacy ε adoption gate. That gate can be non-transitive: the descent may adopt a layout and later drop it for one that scores strictly worse (adopt-then-drop; audit 5.3).",
+    dev: {
+      implements:
+        "strataTransitiveAdopt=false: legacy ε adoption gate (can be non-transitive — adopt-then-drop; audit 5.3). Byte-identical to the pre-fix engine.",
+    },
+  },
+  "strata.transitive.on": {
+    title: "Stable adoption rule · On — experimental",
+    body: "Candidate layouts are compared with one strict total order for the whole descent, so an adopted layout can only ever be replaced by a strictly better one (fixes rare oscillation). ε is kept only as a feasibility crossing-cap. Experimental; small crossings tradeoff vs Keep best order found.",
+    dev: {
+      implements:
+        "strataTransitiveAdopt / transitiveAdopt — replace the ε adoption gate with a strict total order (weightedC, lengthL1, crossings, penetrations); ε kept as a feasibility crossing-cap. Opt-in; descent-scoped; gated on the preference-calibration work. Small crossings tradeoff vs converge.",
+    },
+  },
+  "strata.edgerouting.off": {
+    title: "Route edges around containers · Off",
+    body: "Every dependency arrow stays a straight centre-to-centre segment, even when it passes through a container box (hull frame or resource card) that is unrelated to both endpoints — W7/W8 measured 65–123 such penetrations per preset.",
+    dev: {
+      implements:
+        "strataEdgeRouting=false: the scene build emits the legacy straight chords; the routing module never runs (byte-identical scenes).",
+    },
+  },
+  "strata.edgerouting.on": {
+    title: "Route edges around containers · On — W9 spike",
+    body: "Arrows whose straight line would tunnel through an unrelated container are re-drawn as short detours around it (endpoint ancestors stay permeable; everything else keeps its straight line). Bounded bends: an edge that cannot be routed cleanly within the cap falls back to its straight chord.",
+    dev: {
+      implements:
+        "strataEdgeRouting=true (Package C / W9): routeStrataSkeletonEdges detours penetrating TFD arrows around clearance-inflated foreign boxes (≤6 waypoints, min added L1, deterministic ties).",
+      refs: [
+        "Wybrow/Marriott/Stuckey 2006 — Incremental Connector Routing",
+        "Bouts & Speckmann 2015 — Clustered Edge Routing",
+      ],
+    },
+  },
+  "strata.borderroute.off": {
+    title: "Exit containers through the nearest side · Off",
+    body: "An arrow from a resource inside a container to a target outside it keeps its straight centre-to-centre line — a long diagonal slashing across the container interior on its way out (the P3-pierce look). Byte-identical scenes.",
+    dev: {
+      implements:
+        "strataBorderRoute=false: the border-exit module never runs; the scene build emits the legacy straight chords (byte-identical).",
+    },
+  },
+  "strata.borderroute.on": {
+    title: "Exit containers through the nearest side · On — P3-pierce",
+    body: "An arrow leaving its own container is re-drawn to exit cleanly at the side facing its target (a single boundary waypoint), so the interior diagonal becomes a short perpendicular exit. The boundary crossing itself cannot be removed (Jordan curve) — only made clean. Endpoints never move; an exit that would not shorten the interior span, or would re-enter a box, keeps its straight line. This is a purely visual win: it changes no scored metric (crossings, penetrations, edge length, and pierce.total all EXCLUDE own-container exits by design).",
+    dev: {
+      implements:
+        "strataBorderRoute=true: routeStrataBorderExits re-emits each TFD arrow whose ancestor exit set is non-empty with an inner→outer facing-side boundary waypoint per exited hull (≤6, clamped to the side inset by PIPELINE_FRAME_PAD/2, strict interior-span decrease + no-re-penetration + no-new-foreign guards, deterministic ties). Post-geometry realization of Sander border-node insertion; disjoint from strataEdgeRouting.",
+      refs: [
+        "Sander 1996 — Layout of Compound Directed Graphs",
+        "Bouts & Speckmann 2015 — Clustered Edge Routing",
+      ],
+    },
+  },
+  "strata.banddepth": {
+    title: "Band depth",
+    body: "Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. Shallower cuts toward Root pack provider and account, which reclaims vertical height when Compact height (rankSeparate) is on. Region, VPC, and Zone cuts are experimental and usually make the canvas wider. Root is always banded — packing it would collapse the top-level providers side-by-side.",
+    dev: {
+      implements:
+        'strataBandDepth (v3.2, default "account" — today\'s fixed role→policy map, byte-identical): resolveStrataHullPolicy(role, bandDepth) resolves every hull\'s policy generically from one monotone cut (STRATA_ROLE_DEPTH[role] <= STRATA_ROLE_DEPTH[bandDepth] ? "banded" : "packed"), consumed uniformly by A0 placement, A7 coordRefine, A2 ordering, and packed-scoring eligibility. LEGACY ALIAS: strataBandCompact=true resolves to strataBandDepth="root" when the enum is absent.',
+    },
+  },
+  "strata.deband.none": {
+    title: "Dissolve containers · Off",
+    body: "Every level of the hierarchy — provider, account, region, VPC, subnet zone — is drawn as its own labelled box. You can see exactly which subnet or VPC a resource lives in, at the cost of one nested frame (and its title bar) per level.",
+    dev: {
+      implements:
+        'strataDeBandLevel="none" (default): topologyPathForCluster returns the full path unchanged, so the hull tree, the emitted frames and the stamped customData.terraformTopologyPath are byte-identical to today. Off by construction, not by guard.',
+    },
+  },
+  // De-band help is keyed PER RUNG, not shared. The rungs do not agree: at the
+  // measured cut `subnet` wins on every axis while `vpc` REGRESSES height and
+  // pierce-per-frame, and `region`/`account` were never measured at all. One
+  // shared key made those per-level costs structurally unstatable (review round 1).
+  "strata.deband.subnet": {
+    title:
+      "Dissolve containers \u00b7 Zones \u2014 measured win (root cut only)",
+    body: "Dissolves the subnet-zone boxes and packs their resources straight into the VPC. Removes a level of nested frame chrome and lets resources from different subnets share a row \u2014 at the cost of no longer being able to see which subnet a resource sits in. MEASURED at the Root band depth: 40.5% shorter canvas (8,692 \u2192 5,170), 24% fewer crossings (173 \u2192 132), 13% less edge length, pierce-per-frame slightly better (1.737 \u2192 1.682) \u2014 at the cost of a 2.1\u00d7 slower build (14.3s \u2192 29.4s). Composes with Transpose (132 \u2192 116 crossings). CAVEAT: every one of those numbers was measured at Band depth = Root; at the shipped default (Account) this rung has ZERO measurement. Ignored (with a note in the scene meta) when the VPC that would absorb the resources is still a full-width band \u2014 see Band depth.",
+    dev: {
+      implements:
+        'strataDeBandLevel="subnet" \u2014 keeps [provider,account,region,vpc]. strataDeBandLevel (OD-15 port, default "none"): dissolving level L is expressed ENTIRELY as topology-path truncation at the STRUCTURE phase (buildStrataModel \u2192 buildStrataHullTree \u2192 topologyPathForCluster(cluster, level), DEBAND_PATH_KEEP), so the dissolved hulls are never created, no frame is ever emitted for them (strata emits frames off the model tree \u2014 no v1-style suppression pass needed), and each leaf lands directly in the absorbing parent\'s leafClusterIds. Because it runs before A3/A1/A0+A2, rank, ordering, transpose and A7 all re-run over the collapsed model. SUPPRESSED (strataToggleSuppressions: "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded") when resolveStrataHullPolicy(absorbingParent, strataBandDepth) === "banded" \u2014 a lifted leaf under a banded parent becomes its own band-row; "provider" absorbs into the root, pinned banded, so it is never legal. SCOPE: OD-15\'s height claim was measured against v1\'s vpc="mixed" forced-subnet-band policy; strata\'s vpc is already "packed", so that collapse is already paid for. MEASUREMENT PROVENANCE: frozen preset staging-extended-localstack-v2, seed 20260704, real app path, rendered metrics, strataBandDepth="root" on EVERY arm (scratchpad/deband/focused.json, SDEC-71). Pierce is reported as piercePerTopoFrame \u2014 raw pierce is a denominator artifact here because de-band removes the very frames pierce counts.',
+      refs: ["v1: collapseTreeForDeBand (terraformPipelineRcllPlacement.ts)"],
+    },
+  },
+  "strata.deband.vpc": {
+    title:
+      "Dissolve containers \u00b7 VPCs \u2014 measured TRADE, regresses height",
+    body: "Dissolves the VPC boxes AND the subnet zones inside them, packing every resource straight into the region. MEASURED at the Root band depth as a genuine TRADE, not a win: it buys 26% fewer crossings (173 \u2192 128), 31% less edge length and a 17% narrower canvas \u2014 but the canvas gets TALLER, not shorter (8,692 \u2192 8,937, +2.8%), arrows tunnel through the surviving frames MORE often (pierce-per-frame 1.737 \u2192 1.857, +6.9%), and the build takes 7.5\u00d7 longer (14.3s \u2192 107.8s, nearly two minutes). Pick this only if you want the narrower, shorter-edged canvas and can pay that height, pierce and build cost. CAVEAT: measured at Band depth = Root only; ZERO measurement at the shipped default (Account).",
+    dev: {
+      implements:
+        'strataDeBandLevel="vpc" \u2014 keeps [provider,account,region]. strataDeBandLevel (OD-15 port, default "none"): dissolving level L is expressed ENTIRELY as topology-path truncation at the STRUCTURE phase (buildStrataModel \u2192 buildStrataHullTree \u2192 topologyPathForCluster(cluster, level), DEBAND_PATH_KEEP), so the dissolved hulls are never created, no frame is ever emitted for them (strata emits frames off the model tree \u2014 no v1-style suppression pass needed), and each leaf lands directly in the absorbing parent\'s leafClusterIds. Because it runs before A3/A1/A0+A2, rank, ordering, transpose and A7 all re-run over the collapsed model. SUPPRESSED (strataToggleSuppressions: "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded") when resolveStrataHullPolicy(absorbingParent, strataBandDepth) === "banded" \u2014 a lifted leaf under a banded parent becomes its own band-row; "provider" absorbs into the root, pinned banded, so it is never legal. SCOPE: OD-15\'s height claim was measured against v1\'s vpc="mixed" forced-subnet-band policy; strata\'s vpc is already "packed", so that collapse is already paid for. MEASUREMENT PROVENANCE: frozen preset staging-extended-localstack-v2, seed 20260704, real app path, rendered metrics, strataBandDepth="root" on EVERY arm (scratchpad/deband/focused.json, SDEC-71). Pierce is reported as piercePerTopoFrame \u2014 raw pierce is a denominator artifact here because de-band removes the very frames pierce counts. The vpc arm is the one measured REGRESSION in the changeset: normalizing pierce by surviving topology frames INVERTS its raw pierce "win" (66 \u2192 26 raw, but 38 \u2192 14 frames) into a regression \u2014 that inversion is why the normalization exists.',
+      refs: ["v1: collapseTreeForDeBand (terraformPipelineRcllPlacement.ts)"],
+    },
+  },
+  "strata.deband.region": {
+    title: "Dissolve containers \u00b7 Regions \u2014 UNMEASURED",
+    body: "Dissolves the region boxes and everything below them (VPCs, subnet zones), packing every resource straight into the account. NOT MEASURED: no A/B arm exists for this rung \u2014 the battery covered Zones and VPCs only, so no claim is made here about height, crossings, pierce or build time. Given that the VPCs rung already regresses height and costs 7.5\u00d7 the build, treat this deeper rung as exploratory. At the shipped default Band depth (Account) it is also SUPPRESSED \u2014 the account that would absorb the resources is still a full-width band, so every resource would land on its own row. Move Band depth shallower to make it legal.",
+    dev: {
+      implements:
+        'strataDeBandLevel="region" \u2014 keeps [provider,account]. UNMEASURED: no arm in scratchpad/deband/focused.json. Suppressed at the default strataBandDepth="account" (absorbing parent is banded). strataDeBandLevel (OD-15 port, default "none"): dissolving level L is expressed ENTIRELY as topology-path truncation at the STRUCTURE phase (buildStrataModel \u2192 buildStrataHullTree \u2192 topologyPathForCluster(cluster, level), DEBAND_PATH_KEEP), so the dissolved hulls are never created, no frame is ever emitted for them (strata emits frames off the model tree \u2014 no v1-style suppression pass needed), and each leaf lands directly in the absorbing parent\'s leafClusterIds. Because it runs before A3/A1/A0+A2, rank, ordering, transpose and A7 all re-run over the collapsed model. SUPPRESSED (strataToggleSuppressions: "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded") when resolveStrataHullPolicy(absorbingParent, strataBandDepth) === "banded" \u2014 a lifted leaf under a banded parent becomes its own band-row; "provider" absorbs into the root, pinned banded, so it is never legal. SCOPE: OD-15\'s height claim was measured against v1\'s vpc="mixed" forced-subnet-band policy; strata\'s vpc is already "packed", so that collapse is already paid for.',
+      refs: ["v1: collapseTreeForDeBand (terraformPipelineRcllPlacement.ts)"],
+    },
+  },
+  "strata.deband.account": {
+    title: "Dissolve containers \u00b7 Accounts \u2014 UNMEASURED",
+    body: "Dissolves the account boxes and everything below them, packing every resource straight into the provider \u2014 the deepest legal rung, and the largest change to the picture. NOT MEASURED: no A/B arm exists for this rung, so no claim is made about height, crossings, pierce or build time. At the shipped default Band depth (Account) it is SUPPRESSED \u2014 the provider that would absorb the resources is still a full-width band, so every resource would land on its own row (one tall stack). Move Band depth shallower to make it legal.",
+    dev: {
+      implements:
+        'strataDeBandLevel="account" \u2014 keeps [provider]. UNMEASURED: no arm in scratchpad/deband/focused.json. Suppressed at the default strataBandDepth="account" (absorbing parent is banded). strataDeBandLevel (OD-15 port, default "none"): dissolving level L is expressed ENTIRELY as topology-path truncation at the STRUCTURE phase (buildStrataModel \u2192 buildStrataHullTree \u2192 topologyPathForCluster(cluster, level), DEBAND_PATH_KEEP), so the dissolved hulls are never created, no frame is ever emitted for them (strata emits frames off the model tree \u2014 no v1-style suppression pass needed), and each leaf lands directly in the absorbing parent\'s leafClusterIds. Because it runs before A3/A1/A0+A2, rank, ordering, transpose and A7 all re-run over the collapsed model. SUPPRESSED (strataToggleSuppressions: "band-axis-conflict-banddepth-wins-deband-absorbing-parent-banded") when resolveStrataHullPolicy(absorbingParent, strataBandDepth) === "banded" \u2014 a lifted leaf under a banded parent becomes its own band-row; "provider" absorbs into the root, pinned banded, so it is never legal. SCOPE: OD-15\'s height claim was measured against v1\'s vpc="mixed" forced-subnet-band policy; strata\'s vpc is already "packed", so that collapse is already paid for.',
+      refs: ["v1: collapseTreeForDeBand (terraformPipelineRcllPlacement.ts)"],
+    },
+  },
+  "strata.siftrelocate.off": {
+    title: "Reduce hull crossings · Off",
+    body: "Container hulls keep the order the earlier ordering passes produced. Where two unrelated hulls sit close on the canvas, their dependency arrows may still cross through one another — the layout spends no extra effort pulling them apart.",
+    dev: {
+      implements:
+        "strataSiftRelocate=false: neither the external-incidence sift nor the post-A7 relocation runs; hull order and placement stay byte-identical to the pre-OD-15 engine.",
+    },
+  },
+  "strata.siftrelocate.on": {
+    title: "Reduce hull crossings · On — OD-15",
+    body: "Two passes work to cut crossings between whole container hulls — which the owner ranks ABOVE shorter edges (hull-crossings ≻ edge-length): a sift widens the sibling orderings the packed scorer will consider, and a relocation pass moves each hull beside the neighbours it actually links to once edges are straightened. Fewer arrows cross unrelated containers, sometimes at the cost of slightly longer edges. Off by default pending its gate battery.",
+    dev: {
+      implements:
+        "strataSiftRelocate=true (OD-15): the external-incidence SIFT rides the packed-scoring descent (so it needs strataPackedScoring); the post-A7 RELOCATION runs regardless. Both minimise the weighted crossing cost C = penW·penetrations + crossW·edgeEdge.",
+    },
+  },
+  "strata.blockclamp.off": {
+    title: "Compact pure-sink accounts · Off",
+    body: "A whole dead-end account (one that only receives connections, like an org audit/security account) keeps the far-right columns its longest-path rank assigned it, so its inbound arrows stay long and the diagram stays wide.",
+    dev: {
+      implements:
+        "strataBlockClamp=false: the post-A7 P4 block-clamp pass never runs; pure-sink account blocks keep their rankSeparate columns and the engine is byte-identical.",
+    },
+  },
+  "strata.blockclamp.on": {
+    title: "Compact pure-sink accounts · On — P4",
+    body: "Pulls an entire dead-end account block left toward its deepest real source, shortening the long cross-account arrows feeding it — but only when doing so doesn't add crossings or make the diagram taller. Provider frame extents are held fixed this phase, so it shortens the arrows without yet reclaiming overall diagram width.",
+    dev: {
+      implements:
+        "strataBlockClamp=true (P4, Lever A): a post-A7 pass clamps each pure-sink account block to max(source rank)+1 (decoupled from any single source — the anchors are multi-source fan-in hubs), rigid-translating the whole subtree left in pixels, gated by X-containment + checkStrataStructure all-zero + the weighted-C/ε machinery, plus gate (d), the P5 height-maintained-or-decreased check (opt-in via strataHeightGate). NOTE gate (d) is INERT under phase 1 — a rigid X-only translate touches no box's y/height — so it cannot referee anything today; it exists so a phase-2 box-recompute inherits a live, per-hull gate (it previously compared a scene-global maxBottom scalar, which was vacuous-by-construction: blind to any non-tallest hull growing). This pass's measured null result at the frozen preset is scorer-vetoed, not height-vetoed: k=2 is +4 crossings/+2 penetrations against −23.8k px length. Never re-ranks (preserves the rankSeparate height lever).",
+    },
+  },
+  "strata.heightgate.off": {
+    title: "Keep containers from growing taller · Off",
+    body: "The clamp pass stays inside each container's existing rows, so it only makes moves that need no extra vertical room — a container's height cannot change, and the layout is identical to today's.",
+    dev: {
+      implements:
+        "strataHeightGate=false: phase-1 behavior, byte-identical. refineStrataBlockClamp's gate (d) is skipped (it is a rigid X-only translate, so no implied height can change either way).",
+    },
+  },
+  "strata.heightgate.on": {
+    title: "Keep containers from growing taller · On — P5 (Lever C)",
+    body: "Checks every clamp move against each container it touches and throws the move away unless every one of them ends up the same height or shorter. Expect no visible change on this diagram — measured, not guaranteed: the moves these passes happen to make here are all height-safe already, so the check has nothing to catch. On other diagrams it can genuinely reject a move that would have made a container taller. It is the referee a later pass needs, the one that will move neighbours aside to make room.",
+    dev: {
+      implements:
+        "strataHeightGate=true (P5, Lever C): applies strataHeightGateAdmits (terraformPipelineStrataHeightGate.ts) as gate (d) in refineStrataBlockClamp. Metric = per-hull IMPLIED content height, ∀-quantified: maxBottom(h) = max(topInset(h), max over placed of (box.y + box.height − hull.box.y)); impliedHeight = maxBottom + FRAME_PAD — mirroring placeStrataHulls step 5 (terraformPipelineStrataPlacement.ts:346-360) verbatim, pinned by an anchor test asserting it reproduces box.height exactly. NOT the stored box.height (the pass holds hull boxes fixed ⇒ a gate over stored heights is provably vacuous) and NOT a scene-global scalar (the shipped bug this replaces: max(y+height) is dominated by the tallest/root extent and blind to a non-tallest hull growing). Height is a GATE only — never a term in the packed objective ({crossings, penetrations, lengthL1} unchanged), never a trade, never a tiebreak. INERT in refineStrataBlockClamp under phase 1 (rigid X-only translate); it ships as the referee a phase-2 occupant-displacement relaxation needs. strataTranspose is envelope-preserving and needs no gate. Stage 2 (not built): occupant displacement + VPSC slack-aware Y-repair + box recompute.",
+      refs: [
+        "Jabrayilov, Mallach, Mutzel, Rüegg & Wagner 2016 — Compact Layered Drawings of General Directed Graphs (bound one dimension, optimize the other)",
+        "Dwyer, Marriott & Stuckey 2006 — Fast Node Overlap Removal / IPSep-CoLa (VPSC gradient projection — Stage 2)",
+        "Coffman & Graham 1972 — Optimal Scheduling for Two-Processor Systems (width-bounded layering)",
+      ],
+    },
+  },
+  "strata.transpose.off": {
+    title: "Transpose crossing reduction · Off",
+    body: "Layer ordering keeps the order the barycenter sweeps produced, with no adjacent-swap cleanup pass.",
+    dev: {
+      implements:
+        "strataTranspose=false: the post-A7 within-column transpose pass never runs; sibling Y-order is left exactly as ordering + placement produced it and the engine is byte-identical.",
+    },
+  },
+  "strata.transpose.on": {
+    title: "Transpose crossing reduction · On — P2",
+    body: "After Layer ordering runs, repeatedly swap neighbouring boxes within a band whenever the swap removes a crossing — catching crossings the barycenter sweeps leave behind, and only kept when it strictly improves.",
+    dev: {
+      implements:
+        "strataTranspose=true (P2): a post-A7 pass (transposeStrataColumns, terraformPipelineStrataTranspose.ts) that partitions each hull's placed siblings into X-column-overlap groups and iterates direction-alternating adjacent Y-exchanges of X-OVERLAPPING pairs (the complement of the X-DISJOINT vertical-relocate). The adjacent exchange is envelope-preserving (union span unchanged ⇒ hull height invariant), gated by checkStrataStructure all-zero + strataRelocateAdoptable (weighted-C + edge-cross cap + ε) scored on real leaf geometry. X untouched (CON-12-safe, no X-compaction); never re-ranks (preserves the rankSeparate height lever).",
+      refs: [
+        "Gansner, Koutsofios, North & Vo 1993 — A Technique for Drawing Directed Graphs (the transpose heuristic)",
+      ],
+    },
+  },
+  "strata.coordcascade.off": {
+    title: "Coordinate cascade · Off",
+    body: "The straighten pass stops at the first column arrangement it cannot improve one column at a time. Where two columns are each locally optimal but a joint move would untangle them, that crossing stays.",
+    dev: {
+      implements:
+        "strataCoordCascade=false: per-column coordinate refinement (A7) halts at its net-zero fixed point; no tie-cascade runs and the engine is byte-identical.",
+    },
+  },
+  "strata.coordcascade.on": {
+    title: "Coordinate cascade · On",
+    body: "Extends Straighten edges: when a column reaches a net-zero tie the straighten pass would otherwise stop at, it escapes to its two-sided median and chases the improvement, keeping the move only if it shortens edges on the A7 length proxy. Cuts more crossings than the straighten pass alone. Measured on the flagship preset: crossings 116 → 98 (−15.5%), routed edge length −1.6%, height unchanged. Does nothing unless Straighten edges is on. Off by default (experimental).",
+    dev: {
+      implements:
+        "strataCoordCascade=true (A7 tie-cascade, extends strataCoordinateRefine): a net-zero fixed-point column escapes to its two-sided median + chase, adopt-or-rollback on the A7 length proxy. Inert unless strataCoordinateRefine. Measured (P2 audit-config): −15.5% rendered crossings / −1.6% routed edge length / height-gated.",
+    },
+  },
+  "strata.chainrelocate.off": {
+    title: "Chain relocate · Off",
+    body: "A unit and the resources that depend only on it (a lambda, its SSM parameter, its database) each keep the row their own rank assigned, so the arrows chaining them can stay longer than they need to be.",
+    dev: {
+      implements:
+        "strataChainRelocate=false: the post-A7 exclusive-downstream chain relocate never runs; unit placement stays byte-identical.",
+    },
+  },
+  "strata.chainrelocate.on": {
+    title: "Chain relocate · On",
+    body: "After edges are straightened, slides a unit together with its exclusive downstream chain — the resources that depend only on it (its SSM parameter, its database) — vertically as one rigid group, shortening the arrows that link them without disturbing anything else. Measured on the flagship preset: routed edge length −4.3%, crossings 116 → 113, height unchanged. Off by default (experimental).",
+    dev: {
+      implements:
+        "strataChainRelocate=true: a post-A7 pass that rigid-translates a unit plus its exclusive downstream chain vertically to shorten edges, adopt-or-rollback scored. Strata-only. Measured: −4.3% routed edge length, crossings 116 → 113, height unchanged.",
+    },
+  },
+  "strata.crosspenweight": {
+    title: "Penetration weight (penW)",
+    body: "How heavily the crossing objective counts a dependency arrow that tunnels straight through an unrelated container box. Raise it to punish tunnelling harder; lower it toward 0 to tolerate more. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",
+    dev: {
+      implements:
+        "strataCrossWeightPenetration (penW, default 1, integer ≥ 0): the penetrations coefficient in the weighted crossing cost C = penW·penetrations + crossW·edgeEdge minimised by the sift + relocation.",
+    },
+  },
+  "strata.crossedgeweight": {
+    title: "Edge-crossing weight (crossW)",
+    body: "How heavily the crossing objective counts two dependency arrows crossing each other. Raise it to prioritise untangling arrow-vs-arrow crossings; lower it toward 0 to focus on box tunnelling instead. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",
+    dev: {
+      implements:
+        "strataCrossWeightEdge (crossW, default 1, integer ≥ 0): the edge-edge coefficient in the weighted crossing cost C = penW·penetrations + crossW·edgeEdge minimised by the sift + relocation.",
+    },
+  },
+  "strata.edgecrosscap": {
+    title: "Edge-crossing cap (optional)",
+    body: "An optional ceiling on how many extra arrow-vs-arrow crossings a single crossing-reduction move may add before it is rejected. Leave it blank to inherit the packed edge-scoring crossing budget (ε). Set a number to cap it independently. Applies while any crossing-reduction relocation pass — Reduce hull crossings, Pull leaf sinks toward source, or Compact pure-sink accounts — is on.",
+    dev: {
+      implements:
+        "strataEdgeCrossCap (optional; blank ⇒ inherits strataPackedScoringEpsilon): the ε-style edge-edge regression cap the relocation may not exceed.",
+    },
+  },
+  // Private API placement help was removed with its control (owner-decisions.md
+  // 2026-07-17 Q9: strata always places private REST APIs regionally; the engine
+  // clamps `pipelinePrivateApiRegional` true, so there is no Off/On toggle to
+  // explain). The legacy `privateApiRegional` URL param stays parsed but inert.
+  // Resources help is keyed SEPARATELY for strata rather than reusing
+  // "resources.all": the content filter is the same, but strata's cost is not.
+  // The generic entry says "collected into an 'Unconnected' strip … works in
+  // all three layouts" and states no price; in strata the bands are the LAST
+  // geometry stage and are invisible to every optimizer, so they buy that
+  // inventory with substantial scene height. One shared key would make that
+  // cost structurally unstatable — the same reason de-band is keyed per rung.
+  "strata.resources.dataflow": {
+    title: "Resources · Dataflow only",
+    body: "Draw only resources connected by a .tfd dataflow edge. Keeps the diagram focused on the actual flow; standalone resources (IAM roles, log groups, …) are omitted. The default, and the shorter canvas — see All resources for what the inventory costs.",
+    dev: {
+      implements:
+        "pipelineIncludeAncillary=false (default): the strata engine never calls buildAncillaryStrips, so no strips are built, no bands are injected and the scene is byte-identical to today. Off by construction, not by guard.",
+    },
+  },
+  "strata.resources.all": {
+    title: "Resources · All resources — costs substantial height",
+    body: "Also draw the unconnected resources, collected into an 'Unconnected' band per scope so they don't clutter the flow. Primary resources (Lambda, S3, ECS, …) keep their full cluster grouping there — category color, nested satellites, expandable — so the band is an inventory, not a pile of bare boxes. Under Dissolve containers the bands relocate to the surviving ancestor hull and NEST, so you can still see which VPC or region each unconnected resource came from. COSTS SUBSTANTIAL SCENE HEIGHT — MEASURED at Band depth = Root with Transpose on: with Dissolve containers off, 8,692 → 14,465px (+66%); with Dissolve containers = VPCs, 8,013 → 15,106px (+88%). Your dataflow diagram is never moved sideways to make room: X and width are frozen and the canvas may only grow downward, so the flow you were reading keeps its shape — you just scroll further.",
+    dev: {
+      implements:
+        'pipelineIncludeAncillary=true. Ancillary resources are grouped into per-scope strips (buildAncillaryStrips), each card built by the same primary-cluster builder as connected primaries (never the bare fallback), then injected as bands in the LAST geometry stage (plan §3d) — after A7/relocate/transpose/blockClamp, which score over model UNITS and cannot see bands, and BEFORE checkStrataStructure, which re-validates model geometry post-growth for free. §3o greedy right-slack allocator ON by default: widens each band into PRE-EXISTING right slack to cut band height, validates every grant end-to-end, and degrades to the §3f host-interior baseline one lowest-benefit grant at a time. STATED COST: bands get no crossing-min, no height gate and no compaction — they are invisible to every optimizer and can create a tall dead zone no pass reclaims; the allocator is the only lever that reclaims it. INVARIANT: injection only grows Y downward (X/width frozen), so dataflow geometry is never displaced laterally. §3g containment check (checkStrataAncillaryContainment) is the ONLY check that sees bands — any band/leaf overlap, host escape or title collision drops the bands and keeps the strata scene (strataAncillaryDegraded), never degrading to v2. MEASUREMENT PROVENANCE: N=1, frozen preset staging-extended-localstack-v2, strataBandDepth="root", strataTranspose on, real app path, rendered extent.',
     },
   },
 };

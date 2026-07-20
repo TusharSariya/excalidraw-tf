@@ -587,17 +587,84 @@ describe("buildTerraformStrataExcalidrawScene — P11 failure contract", () => {
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );
 
+  // "ancillary" is deliberately NOT in the loop above: it is the ONE stage whose
+  // failure contract inverts that loop's assertion. §3m — a failed band is not a
+  // failed layout, so it must NOT set rcllV2Degraded and must NOT fall back to
+  // v2. It is also unreachable without includeAncillary, which the loop's arms
+  // never set. Hence its own test, asserting the opposite contract.
   it(
-    "includeAncillary is deferred (extraction-free M1) and echoed honestly",
+    "a failed ancillary band drops the BANDS and keeps the strata scene (§3m) — never degrades to v2",
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+
+      const degraded = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+        includeAncillary: true,
+        __testForceStageError: "ancillary",
+      });
+
+      // The §3m contract: the scene SURVIVES. No whole-scene degradation.
+      expect(degraded.meta.rcllV2Degraded).toBeUndefined();
+      expect(degraded.meta.pipelineVariant).toBe("strata");
+      expect(degraded.meta.pipelineLayoutVariant).toBe("strata");
+      expect(degraded.elements.length).toBeGreaterThan(0);
+
+      // The bands, and only the bands, are dropped — with the reason echoed.
+      expect(degraded.meta.strataAncillaryDegraded).toMatchObject({
+        reason: expect.stringContaining("ancillary"),
+      });
+      expect(degraded.meta.pipelineIncludeAncillary).toBe(true);
+      // Every success-only band key is gone.
+      expect(degraded.meta.pipelineAncillaryCount).toBeUndefined();
+      expect(degraded.meta.strataAncillaryBandCount).toBeUndefined();
+      expect(degraded.meta.strataAncillaryContainment).toBeUndefined();
+
+      // The kept scene is the STRATA scene, not the v2 fallback: same geometry
+      // as a clean dataflow-only strata build, which is exactly "the bands were
+      // dropped and nothing else moved". This is the assertion that would have
+      // caught the gate sitting outside the try (it degraded the whole scene to
+      // v2, matching v2 geometry here instead).
+      const clean = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+      });
+      expect(geomTuples(degraded.elements)).toEqual(geomTuples(clean.elements));
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "includeAncillary injects real ancillary bands (no longer deferred)",
     async () => {
       const { nodes, plan } = loadNodes(preset);
       const scene = await buildTerraformStrataExcalidrawScene(nodes, plan, {
         compact: true,
         includeAncillary: true,
       });
-      expect(scene.meta.strataAncillaryDeferred).toBe(true);
+      // The deferral is GONE — the flag now reaches the engine and does work.
+      expect(scene.meta.strataAncillaryDeferred).toBeUndefined();
       expect(scene.meta.rcllV2Degraded).toBeUndefined();
+      // A failed band drops the bands and keeps the strata scene, so this key
+      // being absent is what proves the injection actually succeeded rather than
+      // silently no-op'ing.
+      expect(scene.meta.strataAncillaryDegraded).toBeUndefined();
+      expect(scene.meta.pipelineIncludeAncillary).toBe(true);
+      expect(scene.meta.pipelineAncillaryCount).toBeGreaterThan(0);
+      expect(scene.meta.strataAncillaryBandCount).toBeGreaterThan(0);
+      // §3g — bands are invisible to `checkStrataStructure`; this is the only
+      // check that sees them, and any nonzero count is a failure.
+      expect(scene.meta.strataAncillaryContainment).toEqual({
+        bandEscapesHost: 0,
+        bandOverlaps: 0,
+        bandTitleCollisions: 0,
+      });
       expect(scene.elements.length).toBeGreaterThan(0);
+      // §3h anti-landmine: the bands actually DREW something.
+      expect(
+        scene.elements.some(
+          (el: ExcalidrawElement) =>
+            (el as unknown as { name?: string }).name === "Unconnected",
+        ),
+      ).toBe(true);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );

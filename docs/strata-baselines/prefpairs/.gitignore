@@ -1,0 +1,4 @@
+# Rendered pair images are large and deterministic (seed-frozen) — regenerate
+# via the generator instead of committing. Sheets/key/labels/fit ARE committed.
+pairs/
+arm-*.svg

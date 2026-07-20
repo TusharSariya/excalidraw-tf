@@ -2,6 +2,18 @@
 
 **Date:** 2026-06-22 **Scope:** Root-cause measurement only. No optimization landed in this pass — see `docs/terraform-import-performance-log.md` for where to pick that up.
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Historical — prep cost RCA (feeds T10 / OD-10) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec-v3.1.md`](./rcll-v2-spec-v3.1.md) |
+| Children | — |
+| Sisters | — |
+| Next (agent) | Use for felt-cost vs engine-budget; T10 reports shared-prep wall-clock. |
+
 ## The question
 
 Importing `staging-extended-localstack-v2` with pipeline view **RCLL**, **Compact** detail, **All resources** (`includeAncillary: true`), **no debanding** (`deBandLevel: "none"`), all optional stages on (crossingMin, straighten, reorder, rankSeparate, columnCompact, swimlaneLaneRise, staircaseBandOverlap) takes **17-25s in a Node test harness** and **30-60s felt in the browser**. Before this pass, the entire build ran inside one opaque `layout.pipeline` profiler span — there was no way to attribute the time to a specific step.

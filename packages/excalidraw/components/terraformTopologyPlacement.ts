@@ -11,6 +11,7 @@
  */
 
 import {
+  buildModuleCompanionAccountIndex,
   buildSecurityGroupToVpcMapFromPlan,
   buildSubnetOwnerHintsFromPlan,
   buildSubnetToVpcMapFromPlan,
@@ -18,16 +19,20 @@ import {
   mergeTerraformTopologyAccountRegionFromSameRegionSubnets,
   mergeTerraformTopologyAccountRegionFromSubnets,
   mergeWithDefaultAwsProviderAccountRegion,
+  type ModuleCompanionAccountIndex,
   pickResourceValuesForTopologyPlacement,
   type TerraformPlanProviderContext,
+  resolveModuleCompanionAccount,
   resolveTerraformTopologyAccountRegion,
   shouldEmitTopologyPlacement,
+  TERRAFORM_TOPOLOGY_UNKNOWN_REGION,
 } from "./terraformTopologyExtract";
 import { isPrimaryVisibleResourceType } from "./terraformPrimaryVisibility";
 import { tfComfortPx } from "./terraformLayoutComfort";
 import { terraformModulePrefixForAddress } from "./terraformTopologyIamLinks";
 import {
   API_GATEWAY_TOPOLOGY_SATELLITE_TYPES,
+  isPrivateVpcEndpointBoundRestApi,
   resolveApiGatewayCompanionParentRestApiAddressFromPlan,
   resolveVpcPlacementFromPrivateRestApi,
 } from "./terraformTopologyApiGatewayLinks";
@@ -920,13 +925,17 @@ export function extractPrimaryTopologyZones(
   plan: TerraformPlanProviderContext & {
     resource_changes?: ResourceChange[];
   },
+  opts?: { privateApiRegional?: boolean },
 ): TopologyPlacementZone[] {
+  const privateApiRegional = opts?.privateApiRegional === true;
   const changes = Array.isArray(plan.resource_changes)
     ? plan.resource_changes
     : [];
   const subnetToVpc = buildSubnetToVpcMapFromPlan(plan);
   const securityGroupToVpc = buildSecurityGroupToVpcMapFromPlan(plan);
   const subnetOwners = buildSubnetOwnerHintsFromPlan(plan);
+  const companionAccountIndex: ModuleCompanionAccountIndex | null =
+    privateApiRegional ? buildModuleCompanionAccountIndex(changes) : null;
   const albModulePrefixes: Array<{ prefix: string; key: string }> = [];
   const apiModulePrefixes: Array<{ prefix: string; key: string }> = [];
   const ecsModulePrefixes: Array<{ prefix: string; key: string }> = [];
@@ -986,9 +995,27 @@ export function extractPrimaryTopologyZones(
           subnetOwners,
         ),
         subnetOwners,
+        { privateApiRegional },
       ),
     );
-    const { account: accountId, region } = merged;
+    const { account: mergedAccountId, region } = merged;
+    let accountId = mergedAccountId;
+    if (
+      privateApiRegional &&
+      companionAccountIndex &&
+      t === "aws_api_gateway_rest_api" &&
+      isPrivateVpcEndpointBoundRestApi(values) &&
+      region !== TERRAFORM_TOPOLOGY_UNKNOWN_REGION
+    ) {
+      const companionAccount = resolveModuleCompanionAccount(
+        address,
+        region,
+        companionAccountIndex,
+      );
+      if (companionAccount) {
+        accountId = companionAccount;
+      }
+    }
     if (!shouldEmitTopologyPlacement(accountId, region)) {
       continue;
     }
@@ -1000,7 +1027,11 @@ export function extractPrimaryTopologyZones(
       subnetToVpc,
       securityGroupToVpc,
     );
-    if (!vpcId && t === "aws_api_gateway_rest_api") {
+    if (
+      !vpcId &&
+      t === "aws_api_gateway_rest_api" &&
+      (!privateApiRegional || !isPrivateVpcEndpointBoundRestApi(values))
+    ) {
       const vpcePlacement = resolveVpcPlacementFromPrivateRestApi(
         plan,
         values,
@@ -2531,13 +2562,17 @@ export function extractRegionalTopologyPrimaries(
   plan: TerraformPlanProviderContext & {
     resource_changes?: ResourceChange[];
   },
+  opts?: { privateApiRegional?: boolean },
 ): TopologyRegionalPrimaryBucket[] {
+  const privateApiRegional = opts?.privateApiRegional === true;
   const changes = Array.isArray(plan.resource_changes)
     ? plan.resource_changes
     : [];
   const subnetToVpc = buildSubnetToVpcMapFromPlan(plan);
   const securityGroupToVpc = buildSecurityGroupToVpcMapFromPlan(plan);
   const subnetOwners = buildSubnetOwnerHintsFromPlan(plan);
+  const companionAccountIndex: ModuleCompanionAccountIndex | null =
+    privateApiRegional ? buildModuleCompanionAccountIndex(changes) : null;
 
   const accum = new Map<
     string,
@@ -2545,6 +2580,13 @@ export function extractRegionalTopologyPrimaries(
   >();
   const tgwAddressToRegionalKey = new Map<string, string>();
   const tgwModulePrefixes: Array<{ prefix: string; key: string }> = [];
+  const restApiAddressToZoneKey = new Map<string, string>();
+  const apiModulePrefixes: Array<{ prefix: string; key: string }> = [];
+  // Stripped module prefixes of REST APIs that land in the primary (VPC) path.
+  // Parentless api-gateway satellites matching one of these are claimed by the
+  // primary path's prefix fallback (which runs first), so the regional prefix
+  // fallback below must yield them to keep each satellite single-homed.
+  const vpcPlacedApiModulePrefixes = new Set<string>();
 
   for (const rc of changes) {
     if (!isAwsTerraformResourceChange(rc)) {
@@ -2574,9 +2616,27 @@ export function extractRegionalTopologyPrimaries(
           subnetOwners,
         ),
         subnetOwners,
+        { privateApiRegional },
       ),
     );
-    const { account: accountId, region } = merged;
+    const { account: mergedAccountId, region } = merged;
+    let accountId = mergedAccountId;
+    if (
+      privateApiRegional &&
+      companionAccountIndex &&
+      t === "aws_api_gateway_rest_api" &&
+      isPrivateVpcEndpointBoundRestApi(values) &&
+      region !== TERRAFORM_TOPOLOGY_UNKNOWN_REGION
+    ) {
+      const companionAccount = resolveModuleCompanionAccount(
+        address,
+        region,
+        companionAccountIndex,
+      );
+      if (companionAccount) {
+        accountId = companionAccount;
+      }
+    }
     if (!shouldEmitTopologyPlacement(accountId, region)) {
       continue;
     }
@@ -2588,7 +2648,11 @@ export function extractRegionalTopologyPrimaries(
       subnetToVpc,
       securityGroupToVpc,
     );
-    if (!vpcId && t === "aws_api_gateway_rest_api") {
+    if (
+      !vpcId &&
+      t === "aws_api_gateway_rest_api" &&
+      (!privateApiRegional || !isPrivateVpcEndpointBoundRestApi(values))
+    ) {
       const vpcePlacement = resolveVpcPlacementFromPrivateRestApi(
         plan,
         values,
@@ -2599,6 +2663,13 @@ export function extractRegionalTopologyPrimaries(
       }
     }
     if (vpcId) {
+      if (privateApiRegional && t === "aws_api_gateway_rest_api") {
+        vpcPlacedApiModulePrefixes.add(
+          terraformModulePrefixForAddress(
+            stripStackPrefixForModuleParsing(address),
+          ),
+        );
+      }
       continue;
     }
 
@@ -2614,6 +2685,57 @@ export function extractRegionalTopologyPrimaries(
       const pref = tgwModulePrefixForAddress(address);
       if (pref) {
         tgwModulePrefixes.push({ prefix: pref, key });
+      }
+    }
+    if (privateApiRegional && t === "aws_api_gateway_rest_api") {
+      restApiAddressToZoneKey.set(address, key);
+      apiModulePrefixes.push({
+        prefix: terraformModulePrefixForAddress(
+          stripStackPrefixForModuleParsing(address),
+        ),
+        key,
+      });
+    }
+  }
+
+  if (privateApiRegional) {
+    for (const rc of changes) {
+      if (!isAwsTerraformResourceChange(rc)) {
+        continue;
+      }
+      if (
+        rc.mode !== "managed" ||
+        !rc.type ||
+        !API_GATEWAY_TOPOLOGY_SATELLITE_TYPES.has(rc.type)
+      ) {
+        continue;
+      }
+      const address = rc.address;
+      if (!address || typeof address !== "string") {
+        continue;
+      }
+      const parentApi = resolveApiGatewayCompanionParentRestApiAddressFromPlan(
+        rc as ResourceChange,
+        changes,
+      );
+      if (parentApi) {
+        const zoneKey = restApiAddressToZoneKey.get(parentApi);
+        if (zoneKey) {
+          accum.get(zoneKey)?.addresses.add(address);
+        }
+        continue;
+      }
+      const prefix = terraformModulePrefixForAddress(
+        stripStackPrefixForModuleParsing(address),
+      );
+      // Primary path owns this prefix's satellites via its own fallback; yield to
+      // keep the satellite single-homed (no double-emit across paths).
+      if (vpcPlacedApiModulePrefixes.has(prefix)) {
+        continue;
+      }
+      const owner = apiModulePrefixes.find((x) => x.prefix === prefix);
+      if (owner) {
+        accum.get(owner.key)?.addresses.add(address);
       }
     }
   }

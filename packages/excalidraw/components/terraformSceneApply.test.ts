@@ -7,6 +7,7 @@ import {
   refreshTerraformLayout,
   resetTerraformLayout,
   runTerraformImportFromSources,
+  terraformPipelineReplayOptionsFromSession,
 } from "./terraformSceneApply";
 import {
   clearTerraformImportSession,
@@ -597,5 +598,168 @@ describe("terraformSceneApply", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("forwards strataLeafShift + budget knobs through buildPipelineFamilyLayoutOptions to the worker (public preset/demo bridge)", async () => {
+    // Regression for the A2 finding: the public preset/demo import path
+    // (runTerraformPresetImport -> runTerraformImportWithView ->
+    // runTerraformImportFromSources -> buildPipelineFamilyLayoutOptions) never
+    // declared or forwarded strataLeafShift, so `?strataLeafShift=1` resolved in
+    // the URL/demo layer but was stripped by the Pick-typed whitelist before the
+    // worker/engine ran. This drives the SAME buildPipelineFamilyLayoutOptions
+    // whitelist the bridge feeds and asserts the leaf-shift option surface (flag +
+    // all four budget knobs) now reaches the worker call.
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
+    vi.mocked(fetchPresetLayoutCache).mockResolvedValue(null);
+    hoisted.replaceAllElements.mockImplementation((els) => {
+      hoisted.getElementsIncludingDeleted.mockReturnValue(els);
+    });
+
+    const preset = { id: "demo-preset" } as unknown as TerraformImportPreset;
+    const sources = { planDotBundles: [], states: [], tfdTexts: [] };
+
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "strata",
+        strataLeafShift: true,
+        strataLeafShiftHeightBudgetPx: 200,
+        strataLeafShiftHeightBudgetFrac: 0.02,
+        strataLeafShiftRankBudget: 5,
+        strataLeafShiftRightEdgeGuardPx: 400,
+        preset,
+      },
+    );
+    expect(layoutTerraformViaWorkers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        layoutMode: "strata",
+        pipelineLayoutVariant: "strata",
+        strataLeafShift: true,
+        strataLeafShiftHeightBudgetPx: 200,
+        strataLeafShiftHeightBudgetFrac: 0.02,
+        strataLeafShiftRankBudget: 5,
+        strataLeafShiftRightEdgeGuardPx: 400,
+      }),
+      expect.anything(),
+    );
+
+    // The persisted session snapshot carries the same surface, so a refresh/replay
+    // re-derives it (session round-trip through terraformPipelineReplayOptionsFromSession).
+    const persisted = getTerraformImportSession();
+    expect(persisted?.strataLeafShift).toBe(true);
+    expect(persisted?.strataLeafShiftHeightBudgetPx).toBe(200);
+
+    // Default import (no leaf-shift): the flag rides as false and the optional
+    // budget knobs are ABSENT — the on-with-default / off shape stays minimal.
+    vi.mocked(layoutTerraformViaWorkers).mockClear();
+    await runTerraformImportFromSources(
+      mockApp(),
+      hoisted.setAppState,
+      sources,
+      {
+        semanticLayout: false,
+        layoutMode: "strata",
+        preset,
+      },
+    );
+    const call = vi.mocked(layoutTerraformViaWorkers).mock
+      .calls[0]![1] as Record<string, unknown>;
+    expect(call.strataLeafShift).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        call,
+        "strataLeafShiftHeightBudgetPx",
+      ),
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(call, "strataLeafShiftRankBudget"),
+    ).toBe(false);
+  });
+
+  describe("strataBandDepth raw-forward (WP4 codex P1/P2)", () => {
+    const sessionWith = (
+      overrides: Record<string, unknown>,
+    ): Parameters<typeof terraformPipelineReplayOptionsFromSession>[0] =>
+      ({
+        layoutMode: "strata",
+        moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
+        ...overrides,
+      } as unknown as Parameters<
+        typeof terraformPipelineReplayOptionsFromSession
+      >[0]);
+
+    it("session-replay: a bare strataBandCompact session carries NO strataBandDepth key (alias survives to the engine)", () => {
+      // P1 on the replay path: the engine's alias only fires when
+      // strataBandDepth is ABSENT. If replay materialized "account", a
+      // bandCompact-only session would silently lose its "root" cut. Forward
+      // raw: bandCompact survives, the cut key is omitted, the engine resolves.
+      const replay = terraformPipelineReplayOptionsFromSession(
+        sessionWith({ strataBandCompact: true }),
+      );
+      expect(replay.strataBandCompact).toBe(true);
+      expect(
+        Object.prototype.hasOwnProperty.call(replay, "strataBandDepth"),
+      ).toBe(false);
+    });
+
+    it("session-replay: an explicit non-default cut forwards; explicit 'account' behaves like absent (P2 byte-identity)", () => {
+      expect(
+        terraformPipelineReplayOptionsFromSession(
+          sessionWith({ strataBandDepth: "root" }),
+        ).strataBandDepth,
+      ).toBe("root");
+
+      // Default cut ("account") and absent are byte-identical: no own key.
+      for (const overrides of [{ strataBandDepth: "account" }, {}]) {
+        const replay = terraformPipelineReplayOptionsFromSession(
+          sessionWith(overrides),
+        );
+        expect(
+          Object.prototype.hasOwnProperty.call(replay, "strataBandDepth"),
+        ).toBe(false);
+      }
+    });
+
+    it("persisted session (buildPipelineFamilyLayoutOptions): default import writes NO strataBandDepth key; a non-default cut writes it", async () => {
+      const sources = { planDotBundles: [], states: [], tfdTexts: [] };
+      vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({ elements: [] });
+
+      // Default cut — the persisted session snapshot must omit the key,
+      // matching legacy snapshots that predate the slider (P2).
+      await runTerraformImportFromSources(
+        mockApp(),
+        hoisted.setAppState,
+        sources,
+        {
+          semanticLayout: false,
+          layoutMode: "strata",
+        },
+      );
+      const defaultSession = getTerraformImportSession();
+      expect(defaultSession).not.toBeNull();
+      expect(
+        Object.prototype.hasOwnProperty.call(
+          defaultSession as object,
+          "strataBandDepth",
+        ),
+      ).toBe(false);
+
+      // Non-default cut — persisted verbatim so a session round-trip is faithful.
+      await runTerraformImportFromSources(
+        mockApp(),
+        hoisted.setAppState,
+        sources,
+        {
+          semanticLayout: false,
+          layoutMode: "strata",
+          strataBandDepth: "root",
+        },
+      );
+      expect(getTerraformImportSession()?.strataBandDepth).toBe("root");
+    });
   });
 });

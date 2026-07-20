@@ -42,8 +42,21 @@ import {
   translateSkeleton,
 } from "./terraformPipelineLayoutShared";
 import { spreadContextFrameColors } from "./terraformPrimaryVisibility";
+import {
+  routeStrataSkeletonEdges,
+  type StrataEdgeRoutingMeta,
+} from "./terraformPipelineStrataEdgeRouting";
+import {
+  routeStrataBorderExits,
+  type StrataBorderRouteMeta,
+} from "./terraformPipelineStrataBorderRoute";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
+import {
+  isTerraformImportProfilerEnabled,
+  terraformImportProfilerRecord,
+} from "./terraformImportProfiler";
 import { STRATA_ROOT_ID } from "./terraformPipelineStrataModel";
+import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
 import {
   topologyFrameSkeletonId,
   topologyPathForCluster,
@@ -52,11 +65,13 @@ import {
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
 
 import type { TerraformDependencyLayoutBox } from "./terraformElkLayout";
+import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type {
   PipelineCluster,
   PipelineLayoutPrep,
   PipelinePlacement,
 } from "./terraformPipelineLayoutShared";
+import type { StrataAncillaryBand } from "./terraformPipelineStrataAncillary";
 import type {
   StrataHullNode,
   StrataModel,
@@ -76,11 +91,46 @@ export type StrataSceneBuildInput = {
    * tombstone machinery are fully G-parameterized regardless).
    */
   generation?: number;
+  /**
+   * Package C spike (W9): when true, TFD arrows whose straight chord
+   * penetrates a foreign box are re-emitted as detour polylines
+   * (terraformPipelineStrataEdgeRouting.ts). Default off — absent, the
+   * routing module never runs and the skeleton is byte-identical to today.
+   */
+  edgeRouting?: boolean;
+  /**
+   * P3-pierce border-exit routing (terraformPipelineStrataBorderRoute.ts): when
+   * true, a TFD arrow that leaves its own ancestor container as a long interior
+   * diagonal is re-emitted with a clean single-side exit waypoint. Orthogonal
+   * to `edgeRouting` (own-ancestor exits vs foreign-box detours — disjoint edge
+   * sets). Default off — absent, the module never runs (byte-identical).
+   */
+  borderRoute?: boolean;
+  /**
+   * OD-15 de-band level (default `"none"`). MUST be the same level the model
+   * tree was built with: this input drives the `terraformTopologyPath` stamped
+   * on every leaf cluster frame, and T9 slice classification reconstructs the
+   * hull tree read-only FROM that stamp (v3.1 §2.6). A stamp that disagrees with
+   * the tree mis-slices A/B silently — the layout looks right and every metric
+   * downstream is garbage. Pinned by a test asserting the two agree.
+   */
+  deBandLevel?: DeBandLevel;
+  /**
+   * Ancillary ("All resources") bands, keyed by host hull id
+   * (terraformPipelineStrataAncillary.ts). A SIDE MAP: bands are not in the model
+   * and never enter `StrataBoxedHull.placed`, so `StrataUnit` stays a closed
+   * 2-kind union. Each band carries a REAL, already-absolute skeleton — this
+   * build only appends it and parents its frame under the host hull. Present only
+   * when non-empty (flag-OFF byte-identity).
+   */
+  ancillaryBands?: ReadonlyMap<string, StrataAncillaryBand>;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
- * private `frameNameForLevel`, D6′ copy). */
-function strataHullLabel(
+ * private `frameNameForLevel`, D6′ copy). Exported so the ancillary band
+ * builder labels its nested scope groups with the SAME phrasing real hull
+ * frames use (plan §3n) instead of inventing a second label vocabulary. */
+export function strataHullLabel(
   role: TopologyFrameRole,
   p: PipelinePlacement,
 ): string {
@@ -130,6 +180,10 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
+  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
+  edgeRouting?: StrataEdgeRoutingMeta;
+  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
+  borderRoute?: StrataBorderRouteMeta;
 } {
   const { prep, model, placement, nodes } = input;
   const skeleton: ExcalidrawElementSkeleton[] = [];
@@ -147,7 +201,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     const rect = clusterFrameLocalRect(cluster);
     const dx = box.x - rect.x;
     const dy = box.y - rect.y;
-    const path = topologyPathForCluster(cluster);
+    const path = topologyPathForCluster(cluster, input.deBandLevel ?? "none");
     const translated = translateSkeleton(cluster.build.skeleton, dx, dy).map(
       (el) =>
         el.id === cluster.build.clusterFrameId
@@ -208,6 +262,30 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
           childIds.push(c.build.clusterFrameId);
         }
       }
+      // Ancillary band hosted by THIS hull, if any. The band's frame joins
+      // `childIds` so drag-grouping/nesting fall out the way the compound path
+      // produces them (RISK: `childIds` is otherwise only child hull frames +
+      // direct-leaf cluster frames — a band frame here is unverified
+      // interactively; the fallback is to omit it, at which point bands still
+      // render but do not drag-group).
+      const band = input.ancillaryBands?.get(hull.id);
+      if (band) {
+        childIds.push(band.frameId);
+      }
+
+      // Resolved-policy stamp (spec v3.1 §53 `terraformHullPolicy`): the
+      // slice-metrics diagnostics run on built scene elements and have no
+      // `hull.policy` to read, so they otherwise reconstruct policy from the
+      // static role→policy map — stale once a non-default band-depth cut moves
+      // the banded/packed boundary. Stamp the resolved policy CONDITIONALLY —
+      // only when this hull's policy diverges from `STRATA_HULL_POLICY[role]`
+      // (i.e. the cut actually moved it). At the default "account" cut every
+      // hull matches the map, so the key is never added and frame customData is
+      // byte-identical to today.
+      const policyStamp =
+        hull.policy !== STRATA_HULL_POLICY[hull.role]
+          ? { terraformHullPolicy: hull.policy }
+          : {};
 
       const box = boxed.box;
       skeleton.push({
@@ -231,6 +309,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
               terraformTopologyPath: [...hull.path],
               terraformSubnetSignature: p.subnetSignature,
               terraformSubnetTier: p.subnetTier,
+              ...policyStamp,
             })
           : {
               terraform: true,
@@ -239,6 +318,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
               terraformTopologyRole: role,
               terraformTopologyKey: frameId,
               terraformTopologyPath: [...hull.path],
+              ...policyStamp,
             },
       } as unknown as ExcalidrawElementSkeleton);
       layoutBoxes.set(frameId, {
@@ -246,6 +326,21 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
         y: box.y,
         width: box.width,
         height: box.height,
+      });
+    }
+    // ── ancillary band (opt-in): append the band's REAL, already-absolute
+    // skeleton. Emitted outside the non-root guard because the synthetic root
+    // can host a band too (a root-hosted band is top-level, exactly like a root
+    // leaf). No re-derivation and no re-translation — the band's geometry IS the
+    // injector's, so the two can never disagree. ──
+    const hostedBand = input.ancillaryBands?.get(hull.id);
+    if (hostedBand) {
+      skeleton.push(...hostedBand.skeleton);
+      layoutBoxes.set(hostedBand.frameId, {
+        x: hostedBand.box.x,
+        y: hostedBand.box.y,
+        width: hostedBand.box.width,
+        height: hostedBand.box.height,
       });
     }
     for (const child of hull.children) {
@@ -263,6 +358,25 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
   );
 
+  // ── Package C spike (W9, flag-gated): detour TFD arrows whose straight
+  // chord penetrates a foreign box. Runs on the just-emitted TFD arrows only
+  // (the aggregated frame connectors below are relationship.aggregated and
+  // would be skipped anyway); endpoints/bindings/customData are untouched, so
+  // frame-parenting below is unaffected. Absent the flag this pass never runs.
+  const edgeRouting = input.edgeRouting
+    ? routeStrataSkeletonEdges(skeleton, input.model, input.placement)
+    : undefined;
+
+  // ── P3-pierce border-exit routing (flag-gated). Runs AFTER edgeRouting and
+  // is kept DISJOINT from it: border-route SKIPS any arrow already stamped
+  // `terraformRoutedPolyline` by edgeRouting (it would otherwise re-derive
+  // [start,W,end] from the endpoints, discarding edgeRouting's foreign-detour
+  // waypoints). So each edge is owned by whichever pass fired first — no
+  // clobber, no re-pierce. Absent the flag this never runs. ──
+  const borderRoute = input.borderRoute
+    ? routeStrataBorderExits(skeleton, input.model, input.placement)
+    : undefined;
+
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
   const frameEdgeCount = appendCompoundTopologyFrameEdgeSkeletons(
@@ -273,7 +387,13 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   );
   assignCompoundEdgeFrameParents(skeleton, prep.clusters);
 
-  return { skeleton, layoutBoxes, frameEdgeCount };
+  return {
+    skeleton,
+    layoutBoxes,
+    frameEdgeCount,
+    ...(edgeRouting ? { edgeRouting } : {}),
+    ...(borderRoute ? { borderRoute } : {}),
+  };
 }
 
 /**
@@ -291,11 +411,38 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
+  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
+  edgeRouting?: StrataEdgeRoutingMeta;
+  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
+  borderRoute?: StrataBorderRouteMeta;
 }> {
-  const { skeleton, frameEdgeCount } = assembleStrataSceneSkeleton(input);
+  // Closure-free stage timing (see terraformPipelineStrata.ts): zero overhead
+  // when the profiler is disabled, and the async span is timed around its await
+  // WITHOUT touching the shared sync stack.
+  const profileOn = isTerraformImportProfilerEnabled();
+  const spanNow = (): number => (profileOn ? performance.now() : 0);
+  const spanRecord = (name: string, since: number): void => {
+    if (profileOn) {
+      terraformImportProfilerRecord(name, performance.now() - since);
+    }
+  };
+
+  const tSkeleton = spanNow();
+  const { skeleton, frameEdgeCount, edgeRouting, borderRoute } =
+    assembleStrataSceneSkeleton(input);
+  spanRecord("strata.sceneBuild.skeleton", tSkeleton);
+  const tConvert = spanNow();
   const converted = await convertPipelineSkeletonToElements(skeleton);
+  spanRecord("strata.sceneBuild.convert", tConvert);
+  const tFinalize = spanNow();
   const elements = finalizeStrataScene(converted, {
     generation: input.generation ?? 1,
   });
-  return { elements, frameEdgeCount };
+  spanRecord("strata.finalize", tFinalize);
+  return {
+    elements,
+    frameEdgeCount,
+    ...(edgeRouting ? { edgeRouting } : {}),
+    ...(borderRoute ? { borderRoute } : {}),
+  };
 }

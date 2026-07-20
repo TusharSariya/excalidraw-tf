@@ -2,12 +2,24 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Normative specification — source of truth.** Supersedes [`rcll-v2-spec.md`](./rcll-v2-spec.md) (v1.0) in full, **except** v1.0's S5/S6 `PipelineGroupConstraint` type and S7 `TerraformOverlayStore` schema, which are **incorporated by reference unchanged** (their *mechanics* are corrected here, §7-S7). |
+| Status | **Normative specification — source of truth.** Supersedes [`rcll-v2-spec.md`](./rcll-v2-spec.md) (v1.0) in full, **except** v1.0's S5/S6 `PipelineGroupConstraint` type and S7 `TerraformOverlayStore` schema, which are **incorporated by reference unchanged** (their _mechanics_ are corrected here, §7-S7). |
 | Version | 2.0 (2026-07-04) |
 | Engine | New layout variant `pipelineLayoutVariant: "rcll-v2"`, own top-level UI button; existing `v2`/`rcll` engines byte-untouched (output-identical guarantee, see D2′) |
 | Produced by | Round-5 adversarial review ([`rcll-v2-shit-test-round5.md`](./rcll-v2-shit-test-round5.md)): full anchor re-verification, 9 literature agents (citations fetched at source), codex outside voice, product + eng reviews, and 4 empirical probes — including the Q2 measurement rounds 1–4 specified but never ran |
 | First milestone | **M1 = engine exists, readable, honestly gated**, split into **M1a** (S0a → S9 → S4 → S0b@K=0 — shippable rendering checkpoint) and **M1b** (sweeps → SA7 → S0c → S8 → S2 — gates frozen). NOT diff-stability-only. |
 | Audience | An implementing agent executing §7 step by step; a reviewer checking §8 conformance. Where an algorithmic choice is genuinely open, it is an **OD-n** block in §9 with options + tradeoffs — do not resolve silently; pick per the stated default or escalate. |
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Normative-base |
+| Status | Current base — read with v3.0 + v3.1 (later wins) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-spec.md`](./rcll-v2-spec.md); [`rcll-v2-shit-test-round5.md`](./rcll-v2-shit-test-round5.md) |
+| Children | [`rcll-v2-spec-v3.md`](./rcll-v2-spec-v3.md); [`rcll-v2-shit-test-round6.md`](./rcll-v2-shit-test-round6.md) |
+| Sisters | — |
+| Next (agent) | Implement: algorithms §6 + steps §7, then apply v3.0/v3.1 amendments beside it. |
 
 ## 0. What changed since v1.0 and why (read this first)
 
@@ -19,7 +31,7 @@ Revision 2 exists because round 5 falsified parts of v1.0 and re-weighted its ob
 4. **The M1 gate replaced.** v1.0's A4 metric inverted its citation (Sondag et al. explicitly reject absolute |Δpos|), had an identically-zero flip term, no thresholds, and depended on an M2 artifact. Corrected: §6-A4, with a threshold derive/validate protocol.
 5. **The overlay design re-aimed.** Regeneration is a wholesale `scene.replaceAllElements` (`terraformSceneApply.ts:124`) — `reconcileElements` never runs on that path (it is collab-transport-only). v1.0's C9/S7 orphan mechanics targeted a hazard that does not exist there, while missing the real one (regeneration destroys every user edit). Corrected: §7-S7.
 6. **Identity constants fixed.** `version=1`/`versionNonce=0` made same-cardinality regenerations invisible to collab reconcile, the sum-of-versions broadcast gate, and the Firebase save gate; seed 0 is RoughJS's "unseeded" sentinel (→ `Math.random()` per render); endpoint-sorted edge ids collide A→B with B→A. Corrected: §6-A6.
-7. **The substrate decision empirically confirmed.** Q2 seven-arm A/B (§4): no rcll configuration — including the owner's daily view — beats the plain v2 baseline on deviation/crossings/area, and v1's built readability passes do not compose. Building NEW on the v2 substrate (depth-pinned X + skyline) is supported by measurement, not just prose. *(Power caveat: one preset, one run per arm — the ≥2-preset battery in §8 is a precondition for irreversible commitments.)*
+7. **The substrate decision empirically confirmed.** Q2 seven-arm A/B (§4): no rcll configuration — including the owner's daily view — beats the plain v2 baseline on deviation/crossings/area, and v1's built readability passes do not compose. Building NEW on the v2 substrate (depth-pinned X + skyline) is supported by measurement, not just prose. _(Power caveat: one preset, one run per arm — the ≥2-preset battery in §8 is a precondition for irreversible commitments.)_
 
 Everything in v1.0 that survived attack is carried forward: the D2/D3/D4 engine shape, depth-pinned X, address-keyed identity, the deterministic-finalize decision, S4's pure gate, greedy-FAS repair + styled back-edges as the cycle policy, and the address as the canonical business key.
 
@@ -35,13 +47,13 @@ Everything in v1.0 that survived attack is carried forward: the D2/D3/D4 engine 
 
 | # | Decision | Choice | Basis / tradeoff |
 | --- | --- | --- | --- |
-| **D1′** | Within-column order | **Hull-scoped Strategy-1**: deterministic crossing-reduction sweeps with the content key as the stable tiebreak (§6-A2) | The cited GD'24 result *as the paper actually states it*. Tradeoff: sweeps cost a bounded, measurable amount of churn vs a pure content sort — paid because pure model-order is the paper's rejected "ONO" configuration; the churn cost is gated by T2, not assumed. |
+| **D1′** | Within-column order | **Hull-scoped Strategy-1**: deterministic crossing-reduction sweeps with the content key as the stable tiebreak (§6-A2) | The cited GD'24 result _as the paper actually states it_. Tradeoff: sweeps cost a bounded, measurable amount of churn vs a pure content sort — paid because pure model-order is the paper's rejected "ONO" configuration; the churn cost is gated by T2, not assumed. |
 | **D2′** | Engine shape | New `rcll-v2` variant on the **v2 substrate** (depth-pinned X + skyline), existing engines **output-identical** (not "files untouched" — shared-file refactors are allowed iff existing-engine snapshots hold, see S10) | Q2-supported. Tradeoff: months before parity with v2's hardening, vs zero regression risk to shipped views. |
-| **D3′** | Reuse boundary | Reuse pure kernels (`longestPath`, `dropY`, `segmentsCross`, `computeNetworkSimplexDepths`, `constraintGraphHasCycle`); fork ordering/placement/finalize. **Fork a sequence-free `computeDepths` signature** — the shared one's edge type embeds `sequence` (C4 conflict). | |
-| **D4′** | Determinism | Own finalize; **R6 scoped to "byte-identical within a pinned environment"** (comparator pinned, fonts stubbed in tests, both finalize call sites covered). Cross-environment identity is a non-goal (ICU/`measureText`/asset realities, §5-F7). | |
-| **D5′** | Cyclic policy | Corrected greedy FAS (ELS93-true) + self-loop drop + E′ contract + styled back-edges; per-SCC + model-order arc selection as the diff-stability refinement (OD-4) | |
+| **D3′** | Reuse boundary | Reuse pure kernels (`longestPath`, `dropY`, `segmentsCross`, `computeNetworkSimplexDepths`, `constraintGraphHasCycle`); fork ordering/placement/finalize. **Fork a sequence-free `computeDepths` signature** — the shared one's edge type embeds `sequence` (C4 conflict). |  |
+| **D4′** | Determinism | Own finalize; **R6 scoped to "byte-identical within a pinned environment"** (comparator pinned, fonts stubbed in tests, both finalize call sites covered). Cross-environment identity is a non-goal (ICU/`measureText`/asset realities, §5-F7). |  |
+| **D5′** | Cyclic policy | Corrected greedy FAS (ELS93-true) + self-loop drop + E′ contract + styled back-edges; per-SCC + model-order arc selection as the diff-stability refinement (OD-4) |  |
 | **D6′** | Containment schema | Configurable, **copy-then-parametrize** inside the new engine first (S10); consolidation later | Avoids the D2 contradiction of refactoring `topologyPathForCluster` under the existing engines mid-build. |
-| **D7′** | Ranking | Longest-path floor, **NS refinement admitted** behind the pure gate as an A/B (OD-1) — v1.0's C1 wording forbade the repo's own proven kernel | |
+| **D7′** | Ranking | Longest-path floor, **NS refinement admitted** behind the pure gate as an A/B (OD-1) — v1.0's C1 wording forbade the repo's own proven kernel |  |
 | **D8′** | Milestones | **Readability payload in M1; diff-stability as its frozen gate.** M1 exit = T2 **and** the readability battery on ≥2 presets. | The inverse of v1.0's M1. |
 | **D9** | Metric family | Owner-calibrated: vertical deviation, near-straight %, hub centering (with hub counts), aspect, chord-pierce + cluster contiguity, crossings **per eligible edge pair** (normalized). Raw crossing count is a diagnostic, never a gate. | Owner's revealed preference (§4.3 of the report): prefers the arm with the most crossings because it wins deviation/height/containment. |
 
@@ -49,9 +61,9 @@ Everything in v1.0 that survived attack is carried forward: the D2/D3/D4 engine 
 
 **Purpose.** A new pipeline-view engine whose output is a **readable, semantically-ordered, diff-stable, identity-keyed function of the Terraform graph**, regenerated every PR/plan/drift, carrying user overlays keyed by address.
 
-**Scope.** The `rcll-v2` engine: plumbing + UI button, cycle repair, ranking, hull-scoped ordering, compound placement, coordinate assignment, deterministic finalize, constraint input, overlay persistence, configurable schema. **Out of scope:** existing engines (output-identical), collab transport internals, extraction fidelity, edge *routing* (deferred with an owner — §9 OD-9).
+**Scope.** The `rcll-v2` engine: plumbing + UI button, cycle repair, ranking, hull-scoped ordering, compound placement, coordinate assignment, deterministic finalize, constraint input, overlay persistence, configurable schema. **Out of scope:** existing engines (output-identical), collab transport internals, extraction fidelity, edge _routing_ (deferred with an owner — §9 OD-9).
 
-**Definitions** (unchanged from v1.0 except as noted): TFD; hull/cluster/hull tree; depth; column; **diff-stability** (small input delta ⇒ small, localized output delta — distinct from determinism); **container-pierce** (a straight edge **chord** crossing a foreign container rect — "routed segment" was v1.0 fiction; edges today are 2-point center-clipped chords); ancestor containment (required, not overlap); overlay; address (canonical Terraform address in `customData.terraformVisibilityKey` — note it is a *precomputed field with falsy-OR fallbacks that can be null*, not a canonicalizing function; the engine MUST handle the fallback chain, `terraformVisibility.ts:252-263`).
+**Definitions** (unchanged from v1.0 except as noted): TFD; hull/cluster/hull tree; depth; column; **diff-stability** (small input delta ⇒ small, localized output delta — distinct from determinism); **container-pierce** (a straight edge **chord** crossing a foreign container rect — "routed segment" was v1.0 fiction; edges today are 2-point center-clipped chords); ancestor containment (required, not overlap); overlay; address (canonical Terraform address in `customData.terraformVisibilityKey` — note it is a _precomputed field with falsy-OR fallbacks that can be null_, not a canonicalizing function; the engine MUST handle the fallback chain, `terraformVisibility.ts:252-263`).
 
 ## 3. Requirements
 
@@ -106,7 +118,7 @@ Pipeline order (strict): **A3 (cycle repair) → A1 (rank) → A0+A2 (compound p
 
 ### A3 — Cycle repair: GreedyFAS, corrected [new]
 
-Input: the **collapsed** cluster graph (the same edge set A1 ranks — module collapse is what *creates* 2-cycles and self-loops; the leaf graph is acyclic in canonical presets). Literature: Eades–Lin–Smyth 1993; verbatim restatement Geladaris/Lionakis/Tollis JGAA 27(8) 2023 Alg. 1; Brandenburg–Hanauer 2011 §2.4.
+Input: the **collapsed** cluster graph (the same edge set A1 ranks — module collapse is what _creates_ 2-cycles and self-loops; the leaf graph is acyclic in canonical presets). Literature: Eades–Lin–Smyth 1993; verbatim restatement Geladaris/Lionakis/Tollis JGAA 27(8) 2023 Alg. 1; Brandenburg–Hanauer 2011 §2.4.
 
 ```
 0. drop self-loops from E for RANKING/ORDERING only — they remain in the render set:
@@ -151,7 +163,7 @@ X(v) = columnX[rank(v)]
 
 Tradeoff (state of knowledge): longest-path is the literature's low-quality baseline ("performs very poorly in terms of drawing area, number of dummy vertices and edge density" — Healy–Nikolov, Handbook ch. 13 p. 421; classic pathology: a source feeding only a deep node draws a full-width edge that NS shortens to one column — the owner's exact complaint class). NS's cost is R7: it re-optimizes per component, so one added edge can move ranks of untouched nodes. **Neither is assumed the winner: T2 measures both arms; the flag ships whichever passes R4+R7.** Since A3 runs first, no cyclic clamp exists in this engine (v1.0's inherited clamp assigned raw TFD sequence numbers as depths — up to hundreds — and silently skipped both rewrite arms; that failure mode is structurally removed).
 
-Locality honesty (corrects v1.0 §5.1): rank changes cascade transitively, and `columnX` widths derive from per-column max card width, so a single wider label translates all columns rightward. X churn is *bounded and benign-shaped* (translations), not "localized" — which is exactly why A4 must be translation-invariant.
+Locality honesty (corrects v1.0 §5.1): rank changes cascade transitively, and `columnX` widths derive from per-column max card width, so a single wider label translates all columns rightward. X churn is _bounded and benign-shaped_ (translations), not "localized" — which is exactly why A4 must be translation-invariant.
 
 ### A0 — Compound placement (the algorithm v1.0 never wrote) [new]
 
@@ -284,7 +296,7 @@ This phase exists because of §4 fact (ii): nothing measurable today moves `frac
 
 ### A4 — Diff-stability metric + gate [new — corrected citation and form]
 
-Sondag/Speckmann/Verbeek 2018 (verified at the author copy this round): their contribution is a **pairwise 8-sector directional relative-position measure**, normalized to [0,1]; the paper explicitly argues absolute-position change "is not sufficient to measure the stability" (their Fig. 19: trackable layout, distance-change 5.325, relative-position-change 0). v1.0 cited this paper *for* absolute |Δpos| — inverted; deleted.
+Sondag/Speckmann/Verbeek 2018 (verified at the author copy this round): their contribution is a **pairwise 8-sector directional relative-position measure**, normalized to [0,1]; the paper explicitly argues absolute-position change "is not sufficient to measure the stability" (their Fig. 19: trackable layout, distance-change 5.325, relative-position-change 0). v1.0 cited this paper _for_ absolute |Δpos| — inverted; deleted.
 
 ```
 inputs: L_old, L_new over plans P_old → P_new (minimal semantic delta)
@@ -312,7 +324,7 @@ PASS iff M1_rel and M2_flip ≤ frozen thresholds (C11: derived on the fixture t
 fixture triple per preset: add-one-resource, add-one-edge, moved{}-rename
 ```
 
-Empirical anchor for threshold-setting (§4): the *current* v2 engine's add-one-edge delta is 20/123 moved / 4 inversions — the new engine must beat this on M2_flip; run-twice determinism (T1) remains necessary-but-insufficient and MUST NOT be cited for R7.
+Empirical anchor for threshold-setting (§4): the _current_ v2 engine's add-one-edge delta is 20/123 moved / 4 inversions — the new engine must beat this on M2_flip; run-twice determinism (T1) remains necessary-but-insufficient and MUST NOT be cited for R7.
 
 ### A5 — Chord-pierce + contiguity metrics [new]
 
@@ -328,7 +340,7 @@ contiguity: per hull h and column c: the units of h in c are contiguous in the
     contiguity clause made measurable (and is 0 by construction if A0/A2 are correct).
 ```
 
-Honest grounding: container-pierce is justified as a **faithfulness/false-membership** argument (geometry implying untrue containment), *not* by Ware/Huang/Kobourov (their stimuli were container-free — v1.0's attribution was wrong). Gate: **reported-only during M1** (a gate against a baseline produced by the code under admission is circular); the M1-exit values are frozen by amendment and become the not-regress gate **from M2 onward** (C11).
+Honest grounding: container-pierce is justified as a **faithfulness/false-membership** argument (geometry implying untrue containment), _not_ by Ware/Huang/Kobourov (their stimuli were container-free — v1.0's attribution was wrong). Gate: **reported-only during M1** (a gate against a baseline produced by the code under admission is circular); the M1-exit values are frozen by amendment and become the not-regress gate **from M2 onward** (C11).
 
 ### A6 — Deterministic finalize: identity, versions, seeds [new — corrected constants]
 
@@ -397,7 +409,7 @@ M3: S7 overlays (redesigned) → collab hardening → S10 schema → ancillary p
     → routing (OD-9, needs an owner decision)
 ```
 
-- **S0a — plumbing only.** `"rcll-v2"` variant + **its own layoutMode** (or amended clobber sites), UI button, all four C6′ seams, `skipLayoutCache` allowlist entry, threading + stale-cache regression tests. Engine = passthrough to v2 initially. Rollback: remove variant; genuinely zero-impact. *(Test: threading test asserts a dialog/URL-set variant reaches the engine and that a warm KV cache is bypassed.)*
+- **S0a — plumbing only.** `"rcll-v2"` variant + **its own layoutMode** (or amended clobber sites), UI button, all four C6′ seams, `skipLayoutCache` allowlist entry, threading + stale-cache regression tests. Engine = passthrough to v2 initially. Rollback: remove variant; genuinely zero-impact. _(Test: threading test asserts a dialog/URL-set variant reaches the engine and that a warm KV cache is bypassed.)_
 - **S9 — A3.** Precedes all ranking (A1 consumes E′). Tests: T7 with the three mandatory fixtures. Rollback: none needed — without it the engine cannot ship cyclic input at all (there is deliberately no clamp fallback in this engine).
 - **S0b — A0 + A2.** The forked loop (closes milestone M1a). Acceptance: R2 structural checks (non-ancestor overlap = 0, title collisions = 0, contiguity violations = 0) + R3 forwardness on both presets; A2's sweeps flag-gated so S0b lands with K=0 (pure model order) first — that IS the M1a checkpoint — and K=4 turns on in M1b while T2 thresholds are being derived. The R2 checks become a standing invariant thereafter (re-asserted on final geometry in every T9 run — see A7).
 - **SA7 — A7.** Flag-gated. Acceptance: near-straight and deviation strictly better than the same engine pre-A7 AND vs the v2 baseline column of §4; T2 not regressed.
@@ -407,7 +419,7 @@ M3: S7 overlays (redesigned) → collab hardening → S10 schema → ancillary p
 - **S3** — full identity contract incl. the OD-8 disposition, pre-restore uniqueness asserts, collab-lane test (peer with pre-regenerate scene must NOT resurrect removed elements — this is what the A6 version policy buys; T4 must include this scenario).
 - **S4** — extract `isDepthFloorValid` (unchanged from v1.0 — the one step that was sound as written).
 - **S5/S6** — constraint input path + keep-together, as v1.0 specified, with the seam list corrected to C6′ and contiguity semantics now meaningful (post-A2).
-- **S7 — overlays, redesigned.** Store schema as v1.0 (address-keyed, member-set-independent groupIds; incorporated by reference). Timing contract: **groupings are layout INPUTS** — read from the store *before* layout runs and fed through S5, so they shape the regeneration they precede; a grouping created mid-session takes effect on the next regeneration (or an explicit re-layout action — no automatic re-layout on group creation). The post-`replaceAllElements` apply pass handles **styles and annotations only** (merged last / re-anchored at anchor bbox + offset) — it never moves geometry. Orphans: removed addresses render as tray ghosts with canonical ids. Rename via `moved{}` if present (spike), else orphan tray is primary. The reconcile-path analysis is retained only for collab (S3's test).
+- **S7 — overlays, redesigned.** Store schema as v1.0 (address-keyed, member-set-independent groupIds; incorporated by reference). Timing contract: **groupings are layout INPUTS** — read from the store _before_ layout runs and fed through S5, so they shape the regeneration they precede; a grouping created mid-session takes effect on the next regeneration (or an explicit re-layout action — no automatic re-layout on group creation). The post-`replaceAllElements` apply pass handles **styles and annotations only** (merged last / re-anchored at anchor bbox + offset) — it never moves geometry. Orphans: removed addresses render as tray ghosts with canonical ids. Rename via `moved{}` if present (spike), else orphan tray is primary. The reconcile-path analysis is retained only for collab (S3's test).
 - **S10** — schema: copy-then-parametrize `topologyPathForCluster`/`buildHullTree` equivalents inside the engine; default schema reproduces AWS taxonomy; T8 = structural-deep-equal in the pinned env, plus existing-engine snapshot tests if any shared file was touched (D2′).
 
 ## 8. Verification (conformance)
@@ -428,32 +440,34 @@ M3: S7 overlays (redesigned) → collab hardening → S10 schema → ancillary p
 
 ## 9. Open decisions (OD) — options an implementing agent must not resolve silently
 
-- **OD-1 · Rank refinement: longest-path vs NS.** *Option A:* floor only — most incremental under edits (each rank a local max), zero new code. *Option B (default):* NS refinement behind a flag via C7's pure gate — shorter edges/narrower (−8.4% width measured in-host), literature-preferred, but per-component re-optimization may move untouched ranks. **Resolve by the T2/T9 A/B; ship the passing arm as default.**
+- **OD-1 · Rank refinement: longest-path vs NS.** _Option A:_ floor only — most incremental under edits (each rank a local max), zero new code. _Option B (default):_ NS refinement behind a flag via C7's pure gate — shorter edges/narrower (−8.4% width measured in-host), literature-preferred, but per-component re-optimization may move untouched ranks. **Resolve by the T2/T9 A/B; ship the passing arm as default.**
 - **OD-2 · A2 sweep budget K.** Default 4 (2 down + 2 up), strict-improvement acceptance. More sweeps → better crossings, more churn risk and wall-clock. Bound: wall-clock budget in OD-10. Tune only with T2/T9 evidence.
-- **OD-3 · Long-edge handling in ordering.** *Option A (default):* no dummy nodes; cross-column barycenters use size-normalized positions (§6-A2). Cheaper; known to be weaker on graphs with many column-skipping edges. *Option B:* dummy chains per skipped column (classic Sugiyama; what production engines do), giving adjacent-layer-only barycenters and enabling A7 to straighten long edges through their dummies — materially more bookkeeping (dummies must thread A0's hull scoping). **If T9's near-straight target is missed with Option A + A7, Option B is the designated next lever before any routing work.**
-- **OD-4 · FAS refinement.** Per-SCC condensation (recommended, default ON) and model-order-consistent arc selection (choose the reversed arc as the one against the content-key order when deltas tie). Pure quality/diff-stability refinements — whole-graph GreedyFAS is *valid* without them; do not block M1 on them.
+- **OD-3 · Long-edge handling in ordering.** _Option A (default):_ no dummy nodes; cross-column barycenters use size-normalized positions (§6-A2). Cheaper; known to be weaker on graphs with many column-skipping edges. _Option B:_ dummy chains per skipped column (classic Sugiyama; what production engines do), giving adjacent-layer-only barycenters and enabling A7 to straighten long edges through their dummies — materially more bookkeeping (dummies must thread A0's hull scoping). **If T9's near-straight target is missed with Option A + A7, Option B is the designated next lever before any routing work.**
+- **OD-4 · FAS refinement.** Per-SCC condensation (recommended, default ON) and model-order-consistent arc selection (choose the reversed arc as the one against the content-key order when deltas tie). Pure quality/diff-stability refinements — whole-graph GreedyFAS is _valid_ without them; do not block M1 on them.
 - **OD-5 · A7 method.** Option 1 priority/median nudge (default) vs Option 2 BK-with-erratum. Start with 1; escalate to 2 only if T9's near-straight target is missed and OD-3B is insufficient. Never hand-roll BK without the 2020 erratum.
 - **OD-6 · Skyline gap-filling.** `dropY` semantics are monotone-downward (never back-fills gaps). Back-filling packs tighter but is order-sensitive (churn risk). Default: keep monotone; revisit only with T2 evidence.
-- **OD-7 · Version policy.** Default = the GENERATION scheme (§6-A6: monotone G as a finalize input from plan metadata / app-side counter). REJECTED alternative: content-hash versions (non-monotonic — a stale peer with a numerically larger hash wins reconcile). If collab is descoped entirely, `version=1` becomes tolerable *for persistence only if the save gate is also changed* — not recommended.
-- **OD-8 · Id-rewrite vs existing repair pass.** *Integrate:* keep `repairTerraformEdgeBindings` as the single binding-repair authority and have finalize only assign ids (less new code; keeps a post-hoc mutation pass). *Replace:* finalize does a complete, asserted rewrite and the repair pass is skipped for this engine (cleaner contract; must replicate its edge-rebinding semantics exactly). Decide during S3 with a parity test either way.
-- **OD-9 · Edge routing (deferred, unowned — decide before M3).** The owner's "reads like a proper flow" ceiling likely requires orthogonal/port routing eventually (v1 RFC EXT-3; Spönemann/ELK ports). It is deliberately NOT in M1/M2: chords + A7 straightening first, measure, then decide. Any routing work MUST first update A5 (chord-pierce becomes polyline-pierce) and the deviation metric (vertical *extent* penalizes orthogonal jogs — a known bias).
+- **OD-7 · Version policy.** Default = the GENERATION scheme (§6-A6: monotone G as a finalize input from plan metadata / app-side counter). REJECTED alternative: content-hash versions (non-monotonic — a stale peer with a numerically larger hash wins reconcile). If collab is descoped entirely, `version=1` becomes tolerable _for persistence only if the save gate is also changed_ — not recommended.
+- **OD-8 · Id-rewrite vs existing repair pass.** _Integrate:_ keep `repairTerraformEdgeBindings` as the single binding-repair authority and have finalize only assign ids (less new code; keeps a post-hoc mutation pass). _Replace:_ finalize does a complete, asserted rewrite and the repair pass is skipped for this engine (cleaner contract; must replicate its edge-rebinding semantics exactly). Decide during S3 with a parity test either way.
+- **OD-9 · Edge routing (deferred, unowned — decide before M3).** The owner's "reads like a proper flow" ceiling likely requires orthogonal/port routing eventually (v1 RFC EXT-3; Spönemann/ELK ports). It is deliberately NOT in M1/M2: chords + A7 straightening first, measure, then decide. Any routing work MUST first update A5 (chord-pierce becomes polyline-pierce) and the deviation metric (vertical _extent_ penalizes orthogonal jogs — a known bias).
 - **OD-10 · Performance budget (set at S0b).** The pipeline runs on the **main thread** (`terraformLayoutWorkerClient.ts:158-160` routes pipeline to `runSequential`; worker migration is blocked by `measureText`/icon-fetch DOM deps). Proposed budget: engine (A3→A7) ≤ 2s on the canonical preset, ≤ 10s on all-resources; A5 is O(chords × frames) — acceptable; A2 sweeps bounded by K. Freeze actual numbers at S0b with a profiler run.
 - **OD-11 · `moved{}` spike (unchanged from v1.0).** Is `moved{}` present in consumed input? Gates S7's rename path only; if absent, the orphan tray is the primary rename UX.
 
 ## 10. Literature (verified at source in round 5 — trust levels stated)
 
 **Implemented by this spec:**
-- **Eades, Lin, Smyth 1993**, *A fast and effective heuristic for the feedback arc set problem* — A3. Construction verified against the verbatim restatement in **Geladaris, Lionakis, Tollis, JGAA 27(8) 2023** Alg. 1 (`s2 ← u·s2 … s = s1 s2`, **no reverse**) and **Brandenburg–Hanauer 2011** §2.4. <https://doi.org/10.1016/0020-0190(93)90079-O>
-- **Domrös & von Hanxleden 2024 (GD'24)**, *Diagram Control and Model Order for Sugiyama Layouts*, arXiv:2406.11393 — A2. **Use Strategy 1** (sweeps primary, model order as stable tiebreak); the paper's own evaluation rejects Strategy 2 ("cannot be the default option… produces ONO layouts"). v1.0 implemented Strategy 2 — do not regress to it. Companion: Domrös et al., *Determining Sugiyama Topology with Model Order* (LIPIcs GD 2024 — v1.0's "Domrös & Riepe" authorship label was wrong; verify against the LIPIcs page when citing).
-- **Sondag, Speckmann, Verbeek 2018 (IEEE TVCG)**, *Stable Treemaps via Local Moves* — A4's **pairwise 8-sector relative-position measure** (Eq. 1–2, Fig. 17). The paper argues absolute-position deltas are "not sufficient to measure the stability" (Fig. 19) — report |Δpos| only as a supplementary stat (Tak & Cockburn lineage), never gate on it. <https://ieeexplore.ieee.org/document/8019841/>
+
+- **Eades, Lin, Smyth 1993**, _A fast and effective heuristic for the feedback arc set problem_ — A3. Construction verified against the verbatim restatement in **Geladaris, Lionakis, Tollis, JGAA 27(8) 2023** Alg. 1 (`s2 ← u·s2 … s = s1 s2`, **no reverse**) and **Brandenburg–Hanauer 2011** §2.4. <https://doi.org/10.1016/0020-0190(93)90079-O>
+- **Domrös & von Hanxleden 2024 (GD'24)**, _Diagram Control and Model Order for Sugiyama Layouts_, arXiv:2406.11393 — A2. **Use Strategy 1** (sweeps primary, model order as stable tiebreak); the paper's own evaluation rejects Strategy 2 ("cannot be the default option… produces ONO layouts"). v1.0 implemented Strategy 2 — do not regress to it. Companion: Domrös et al., _Determining Sugiyama Topology with Model Order_ (LIPIcs GD 2024 — v1.0's "Domrös & Riepe" authorship label was wrong; verify against the LIPIcs page when citing).
+- **Sondag, Speckmann, Verbeek 2018 (IEEE TVCG)**, _Stable Treemaps via Local Moves_ — A4's **pairwise 8-sector relative-position measure** (Eq. 1–2, Fig. 17). The paper argues absolute-position deltas are "not sufficient to measure the stability" (Fig. 19) — report |Δpos| only as a supplementary stat (Tak & Cockburn lineage), never gate on it. <https://ieeexplore.ieee.org/document/8019841/>
 - **Brandes & Köpf 2001** + **Brandes, Walter, Zink 2020 (erratum, arXiv:2008.01252)** + **Rüegg/Schulze GD'15 (size-aware)** — A7 Option 2. The erratum is mandatory if hand-rolling.
 - **Gansner, Koutsofios, North, Vo 1993 (TSE93)** — network-simplex ranking (A1/OD-1; the in-repo kernel `computeNetworkSimplexDepths` is an exact implementation); forwardness as a consequence of layering. <https://www.graphviz.org/documentation/TSE93.pdf>
-- **Sander 1996**, *Layout of Compound Directed Graphs* — global base-node ranking, derived cluster spans, border/title handling context for A0. <https://publikationen.sulb.uni-saarland.de/bitstream/20.500.11880/25862/1/tr-A03-96.pdf>
+- **Sander 1996**, _Layout of Compound Directed Graphs_ — global base-node ranking, derived cluster spans, border/title handling context for A0. <https://publikationen.sulb.uni-saarland.de/bitstream/20.500.11880/25862/1/tr-A03-96.pdf>
 - **Forster 2002 (GD'02)** — compound-scoped crossing reduction (A2's hull scoping). **Holten & van Wijk 2009 (CHI)** — back-edge styling (A3 rendering).
 
 **Grounding the priorities (read with the corrected interpretations):**
+
 - **Healy & Nikolov**, Handbook of Graph Drawing ch. 13, p. 421 — longest-path layering "performs very poorly in terms of drawing area, number of dummy vertices and edge density" (grounds OD-1's default).
-- **Kobourov, Pupyrev, Saket 2014 (GD'14)** — **corrected reading (verified against the PDF):** crossings were *significant* at 40 vertices (time p<.01, accuracy p<.05) and n.s. in aggregate at 120 (large-dense accuracy still significantly hurt; the "<39% accuracy" figure belongs to a 150-vertex/density-3.5 preliminary; stimuli were undirected fdp/neato). At Terraform per-container scale, crossings DO matter — but per D9, crossing *count* is a diagnostic, not the gate, because…
+- **Kobourov, Pupyrev, Saket 2014 (GD'14)** — **corrected reading (verified against the PDF):** crossings were _significant_ at 40 vertices (time p<.01, accuracy p<.05) and n.s. in aggregate at 120 (large-dense accuracy still significantly hurt; the "<39% accuracy" figure belongs to a 150-vertex/density-3.5 preliminary; stimuli were undirected fdp/neato). At Terraform per-container scale, crossings DO matter — but per D9, crossing _count_ is a diagnostic, not the gate, because…
 - **Ware, Purchase, Colpoys, McGill 2002** — for path-tracing, continuity/path quality outranks raw counts (crossings still top-2) — and the **owner's revealed preference** (§4: prefers the highest-crossings arm for its deviation/height/containment wins) calibrates D9's metric weights. Both Round 4's "defer all readability" and a naive "minimize crossings first" would optimize the wrong number.
 - **Archambault & Purchase GD'12** vs **Purchase & Samra 2008 / Saffrey & Purchase 2008** — the mental-map literature is split-to-null; diff-stability's value here comes from the **product cadence** (regenerate-per-PR diffs must be reviewable), not from claimed cognitive universals. Hence: constraint, not objective.
 
@@ -486,15 +500,13 @@ M3: S7 overlays (redesigned) → collab hardening → S10 schema → ancillary p
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
-|--------|---------|-----|------|--------|----------|
+| --- | --- | --- | --- | --- | --- |
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | (office-hours product review ran in round 5 instead) |
 | Codex Review | `/codex review` | Independent 2nd opinion | 2 | CLEAR | 19 P1 + 6 P2 contract gaps, all folded pre-review (§12) |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR (PLAN) | 9 issues (4 architecture, 2 quality, 7 test gaps incl. 1 critical), all folded |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | n/a (engine spec; visual gates live in T9) |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run |
 
-**CODEX:** two pre-review passes converged after 25 fixes; no open codex findings remain.
-**CROSS-MODEL:** codex (contract quality) and the Fable-5 eng review (architecture/tests) found disjoint defect classes; zero contradictory recommendations — all folded.
-**VERDICT:** ENG CLEARED — ready to implement (M0 spec work is discharged by this document; first code = the D10 bug-fix PR, then S0a).
+**CODEX:** two pre-review passes converged after 25 fixes; no open codex findings remain. **CROSS-MODEL:** codex (contract quality) and the Fable-5 eng review (architecture/tests) found disjoint defect classes; zero contradictory recommendations — all folded. **VERDICT:** ENG CLEARED — ready to implement (M0 spec work is discharged by this document; first code = the D10 bug-fix PR, then S0a).
 
 NO UNRESOLVED DECISIONS

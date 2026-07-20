@@ -10,6 +10,18 @@
 | Audience | an implementing agent/engineer (execute §6 step by step) + a reviewer (check §7 conformance) |
 | First milestone | **M1 (S0+S1+S2)** — stand up the new engine and prove diff-stability |
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Superseded |
+| Status | Superseded by `rcll-v2-spec-v2.md` (v2.0) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-foundation-spec.md`](./rcll-v2-foundation-spec.md); [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Children | [`rcll-v2-spec-v2.md`](./rcll-v2-spec-v2.md); [`rcll-v2-shit-test-round5.md`](./rcll-v2-shit-test-round5.md) |
+| Sisters | — |
+| Next (agent) | Evidence/lineage only; open v2.0 as normative base. |
+
 ## Context (why this document exists)
 
 The RCLL (Recursive Compound Layered Layout) Terraform "pipeline view" draws AWS infrastructure parsed from a Terraform dependency graph (TFD) as a hierarchical, left-to-right, layered diagram: containment nests provider → account → region → vpc → subnet → resource; dependency edges flow left-to-right by depth.

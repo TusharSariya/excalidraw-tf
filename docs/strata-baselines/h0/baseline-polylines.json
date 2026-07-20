@@ -1,0 +1,1165 @@
+{
+  "id": "baseline",
+  "polylines": [
+    {
+      "source": "module.east_network.module.vpc.aws_internet_gateway.this[0]",
+      "target": "aws_lb.ecs",
+      "points": [
+        [2788, 3580.5],
+        [3014, 3580.5]
+      ]
+    },
+    {
+      "source": "aws_lb.ecs",
+      "target": "aws_ecs_service.producer",
+      "points": [
+        [3198.35, 3640],
+        [3595.65, 4119]
+      ]
+    },
+    {
+      "source": "aws_ecs_service.producer",
+      "target": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]",
+      "points": [
+        [3656.2, 4238],
+        [4129.8, 6753]
+      ]
+    },
+    {
+      "source": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]",
+      "target": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [4158.63, 6753],
+        [4619.37, 5198]
+      ]
+    },
+    {
+      "source": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]",
+      "target": "module.ingress_queue.module.queue.aws_sqs_queue.dlq[0]",
+      "points": [
+        [4276, 6816.99],
+        [7478, 6923.51]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+      "points": [
+        [4654.63, 5198],
+        [5115.37, 6753]
+      ]
+    },
+    {
+      "source": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+      "target": "aws_ecs_service.egress",
+      "points": [
+        [5146.82, 6753],
+        [5615.18, 4736]
+      ]
+    },
+    {
+      "source": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+      "target": "module.egress_queue.module.queue.aws_sqs_queue.dlq[0]",
+      "points": [
+        [5268, 6806.21],
+        [7478, 6703.29]
+      ]
+    },
+    {
+      "source": "aws_ecs_service.egress",
+      "target": "module.east_network.module.vpc.aws_nat_gateway.this[0]",
+      "points": [
+        [5655.93, 4617],
+        [6098.07, 3640]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api1.aws_api_gateway_rest_api.private",
+      "points": [
+        [4710.23, 5198],
+        [5059.77, 5482]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api2.aws_api_gateway_rest_api.private",
+      "points": [
+        [4683.55, 5198],
+        [5086.45, 5713]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api3.aws_api_gateway_rest_api.private",
+      "points": [
+        [4671.12, 5198],
+        [5098.88, 5944]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api4.aws_api_gateway_rest_api.private",
+      "points": [
+        [4663.93, 5198],
+        [5106.07, 6175]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api5.aws_api_gateway_rest_api.private",
+      "points": [
+        [4659.24, 5198],
+        [5110.76, 6406]
+      ]
+    },
+    {
+      "source": "module.api1.aws_api_gateway_rest_api.private",
+      "target": "module.api1.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [5151.94, 5482],
+        [5610.06, 4043]
+      ]
+    },
+    {
+      "source": "module.api2.aws_api_gateway_rest_api.private",
+      "target": "module.api2.aws_ecs_service.api",
+      "points": [
+        [5151.94, 5713],
+        [5610.06, 4274]
+      ]
+    },
+    {
+      "source": "module.api3.aws_api_gateway_rest_api.private",
+      "target": "module.api3.aws_ecs_service.api",
+      "points": [
+        [5151.94, 5944],
+        [5610.06, 4505]
+      ]
+    },
+    {
+      "source": "module.api4.aws_api_gateway_rest_api.private",
+      "target": "module.api4.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [5155.24, 6175],
+        [5606.76, 4967]
+      ]
+    },
+    {
+      "source": "module.api5.aws_api_gateway_rest_api.private",
+      "target": "module.api5.aws_ecs_service.api",
+      "points": [
+        [5155.24, 6406],
+        [5606.76, 5198]
+      ]
+    },
+    {
+      "source": "module.api6.aws_api_gateway_rest_api.private",
+      "target": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [6143.94, 5482],
+        [6602.06, 4043]
+      ]
+    },
+    {
+      "source": "module.api7.aws_api_gateway_rest_api.private",
+      "target": "module.api7.aws_ecs_service.api",
+      "points": [
+        [6143.94, 5713],
+        [6602.06, 4274]
+      ]
+    },
+    {
+      "source": "module.api8.aws_api_gateway_rest_api.private",
+      "target": "module.api8.aws_ecs_service.api",
+      "points": [
+        [10612.4, 2088],
+        [11061.6, 3230]
+      ]
+    },
+    {
+      "source": "module.api9.aws_api_gateway_rest_api.private",
+      "target": "module.api9.aws_ecs_service.api",
+      "points": [
+        [10612.4, 2319],
+        [11061.6, 3461]
+      ]
+    },
+    {
+      "source": "module.api10.aws_api_gateway_rest_api.private",
+      "target": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [11604.4, 2088],
+        [12053.6, 3230]
+      ]
+    },
+    {
+      "source": "module.api11.aws_api_gateway_rest_api.private",
+      "target": "module.api11.aws_ecs_service.api",
+      "points": [
+        [11604.4, 2319],
+        [12053.6, 3461]
+      ]
+    },
+    {
+      "source": "module.api12.aws_api_gateway_rest_api.private",
+      "target": "module.api12.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [8182.23, 4695],
+        [8531.77, 4411]
+      ]
+    },
+    {
+      "source": "module.api14.aws_api_gateway_rest_api.private",
+      "target": "module.api14.aws_ecs_service.api",
+      "points": [
+        [9174.23, 4695],
+        [9523.77, 4411]
+      ]
+    },
+    {
+      "source": "module.api15.aws_api_gateway_rest_api.private",
+      "target": "module.api15.aws_ecs_service.api",
+      "points": [
+        [8182.23, 5441],
+        [8531.77, 5725]
+      ]
+    },
+    {
+      "source": "module.api16.aws_api_gateway_rest_api.private",
+      "target": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [9174.23, 5441],
+        [9523.77, 5725]
+      ]
+    },
+    {
+      "source": "module.api1.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api1.aws_ssm_parameter.api_name",
+      "points": [
+        [5764, 3979.69],
+        [7478, 3931.31]
+      ]
+    },
+    {
+      "source": "module.api1.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api1_table.aws_dynamodb_table.this",
+      "points": [
+        [5764, 3995.41],
+        [7478, 4146.59]
+      ]
+    },
+    {
+      "source": "module.api2.aws_ecs_service.api",
+      "target": "module.api2.aws_ssm_parameter.api_name",
+      "points": [
+        [5764, 4226.41],
+        [7478, 4377.59]
+      ]
+    },
+    {
+      "source": "module.api2.aws_ecs_service.api",
+      "target": "module.api2_rds.aws_db_instance.this",
+      "points": [
+        [5764, 4162.06],
+        [6982, 3688.94]
+      ]
+    },
+    {
+      "source": "module.api3.aws_ecs_service.api",
+      "target": "module.api3.aws_ssm_parameter.api_name",
+      "points": [
+        [5764, 4457.41],
+        [7478, 4608.59]
+      ]
+    },
+    {
+      "source": "module.api3.aws_ecs_service.api",
+      "target": "module.api3_aurora.aws_rds_cluster.this",
+      "points": [
+        [5764, 4414.02],
+        [6982, 4129.98]
+      ]
+    },
+    {
+      "source": "module.api4.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api4.aws_ssm_parameter.api_name",
+      "points": [
+        [5764, 4903.69],
+        [7478, 4855.31]
+      ]
+    },
+    {
+      "source": "module.api4.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api4_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
+      "points": [
+        [5764, 4919.41],
+        [7478, 5070.59]
+      ]
+    },
+    {
+      "source": "module.api5.aws_ecs_service.api",
+      "target": "module.api5.aws_ssm_parameter.api_name",
+      "points": [
+        [5764, 5150.41],
+        [7478, 5301.59]
+      ]
+    },
+    {
+      "source": "module.api5.aws_ecs_service.api",
+      "target": "module.api5_table.aws_dynamodb_table.this",
+      "points": [
+        [5764, 5166.13],
+        [7478, 5516.87]
+      ]
+    },
+    {
+      "source": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api6.aws_ssm_parameter.api_name",
+      "points": [
+        [6653.94, 4043],
+        [7580.06, 5716]
+      ]
+    },
+    {
+      "source": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api6_rds.aws_db_instance.this",
+      "points": [
+        [6756, 3951.93],
+        [6982, 3899.07]
+      ]
+    },
+    {
+      "source": "module.api7.aws_ecs_service.api",
+      "target": "module.api7.aws_ssm_parameter.api_name",
+      "points": [
+        [6653.94, 4274],
+        [7580.06, 5947]
+      ]
+    },
+    {
+      "source": "module.api7.aws_ecs_service.api",
+      "target": "module.api7_aurora.aws_rds_cluster.this",
+      "points": [
+        [6756, 4245.8],
+        [6982, 4298.2]
+      ]
+    },
+    {
+      "source": "module.api8.aws_ecs_service.api",
+      "target": "module.api8.aws_ssm_parameter.api_name",
+      "points": [
+        [11220, 3325.22],
+        [12934, 3778.78]
+      ]
+    },
+    {
+      "source": "module.api8.aws_ecs_service.api",
+      "target": "module.api8_west_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
+      "points": [
+        [11220, 3340.94],
+        [12934, 3994.06]
+      ]
+    },
+    {
+      "source": "module.api9.aws_ecs_service.api",
+      "target": "module.api9.aws_ssm_parameter.api_name",
+      "points": [
+        [11220, 3571.94],
+        [12934, 4225.06]
+      ]
+    },
+    {
+      "source": "module.api9.aws_ecs_service.api",
+      "target": "module.api9_west_rds.aws_db_instance.this",
+      "points": [
+        [11220, 3520.5],
+        [12438, 3520.5]
+      ]
+    },
+    {
+      "source": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api10.aws_ssm_parameter.api_name",
+      "points": [
+        [12212, 3266.64],
+        [12934, 3144.36]
+      ]
+    },
+    {
+      "source": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api10_table.aws_dynamodb_table.this",
+      "points": [
+        [12212, 3298.07],
+        [12934, 3343.93]
+      ]
+    },
+    {
+      "source": "module.api11.aws_ecs_service.api",
+      "target": "module.api11.aws_ssm_parameter.api_name",
+      "points": [
+        [12212, 3529.07],
+        [12934, 3574.93]
+      ]
+    },
+    {
+      "source": "module.api11.aws_ecs_service.api",
+      "target": "module.api11_aurora.aws_rds_cluster.this",
+      "points": [
+        [12204.76, 3461],
+        [12445.24, 3349]
+      ]
+    },
+    {
+      "source": "module.api12.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api12.aws_ssm_parameter.api_name",
+      "points": [
+        [8740, 4393.18],
+        [9958, 4769.2]
+      ]
+    },
+    {
+      "source": "module.api12.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api12_bucket.module.bucket.module.bucket.aws_s3_bucket.this[0]",
+      "points": [
+        [8740, 4330.3],
+        [9958, 4139.07]
+      ]
+    },
+    {
+      "source": "module.api14.aws_ecs_service.api",
+      "target": "module.api14.aws_ssm_parameter.api_name",
+      "points": [
+        [9732, 4350.79],
+        [9958, 4349.59]
+      ]
+    },
+    {
+      "source": "module.api14.aws_ecs_service.api",
+      "target": "module.api14_table.aws_dynamodb_table.this",
+      "points": [
+        [9726.23, 4411],
+        [9963.77, 4520.38]
+      ]
+    },
+    {
+      "source": "module.api15.aws_ecs_service.api",
+      "target": "module.api15.aws_ssm_parameter.api_name",
+      "points": [
+        [8740, 5761.39],
+        [10454, 5467.98]
+      ]
+    },
+    {
+      "source": "module.api15.aws_ecs_service.api",
+      "target": "module.api15_aurora.aws_rds_cluster.this",
+      "points": [
+        [8740, 5774.02],
+        [9958, 5679.48]
+      ]
+    },
+    {
+      "source": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api16.aws_ssm_parameter.api_name",
+      "points": [
+        [9732, 5769.72],
+        [10454, 5690.66]
+      ]
+    },
+    {
+      "source": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api16_rds.aws_db_instance.this",
+      "points": [
+        [9732, 5815.94],
+        [9958, 5868.56]
+      ]
+    },
+    {
+      "source": "module.api4.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api6.aws_api_gateway_rest_api.private",
+      "points": [
+        [5675.55, 4967],
+        [6078.45, 5482]
+      ]
+    },
+    {
+      "source": "module.api5.aws_ecs_service.api",
+      "target": "module.api7.aws_api_gateway_rest_api.private",
+      "points": [
+        [5675.55, 5198],
+        [6078.45, 5713]
+      ]
+    },
+    {
+      "source": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api8.aws_api_gateway_rest_api.private",
+      "points": [
+        [6741.77, 3924],
+        [10468.23, 2088]
+      ]
+    },
+    {
+      "source": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api12.aws_api_gateway_rest_api.private",
+      "points": [
+        [6735.83, 4043],
+        [7994.17, 4695]
+      ]
+    },
+    {
+      "source": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api15.aws_api_gateway_rest_api.private",
+      "points": [
+        [6684.33, 4043],
+        [8045.67, 5322]
+      ]
+    },
+    {
+      "source": "module.api7.aws_ecs_service.api",
+      "target": "module.api9.aws_api_gateway_rest_api.private",
+      "points": [
+        [6741.77, 4155],
+        [10468.23, 2319]
+      ]
+    },
+    {
+      "source": "module.api8.aws_ecs_service.api",
+      "target": "module.api10.aws_api_gateway_rest_api.private",
+      "points": [
+        [11108.4, 3230],
+        [11557.6, 2088]
+      ]
+    },
+    {
+      "source": "module.api9.aws_ecs_service.api",
+      "target": "module.api11.aws_api_gateway_rest_api.private",
+      "points": [
+        [11108.4, 3461],
+        [11557.6, 2319]
+      ]
+    },
+    {
+      "source": "module.api12.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "target": "module.api14.aws_api_gateway_rest_api.private",
+      "points": [
+        [8678.23, 4411],
+        [9027.77, 4695]
+      ]
+    },
+    {
+      "source": "module.api15.aws_ecs_service.api",
+      "target": "module.api16.aws_api_gateway_rest_api.private",
+      "points": [
+        [8678.23, 5725],
+        [9027.77, 5441]
+      ]
+    },
+    {
+      "source": "aws_organizations_organization.this",
+      "target": "aws_organizations_organizational_unit.workloads",
+      "points": [
+        [308, 658.5],
+        [534, 658.5]
+      ]
+    },
+    {
+      "source": "aws_organizations_organization.this",
+      "target": "aws_organizations_organizational_unit.data_platform",
+      "points": [
+        [300.76, 599],
+        [541.24, 487]
+      ]
+    },
+    {
+      "source": "aws_organizations_organization.this",
+      "target": "aws_organizations_organizational_unit.security",
+      "points": [
+        [300.76, 718],
+        [541.24, 830]
+      ]
+    },
+    {
+      "source": "aws_organizations_organizational_unit.workloads",
+      "target": "aws_organizations_account.workload",
+      "points": [
+        [796.76, 718],
+        [1037.24, 830]
+      ]
+    },
+    {
+      "source": "aws_organizations_organizational_unit.data_platform",
+      "target": "aws_organizations_account.ingestion",
+      "points": [
+        [804, 427.5],
+        [1030, 427.5]
+      ]
+    },
+    {
+      "source": "aws_organizations_organizational_unit.security",
+      "target": "aws_organizations_account.security",
+      "points": [
+        [796.76, 830],
+        [1037.24, 718]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.security",
+      "target": "aws_organizations_delegated_administrator.securityhub",
+      "points": [
+        [1300, 658.5],
+        [1526, 658.5]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.security",
+      "target": "aws_organizations_delegated_administrator.guardduty",
+      "points": [
+        [1292.76, 599],
+        [1533.24, 487]
+      ]
+    },
+    {
+      "source": "aws_organizations_policy.deny_outside_local_regions",
+      "target": "aws_organizations_organizational_unit.workloads",
+      "points": [
+        [300.76, 487],
+        [541.24, 599]
+      ]
+    },
+    {
+      "source": "aws_organizations_policy.deny_outside_local_regions",
+      "target": "aws_organizations_organizational_unit.data_platform",
+      "points": [
+        [308, 427.5],
+        [534, 427.5]
+      ]
+    },
+    {
+      "source": "aws_organizations_policy.deny_public_s3",
+      "target": "aws_organizations_organizational_unit.security",
+      "points": [
+        [308, 889.5],
+        [534, 889.5]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.workload",
+      "target": "aws_ecs_service.producer",
+      "points": [
+        [1209.86, 949],
+        [3600.14, 4119]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.workload",
+      "target": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "points": [
+        [1213.62, 949],
+        [4588.38, 5079]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.workload",
+      "target": "aws_lb.ecs",
+      "points": [
+        [1208.87, 949],
+        [3105.13, 3521]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.ingestion",
+      "target": "aws_sqs_queue.ingest_fifo",
+      "points": [
+        [1300, 464.71],
+        [4998, 1484.04]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.ingestion",
+      "target": "aws_kinesis_stream.provisioned",
+      "points": [
+        [1300, 451.9],
+        [5990, 1299.44]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.ingestion",
+      "target": "aws_eks_cluster.stream_processors",
+      "points": [
+        [1300, 448.23],
+        [7478, 1396.77]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.ingestion",
+      "target": "aws_dynamodb_table.regional_events_east",
+      "points": [
+        [1300, 435.53],
+        [9958, 950.47]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.security",
+      "target": "aws_cloudtrail.organization",
+      "points": [
+        [1300, 662.27],
+        [13430, 1001.23]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.security",
+      "target": "aws_config_configuration_recorder.this",
+      "points": [
+        [1300, 658.5],
+        [14422, 658.5]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.security",
+      "target": "aws_s3_bucket.audit[\"audit\"]",
+      "points": [
+        [1300, 662.13],
+        [13926, 1001.37]
+      ]
+    },
+    {
+      "source": "aws_organizations_account.security",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [1300, 656.08],
+        [13926, 429.92]
+      ]
+    },
+    {
+      "source": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "target": "aws_sqs_queue.ingest_fifo",
+      "points": [
+        [4645.16, 5079],
+        [5124.84, 1580.75]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.ingest_fifo",
+      "target": "aws_lambda_function.lake_ingestor",
+      "points": [
+        [5268, 1489.81],
+        [5494, 1437.19]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.ingest_fifo",
+      "target": "aws_sqs_queue.ingest_fifo_dlq",
+      "points": [
+        [5268, 1552.69],
+        [5494, 1605.31]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.lake_ingestor",
+      "target": "aws_kinesis_stream.provisioned",
+      "points": [
+        [5764, 1383.45],
+        [5990, 1346.13]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.lake_ingestor",
+      "target": "aws_kinesis_stream.burst_on_demand",
+      "points": [
+        [5706.65, 1465.25],
+        [6047.35, 1726.33]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.lake_ingestor",
+      "target": "aws_sns_topic.event_bus",
+      "points": [
+        [5764, 1446.33],
+        [5990, 1514.26]
+      ]
+    },
+    {
+      "source": "aws_kinesis_stream.provisioned",
+      "target": "aws_cloudwatch_log_group.enhanced_consumer",
+      "points": [
+        [6260, 1350.14],
+        [6486, 1394.19]
+      ]
+    },
+    {
+      "source": "aws_kinesis_stream.provisioned",
+      "target": "aws_kinesis_firehose_delivery_stream.raw_delivery",
+      "points": [
+        [6260, 1287.27],
+        [6486, 1226.06]
+      ]
+    },
+    {
+      "source": "aws_kinesis_stream.provisioned",
+      "target": "aws_eks_cluster.stream_processors",
+      "points": [
+        [6260, 1332.33],
+        [7478, 1409]
+      ]
+    },
+    {
+      "source": "aws_cloudwatch_log_group.enhanced_consumer",
+      "target": "aws_lambda_function.stream_processor",
+      "points": [
+        [6756, 1404.78],
+        [6982, 1378.47]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.stream_processor",
+      "target": "aws_s3_bucket.lake[\"curated\"]",
+      "points": [
+        [7252, 1365.37],
+        [9958, 1417.88]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.stream_processor",
+      "target": "aws_sqs_queue.priority_standard",
+      "points": [
+        [7252, 1375.85],
+        [9958, 1638.4]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.stream_processor",
+      "target": "aws_sqs_queue.regional_writer_east",
+      "points": [
+        [7252, 1326.07],
+        [8470, 995.18]
+      ]
+    },
+    {
+      "source": "aws_kinesis_firehose_delivery_stream.raw_delivery",
+      "target": "aws_s3_bucket.lake[\"raw\"]",
+      "points": [
+        [6694, 1249],
+        [7044, 1534.25]
+      ]
+    },
+    {
+      "source": "aws_kinesis_stream.burst_on_demand",
+      "target": "aws_sqs_queue.replay_fifo",
+      "points": [
+        [6260, 1749.27],
+        [6486, 1688.06]
+      ]
+    },
+    {
+      "source": "aws_sns_topic.event_bus",
+      "target": "aws_sqs_queue.priority_standard",
+      "points": [
+        [6260, 1558.12],
+        [9958, 1648.21]
+      ]
+    },
+    {
+      "source": "aws_sns_topic.event_bus",
+      "target": "aws_sqs_queue.replay_fifo",
+      "points": [
+        [6260, 1581.14],
+        [6486, 1625.19]
+      ]
+    },
+    {
+      "source": "aws_sns_topic.event_bus",
+      "target": "aws_sqs_queue.quarantine",
+      "points": [
+        [6174.49, 1495.33],
+        [6571.51, 1018]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.quarantine",
+      "target": "aws_s3_bucket.lake[\"quarantine\"]",
+      "points": [
+        [6756, 958.5],
+        [6982, 958.5]
+      ]
+    },
+    {
+      "source": "aws_eks_cluster.stream_processors",
+      "target": "aws_glue_job.curate",
+      "points": [
+        [7677.3, 1358],
+        [8044.7, 1018]
+      ]
+    },
+    {
+      "source": "aws_eks_cluster.stream_processors",
+      "target": "aws_sqs_queue.priority_standard",
+      "points": [
+        [7748, 1430.24],
+        [9958, 1638.76]
+      ]
+    },
+    {
+      "source": "aws_cloudwatch_event_rule.lake_curation",
+      "target": "aws_sfn_state_machine.lake_curation",
+      "points": [
+        [2292, 958.5],
+        [2518, 958.5]
+      ]
+    },
+    {
+      "source": "aws_sfn_state_machine.lake_curation",
+      "target": "aws_glue_crawler.raw",
+      "points": [
+        [2666.64, 1018],
+        [3135.36, 3062]
+      ]
+    },
+    {
+      "source": "aws_sfn_state_machine.lake_curation",
+      "target": "aws_glue_job.curate",
+      "points": [
+        [2788, 958.5],
+        [7974, 958.5]
+      ]
+    },
+    {
+      "source": "aws_glue_crawler.raw",
+      "target": "aws_s3_bucket.lake[\"raw\"]",
+      "points": [
+        [3284, 3069.52],
+        [6982, 1645.73]
+      ]
+    },
+    {
+      "source": "aws_glue_job.curate",
+      "target": "aws_s3_bucket.lake[\"curated\"]",
+      "points": [
+        [8244, 989.94],
+        [9958, 1389.06]
+      ]
+    },
+    {
+      "source": "aws_glue_job.curate",
+      "target": "aws_s3_bucket.lake[\"archive\"]",
+      "points": [
+        [8244, 974.22],
+        [9958, 1173.78]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.lake[\"raw\"]",
+      "target": "aws_s3_bucket.lake_replica_west[\"raw\"]",
+      "points": [
+        [7252, 1633.13],
+        [10454, 2567.12]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.lake[\"curated\"]",
+      "target": "aws_s3_bucket.lake_replica_west_1[\"curated\"]",
+      "points": [
+        [10103.2, 1480],
+        [10578.8, 4253]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.lake[\"archive\"]",
+      "target": "aws_s3_bucket.lake_replica_east_2[\"archive\"]",
+      "points": [
+        [10100.33, 1249],
+        [10581.67, 5154.38]
+      ]
+    },
+    {
+      "source": "aws_glue_job.curate",
+      "target": "aws_sqs_queue.regional_writer_east",
+      "points": [
+        [8244, 958.5],
+        [8470, 958.5]
+      ]
+    },
+    {
+      "source": "aws_glue_job.curate",
+      "target": "aws_sqs_queue.regional_writer_west",
+      "points": [
+        [8244, 963.73],
+        [10454, 1049.27]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.regional_writer_east",
+      "target": "aws_lambda_function.regional_writer_east",
+      "points": [
+        [8740, 958.5],
+        [8966, 958.5]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.regional_writer_east",
+      "target": "aws_dynamodb_table.regional_events_east",
+      "points": [
+        [9236, 958.5],
+        [9958, 958.5]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.regional_writer_east",
+      "target": "module.regional_rds_east.aws_db_instance.this",
+      "points": [
+        [9165.3, 1018],
+        [9532.7, 1358]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.regional_writer_west",
+      "target": "aws_dynamodb_table.regional_events_west",
+      "points": [
+        [10724, 1054.5],
+        [10950, 1054.5]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.regional_writer_west",
+      "target": "module.regional_rds_west.aws_db_instance.this",
+      "points": [
+        [10653.3, 1114],
+        [11020.7, 1454]
+      ]
+    },
+    {
+      "source": "aws_dynamodb_table.regional_events_east",
+      "target": "module.regional_aurora_east_2.aws_rds_cluster.this",
+      "points": [
+        [10174.3, 899],
+        [10507.7, 655]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.lake[\"raw\"]",
+      "target": "aws_cloudtrail.organization",
+      "points": [
+        [7252, 1581.42],
+        [13430, 1017.33]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.lake[\"curated\"]",
+      "target": "aws_cloudtrail.organization",
+      "points": [
+        [10228, 1404.34],
+        [13430, 1021.16]
+      ]
+    },
+    {
+      "source": "aws_cloudtrail.organization",
+      "target": "aws_s3_bucket.audit[\"audit\"]",
+      "points": [
+        [13700, 1005],
+        [13926, 1005]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.audit[\"audit\"]",
+      "target": "aws_s3_bucket.audit[\"access-log\"]",
+      "points": [
+        [14196, 973.56],
+        [14422, 920.94]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.audit[\"audit\"]",
+      "target": "aws_config_configuration_recorder.this",
+      "points": [
+        [14146.17, 945.5],
+        [14471.83, 718]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.audit[\"audit\"]",
+      "target": "aws_cloudwatch_log_group.security_hub_findings",
+      "points": [
+        [14146.17, 1064.5],
+        [14471.83, 1292]
+      ]
+    },
+    {
+      "source": "aws_s3_bucket.audit[\"audit\"]",
+      "target": "aws_cloudwatch_log_group.guardduty_findings",
+      "points": [
+        [14196, 1036.44],
+        [14422, 1089.06]
+      ]
+    },
+    {
+      "source": "aws_wafv2_web_acl.api",
+      "target": "aws_lb.ecs",
+      "points": [
+        [2292, 3580.5],
+        [3014, 3580.5]
+      ]
+    },
+    {
+      "source": "aws_sqs_queue.ingest_fifo_dlq",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [5764, 1617.39],
+        [13926, 446.86]
+      ]
+    },
+    {
+      "source": "aws_kinesis_stream.provisioned",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [6260, 1308.59],
+        [13926, 442.75]
+      ]
+    },
+    {
+      "source": "aws_kinesis_firehose_delivery_stream.raw_delivery",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [6756, 1175.67],
+        [13926, 441.33]
+      ]
+    },
+    {
+      "source": "aws_lambda_function.stream_processor",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [7252, 1344.57],
+        [13926, 445.68]
+      ]
+    },
+    {
+      "source": "aws_cloudwatch_metric_alarm.states_failures",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [13700, 427.5],
+        [13926, 427.5]
+      ]
+    },
+    {
+      "source": "aws_glue_job.curate",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [8244, 946.46],
+        [13926, 439.54]
+      ]
+    },
+    {
+      "source": "aws_eks_cluster.stream_processors",
+      "target": "aws_sns_topic.ops",
+      "points": [
+        [7748, 1396.77],
+        [13926, 448.23]
+      ]
+    },
+    {
+      "source": "aws_sns_topic.ops",
+      "target": "aws_cloudwatch_dashboard.extended",
+      "points": [
+        [14196, 427.5],
+        [14422, 427.5]
+      ]
+    }
+  ]
+}

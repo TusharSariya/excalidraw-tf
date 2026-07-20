@@ -46,7 +46,11 @@ function cluster(
   } as unknown as ExcalidrawElement;
 }
 
-/** A topology (hull) frame — provider/account/region/vpc/subnetZone. */
+/** A topology (hull) frame — provider/account/region/vpc/subnetZone. The
+ * optional `policy` mirrors the resolved-policy stamp
+ * (`customData.terraformHullPolicy`) that terraformPipelineStrataSceneBuild.ts
+ * writes on a hull frame ONLY under a non-default `strataBandDepth` cut; when
+ * omitted the key is absent, exactly as at the default "account" cut. */
 function topoFrame(
   role: "provider" | "account" | "region" | "vpc" | "subnetZone",
   path: string[],
@@ -54,6 +58,7 @@ function topoFrame(
   y: number,
   width = 400,
   height = 40,
+  policy?: "banded" | "packed",
 ): ExcalidrawElement {
   return {
     id: `frame:${path.join("/")}`,
@@ -68,6 +73,7 @@ function topoFrame(
       terraformTopologyRole: role,
       terraformTopologyKey: path.join("\0"),
       terraformTopologyPath: path,
+      ...(policy ? { terraformHullPolicy: policy } : {}),
     },
   } as unknown as ExcalidrawElement;
 }
@@ -351,6 +357,108 @@ describe("cluster path resolution (compound builders)", () => {
     ];
     const m = computeSliceMetrics(els);
     expect(m.populations).toEqual({ nA: 1, nB: 0, unresolvedEdgeCount: 0 });
+  });
+});
+
+// ── resolved hull-policy frame stamp (band-depth cut, WP3) ──────────────────
+//
+// Both policy reads (A/B classification at the LCA hull frame, and the
+// stacked-band-height banded-level set) prefer the resolved policy stamped on
+// the hull frame as `customData.terraformHullPolicy` — present only under a
+// non-default `strataBandDepth` cut — and fall back to the static
+// `STRATA_HULL_POLICY` role→policy map when it is absent. The whole rest of
+// this suite exercises the default (unstamped) fallback path; these tests pin
+// the stamped round-trip and the root-pinned exception.
+
+describe("resolved hull-policy frame stamp (band-depth cut)", () => {
+  it("no stamp (default cut) ⇒ static-map fallback: account LCA is slice B, banded set = root/provider/account", () => {
+    const els = [
+      topoFrame("provider", ["aws"], 0, 0, 800, 600),
+      topoFrame("account", ["aws", "acct1"], 0, 0, 800, 300),
+      cluster("a", ["aws", "acct1", "us-east-1"], 10, 10),
+      cluster("b", ["aws", "acct1", "us-west-2"], 300, 10),
+      arrow("a", "b", [
+        [40, 20],
+        [300, 20],
+      ]),
+    ];
+    const m = computeSliceMetrics(els);
+    // account LCA, banded by the static map ⇒ slice B (unchanged legacy path).
+    expect(m.populations).toEqual({ nA: 0, nB: 1, unresolvedEdgeCount: 0 });
+    // stacked band height spans exactly root/provider/account (depths 0–2).
+    expect(m.stackedBandHeight.perHull.map((h) => h.role)).toEqual([
+      "root",
+      "provider",
+      "account",
+    ]);
+  });
+
+  it("provider+account stamped packed (root cut) ⇒ account LCA reclassifies to slice A; banded set collapses to root only", () => {
+    const els = [
+      topoFrame("provider", ["aws"], 0, 0, 800, 600, "packed"),
+      topoFrame("account", ["aws", "acct1"], 0, 0, 800, 300, "packed"),
+      cluster("a", ["aws", "acct1", "us-east-1"], 10, 10),
+      cluster("b", ["aws", "acct1", "us-west-2"], 300, 10),
+      arrow("a", "b", [
+        [40, 20],
+        [300, 20],
+      ]),
+    ];
+    const m = computeSliceMetrics(els);
+    // Site 1: the account LCA frame stamped "packed" ⇒ slice A (was B by the
+    // static map) — the stamp wins over the fallback.
+    expect(m.populations).toEqual({ nA: 1, nB: 0, unresolvedEdgeCount: 0 });
+    // Site 2: provider & account excluded from the banded set ⇒ only root.
+    expect(m.stackedBandHeight.perHull.map((h) => h.role)).toEqual(["root"]);
+  });
+
+  it("region stamped banded (region cut) ⇒ region LCA reclassifies to slice B; banded set extends to region depth", () => {
+    const els = [
+      topoFrame(
+        "region",
+        ["aws", "acct1", "us-east-1"],
+        0,
+        0,
+        800,
+        600,
+        "banded",
+      ),
+      cluster("a", ["aws", "acct1", "us-east-1", "vpc-1"], 10, 10),
+      cluster("b", ["aws", "acct1", "us-east-1", "vpc-2"], 300, 10),
+      arrow("a", "b", [
+        [40, 20],
+        [300, 20],
+      ]),
+    ];
+    const m = computeSliceMetrics(els);
+    // Site 1: the region LCA frame stamped "banded" ⇒ slice B (was A by the
+    // static map, region=packed).
+    expect(m.populations).toEqual({ nA: 0, nB: 1, unresolvedEdgeCount: 0 });
+    // Site 2: provider/account (no frame ⇒ static banded) + region (stamped
+    // banded) ⇒ banded set now reaches region depth.
+    expect(m.stackedBandHeight.perHull.map((h) => h.role)).toEqual([
+      "root",
+      "provider",
+      "account",
+      "region",
+    ]);
+  });
+
+  it("root stays pinned banded: cross-provider (root LCA) is slice B even with providers stamped packed", () => {
+    const els = [
+      topoFrame("provider", ["aws"], 0, 0, 400, 600, "packed"),
+      topoFrame("provider", ["gcp"], 500, 0, 400, 600, "packed"),
+      cluster("a", ["aws", "acct1", "us-east-1"], 10, 10),
+      cluster("b", ["gcp", "proj1", "us-central1"], 510, 10),
+      arrow("a", "b", [
+        [40, 20],
+        [510, 20],
+      ]),
+    ];
+    const m = computeSliceMetrics(els);
+    // LCA length 0 (root) ⇒ pinned slice B regardless of any stamp — root has
+    // no frame, so the length-0 guard fires before any lookup.
+    expect(m.populations).toEqual({ nA: 0, nB: 1, unresolvedEdgeCount: 0 });
   });
 });
 

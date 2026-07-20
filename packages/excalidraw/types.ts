@@ -498,6 +498,21 @@ export interface AppState {
   } | null;
   /** Transient graph key for revealing incident edges when `terraformEdgeLayerPins` is set. */
   terraformEdgeHoverPeekKey: string | null;
+  /**
+   * Relationship-focus traversal direction (W11 WP1). Opt-in — `"both"` (default)
+   * takes the exact legacy undirected code path in `terraformRelationshipFocus.ts`.
+   * See {@link import("./components/terraformRelationshipFocus").TerraformFocusDirection}
+   * for the declared-dependency semantics.
+   */
+  terraformFocusDirection: import("./components/terraformRelationshipFocus").TerraformFocusDirection;
+  /**
+   * Relationship-focus hop cap override. `null` = legacy default (3 hops).
+   * `-1` = uncapped (menu "Unlimited") — a JSON-safe sentinel: `Infinity`
+   * must never be STORED here (localStorage/export JSON turns it into null,
+   * silently reverting the setting). It is mapped to `Infinity` only at the
+   * traversal boundary; URLs/sigs encode it as `"all"`.
+   */
+  terraformFocusMaxHops: number | null;
   /** Zoom-based LOD for Terraform imports (hide labels/satellites when zoomed out). */
   terraformLodEnabled: boolean;
   /** LOD preset — scales zoom thresholds (detailed = visible farther out). */

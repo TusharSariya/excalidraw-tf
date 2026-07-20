@@ -57,9 +57,10 @@ function sortTopologyPlacementZones(
 
 export function buildMergedTopologyZones(
   plan: AwsPlan,
+  opts?: { privateApiRegional?: boolean },
 ): TopologyPlacementZone[] {
   const primaryZones = mergePrimaryTopologyZonesByTier(
-    extractPrimaryTopologyZones(plan).map((z) => ({
+    extractPrimaryTopologyZones(plan, opts).map((z) => ({
       ...z,
       topologyZoneSource: "primary" as const,
     })),
@@ -160,9 +161,10 @@ export function enrichAndReconcileTopologyPlacements(
 
 export function buildTopologyPlacementFoundation(
   plan: AwsPlan,
+  opts?: { privateApiRegional?: boolean },
 ): EnrichedTopologyPlacements {
-  const zones = buildMergedTopologyZones(plan);
-  const regionalBuckets = extractRegionalTopologyPrimaries(plan);
+  const zones = buildMergedTopologyZones(plan, opts);
+  const regionalBuckets = extractRegionalTopologyPrimaries(plan, opts);
   const { vpcDefaultPlumbingBuckets, natZonePlacements } =
     buildVpcDefaultPlumbingWithNat(plan, zones);
   return {
@@ -179,9 +181,12 @@ export function buildEnrichedTopologyPlacements(
   options?: {
     additionalPreplacedAddresses?: Iterable<string>;
     precomputedSatelliteAddresses?: ReadonlySet<string>;
+    privateApiRegional?: boolean;
   },
 ): EnrichedTopologyPlacements {
-  const state = buildTopologyPlacementFoundation(plan);
+  const state = buildTopologyPlacementFoundation(plan, {
+    privateApiRegional: options?.privateApiRegional,
+  });
   enrichAndReconcileTopologyPlacements(
     state,
     plan,

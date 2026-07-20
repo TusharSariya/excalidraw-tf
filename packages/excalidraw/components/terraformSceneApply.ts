@@ -106,10 +106,15 @@ export const applyTerraformExcalidrawScene = (
       repairBindings: true,
     },
   );
+  // W11 WP1: 4th-arg options are behavior-neutral here — `focusNodePath` is
+  // null, so `getTerraformRelationshipFocus` short-circuits before any
+  // direction/hop-cap branch is reached. Explicit `undefined` kept for call-site
+  // signature consistency with the runtime-effect callers.
   const focus = applyTerraformRelationshipFocus(
     elements,
     null,
     app.state.viewBackgroundColor ?? "#ffffff",
+    undefined,
   );
   const pinReconcile = buildTerraformReconcileOptionsForAppState(
     terraformEdgeLayerPins,
@@ -177,6 +182,8 @@ export type RunTerraformImportFromSourcesOptions = {
   pipelinePackedPullLeft?: boolean;
   /** Pipeline — draw non-TFD resources in per-hull "Unconnected" strips. Default false. */
   pipelineIncludeAncillary?: boolean;
+  /** Pipeline — private VPC-endpoint-bound REST APIs placed at region level. Default false. */
+  pipelinePrivateApiRegional?: boolean;
   /** Pipeline — nesting-aware semantic placement (forced bands + straightening). Default false. */
   pipelineSemanticPlacement?: boolean;
   /** RCLL M4 — X-disjoint swimlane lanes rise to share Y rows. Default false. */
@@ -217,6 +224,69 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata OD-14 — whole-model sibling-separation ranking (the height lever).
    * Default off. */
   strataRankSeparate?: boolean;
+  /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
+   * Default off. */
+  strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer.
+   * Default 0 (strict rule; inert without `strataPackedScoring`). */
+  strataPackedScoringEpsilon?: number;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
+   * Default off. */
+  strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
+  strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
+  /** Transitive-adopt remedy: strict total-order adoption gate replacing the
+   * ε adoption gate. Default off. */
+  strataTransitiveAdopt?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
+   * left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
+   * remove leftover diagonal crossings. Default off. */
+  strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate: post-A7 rigid Y co-translation of a
+   * unit with its incoming-dominated downstream group. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade: net-zero column escape + Gauss-Seidel chase inside the
+   * coordinate-refine pass. Default off. */
+  strataCoordCascade?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease gate for the sink-pull-in
+   * / block-clamp passes. Default off. */
+  strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px); floored at the historical cohort
+   * distance — the knob may only raise the guard, never disable it. Default 300. */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build. Default "none" (byte-identical). */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -243,6 +313,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "pipelinePacked"
   | "pipelinePackedPullLeft"
   | "pipelineIncludeAncillary"
+  | "pipelinePrivateApiRegional"
   | "pipelineSemanticPlacement"
   | "pipelineSwimlaneLaneRise"
   | "pipelineReorder"
@@ -259,6 +330,29 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataSweeps"
   | "strataCoordinateRefine"
   | "strataRankSeparate"
+  | "strataPackedScoring"
+  | "strataPackedScoringEpsilon"
+  | "strataEdgeRouting"
+  | "strataBorderRoute"
+  | "strataBandCompact"
+  | "strataBandDepth"
+  | "strataSiftRelocate"
+  | "strataCrossWeightPenetration"
+  | "strataCrossWeightEdge"
+  | "strataEdgeCrossCap"
+  | "strataPackedConverge"
+  | "strataTransitiveAdopt"
+  | "strataBlockClamp"
+  | "strataTranspose"
+  | "strataChainRelocate"
+  | "strataCoordCascade"
+  | "strataHeightGate"
+  | "strataLeafShift"
+  | "strataLeafShiftHeightBudgetPx"
+  | "strataLeafShiftHeightBudgetFrac"
+  | "strataLeafShiftRankBudget"
+  | "strataLeafShiftRightEdgeGuardPx"
+  | "strataDeBandLevel"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -269,6 +363,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   pipelinePacked: session.pipelinePacked === true,
   pipelinePackedPullLeft: session.pipelinePackedPullLeft === true,
   pipelineIncludeAncillary: session.pipelineIncludeAncillary === true,
+  pipelinePrivateApiRegional: session.pipelinePrivateApiRegional === true,
   pipelineSemanticPlacement: session.pipelineSemanticPlacement === true,
   pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise === true,
   pipelineReorder: session.pipelineReorder === true,
@@ -287,6 +382,62 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataSweeps: session.strataSweeps ?? 0,
   strataCoordinateRefine: session.strataCoordinateRefine === true,
   strataRankSeparate: session.strataRankSeparate === true,
+  strataPackedScoring: session.strataPackedScoring === true,
+  strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
+  strataEdgeRouting: session.strataEdgeRouting === true,
+  strataBorderRoute: session.strataBorderRoute === true,
+  strataBandCompact: session.strataBandCompact === true,
+  // Raw forward — omit at default ("account")/absent so a replayed session
+  // never re-materializes a default cut. A bare `strataBandCompact` session
+  // (no enum) thus reaches the engine as bandCompact-only, and the engine
+  // alias resolves it to "root". Non-default cuts forward.
+  ...(session.strataBandDepth !== undefined &&
+  session.strataBandDepth !== "account"
+    ? { strataBandDepth: session.strataBandDepth }
+    : {}),
+  strataSiftRelocate: session.strataSiftRelocate === true,
+  strataCrossWeightPenetration: session.strataCrossWeightPenetration ?? 1,
+  strataCrossWeightEdge: session.strataCrossWeightEdge ?? 1,
+  // Optional-only forward: no default materialized (absent ⇒ engine
+  // inherits `strataPackedScoringEpsilon`).
+  ...(session.strataEdgeCrossCap !== undefined
+    ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
+    : {}),
+  strataPackedConverge: session.strataPackedConverge === true,
+  strataTransitiveAdopt: session.strataTransitiveAdopt === true,
+  strataBlockClamp: session.strataBlockClamp === true,
+  strataTranspose: session.strataTranspose === true,
+  strataChainRelocate: session.strataChainRelocate === true,
+  strataCoordCascade: session.strataCoordCascade === true,
+  strataHeightGate: session.strataHeightGate === true,
+  strataLeafShift: session.strataLeafShift === true,
+  // Budget knobs are optional numbers — forward ONLY when the persisted session
+  // carries them (buildPipelineFamilyLayoutOptions writes them only when set), so
+  // a replayed default session never re-materializes an engine-default value.
+  ...(session.strataLeafShiftHeightBudgetPx !== undefined
+    ? { strataLeafShiftHeightBudgetPx: session.strataLeafShiftHeightBudgetPx }
+    : {}),
+  ...(session.strataLeafShiftHeightBudgetFrac !== undefined
+    ? {
+        strataLeafShiftHeightBudgetFrac:
+          session.strataLeafShiftHeightBudgetFrac,
+      }
+    : {}),
+  ...(session.strataLeafShiftRankBudget !== undefined
+    ? { strataLeafShiftRankBudget: session.strataLeafShiftRankBudget }
+    : {}),
+  ...(session.strataLeafShiftRightEdgeGuardPx !== undefined
+    ? {
+        strataLeafShiftRightEdgeGuardPx:
+          session.strataLeafShiftRightEdgeGuardPx,
+      }
+    : {}),
+  // Raw forward — omit at default ("none")/absent so a replayed session never
+  // re-materializes a default level ("none" is a TRUTHY string).
+  ...(session.strataDeBandLevel !== undefined &&
+  session.strataDeBandLevel !== "none"
+    ? { strataDeBandLevel: session.strataDeBandLevel }
+    : {}),
 });
 
 /**
@@ -308,6 +459,7 @@ function buildPipelineFamilyLayoutOptions(
   | "pipelinePacked"
   | "pipelinePackedPullLeft"
   | "pipelineIncludeAncillary"
+  | "pipelinePrivateApiRegional"
   | "pipelineSemanticPlacement"
   | "pipelineSwimlaneLaneRise"
   | "pipelineReorder"
@@ -324,6 +476,29 @@ function buildPipelineFamilyLayoutOptions(
   | "strataSweeps"
   | "strataCoordinateRefine"
   | "strataRankSeparate"
+  | "strataPackedScoring"
+  | "strataPackedScoringEpsilon"
+  | "strataEdgeRouting"
+  | "strataBorderRoute"
+  | "strataBandCompact"
+  | "strataBandDepth"
+  | "strataSiftRelocate"
+  | "strataCrossWeightPenetration"
+  | "strataCrossWeightEdge"
+  | "strataEdgeCrossCap"
+  | "strataPackedConverge"
+  | "strataTransitiveAdopt"
+  | "strataBlockClamp"
+  | "strataTranspose"
+  | "strataChainRelocate"
+  | "strataCoordCascade"
+  | "strataHeightGate"
+  | "strataLeafShift"
+  | "strataLeafShiftHeightBudgetPx"
+  | "strataLeafShiftHeightBudgetFrac"
+  | "strataLeafShiftRankBudget"
+  | "strataLeafShiftRightEdgeGuardPx"
+  | "strataDeBandLevel"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -343,6 +518,7 @@ function buildPipelineFamilyLayoutOptions(
     pipelinePacked: options.pipelinePacked === true,
     pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
     pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
+    pipelinePrivateApiRegional: options.pipelinePrivateApiRegional === true,
     pipelineSemanticPlacement: options.pipelineSemanticPlacement === true,
     pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
     pipelineReorder: options.pipelineReorder === true,
@@ -363,6 +539,61 @@ function buildPipelineFamilyLayoutOptions(
     strataSweeps: options.strataSweeps ?? 0,
     strataCoordinateRefine: options.strataCoordinateRefine === true,
     strataRankSeparate: options.strataRankSeparate === true,
+    strataPackedScoring: options.strataPackedScoring === true,
+    strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
+    strataEdgeRouting: options.strataEdgeRouting === true,
+    strataBorderRoute: options.strataBorderRoute === true,
+    strataBandCompact: options.strataBandCompact === true,
+    // Raw forward — omit at default ("account")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default cut key.
+    // Non-default cuts forward.
+    ...(options.strataBandDepth !== undefined &&
+    options.strataBandDepth !== "account"
+      ? { strataBandDepth: options.strataBandDepth }
+      : {}),
+    strataSiftRelocate: options.strataSiftRelocate === true,
+    strataCrossWeightPenetration: options.strataCrossWeightPenetration ?? 1,
+    strataCrossWeightEdge: options.strataCrossWeightEdge ?? 1,
+    // Optional-only forward: no default materialized (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
+    strataPackedConverge: options.strataPackedConverge === true,
+    strataTransitiveAdopt: options.strataTransitiveAdopt === true,
+    strataBlockClamp: options.strataBlockClamp === true,
+    strataTranspose: options.strataTranspose === true,
+    strataChainRelocate: options.strataChainRelocate === true,
+    strataCoordCascade: options.strataCoordCascade === true,
+    strataHeightGate: options.strataHeightGate === true,
+    strataLeafShift: options.strataLeafShift === true,
+    // Budget knobs are optional numbers — forward ONLY when explicitly set so the
+    // engine inherits its own defaults and the all-off/on-with-default shape stays
+    // byte-identical (same optional-only pattern as strataEdgeCrossCap above).
+    ...(options.strataLeafShiftHeightBudgetPx !== undefined
+      ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
+      : {}),
+    ...(options.strataLeafShiftHeightBudgetFrac !== undefined
+      ? {
+          strataLeafShiftHeightBudgetFrac:
+            options.strataLeafShiftHeightBudgetFrac,
+        }
+      : {}),
+    ...(options.strataLeafShiftRankBudget !== undefined
+      ? { strataLeafShiftRankBudget: options.strataLeafShiftRankBudget }
+      : {}),
+    ...(options.strataLeafShiftRightEdgeGuardPx !== undefined
+      ? {
+          strataLeafShiftRightEdgeGuardPx:
+            options.strataLeafShiftRightEdgeGuardPx,
+        }
+      : {}),
+    // Raw forward — omit at default ("none")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default level key.
+    ...(options.strataDeBandLevel !== undefined &&
+    options.strataDeBandLevel !== "none"
+      ? { strataDeBandLevel: options.strataDeBandLevel }
+      : {}),
   };
 }
 
@@ -385,6 +616,7 @@ async function layoutTerraformSceneFromSources(
         options.pipelinePacked === true ||
         options.pipelinePackedPullLeft === true ||
         options.pipelineIncludeAncillary === true ||
+        options.pipelinePrivateApiRegional === true ||
         options.pipelineSemanticPlacement === true));
   if (presetId && !skipLayoutCache) {
     const cached = await fetchPresetLayoutCache(

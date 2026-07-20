@@ -5,6 +5,7 @@ import { useApp, useExcalidrawSetAppState } from "./App";
 import {
   isDemoPathname,
   parseTerraformDemoUrlParams,
+  resolveTerraformFocusSettingsFromDemoParams,
   type TerraformDemoUrlParams,
 } from "./terraformDemoUrlParams";
 import { getTerraformImportPreset } from "./terraformImportPresets";
@@ -13,6 +14,7 @@ import {
   runTerraformPresetImport,
 } from "./terraformPresetImport";
 import { patchTerraformRuntimePerformanceSettings } from "./terraformRuntimePerformance";
+import { resolveStrataDemoOptions } from "./terraformStrataDefaults";
 import {
   reconcileTerraformVisibility,
   repairTerraformEdgeBindings,
@@ -56,9 +58,20 @@ const applyCanvasViewSettings = (
     ...(params.minimap !== undefined
       ? { terraformMinimapEnabled: params.minimap }
       : {}),
+    // NOTE: `terraformEdgeLayerPins` is browser-persisted too and only patched
+    // when the URL carries `layers=…`, so a recipient's stale non-default pins
+    // survive a "default" share URL — the same staleness the focus pair fixes
+    // below (W11 F2). Left as-is deliberately: changing pins behavior is out
+    // of scope for W11 (see w11 diff-review disposition F2).
     ...(params.edgeLayerPins
       ? { terraformEdgeLayerPins: params.edgeLayerPins }
       : {}),
+    // W11 F2 — ALWAYS set the focus pair: the share codec omits defaults, and
+    // both fields are browser-persisted, so an omitted param must be applied
+    // as the explicit default ("both" / null) rather than leaving a stale
+    // persisted non-default value in place. Infinity → the JSON-safe -1
+    // sentinel inside the helper.
+    ...resolveTerraformFocusSettingsFromDemoParams(params),
   };
   if (Object.keys(appStatePatch).length > 0) {
     setAppState(appStatePatch as Pick<AppState, keyof typeof appStatePatch>);
@@ -171,6 +184,7 @@ export const TerraformDemoAutoImport = ({
             pipelinePacked: params.packed,
             pipelinePackedPullLeft: params.packedPullLeft,
             pipelineIncludeAncillary: params.ancillary,
+            pipelinePrivateApiRegional: params.privateApiRegional,
             pipelineSemanticPlacement: params.semanticPlace,
             pipelineSwimlaneLaneRise: params.swimlaneRise,
             pipelineReorder: params.reorder,
@@ -184,10 +198,9 @@ export const TerraformDemoAutoImport = ({
             pipelineColumnPacking: params.columnPacking,
             pipelineLayoutProfile: params.profile,
             pipelineStaircaseBandOverlap: params.staircaseBandOverlap,
-            strataNetworkSimplexRank: params.strataNsRank,
-            strataSweeps: params.strataSweeps,
-            strataCoordinateRefine: params.strataCoordRefine,
-            strataRankSeparate: params.strataRankSeparate,
+            // Absent strata params fall back to the SDEC-54 validated default
+            // (K=4 + A7) — a bare `view=strata` URL must not regress to K=0.
+            ...resolveStrataDemoOptions(params),
             signal,
             onLayoutProgress: (progress) => {
               const label =

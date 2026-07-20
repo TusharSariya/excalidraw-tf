@@ -6,6 +6,18 @@
 
 ---
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Aux |
+| Status | Historical — Y/loose-leaf research |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`pipeline-rcll-layout-design.md`](./pipeline-rcll-layout-design.md) |
+| Children | — |
+| Sisters | — |
+| Next (agent) | Background only; hull-Y NO-GO trail continues in architecture-decision / specs. |
+
 ## 1. Diagnosis — there was no "push loose resources up" decision to undo
 
 The most important finding: **there is no degree-based / "loose-resource pusher" anywhere in the code.** The "pushed up" symptom is an _emergent_ conflict between two mechanisms, and your mental model ("I made a bad rule, remove it") is slightly off — there is nothing to remove; there is a half-finished phase to complete.

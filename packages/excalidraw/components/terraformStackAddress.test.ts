@@ -60,4 +60,61 @@ describe("terraformStackAddress", () => {
       stackId: "40-east-api-1",
     });
   });
+
+  // O4 floor memo (Track B, overnight-20260717): behavioral-identity gate for the
+  // module-level `parseStackAddress` cache. Proves the memo is byte-identical to a
+  // fresh recompute for a battery of inputs (positive, negative, whitespace,
+  // instance-index, root-level), AND that the memo preserves the pre-memo
+  // return-value protocol: every call materializes a FRESH result object, so a
+  // caller mutating the returned result can never poison the cache or a later
+  // parse of the same string.
+  it("memoizes parseStackAddress byte-identically without sharing mutable result objects", () => {
+    const recompute = (full: string) => {
+      const trimmed = full.trim();
+      const sepIndex = trimmed.indexOf("::");
+      if (sepIndex <= 0) {
+        return null;
+      }
+      const stackId = trimmed.slice(0, sepIndex);
+      const address = trimmed.slice(sepIndex + 2);
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(stackId) || !address) {
+        return null;
+      }
+      return { stackId, address };
+    };
+
+    const inputs = [
+      "40-east-api-1::module.api.aws_lambda_function.this",
+      "  stack-2::aws_s3_bucket.logs  ",
+      "aws_s3_bucket.no_stack",
+      "::leading-sep-invalid",
+      "bad stack::addr",
+      "",
+      "root",
+      "s::module.a.module.b.aws_instance.web[0]",
+    ];
+
+    for (const input of inputs) {
+      const first = parseStackAddress(input);
+      // byte-identical to a fresh recompute
+      expect(first).toEqual(recompute(input));
+
+      if (first === null) {
+        // negatives stay null on every call
+        expect(parseStackAddress(input)).toBeNull();
+        continue;
+      }
+
+      // Each call returns a distinct object (no shared reference).
+      const second = parseStackAddress(input);
+      expect(second).not.toBe(first);
+      expect(second).toEqual(recompute(input));
+
+      // Mutating a returned result must NOT poison the cache: a later parse of
+      // the same string still yields the unmutated, byte-identical value.
+      first.stackId = "MUTATED";
+      first.address = "MUTATED";
+      expect(parseStackAddress(input)).toEqual(recompute(input));
+    }
+  });
 });

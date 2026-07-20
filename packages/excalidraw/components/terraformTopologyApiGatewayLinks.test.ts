@@ -245,8 +245,12 @@ describe("terraformTopologyApiGatewayLinks", () => {
     });
   });
 
-  it("places private REST API in VPC zone with companions", () => {
-    const rawZones = extractPrimaryTopologyZones(plan);
+  it("places private REST API at region level with companions following", () => {
+    const rawZones = extractPrimaryTopologyZones(plan, {
+      privateApiRegional: true,
+    });
+    // Only the Lambda's private-tier zone remains a primary VPC zone; the private
+    // REST API is no longer nested in a VPC zone.
     expect(
       rawZones.filter((z) =>
         z.addresses.some(
@@ -255,7 +259,7 @@ describe("terraformTopologyApiGatewayLinks", () => {
             a.includes("aws_lambda_function"),
         ),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     const zones = mergePrimaryTopologyZonesByTier(
       rawZones.map((z) => ({
         ...z,
@@ -263,39 +267,41 @@ describe("terraformTopologyApiGatewayLinks", () => {
       })),
       plan,
     );
-    const regional = extractRegionalTopologyPrimaries(plan);
+    const regional = extractRegionalTopologyPrimaries(plan, {
+      privateApiRegional: true,
+    });
     const apiAddr = "module.api.aws_api_gateway_rest_api.private";
 
-    expect(zones.some((z) => z.addresses.includes(apiAddr))).toBe(true);
-    expect(regional.some((b) => b.addresses.includes(apiAddr))).toBe(false);
+    // API moved OUT of any VPC zone and INTO the account/region bucket.
+    expect(zones.some((z) => z.addresses.includes(apiAddr))).toBe(false);
+    expect(regional.some((b) => b.addresses.includes(apiAddr))).toBe(true);
 
     const lambdaAddr =
       "module.api.module.lambda_service.module.lambda.aws_lambda_function.this[0]";
-    const primaryZones = zones.filter((z) =>
-      z.addresses.some(
-        (a) =>
-          a === apiAddr ||
-          a === lambdaAddr ||
-          a.includes("aws_api_gateway_rest_api") ||
-          a.includes("aws_lambda_function"),
-      ),
-    );
-    expect(primaryZones.length).toBeGreaterThanOrEqual(2);
-    const apiZone = zones.find((z) => z.addresses.includes(apiAddr));
     const lambdaZone = zones.find((z) => z.addresses.includes(lambdaAddr));
-    expect(apiZone).toBeDefined();
     expect(lambdaZone).toBeDefined();
-    expect(apiZone).not.toBe(lambdaZone);
-    expect(apiZone!.subnetIds).toContain("subnet-intra-a");
     expect(lambdaZone!.subnetSignature).toBe(
       "subnet-private-a|subnet-private-b",
     );
-    expect(apiZone!.addresses).toContain(
+
+    // The API's regional bucket is at the log-group companion's account/region.
+    const apiBucket = regional.find((b) => b.addresses.includes(apiAddr));
+    expect(apiBucket).toBeDefined();
+    expect(apiBucket!.accountId).toBe("111111111111");
+    expect(apiBucket!.region).toBe("us-east-1");
+
+    // Every API companion (stage, deployment, vpc-link, method-settings) is still
+    // rendered/owned — they follow the API into the same regional bucket, not
+    // orphaned and not left behind in a VPC zone.
+    for (const companion of [
       "module.api.aws_api_gateway_stage.stage",
-    );
-    expect(apiZone!.addresses).toContain(
+      "module.api.aws_api_gateway_deployment.this",
       "module.api.aws_api_gateway_vpc_link.this",
-    );
+      "module.api.aws_api_gateway_method_settings.all",
+    ]) {
+      expect(apiBucket!.addresses).toContain(companion);
+      expect(zones.some((z) => z.addresses.includes(companion))).toBe(false);
+    }
   });
 
   it("buildApiGatewayCompanionCluster nests deployment and logs under stage", () => {

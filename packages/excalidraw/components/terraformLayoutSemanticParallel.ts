@@ -196,9 +196,15 @@ export function prepareSemanticAwsLayoutPrep(
     };
   }
 
+  const privateApiRegionalOpts = {
+    privateApiRegional: options?.pipelinePrivateApiRegional,
+  };
   const topoModel = extractTerraformTopologyFromPlan(awsPlan);
-  const zones = buildMergedTopologyZones(awsPlan);
-  const regionalBuckets = extractRegionalTopologyPrimaries(awsPlan);
+  const zones = buildMergedTopologyZones(awsPlan, privateApiRegionalOpts);
+  const regionalBuckets = extractRegionalTopologyPrimaries(
+    awsPlan,
+    privateApiRegionalOpts,
+  );
   const vpcEndpointBucketsRaw = extractVpcEndpointsByVpc(awsPlan);
   const { byZone: interfaceVpcEndpointZonePlacements, zonePlacedAddresses } =
     computeInterfaceVpcEndpointZonePlacements(awsPlan, zones);

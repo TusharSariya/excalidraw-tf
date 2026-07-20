@@ -49,6 +49,7 @@ export async function buildTerraformCompoundPipelineExcalidrawScene(
     includeAncillary?: boolean;
     semanticPlacement?: boolean;
     experimentalLayout?: boolean;
+    pipelinePrivateApiRegional?: boolean;
     /**
      * Pre-built prep, reused when a caller (the RCLL builder) already ran
      * `preparePipelineLayout` for its own model — avoids a second skeleton build
@@ -73,6 +74,7 @@ export async function buildTerraformCompoundPipelineExcalidrawScene(
     options?.prep ??
     preparePipelineLayout(nodes, plan, compact, {
       experimentalLayout,
+      privateApiRegional: options?.pipelinePrivateApiRegional,
     });
   const ancillaryStrips = includeAncillary
     ? buildAncillaryStrips(nodes, plan, prep, { compact })

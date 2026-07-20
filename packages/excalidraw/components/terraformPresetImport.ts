@@ -4,6 +4,7 @@ import {
   type TerraformModuleLayoutOptions,
 } from "./terraformModuleLayoutOptions";
 import { loadTerraformImportPresetSources } from "./terraformImportPresetLoader";
+import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 import {
   runTerraformImportFromSources,
   type RunTerraformImportFromSourcesResult,
@@ -57,6 +58,7 @@ export type RunTerraformImportFromSourcesArgs = {
   pipelinePacked?: boolean;
   pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
+  pipelinePrivateApiRegional?: boolean;
   pipelineSemanticPlacement?: boolean;
   pipelineSwimlaneLaneRise?: boolean;
   pipelineReorder?: boolean;
@@ -82,6 +84,66 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata OD-14: whole-model sibling-separation ranking (the height lever).
    * Default off. */
   strataRankSeparate?: boolean;
+  /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
+   * Default off. */
+  strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer.
+   * Default 0 (strict rule). */
+  strataPackedScoringEpsilon?: number;
+  /** Strata G-DESCENT converge: return the packed scorer's best-seen adopted
+   * snapshot instead of the last rolling incumbent. Default off; inert unless
+   * `strataPackedScoringEpsilon` >= 1. */
+  strataPackedConverge?: boolean;
+  /** Strata transitive-adopt: strict total-order adoption gate replacing the
+   * ε adoption gate. Default off. */
+  strataTransitiveAdopt?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
+   * left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs.
+   * Default off. */
+  strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
+  strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px), floored at the cohort distance. */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build (structure phase). Default "none" (byte-identical);
+   * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
+   * Default off. */
+  strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
+  strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Post-A7 exclusive-downstream chain relocate. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends strataCoordinateRefine). Default off. */
+  strataCoordCascade?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -99,6 +161,7 @@ export const runTerraformImportWithView = async ({
   pipelinePacked,
   pipelinePackedPullLeft,
   pipelineIncludeAncillary,
+  pipelinePrivateApiRegional,
   pipelineSemanticPlacement,
   pipelineSwimlaneLaneRise,
   pipelineReorder,
@@ -116,6 +179,29 @@ export const runTerraformImportWithView = async ({
   strataSweeps,
   strataCoordinateRefine,
   strataRankSeparate,
+  strataPackedScoring,
+  strataPackedScoringEpsilon,
+  strataPackedConverge,
+  strataTransitiveAdopt,
+  strataBlockClamp,
+  strataTranspose,
+  strataHeightGate,
+  strataLeafShift,
+  strataLeafShiftHeightBudgetPx,
+  strataLeafShiftHeightBudgetFrac,
+  strataLeafShiftRankBudget,
+  strataLeafShiftRightEdgeGuardPx,
+  strataDeBandLevel,
+  strataEdgeRouting,
+  strataBorderRoute,
+  strataBandCompact,
+  strataBandDepth,
+  strataSiftRelocate,
+  strataChainRelocate,
+  strataCoordCascade,
+  strataCrossWeightPenetration,
+  strataCrossWeightEdge,
+  strataEdgeCrossCap,
   importedTfdTexts,
   preset = null,
   signal,
@@ -139,6 +225,18 @@ export const runTerraformImportWithView = async ({
           pipelinePacked,
           pipelinePackedPullLeft,
           pipelineIncludeAncillary,
+          // View-scoping (the SINGLE place non-strata forces the flag off):
+          // the private-API regional placement is only wired for the strata
+          // view — turning it on for the v2/rcll/compound/classic pipelines
+          // introduces collisions/gate failures. So non-strata views ALWAYS
+          // pass false regardless of the seed/URL, keeping them byte-identical
+          // to today; the strata view passes the caller's value and, when that
+          // is absent (a bare `view=strata` demo URL), defaults ON.
+          pipelinePrivateApiRegional:
+            layoutMode === "strata"
+              ? pipelinePrivateApiRegional ??
+                TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional
+              : false,
           pipelineSemanticPlacement,
           pipelineSwimlaneLaneRise,
           pipelineReorder,
@@ -156,6 +254,42 @@ export const runTerraformImportWithView = async ({
           strataSweeps,
           strataCoordinateRefine,
           strataRankSeparate,
+          strataPackedScoring,
+          strataPackedScoringEpsilon,
+          strataPackedConverge,
+          strataTransitiveAdopt,
+          strataBlockClamp,
+          strataTranspose,
+          strataHeightGate,
+          strataLeafShift,
+          // Budget knobs are optional numbers — forward ONLY when explicitly set so
+          // the engine inherits its own defaults (absent ⇒ default) and the
+          // on-with-default shape stays byte-identical.
+          ...(strataLeafShiftHeightBudgetPx !== undefined
+            ? { strataLeafShiftHeightBudgetPx }
+            : {}),
+          ...(strataLeafShiftHeightBudgetFrac !== undefined
+            ? { strataLeafShiftHeightBudgetFrac }
+            : {}),
+          ...(strataLeafShiftRankBudget !== undefined
+            ? { strataLeafShiftRankBudget }
+            : {}),
+          ...(strataLeafShiftRightEdgeGuardPx !== undefined
+            ? { strataLeafShiftRightEdgeGuardPx }
+            : {}),
+          strataDeBandLevel,
+          strataEdgeRouting,
+          strataBorderRoute,
+          strataBandCompact,
+          strataBandDepth,
+          strataSiftRelocate,
+          strataChainRelocate,
+          strataCoordCascade,
+          strataCrossWeightPenetration,
+          strataCrossWeightEdge,
+          // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+          // inherits `strataPackedScoringEpsilon`).
+          ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
         }
       : {}),
     importedTfdTexts,
@@ -173,6 +307,7 @@ export type RunTerraformPresetImportOptions = {
   pipelinePacked?: boolean;
   pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
+  pipelinePrivateApiRegional?: boolean;
   pipelineSemanticPlacement?: boolean;
   pipelineSwimlaneLaneRise?: boolean;
   pipelineReorder?: boolean;
@@ -192,6 +327,54 @@ export type RunTerraformPresetImportOptions = {
   strataSweeps?: number;
   strataCoordinateRefine?: boolean;
   strataRankSeparate?: boolean;
+  strataPackedScoring?: boolean;
+  strataPackedScoringEpsilon?: number;
+  /** Strata G-DESCENT converge: best-seen adopted snapshot. Default off;
+   * inert unless `strataPackedScoringEpsilon` >= 1. */
+  strataPackedConverge?: boolean;
+  /** Strata transitive-adopt: strict total-order adoption gate. Default off. */
+  strataTransitiveAdopt?: boolean;
+  /** P4 pure-sink account block clamp. Default off. */
+  strataBlockClamp?: boolean;
+  /** P2 within-column transpose. Default off. */
+  strataTranspose?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
+  strataHeightGate?: boolean;
+  /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
+  strataLeafShift?: boolean;
+  /** A01 leaf-shift absolute per-hull slack height budget (px). Default 150. */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 leaf-shift relative per-hull slack height budget (fraction). Default 0.01. */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 leaf-shift max ranks a leaf may move toward its source. Default 8. */
+  strataLeafShiftRankBudget?: number;
+  /** A01 leaf-shift right-edge column guard (px), floored at the cohort distance. */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build (structure phase). Default "none" (byte-identical);
+   * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
+  /** LEGACY ALIAS for `strataBandDepth: "root"`. */
+  strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
+  /** OD-15 crossings-≻-length relocate. Default off. */
+  strataSiftRelocate?: boolean;
+  /** Post-A7 exclusive-downstream chain relocate. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends strataCoordinateRefine). Default off. */
+  strataCoordCascade?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap. Optional — absent inherits
+   * `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -234,6 +417,7 @@ export const runTerraformPresetImport = async (
     pipelinePacked: options.pipelinePacked,
     pipelinePackedPullLeft: options.pipelinePackedPullLeft,
     pipelineIncludeAncillary: options.pipelineIncludeAncillary,
+    pipelinePrivateApiRegional: options.pipelinePrivateApiRegional,
     pipelineSemanticPlacement: options.pipelineSemanticPlacement,
     pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise,
     pipelineReorder: options.pipelineReorder,
@@ -251,6 +435,33 @@ export const runTerraformPresetImport = async (
     strataSweeps: options.strataSweeps,
     strataCoordinateRefine: options.strataCoordinateRefine,
     strataRankSeparate: options.strataRankSeparate,
+    strataPackedScoring: options.strataPackedScoring,
+    strataPackedScoringEpsilon: options.strataPackedScoringEpsilon,
+    strataPackedConverge: options.strataPackedConverge,
+    strataTransitiveAdopt: options.strataTransitiveAdopt,
+    strataBlockClamp: options.strataBlockClamp,
+    strataTranspose: options.strataTranspose,
+    strataHeightGate: options.strataHeightGate,
+    strataLeafShift: options.strataLeafShift,
+    strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx,
+    strataLeafShiftHeightBudgetFrac: options.strataLeafShiftHeightBudgetFrac,
+    strataLeafShiftRankBudget: options.strataLeafShiftRankBudget,
+    strataLeafShiftRightEdgeGuardPx: options.strataLeafShiftRightEdgeGuardPx,
+    strataDeBandLevel: options.strataDeBandLevel,
+    strataEdgeRouting: options.strataEdgeRouting,
+    strataBorderRoute: options.strataBorderRoute,
+    strataBandCompact: options.strataBandCompact,
+    strataBandDepth: options.strataBandDepth,
+    strataSiftRelocate: options.strataSiftRelocate,
+    strataChainRelocate: options.strataChainRelocate,
+    strataCoordCascade: options.strataCoordCascade,
+    strataCrossWeightPenetration: options.strataCrossWeightPenetration,
+    strataCrossWeightEdge: options.strataCrossWeightEdge,
+    // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

@@ -1,13 +1,25 @@
 # Strata W3 (M1b) battery report — checkpoint V2
 
-**Date:** 2026-07-05 · **Status:** STOPPED at V2 for owner visual validation + BINDING arm-E verdict (v3.0 §9 / plan W3).
-**Scope:** A2 K=4 sweeps (WP-3a), A6 deterministic finalize + tombstones (WP-3c), A4/A5 gates + bootstrap CI (WP-3d), A7 coordinate refinement (WP-3b), A4 fixture-triple + §2.5 extent-gate harnesses (WP-3e). All code uncommitted pending the V2 verdict. Decision trail: SDEC-38..44.
+**Date:** 2026-07-05 · **Status:** STOPPED at V2 for owner visual validation + BINDING arm-E verdict (v3.0 §9 / plan W3). **Scope:** A2 K=4 sweeps (WP-3a), A6 deterministic finalize + tombstones (WP-3c), A4/A5 gates + bootstrap CI (WP-3d), A7 coordinate refinement (WP-3b), A4 fixture-triple + §2.5 extent-gate harnesses (WP-3e). All code uncommitted pending the V2 verdict. Decision trail: SDEC-38..44.
 
 Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-localstack` (validation), P3 = `multi-state-expanded` (composition; matches P2's numbers modulo the E/F arms and is omitted from the tables below). E/F arms carry ancillary; strata M1 is extraction-free (`strataAncillaryDeferred` honest meta, SDEC-24/29) — every full-mode comparison reads against that asymmetry.
+
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Battery |
+| Status | Historical — M1b / V2 checkpoint (arm-E accepted; see decision-log SDEC-47) |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`strata-view-decision-log.md`](./strata-view-decision-log.md) |
+| Children | — |
+| Sisters | [`strata-view-w4-extent-report.md`](./strata-view-w4-extent-report.md) |
+| Next (agent) | Numbers only; dispositions in decision-log. Extent residual → sister W4. |
 
 ## 1. Verdict summary
 
 **Passed:**
+
 - **R2 structural**: zeros everywhere (both presets × both card modes × cyclic × A7-on) — standing invariant incl. the in-engine post-re-anchor dev-assert.
 - **T1 determinism**: run-twice byte-equal INCLUDING ids/seeds/versionNonces (A6), both card modes, real presets; static no-Date/no-random scan over the module family.
 - **T4 identity/tombstones**: content-addressed `tf:` ids (satellite appearances sub-addressed after the battery caught a full-mode collision — SDEC-42), generation versions, apply-layer tombstones, OD-8 no-op parity.
@@ -19,6 +31,7 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 - **T10 wall-clock**: strata engine arms ≈ 95–200 ms warm (compact) / prep-dominated cold (matches the W2 RCA); K=4 and A7 add ≈ nothing measurable. Budget (≤2 s canonical) holds.
 
 **Failed / owner-adjudication required:**
+
 - **§2.5 slice-B extent gate vs the frozen v2 baselines: FAIL** (SDEC-44). On the one cleanly-pairable frozen cell (P1-compact, 37v37 paired edges, 0 unmatched): mean paired delta **+1008 px** [CI −79, +2282]; paired p50 improves −637 but **paired p90 regresses +6369** — a tail-regression signature. Root: strata's P1-compact canvas is ~1.9× taller than v2 (19066 vs 10056; v2 packs ~50 side-by-side rows, strata's banded provider/account levels stack full-width bands), so the worst cross-band edges span nearly the whole canvas. A2 minimizes height-weighted bands-skipped, not stack height — this is exactly the Σ-vs-tail residual v3.1 §1.1 flagged and the slice-B gate backstops. **The registered post-M1 levers target precisely this: OD-14 (height lever — rankSeparate-class, −42% height measured in-host) and OD-15 (subnet de-band port).**
 - **Full-mode extent cells: primary pairing VOIDED by the frozen 20%-unmatched rule** — slice classification is not engine-invariant in full mode (F-with-ancillary classifies 114/32 edges slice-B via hub-extraction hull changes; strata keeps 37/4). The void rule worked as designed. The report-only supplementary pairing (baseline keyset) shows: **P1-full nearly passes** (I2 CI [−1739, **+15.5**] — 15.5 px from a formal pass; paired p90 −6668 improving; A7 visibly moves it vs H2), P2-full worsens (+705, CI excludes 0 the wrong way).
 - **P2 readability generally**: strata does not beat v2 on P2's small slice-B population (nB=4, excluded from gating by the frozen §12 pin, reported honestly: p50 5935 vs 1149).
@@ -28,7 +41,7 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 ### P1 compact
 
 | metric | v2 (A) | strata K=0 (G) | strata K=4 (H) | strata K=4+A7 (I) |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | crossings | 177 | 273 | 136 | 123 |
 | crossings / eligible pair | 0.02 | 0.03 | 0.01 | 0.01 |
 | fraction near-straight | 0.17 | 0.10 | 0.13 | 0.14 |
@@ -44,7 +57,7 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 ### P1 full (E/F carry ancillary; strata is extraction-free — honest asymmetry, SDEC-24)
 
 | metric | rcll owner view (E) | v2 full+anc (F) | strata K=0 full | strata K=4 full | strata K=4+A7 full |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | crossings | 371 | 222 | 325 | 172 | 170 |
 | crossings / eligible pair | 0.04 | 0.02 | 0.03 | 0.02 | 0.02 |
 | fraction near-straight | 0.10 | 0.12 | 0.09 | 0.10 | 0.10 |
@@ -57,12 +70,12 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 | degraded | no | no | no | no | no |
 | wall ms (incl. prep) | 18453 | 15065 | 13352 | 13309 | 13342 |
 
-*Slice populations differ across the E/F vs strata columns (114/31 vs 37/108) because ancillary hub-extraction changes the hull structure — the per-column slice stats are not directly comparable; the §2.5 paired analysis (section 4) is the honest comparison.*
+_Slice populations differ across the E/F vs strata columns (114/31 vs 37/108) because ancillary hub-extraction changes the hull structure — the per-column slice stats are not directly comparable; the §2.5 paired analysis (section 4) is the honest comparison._
 
 ### P2 compact
 
 | metric | v2 (A) | strata K=0 | strata K=4 | strata K=4+A7 |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | crossings | 33 | 39 | 39 | 39 |
 | crossings / eligible pair | 0.01 | 0.02 | 0.02 | 0.02 |
 | fraction near-straight | 0.04 | 0.03 | 0.03 | 0.04 |
@@ -78,7 +91,7 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 ### P2 full
 
 | metric | rcll owner view (E) | v2 full+anc (F) | strata K=0 full | strata K=4 full | strata K=4+A7 full |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | crossings | 124 | 55 | 47 | 48 | 48 |
 | crossings / eligible pair | 0.06 | 0.02 | 0.02 | 0.02 | 0.02 |
 | fraction near-straight | 0.01 | 0.03 | 0.03 | 0.03 | 0.06 |
@@ -93,12 +106,12 @@ Presets: P1 = `staging-extended-localstack-v2` (derivation), P2 = `staging-local
 
 ## 3. Diff-stability (A4 fixture triple; thresholds frozen v3.1 §13)
 
-Worst candidate cells across both presets: M1_rel 0.0246, M2_flip 0.0544 — both far under the frozen 0.08 / 0.10. v2's own values on the same fixtures: M1_rel up to 0.2072, M2_flip up to 0.1514. K=0 is zero-churn on every cell; K=4 adds small, bounded churn; A7 adds none. moved{}-rename: zero churn at every K (v2 also handles it cleanly at the layout level, but only strata carries stable *element identity* through it — A6). M4/M5 statuses "ok" in every cell; |U| ≥ 68 ≥ N_min everywhere.
+Worst candidate cells across both presets: M1*rel 0.0246, M2_flip 0.0544 — both far under the frozen 0.08 / 0.10. v2's own values on the same fixtures: M1_rel up to 0.2072, M2_flip up to 0.1514. K=0 is zero-churn on every cell; K=4 adds small, bounded churn; A7 adds none. moved{}-rename: zero churn at every K (v2 also handles it cleanly at the layout level, but only strata carries stable \_element identity* through it — A6). M4/M5 statuses "ok" in every cell; |U| ≥ 68 ≥ N_min everywhere.
 
 ## 4. §2.5 slice-B extent gate (paired per-edge bootstrap CI, frozen §12 pins)
 
 | Cell | pairing | n | CI point [lo, hi] | paired p50 Δ | paired p90 Δ | outcome |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | P1 compact, A→H | primary | 37 | +1008 [−79, +2282] | −637 | +6369 | **FAIL** (tail regression) |
 | P1 compact, A→I | primary | 37 | +1005 [−76, +2276] | −637 | +6369 | **FAIL** |
 | P1 full, F→H2 | primary | 37 of 114 | — | — | — | VOID (unmatched 2.08× > 20%) |

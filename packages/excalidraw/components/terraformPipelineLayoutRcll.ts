@@ -74,6 +74,8 @@ type RcllBuildOptions = {
   packedPullLeft?: boolean;
   semanticPlacement?: boolean;
   experimentalLayout?: boolean;
+  /** Opt-in (default off): private VPC-endpoint-bound REST APIs placed at region level. */
+  pipelinePrivateApiRegional?: boolean;
   /** DEC-1 (default true): X-disjoint cyclic SCC groups rise to share Y. */
   staircaseBandOverlap?: boolean;
   /** M4 (default false): X-disjoint swimlane lanes rise to share Y rows. */
@@ -477,6 +479,7 @@ export async function buildTerraformPipelineRcllExcalidrawScene(
   const prep = terraformImportProfilerMeasure("pipeline.prep", () =>
     preparePipelineLayout(nodes, plan, compact, {
       networkSimplexRank: options?.networkSimplexRank === true,
+      privateApiRegional: options?.pipelinePrivateApiRegional,
     }),
   );
   const { tree, lattice } = terraformImportProfilerMeasure(

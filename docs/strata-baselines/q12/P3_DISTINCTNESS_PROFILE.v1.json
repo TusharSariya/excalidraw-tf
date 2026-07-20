@@ -1,0 +1,332 @@
+{
+  "meta": {
+    "reportOnly": true,
+    "unregistered": true,
+    "scope": "W12 WP1 frozen INPUT-ONLY distinctness profile + P3 smoke wall-clocks (WP3 budget seed)",
+    "syntheticP3Disclosure": "staging-heldout-mesh is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, mulberry32 seed 20260704): out-of-tuning-distribution transfer material, NOT an independently sampled held-out plan — R8-F4 stays formally open.",
+    "scaleNote": "resourceCount is ONE distinctness dimension (scale)",
+    "resolvedFlowNote": "degree/SCC/path metrics measured on RESOLVED TFD flow endpoints (DECLARED_DATAFLOW_ORDERED_KEY after applyTfdOverlayToNodes)",
+    "presets": {
+      "P1": "staging-extended-localstack-v2",
+      "P2": "staging-localstack",
+      "P3": "staging-heldout-mesh"
+    }
+  },
+  "profiles": {
+    "P1": {
+      "preset": "staging-extended-localstack-v2",
+      "resourceCount": 1175,
+      "moduleDepth": {
+        "histogram": {
+          "0": 298,
+          "1": 360,
+          "2": 424,
+          "3": 93
+        },
+        "max": 3,
+        "meanX100": 127
+      },
+      "resourceTypes": {
+        "distinct": 98,
+        "top": [
+          {
+            "type": "aws_security_group_rule",
+            "count": 76
+          },
+          {
+            "type": "aws_route_table_association",
+            "count": 64
+          },
+          {
+            "type": "aws_subnet",
+            "count": 64
+          },
+          {
+            "type": "aws_vpc_endpoint",
+            "count": 63
+          },
+          {
+            "type": "aws_iam_role",
+            "count": 59
+          },
+          {
+            "type": "aws_iam_role_policy",
+            "count": 58
+          },
+          {
+            "type": "aws_route",
+            "count": 58
+          },
+          {
+            "type": "aws_cloudwatch_log_group",
+            "count": 47
+          },
+          {
+            "type": "aws_security_group",
+            "count": 42
+          },
+          {
+            "type": "aws_route_table",
+            "count": 32
+          }
+        ]
+      },
+      "tfdFlow": {
+        "resolvedEdges": 155,
+        "endpoints": 138,
+        "outDegree": {
+          "p50": 1,
+          "p90": 3,
+          "max": 8
+        },
+        "scc": {
+          "countGe2": 0,
+          "sizesGe2": []
+        },
+        "pathLengths": {
+          "samples": 523,
+          "p50": 8,
+          "p90": 13,
+          "max": 15
+        }
+      }
+    },
+    "P2": {
+      "preset": "staging-localstack",
+      "resourceCount": 792,
+      "moduleDepth": {
+        "histogram": {
+          "0": 116,
+          "1": 343,
+          "2": 240,
+          "3": 93
+        },
+        "max": 3,
+        "meanX100": 139
+      },
+      "resourceTypes": {
+        "distinct": 68,
+        "top": [
+          {
+            "type": "aws_security_group_rule",
+            "count": 59
+          },
+          {
+            "type": "aws_route",
+            "count": 50
+          },
+          {
+            "type": "aws_iam_role_policy",
+            "count": 42
+          },
+          {
+            "type": "aws_iam_role",
+            "count": 39
+          },
+          {
+            "type": "aws_cloudwatch_log_group",
+            "count": 37
+          },
+          {
+            "type": "aws_route_table_association",
+            "count": 32
+          },
+          {
+            "type": "aws_subnet",
+            "count": 32
+          },
+          {
+            "type": "aws_security_group",
+            "count": 30
+          },
+          {
+            "type": "aws_ssm_parameter",
+            "count": 30
+          },
+          {
+            "type": "aws_vpc_endpoint",
+            "count": 28
+          }
+        ]
+      },
+      "tfdFlow": {
+        "resolvedEdges": 74,
+        "endpoints": 75,
+        "outDegree": {
+          "p50": 1,
+          "p90": 3,
+          "max": 7
+        },
+        "scc": {
+          "countGe2": 0,
+          "sizesGe2": []
+        },
+        "pathLengths": {
+          "samples": 74,
+          "p50": 10,
+          "p90": 15,
+          "max": 15
+        }
+      }
+    },
+    "P3": {
+      "preset": "staging-heldout-mesh",
+      "resourceCount": 396,
+      "moduleDepth": {
+        "histogram": {
+          "1": 157,
+          "2": 51,
+          "3": 112,
+          "4": 64,
+          "5": 12
+        },
+        "max": 5,
+        "meanX100": 230
+      },
+      "resourceTypes": {
+        "distinct": 19,
+        "top": [
+          {
+            "type": "aws_cloudwatch_log_group",
+            "count": 53
+          },
+          {
+            "type": "aws_cloudwatch_metric_alarm",
+            "count": 52
+          },
+          {
+            "type": "aws_sqs_queue",
+            "count": 36
+          },
+          {
+            "type": "aws_iam_role",
+            "count": 33
+          },
+          {
+            "type": "aws_iam_role_policy",
+            "count": 33
+          },
+          {
+            "type": "aws_cloudwatch_event_rule",
+            "count": 32
+          },
+          {
+            "type": "aws_lambda_function",
+            "count": 32
+          },
+          {
+            "type": "aws_sns_topic",
+            "count": 20
+          },
+          {
+            "type": "aws_cloudwatch_event_target",
+            "count": 16
+          },
+          {
+            "type": "aws_lambda_event_source_mapping",
+            "count": 16
+          }
+        ]
+      },
+      "tfdFlow": {
+        "resolvedEdges": 178,
+        "endpoints": 153,
+        "outDegree": {
+          "p50": 1,
+          "p90": 2,
+          "max": 16
+        },
+        "scc": {
+          "countGe2": 3,
+          "sizesGe2": [2, 2, 4]
+        },
+        "pathLengths": {
+          "samples": 150,
+          "p50": 4,
+          "p90": 5,
+          "max": 6
+        }
+      }
+    }
+  },
+  "distinctness": {
+    "nonScaleAxesDistinctFromBoth": ["moduleDepthMax", "sccCountGe2", "maxOutDegree", "pathLengthP90", "topTypeMixJaccard"],
+    "required": 3,
+    "axes": {
+      "moduleDepthMax": {
+        "p1": 3,
+        "p2": 3,
+        "p3": 5,
+        "distinctFromBoth": true
+      },
+      "sccCountGe2": {
+        "p1": 0,
+        "p2": 0,
+        "p3": 3,
+        "distinctFromBoth": true
+      },
+      "maxOutDegree": {
+        "p1": 8,
+        "p2": 7,
+        "p3": 16,
+        "distinctFromBoth": true
+      },
+      "pathLengthP90": {
+        "p1": 13,
+        "p2": 15,
+        "p3": 5,
+        "distinctFromBoth": true
+      },
+      "topTypeMixJaccard": {
+        "p1": 0.18,
+        "p2": 0.18,
+        "p3": "reference",
+        "distinctFromBoth": true
+      }
+    }
+  },
+  "p3Smokes": {
+    "note": "buildMs are single-run wall-clocks (informational; WP3 budget seed for full-detail cells). Arms copied from W11 battery (A_v2/I) and ExtentGate full-detail bundles.",
+    "arms": {
+      "A_v2": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": true
+        },
+        "buildMs": 125.73,
+        "elementCount": 1582
+      },
+      "I": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 119.51,
+        "elementCount": 1582
+      },
+      "F_v2_full_ancillary": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": false,
+          "pipelineIncludeAncillary": true
+        },
+        "buildMs": 195.25,
+        "elementCount": 4071
+      },
+      "I2_strata_k4_a7_full": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": false,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 165.29,
+        "elementCount": 2254
+      }
+    }
+  }
+}

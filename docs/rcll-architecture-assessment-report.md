@@ -4,6 +4,18 @@
 
 ---
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Decision |
+| Status | Historical — findings record; superseded for forward plan by architecture-decision |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Children | [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Sisters | [`rcll-layout-engine-spec.md`](./rcll-layout-engine-spec.md) |
+| Next (agent) | Read sister engine-spec, then architecture-decision Round 4. |
+
 ## 0. Canonical evaluation lens (pinned to real flag values)
 
 The daily-driver view is **all-resources + compact + no-debanding + everything-on** (the heaviest configuration). **This is not a named preset** — verified against `terraformPipelineLayoutProfiles.ts:144–178`:

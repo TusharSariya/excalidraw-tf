@@ -93,6 +93,7 @@ import {
 } from "./terraformPrimaryVisibility";
 
 import type { TerraformModuleLayoutOptions } from "./terraformModuleLayoutOptions";
+import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 
 export type TerraformLayoutOptions = TerraformPlanParsingOptions;
 
@@ -428,6 +429,8 @@ type LayoutSceneContext = {
   pipelinePacked?: boolean;
   pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
+  /** Opt-in (default off): private VPC-endpoint-bound REST APIs placed at region level. */
+  pipelinePrivateApiRegional?: boolean;
   pipelineSemanticPlacement?: boolean;
   /** RCLL M4: X-disjoint swimlane lanes rise to share Y rows. */
   pipelineSwimlaneLaneRise?: boolean;
@@ -462,12 +465,86 @@ type LayoutSceneContext = {
   /** Strata OD-14: whole-model sibling-separation ranking (the height lever); the
    * separated floor REPLACES the A1 rank, mutually exclusive with NS. Default off. */
   strataRankSeparate?: boolean;
+  /** EXPERIMENTAL W5b probe (round-8 R8-F9): joint constrained-NS refinement of
+   * the separated floor. Harness-only, default off; inert without rankSeparate. */
+  strataJointNsRank?: boolean;
+  /** Strata round 9 (SDEC-57): packed-hull whole-layout candidate scoring.
+   * Default off. */
+  strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer.
+   * Default 0 (strict rule; inert without `strataPackedScoring`). */
+  strataPackedScoringEpsilon?: number;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
+  strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: StrataHullRole;
+  /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
+  strataPackedFrontierMeta?: boolean;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
+   * Default off. */
+  strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
   /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** OD-15 crossings-≻-length relocate (cross-hull sift + post-A7 vertical
+   * slots). Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap for the relocate descent. Optional — absent
+   * inherits `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
+  /** P0.2: transitive adoption relation for the packed descent. Default off. */
+  strataTransitiveAdopt?: boolean;
+  /** P4 pure-sink account block clamp (post-A7): rigid-translate a whole
+   * dead-end account subtree left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
+  /** P2 within-column transpose (post-A7): swap Y-adjacent X-overlapping sibling
+   * pairs to remove leftover diagonal crossings. Default off. */
+  strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate (post-A7): rigid Y co-translation of a
+   * unit and its exclusive downstream group. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends coordinateRefine): let a net-zero fixed-point column
+   * escape to its two-sided median and chase chord-connected downstreams,
+   * adopt-or-rollback on the A7 length proxy. Fixes api6 lambda stranding.
+   * Default off. */
+  strataCoordCascade?: boolean;
+  /** P5 (Lever C) per-hull height maintain-or-decrease acceptance gate for the
+   * sink-pull-in / block-clamp passes. Default off. */
+  strataHeightGate?: boolean;
+  /** A01 leaf X-shift (post-A7): pull degree-1 pure-sink leaves left onto a grid
+   * column between source and current rank, Y-redrop, grow ancestor chain. Default
+   * off. Carries the mandatory right-edge column guard. */
+  strataLeafShift?: boolean;
+  /** A01 slack height gate absolute px budget (default 150). */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 slack height gate relative budget fraction (default 0.01). */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 max target ranks tried per leaf (default 8). */
+  strataLeafShiftRankBudget?: number;
+  /** A01 right-edge column guard px (default 300). */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /** §3o ancillary greedy right-slack allocator. Default ON; inert unless
+   *  `pipelineIncludeAncillary` is also on. */
+  strataAncillaryAllocator?: boolean;
+  /** OD-15 de-band: dissolve this hierarchy level and every deeper one at the
+   * Strata model build. Default `"none"` (byte-identical). */
+  strataDeBandLevel?: DeBandLevel;
   colorMode?: TerraformColorMode;
 };
 
@@ -564,10 +641,72 @@ async function buildPipelineLayoutSceneBody(
       // tolerates the keys it doesn't read.
       const builderOptions = {
         ...pipelineOptions,
+        pipelinePrivateApiRegional: ctx.pipelinePrivateApiRegional,
         strataNetworkSimplexRank: ctx.strataNetworkSimplexRank,
         strataRankSeparate: ctx.strataRankSeparate,
+        strataJointNsRank: ctx.strataJointNsRank,
+        strataPackedScoring: ctx.strataPackedScoring,
+        strataPackedScoringEpsilon: ctx.strataPackedScoringEpsilon,
+        strataBandCompact: ctx.strataBandCompact,
+        // Raw forward — omit at default/absent so builderOptions never carries
+        // an explicit "account"/undefined cut into the engine (which would
+        // defeat the bandCompact alias). Non-default cuts forward.
+        ...(ctx.strataBandDepth !== undefined &&
+        ctx.strataBandDepth !== "account"
+          ? { strataBandDepth: ctx.strataBandDepth }
+          : {}),
+        strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
+        strataEdgeRouting: ctx.strataEdgeRouting,
+        strataBorderRoute: ctx.strataBorderRoute,
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
+        strataSiftRelocate: ctx.strataSiftRelocate,
+        strataPackedConverge: ctx.strataPackedConverge,
+        strataTransitiveAdopt: ctx.strataTransitiveAdopt,
+        strataBlockClamp: ctx.strataBlockClamp,
+        strataTranspose: ctx.strataTranspose,
+        strataChainRelocate: ctx.strataChainRelocate,
+        strataCoordCascade: ctx.strataCoordCascade,
+        strataHeightGate: ctx.strataHeightGate,
+        strataLeafShift: ctx.strataLeafShift,
+        // A01 leaf-shift budget knobs: optional-only forward (no default
+        // materialized — absent ⇒ engine defaults 150/0.01/8/300).
+        ...(ctx.strataLeafShiftHeightBudgetPx !== undefined
+          ? { strataLeafShiftHeightBudgetPx: ctx.strataLeafShiftHeightBudgetPx }
+          : {}),
+        ...(ctx.strataLeafShiftHeightBudgetFrac !== undefined
+          ? {
+              strataLeafShiftHeightBudgetFrac:
+                ctx.strataLeafShiftHeightBudgetFrac,
+            }
+          : {}),
+        ...(ctx.strataLeafShiftRankBudget !== undefined
+          ? { strataLeafShiftRankBudget: ctx.strataLeafShiftRankBudget }
+          : {}),
+        ...(ctx.strataLeafShiftRightEdgeGuardPx !== undefined
+          ? {
+              strataLeafShiftRightEdgeGuardPx:
+                ctx.strataLeafShiftRightEdgeGuardPx,
+            }
+          : {}),
+        strataAncillaryAllocator: ctx.strataAncillaryAllocator,
+        // OD-15 de-band — SEAM 2. This fan-in is a second silent-drop point the
+        // trap-#4 comment on the sceneContext literal does not mention: a key
+        // present there but missing HERE never reaches the builder, and this
+        // object is a `const` precisely to defeat TS's excess-property check, so
+        // the miss compiles green. Omit at the default/absent so no explicit
+        // `"none"` is ever carried in (byte-identity).
+        ...(ctx.strataDeBandLevel !== undefined &&
+        ctx.strataDeBandLevel !== "none"
+          ? { strataDeBandLevel: ctx.strataDeBandLevel }
+          : {}),
+        strataCrossWeightPenetration: ctx.strataCrossWeightPenetration,
+        strataCrossWeightEdge: ctx.strataCrossWeightEdge,
+        // Optional-only forward: no default materialized (absent ⇒ engine
+        // inherits `strataPackedScoringEpsilon`).
+        ...(ctx.strataEdgeCrossCap !== undefined
+          ? { strataEdgeCrossCap: ctx.strataEdgeCrossCap }
+          : {}),
       };
       const pipelineScene = await buildPipeline(
         ctx.nodes5,
@@ -722,9 +861,15 @@ async function buildSemanticLayoutSceneBody(
 
       const awsChanges = providerBuckets.get("aws") ?? [];
       if (awsChanges.length > 0) {
+        const privateApiRegionalOpts = {
+          privateApiRegional: ctx.pipelinePrivateApiRegional,
+        };
         const topoModel = extractTerraformTopologyFromPlan(awsPlan);
-        const zones = buildMergedTopologyZones(awsPlan);
-        const regionalBuckets = extractRegionalTopologyPrimaries(awsPlan);
+        const zones = buildMergedTopologyZones(awsPlan, privateApiRegionalOpts);
+        const regionalBuckets = extractRegionalTopologyPrimaries(
+          awsPlan,
+          privateApiRegionalOpts,
+        );
         const vpcEndpointBucketsRaw = extractVpcEndpointsByVpc(awsPlan);
         const {
           byZone: interfaceVpcEndpointZonePlacements,
@@ -1061,6 +1206,19 @@ export async function layoutTerraformFromSources(
     addressToStack,
     deferDecorations: options?.deferDecorations === true,
     pipelineCompact: options?.pipelineCompact,
+    // Engine-core clamp (load-bearing, enforced regardless of entry path —
+    // direct/worker/dialog/demo/semantic): private-API regional placement is a
+    // strata-only, ALWAYS-ON property. owner-decisions.md 2026-07-17 (Q9):
+    // "remove that button, default is ON, private apis are regional." So strata
+    // FORCES the flag true here — the caller's value is IGNORED (a strata URL
+    // carrying the legacy `privateApiRegional=0` param can no longer turn it
+    // off; the param is still parsed for reversibility but is inert for strata).
+    // Every non-strata layoutMode forces it false (it collides/gate-fails on
+    // v2/rcll/compound/pipeline/semantic), so those stay byte-identical no
+    // matter what the caller passed. sceneContext is the single fan-in —
+    // builderOptions (:601) and the meta echo (:782) both read
+    // `ctx.pipelinePrivateApiRegional`, so clamping here covers every consumer.
+    pipelinePrivateApiRegional: layoutMode === "strata",
     // Force the variant for RCLL / Strata so a stale-session/default variant
     // can't mis-route to the plain pipeline builder (dispatch keys on the
     // variant). Strata rides its own layoutMode (not the `pipelineVariant`
@@ -1108,8 +1266,78 @@ export async function layoutTerraformFromSources(
     // threaded through to the builder's meta echo; unused until the engine lands.
     strataNetworkSimplexRank: options?.strataNetworkSimplexRank === true,
     strataRankSeparate: options?.strataRankSeparate === true,
+    strataJointNsRank: options?.strataJointNsRank === true,
+    strataPackedScoring: options?.strataPackedScoring === true,
+    strataPackedScoringEpsilon: options?.strataPackedScoringEpsilon ?? 0,
+    strataBandCompact: options?.strataBandCompact === true,
+    // Forward the band-depth cut RAW — omit at the default ("account") or when
+    // absent, so this sceneContext literal never materializes a default own
+    // key and the engine's `strataBandCompact` alias
+    // (terraformPipelineStrata.ts) still resolves to "root" when only the
+    // legacy boolean arrives. A non-default cut forwards unchanged.
+    ...(options?.strataBandDepth !== undefined &&
+    options?.strataBandDepth !== "account"
+      ? { strataBandDepth: options.strataBandDepth }
+      : {}),
+    strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
+    strataEdgeRouting: options?.strataEdgeRouting === true,
+    strataBorderRoute: options?.strataBorderRoute === true,
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
+    strataSiftRelocate: options?.strataSiftRelocate === true,
+    strataPackedConverge: options?.strataPackedConverge === true,
+    strataTransitiveAdopt: options?.strataTransitiveAdopt === true,
+    strataBlockClamp: options?.strataBlockClamp === true,
+    strataTranspose: options?.strataTranspose === true,
+    // Chain relocate — MUST be listed in THIS sceneContext literal or it is
+    // silently dropped on the real app path (RCLL threading boundary), however
+    // correctly it is threaded everywhere else.
+    strataChainRelocate: options?.strataChainRelocate === true,
+    strataCoordCascade: options?.strataCoordCascade === true,
+    strataHeightGate: options?.strataHeightGate === true,
+    // A01 leaf X-shift — MUST be listed in THIS literal or it is silently dropped
+    // on the real app path (RCLL threading boundary), however correctly it is
+    // threaded everywhere else. Budget knobs are optional-only forwards (absent ⇒
+    // engine defaults 150/0.01/8/300), so the default shape is byte-identical.
+    strataLeafShift: options?.strataLeafShift === true,
+    ...(options?.strataLeafShiftHeightBudgetPx !== undefined
+      ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
+      : {}),
+    ...(options?.strataLeafShiftHeightBudgetFrac !== undefined
+      ? {
+          strataLeafShiftHeightBudgetFrac:
+            options.strataLeafShiftHeightBudgetFrac,
+        }
+      : {}),
+    ...(options?.strataLeafShiftRankBudget !== undefined
+      ? { strataLeafShiftRankBudget: options.strataLeafShiftRankBudget }
+      : {}),
+    ...(options?.strataLeafShiftRightEdgeGuardPx !== undefined
+      ? {
+          strataLeafShiftRightEdgeGuardPx:
+            options.strataLeafShiftRightEdgeGuardPx,
+        }
+      : {}),
+    // Default ON (`!== false`), unlike every neighbour here: the allocator is
+    // already gated behind `pipelineIncludeAncillary`. Must be listed in THIS
+    // literal — an option absent from the sceneContext is silently dropped on
+    // the real app path, however correctly it is threaded everywhere else.
+    strataAncillaryAllocator: options?.strataAncillaryAllocator !== false,
+    // OD-15 de-band — SEAM 1 (this literal; see the trap-#4 note above). Omit at
+    // the default `"none"` / when absent, so the literal never materializes a
+    // default own key. `"none"` is a TRUTHY string: an `&&`-truthy gate here
+    // would change the sceneContext shape on every default run.
+    ...(options?.strataDeBandLevel !== undefined &&
+    options?.strataDeBandLevel !== "none"
+      ? { strataDeBandLevel: options.strataDeBandLevel }
+      : {}),
+    strataCrossWeightPenetration: options?.strataCrossWeightPenetration ?? 1,
+    strataCrossWeightEdge: options?.strataCrossWeightEdge ?? 1,
+    // Optional-only forward: no default materialized (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options?.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
     colorMode: options?.colorMode,
   };
 

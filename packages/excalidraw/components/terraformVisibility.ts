@@ -26,6 +26,11 @@ import {
   getTerraformGraphAddressForElement,
   isTerraformSemanticOverviewScene,
 } from "./terraformElementMetadata";
+import {
+  isTerraformEdgeTripwireEnabled,
+  tripwireCheckConnectorPointFinite,
+  tripwireCheckEdgeSpan,
+} from "./terraformEdgeTripwire";
 
 import type { PointerDownState } from "../types";
 
@@ -75,6 +80,39 @@ export const buildTerraformReconcileOptionsForAppState = (
     : undefined;
 
 const getCustomData = (element: ExcalidrawElement) => element.customData ?? {};
+
+/**
+ * Max px a legitimate routed polyline endpoint sits outside its bound card.
+ * The strata router attaches detour endpoints a fixed pad off the card
+ * (measured ~38.5 px across 322 edges on both W9 presets); a re-anchored or
+ * foreign endpoint lands far further out. Sized well above the pad and well
+ * below any genuine re-anchor displacement (the stale-arrow repro moves 200 px).
+ */
+// Legit routed endpoints attach ~38.5px off their card (W9, 322 edges);
+// 48 gives ~10px slack above that while capping retained stale geometry far
+// below any real re-anchor (codex probe: 100px retained a visibly stale route).
+const ROUTED_ANCHOR_TOLERANCE = 48;
+
+/** Chebyshev distance a point lies OUTSIDE an axis-aligned rect (0 if inside/on). */
+const chebyshevDistanceOutsideRect = (
+  px: number,
+  py: number,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+): number => Math.max(0, rx - px, px - (rx + rw), ry - py, py - (ry + rh));
+
+/** Drop a stale `terraformRoutedPolyline` marker, preserving all other customData. */
+const stripRoutedPolylineMarker = (
+  customData: ExcalidrawElement["customData"],
+): ExcalidrawElement["customData"] => {
+  if (!customData || customData.terraformRoutedPolyline === undefined) {
+    return customData;
+  }
+  const { terraformRoutedPolyline: _drop, ...rest } = customData;
+  return rest;
+};
 
 const isTerraformResourceRectangle = (
   element: ExcalidrawElement | null | undefined,
@@ -1064,15 +1102,76 @@ export const repairTerraformEdgeBindings = (
     addBoundEdge(rectA.id, element.id);
     addBoundEdge(rectB.id, element.id);
 
+    // Strata Package C (W9): an obstacle-routed polyline (stamped by
+    // terraformPipelineStrataEdgeRouting.ts) keeps its detour geometry — its
+    // endpoints attach to the source/target cards, so only the bindings are
+    // (re)anchored and the straight-chord flatten below is skipped. Unmarked
+    // arrows (every scene today with the flag off) are unaffected.
+    //
+    // Validate-before-trust: the `terraformRoutedPolyline` marker is serialized,
+    // so it survives restore / duplication / paste. A stale, pasted, or foreign
+    // arrow can carry the flag while its binding re-anchors to a card that has
+    // since moved — trusting it blindly keeps the old detour geometry against a
+    // moved target. So the marker is only honoured when BOTH polyline endpoints
+    // still sit on their bound cards; a legit routed endpoint attaches within a
+    // small strata pad of its card (measured ~38.5 px, W9 battery, 322 edges),
+    // whereas a re-anchored/foreign endpoint lands far away. On mismatch the
+    // arrow is flattened to the standard chord AND the stale marker is stripped
+    // so it self-heals. (Comparing endpoints to the freshly recomputed
+    // centre-clipped chord anchors does NOT work: the router's card-attach
+    // convention differs from that clip by the same ~38.5 px on every legit
+    // arrow, which would flatten all of them.)
+    const hasRoutedFlag =
+      getCustomData(element).terraformRoutedPolyline === true;
+    const hasRoutedMarker = hasRoutedFlag && element.points.length > 2;
+    const firstPoint = element.points[0]!;
+    const lastPoint = element.points[element.points.length - 1]!;
+    const routedEndpointsOnCards =
+      hasRoutedMarker &&
+      chebyshevDistanceOutsideRect(
+        element.x + firstPoint[0],
+        element.y + firstPoint[1],
+        posA.x,
+        posA.y,
+        wA,
+        hA,
+      ) <= ROUTED_ANCHOR_TOLERANCE &&
+      chebyshevDistanceOutsideRect(
+        element.x + lastPoint[0],
+        element.y + lastPoint[1],
+        posB.x,
+        posB.y,
+        wB,
+        hB,
+      ) <= ROUTED_ANCHOR_TOLERANCE;
+    const isRoutedPolyline = hasRoutedMarker && routedEndpointsOnCards;
+    // Strip the flag from any arrow we flatten — including a marked 2-point
+    // arrow (no route to preserve), else the stale flag could resurrect later.
+    const stripStaleMarker =
+      hasRoutedFlag && !(hasRoutedMarker && routedEndpointsOnCards);
+
     const patch = {
-      x: startX,
-      y: startY,
-      width: Math.abs(endX - startX),
-      height: Math.abs(endY - startY),
-      points: [
-        pointFrom<LocalPoint>(0, 0),
-        pointFrom<LocalPoint>(endX - startX, endY - startY),
-      ],
+      ...(isRoutedPolyline
+        ? {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+            points: element.points,
+          }
+        : {
+            x: startX,
+            y: startY,
+            width: Math.abs(endX - startX),
+            height: Math.abs(endY - startY),
+            points: [
+              pointFrom<LocalPoint>(0, 0),
+              pointFrom<LocalPoint>(endX - startX, endY - startY),
+            ],
+          }),
+      ...(stripStaleMarker
+        ? { customData: stripRoutedPolylineMarker(element.customData) }
+        : {}),
       startBinding: {
         elementId: rectA.id,
         fixedPoint: startFixed,
@@ -1085,7 +1184,69 @@ export const repairTerraformEdgeBindings = (
       },
     };
 
-    if (arrowGeometryEqual(element, patch)) {
+    // TRIPWIRES (owner Q11, LOG-ONLY; see terraformEdgeTripwire.ts). Observe the
+    // connector points this declared edge just materialized — never mutate them.
+    // Gated OFF by default, so the block below is a single cheap boolean in prod
+    // and the emitted `patch` / element is byte-identical either way.
+    if (isTerraformEdgeTripwireEnabled()) {
+      // (a) SDEC-34 catch: a finite-guard on the center-clipped chord anchors.
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "startX",
+        value: startX,
+      });
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "startY",
+        value: startY,
+      });
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "endX",
+        value: endX,
+      });
+      tripwireCheckConnectorPointFinite({
+        edgeId: element.id,
+        layer,
+        guard: "connector-endpoint",
+        axis: "endY",
+        value: endY,
+      });
+      if (isRoutedPolyline) {
+        element.points.forEach((point, index) => {
+          tripwireCheckConnectorPointFinite({
+            edgeId: element.id,
+            layer,
+            guard: "routed-polyline-point",
+            axis: `point[${index}].x`,
+            value: point[0],
+          });
+          tripwireCheckConnectorPointFinite({
+            edgeId: element.id,
+            layer,
+            guard: "routed-polyline-point",
+            axis: `point[${index}].y`,
+            value: point[1],
+          });
+        });
+      }
+      // (b) per-edge collapse: the polyline this edge finished materializing.
+      tripwireCheckEdgeSpan({
+        edgeId: element.id,
+        layer,
+        points: patch.points as ReadonlyArray<readonly [number, number]>,
+      });
+    }
+
+    // Never short-circuit past a pending marker strip: a marked 2-point arrow
+    // whose flattened geometry already matches would otherwise keep the flag.
+    if (!stripStaleMarker && arrowGeometryEqual(element, patch)) {
       return element;
     }
 

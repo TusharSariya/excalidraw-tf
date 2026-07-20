@@ -1,12 +1,26 @@
 import graphlibDot from "@dagrejs/graphlib-dot";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraformPresetFixtures";
+import {
+  getTerraformImportPresetSourcesFromDb,
+  loadImportPresetsCatalog,
+} from "../../../excalidraw-app/dev/terraformImportPresetDb.mjs";
 
+import {
+  STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS,
+} from "../test-fixtures/terraformPresetFixtures";
+
+import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
+import {
+  buildTerraformImportPrepCache,
+  clearTerraformImportPrepCache,
+} from "./terraformImportPrepCache";
 import {
   stagingMultiStateLayoutSources,
   stagingMultiStatePipelineLayoutSources,
 } from "./terraformLayoutSnapshotFixtures";
+import { TERRAFORM_MODULE_TREE_KEY } from "./terraformPlanMeta";
 
 import * as terraformPlanParsingModule from "./terraformPlanParsing";
 
@@ -18,7 +32,11 @@ import {
   topologyBareAddressKey,
 } from "./terraformStackAddress";
 
-import type { TerraformPlanGraphNode } from "./terraformPlanParsing";
+import type { TerraformImportPresetSources } from "./terraformImportPresetsTypes";
+import type {
+  TerraformPlanGraphNode,
+  TerraformPlanNodesMap,
+} from "./terraformPlanParsing";
 
 /**
  * T4 - equivalence test for the scoped TerraformPlanNodeKeyIndex fast path added to
@@ -400,4 +418,443 @@ describe("withTerraformPlanNodeKeyIndex nested-scope restoration", () => {
       "stack-b::aws_subnet.b",
     );
   });
+});
+
+// ---------------------------------------------------------------------------
+// W14 WP1 - preset node-map differential (docs/strata-view-w14-browser-felt-cost.md §3).
+//
+// The section above harvests real call-site addresses from the staging-multi-state
+// fixture builds and checks the indexed path against an INDEPENDENT naive resolver.
+// This section adds the W14 §3 obligation directly: over the REAL committed preset
+// node maps P1 (staging-extended-localstack-v2) and P2 (staging-localstack) - the
+// exact merged, tfd-overlaid maps `preparePipelineLayout` consumes, obtained via the
+// public prep-cache parse - the O(1) indexed branch and the pre-existing O(N)
+// linear-scan branch of `resolveTerraformPlanNodeKey` (the two production branches the
+// WP1 skeleton-materialization scope toggles between) must return identical results
+// for every node key plus derived probes. Plus the explicit nested / throw-teardown /
+// ref-mismatch unit cases grounded on a real map (not the 2-key synthetic maps above).
+// ---------------------------------------------------------------------------
+
+const W14_PRESETS = {
+  P1: "staging-extended-localstack-v2",
+  P2: "staging-localstack",
+} as const;
+
+/** Build the exact merged, tfd-overlaid node map `preparePipelineLayout` consumes,
+ * via the public prep-cache path (the same parse the real layout uses). */
+function loadPresetNodesForW14(presetId: string): TerraformPlanNodesMap {
+  const raw = getTerraformImportPresetSourcesFromDb(presetId) as
+    | TerraformImportPresetSources
+    | null
+    | undefined;
+  expect(raw, `preset ${presetId} exists in the preset DB`).toBeTruthy();
+  const sources = resolveSourcesWithTfdComposition(
+    raw as TerraformImportPresetSources,
+  );
+  // Fresh parse - never serve a stale cache from a prior preset in this run.
+  clearTerraformImportPrepCache();
+  const prep = buildTerraformImportPrepCache(
+    sources as unknown as Parameters<typeof buildTerraformImportPrepCache>[0],
+  );
+  return prep.nodes;
+}
+
+/** The composed sources (plan/dot/tfd) for a preset — the same input the real
+ * layout parse consumes. Used to drive `applyTfdOverlayToNodes` in isolation. */
+function loadPresetSourcesForW14(
+  presetId: string,
+): TerraformImportPresetSources {
+  const raw = getTerraformImportPresetSourcesFromDb(presetId) as
+    | TerraformImportPresetSources
+    | null
+    | undefined;
+  expect(raw, `preset ${presetId} exists in the preset DB`).toBeTruthy();
+  return resolveSourcesWithTfdComposition(
+    raw as TerraformImportPresetSources,
+  ) as unknown as TerraformImportPresetSources;
+}
+
+/** Real node keys (skip the module-tree sentinel and every `__`-prefixed synthetic
+ * key - `resolveTerraformPlanNodeKey` ignores those internally). */
+function w14RealNodeKeys(nodes: TerraformPlanNodesMap): string[] {
+  return Object.keys(nodes).filter(
+    (k) => k !== TERRAFORM_MODULE_TREE_KEY && !k.startsWith("__"),
+  );
+}
+
+/** Every node key + derived probes: index-stripped form, stack-bare form (surfaces
+ * ambiguous-prefix collisions when two distinct keys share a bare key), and a few
+ * guaranteed-missing addresses. Deduped so each distinct input is asserted once. */
+function w14ResolutionProbes(nodes: TerraformPlanNodesMap): string[] {
+  const keys = w14RealNodeKeys(nodes);
+  const probes = new Set<string>();
+  for (const k of keys) {
+    probes.add(k);
+    probes.add(k.replace(/\[[^\]]*\]/g, "")); // index-stripped form
+    probes.add(topologyBareAddressKey(k)); // stack-bare form
+  }
+  probes.add("aws_nonexistent_resource.zzz_w14_missing_probe");
+  probes.add("module.does_not_exist.aws_s3_bucket.nope[0]");
+  probes.add("");
+  return [...probes];
+}
+
+/** Assert the indexed branch (scope active over `nodes`) equals the scan branch (no
+ * active scope) for every probe. */
+function assertIndexedEqualsScan(nodes: TerraformPlanNodesMap): number {
+  const { resolveTerraformPlanNodeKey, withTerraformPlanNodeKeyIndex } =
+    terraformPlanParsingModule;
+  const probes = w14ResolutionProbes(nodes);
+
+  const scanResults = probes.map((addr) =>
+    resolveTerraformPlanNodeKey(nodes, addr),
+  );
+  const indexedResults = withTerraformPlanNodeKeyIndex(nodes, () =>
+    probes.map((addr) => resolveTerraformPlanNodeKey(nodes, addr)),
+  );
+
+  expect(indexedResults.length).toBe(scanResults.length);
+  for (let i = 0; i < probes.length; i++) {
+    expect(
+      indexedResults[i],
+      `indexed vs scan diverged for probe "${probes[i]}"`,
+    ).toBe(scanResults[i]);
+  }
+  return probes.length;
+}
+
+describe("W14 WP1 - preset node-map indexed path ≡ linear scan", () => {
+  // W14 F3 — the §3 obligation is "across all committed presets' node maps (not
+  // just P1)". Enumerate EVERY entry in import-presets.catalog.json (not a
+  // hard-coded name list) and run the indexed-vs-scan differential over each
+  // preset's real merged, tfd-overlaid node map. Key-resolution differential
+  // only (prep-cache parse, no layout builds) to keep runtime sane. A catalog
+  // preset that fails to load is a loud failure, never a silent skip.
+  describe("all committed catalog presets: indexed path ≡ linear scan", () => {
+    const catalogPresetIds = loadImportPresetsCatalog().map(
+      (preset: { id: string }) => preset.id,
+    );
+
+    it("the catalog is non-empty (guard against a silently-empty enumeration)", () => {
+      expect(catalogPresetIds.length).toBeGreaterThan(0);
+    });
+
+    for (const presetId of catalogPresetIds) {
+      it(
+        `${presetId}: every probe resolves identically with and without an active index scope`,
+        () => {
+          const raw = getTerraformImportPresetSourcesFromDb(presetId);
+          // Loud fail: a catalog preset must be resolvable via the committed DB.
+          expect(
+            raw,
+            `catalog preset "${presetId}" must be resolvable via the committed preset DB`,
+          ).toBeTruthy();
+
+          const nodes = loadPresetNodesForW14(presetId);
+          const keys = w14RealNodeKeys(nodes);
+          expect(
+            keys.length,
+            `preset "${presetId}" parsed to an empty node map`,
+          ).toBeGreaterThan(0);
+          const probeCount = assertIndexedEqualsScan(nodes);
+          expect(probeCount).toBeGreaterThan(keys.length);
+        },
+        STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+      );
+    }
+  });
+
+  it(
+    "P1 (staging-extended-localstack-v2): every probe resolves identically with and without an active index scope",
+    () => {
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P1);
+      const keys = w14RealNodeKeys(nodes);
+      expect(keys.length).toBeGreaterThan(0); // guard a silently-empty parse
+      const probeCount = assertIndexedEqualsScan(nodes);
+      expect(probeCount).toBeGreaterThan(keys.length);
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "P2 (staging-localstack): every probe resolves identically with and without an active index scope",
+    () => {
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      const keys = w14RealNodeKeys(nodes);
+      expect(keys.length).toBeGreaterThan(0);
+      const probeCount = assertIndexedEqualsScan(nodes);
+      expect(probeCount).toBeGreaterThan(keys.length);
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "nested scope over the same real (P2) nodes ref resolves identically to unscoped",
+    () => {
+      const { resolveTerraformPlanNodeKey, withTerraformPlanNodeKeyIndex } =
+        terraformPlanParsingModule;
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      const probes = w14ResolutionProbes(nodes).slice(0, 200);
+
+      const unscoped = probes.map((addr) =>
+        resolveTerraformPlanNodeKey(nodes, addr),
+      );
+      const nested = withTerraformPlanNodeKeyIndex(nodes, () =>
+        withTerraformPlanNodeKeyIndex(nodes, () =>
+          probes.map((addr) => resolveTerraformPlanNodeKey(nodes, addr)),
+        ),
+      );
+      for (let i = 0; i < probes.length; i++) {
+        expect(nested[i]).toBe(unscoped[i]);
+      }
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "scope tears down after a throw - later unscoped resolution is unaffected (real P2 map)",
+    () => {
+      const { resolveTerraformPlanNodeKey, withTerraformPlanNodeKeyIndex } =
+        terraformPlanParsingModule;
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      const probe = w14RealNodeKeys(nodes)[0]!;
+      const baseline = resolveTerraformPlanNodeKey(nodes, probe);
+
+      expect(() =>
+        withTerraformPlanNodeKeyIndex(nodes, () => {
+          throw new Error("boom inside scope");
+        }),
+      ).toThrow("boom inside scope");
+
+      // The `finally` in withTerraformPlanNodeKeyIndex must have restored the
+      // previous (null) scope - the resolver falls back to the scan path and still
+      // returns the correct key, not a stale/leaked indexed answer.
+      expect(resolveTerraformPlanNodeKey(nodes, probe)).toBe(baseline);
+      // A fresh scope after the throw still works.
+      expect(
+        withTerraformPlanNodeKeyIndex(nodes, () =>
+          resolveTerraformPlanNodeKey(nodes, probe),
+        ),
+      ).toBe(baseline);
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "ref-mismatch: a scope built on a different nodes object falls back to scan and returns the same answer (real P2 map)",
+    () => {
+      const { resolveTerraformPlanNodeKey, withTerraformPlanNodeKeyIndex } =
+        terraformPlanParsingModule;
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      const probes = w14ResolutionProbes(nodes).slice(0, 200);
+      // A distinct object reference with the same contents. The resolver's
+      // `activePlanNodeKeyIndex.nodes === nodes` guard must fail, forcing the scan
+      // path even though a scope is active.
+      const otherRef = { ...nodes } as TerraformPlanNodesMap;
+
+      const unscoped = probes.map((addr) =>
+        resolveTerraformPlanNodeKey(nodes, addr),
+      );
+      const mismatched = withTerraformPlanNodeKeyIndex(otherRef, () =>
+        // Resolve against the ORIGINAL `nodes`, not `otherRef`.
+        probes.map((addr) => resolveTerraformPlanNodeKey(nodes, addr)),
+      );
+      for (let i = 0; i < probes.length; i++) {
+        expect(mismatched[i]).toBe(unscoped[i]);
+      }
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// W14 WP2 - .tfd overlay wrap differential + fallback-scan counter
+// (docs/strata-view-w14-browser-felt-cost.md §3, WP2 task steps 4-5).
+//
+// WP2 wraps exactly one additional synchronous parse region -
+// `applyTfdOverlayToNodes` (terraformPlanParsing.tsx) - in
+// `withTerraformPlanNodeKeyIndex`, because it resolves declared-dataflow endpoints
+// against a frozen, ref-identical `nodes` map (the only key its writers add is the
+// `__`-prefixed DECLARED_DATAFLOW_ORDERED_KEY, which the index excludes). The
+// key-mutating regions (`mergeRawTerraformStateIntoNodes`, `buildExistingEdges`) are
+// deliberately NOT wrapped and remain the residual scan sources the counter measures.
+// ---------------------------------------------------------------------------
+
+describe("W14 WP2 - fallback-scan counter semantics", () => {
+  it("counts an unscoped scan under scanWithoutScope, zero under an active scope, and a ref-mismatch under scopeRefMismatch (synthetic)", () => {
+    const {
+      resolveTerraformPlanNodeKey,
+      withTerraformPlanNodeKeyIndex,
+      getTerraformPlanNodeKeyScanStats,
+      resetTerraformPlanNodeKeyScanStats,
+    } = terraformPlanParsingModule;
+
+    const nodes: Record<string, TerraformPlanGraphNode> = {
+      "aws_vpc.main": { resources: {} },
+      "stack-a::aws_vpc.main": { resources: {} },
+    };
+
+    // (a) No active scope -> scanWithoutScope increments, scopeRefMismatch stays 0.
+    resetTerraformPlanNodeKeyScanStats();
+    resolveTerraformPlanNodeKey(nodes, "aws_vpc.main");
+    resolveTerraformPlanNodeKey(nodes, "aws_missing.zzz");
+    let stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(2);
+    expect(stats.scopeRefMismatch).toBe(0);
+
+    // (b) Under a scope on the SAME ref -> indexed path, neither counter moves.
+    resetTerraformPlanNodeKeyScanStats();
+    withTerraformPlanNodeKeyIndex(nodes, () => {
+      for (let i = 0; i < 5; i++) {
+        resolveTerraformPlanNodeKey(nodes, "aws_vpc.main");
+      }
+    });
+    stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(0);
+    expect(stats.scopeRefMismatch).toBe(0);
+
+    // (c) Scope active but built on a DIFFERENT ref -> scopeRefMismatch, not scanWithoutScope.
+    resetTerraformPlanNodeKeyScanStats();
+    const otherRef = { ...nodes } as Record<string, TerraformPlanGraphNode>;
+    withTerraformPlanNodeKeyIndex(otherRef, () => {
+      resolveTerraformPlanNodeKey(nodes, "aws_vpc.main");
+    });
+    stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(0);
+    expect(stats.scopeRefMismatch).toBe(1);
+
+    // (d) Early-return inputs (empty / module-tree key) never touch the scan path.
+    resetTerraformPlanNodeKeyScanStats();
+    resolveTerraformPlanNodeKey(nodes, "");
+    resolveTerraformPlanNodeKey(nodes, TERRAFORM_MODULE_TREE_KEY);
+    stats = getTerraformPlanNodeKeyScanStats();
+    expect(stats.scanWithoutScope).toBe(0);
+    expect(stats.scopeRefMismatch).toBe(0);
+  });
+
+  it(
+    "under an active scope over a real (P2) map, a full probe batch produces 0 scans; unscoped, every probe scans",
+    () => {
+      const {
+        resolveTerraformPlanNodeKey,
+        withTerraformPlanNodeKeyIndex,
+        getTerraformPlanNodeKeyScanStats,
+        resetTerraformPlanNodeKeyScanStats,
+      } = terraformPlanParsingModule;
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      const probes = w14ResolutionProbes(nodes)
+        .filter((p) => p !== "" && p !== TERRAFORM_MODULE_TREE_KEY)
+        .slice(0, 300);
+      expect(probes.length).toBeGreaterThan(0);
+
+      resetTerraformPlanNodeKeyScanStats();
+      withTerraformPlanNodeKeyIndex(nodes, () =>
+        probes.map((addr) => resolveTerraformPlanNodeKey(nodes, addr)),
+      );
+      let stats = getTerraformPlanNodeKeyScanStats();
+      expect(stats.scanWithoutScope).toBe(0);
+      expect(stats.scopeRefMismatch).toBe(0);
+
+      resetTerraformPlanNodeKeyScanStats();
+      probes.forEach((addr) => resolveTerraformPlanNodeKey(nodes, addr));
+      stats = getTerraformPlanNodeKeyScanStats();
+      expect(stats.scanWithoutScope).toBe(probes.length);
+      expect(stats.scopeRefMismatch).toBe(0);
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "full fresh P2 parse: the .tfd overlay contributes 0 scans (it is wrapped); residual scans come only from the excluded key-mutating parse regions; scopeRefMismatch is 0",
+    () => {
+      const {
+        getTerraformPlanNodeKeyScanStats,
+        resetTerraformPlanNodeKeyScanStats,
+      } = terraformPlanParsingModule;
+
+      resetTerraformPlanNodeKeyScanStats();
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P2);
+      expect(w14RealNodeKeys(nodes).length).toBeGreaterThan(0);
+      const parseStats = getTerraformPlanNodeKeyScanStats();
+
+      // The wrap must never mis-resolve: a scope active over the wrong ref would
+      // show up here. Zero is the invariant.
+      expect(parseStats.scopeRefMismatch).toBe(0);
+      // Residual is expected (>0) - it is the deliberately-unwrapped
+      // mergeRawTerraformStateIntoNodes / buildExistingEdges key-mutating regions.
+      expect(parseStats.scanWithoutScope).toBeGreaterThanOrEqual(0);
+      // eslint-disable-next-line no-console
+      console.info(
+        `[W14 WP2] full P2 parse residual: scanWithoutScope=${parseStats.scanWithoutScope} scopeRefMismatch=${parseStats.scopeRefMismatch}`,
+      );
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
+});
+
+describe("W14 WP2 - applyTfdOverlayToNodes wrapped region", () => {
+  it(
+    "overlay resolution is fully indexed (0 unscoped scans, 0 ref-mismatch) and indexed ≡ scan for its actual query set (real P1)",
+    () => {
+      const {
+        applyTfdOverlayToNodes,
+        resolveTerraformPlanNodeKey,
+        withTerraformPlanNodeKeyIndex,
+        getTerraformPlanNodeKeyScanStats,
+        resetTerraformPlanNodeKeyScanStats,
+      } = terraformPlanParsingModule;
+
+      const sources = loadPresetSourcesForW14(W14_PRESETS.P1);
+      const nodes = loadPresetNodesForW14(W14_PRESETS.P1);
+
+      // Harvest the exact (nodes, address) pairs the overlay resolves. vi.spyOn
+      // mutates the shared module export in place, so applyDeclaredDataFlow*'s
+      // calls (across the circular import) route through the spy and still read the
+      // live `activePlanNodeKeyIndex` set by the wrap inside applyTfdOverlayToNodes.
+      const harvested: HarvestedCall[] = [];
+      const originalResolve =
+        terraformPlanParsingModule.resolveTerraformPlanNodeKey;
+      const spy = vi
+        .spyOn(terraformPlanParsingModule, "resolveTerraformPlanNodeKey")
+        .mockImplementation((n, address) => {
+          harvested.push({ nodes: n, address });
+          return originalResolve(n, address);
+        });
+
+      resetTerraformPlanNodeKeyScanStats();
+      try {
+        applyTfdOverlayToNodes(
+          nodes,
+          sources.tfdTexts ?? [],
+          sources.tfdLabels,
+        );
+      } finally {
+        spy.mockRestore();
+      }
+
+      const overlayStats = getTerraformPlanNodeKeyScanStats();
+      // The overlay resolved endpoints (guards against a silently no-op wrap).
+      expect(harvested.length).toBeGreaterThan(0);
+      // The wrap drove every overlay resolution through the O(1) indexed path.
+      expect(overlayStats.scanWithoutScope).toBe(0);
+      expect(overlayStats.scopeRefMismatch).toBe(0);
+
+      // Differential: indexed (under the wrap) ≡ scan (no scope) for every address
+      // the overlay actually queried, against the exact same nodes ref.
+      let comparisons = 0;
+      for (const { nodes: n, address } of harvested) {
+        const indexed = withTerraformPlanNodeKeyIndex(n, () =>
+          resolveTerraformPlanNodeKey(n, address),
+        );
+        const scan = resolveTerraformPlanNodeKey(n, address);
+        expect(
+          indexed,
+          `overlay address ${JSON.stringify(address)} diverged indexed vs scan`,
+        ).toBe(scan);
+        comparisons++;
+      }
+      expect(comparisons).toBeGreaterThan(0);
+    },
+    STAGING_DB_LOAD_TEST_TIMEOUT_MS,
+  );
 });

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { describe, expect, it } from "vitest";
 
 import {
@@ -8,6 +9,7 @@ import {
   isDemoPathname,
   normalizePresetIdParam,
   parseTerraformDemoUrlParams,
+  resolveTerraformFocusSettingsFromDemoParams,
   type TerraformDemoSettingsSnapshot,
   type TerraformDemoUrlParams,
 } from "./terraformDemoUrlParams";
@@ -22,6 +24,7 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   pipelinePacked: false,
   pipelinePackedPullLeft: false,
   pipelineIncludeAncillary: false,
+  pipelinePrivateApiRegional: false,
   pipelineSemanticPlacement: false,
   pipelineSwimlaneLaneRise: false,
   pipelineReorder: false,
@@ -37,6 +40,14 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataSweeps: 0,
   strataCoordinateRefine: false,
   strataRankSeparate: false,
+  strataPackedScoring: false,
+  strataPackedScoringEpsilon: 0,
+  strataEdgeRouting: false,
+  strataBorderRoute: false,
+  strataBandCompact: false,
+  strataSiftRelocate: false,
+  strataCrossWeightPenetration: 1,
+  strataCrossWeightEdge: 1,
   moduleLayoutMode: "default",
 };
 
@@ -419,7 +430,7 @@ describe("terraformDemoUrlParams", () => {
     it("parses strata engine flags (strataNsRank/strataSweeps/strataCoordRefine/strataRankSep)", () => {
       expect(
         parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1",
+          "?preset=demo&view=strata&strataNsRank=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=1",
         ),
       ).toEqual({
         presetId: "demo",
@@ -428,7 +439,175 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 4,
         strataCoordRefine: true,
         strataRankSeparate: true,
+        strataPackedScoring: true,
       });
+    });
+
+    it("omits strataPackedScoring when the URL does not carry it", () => {
+      const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(params).not.toBeNull();
+      expect(params!.strataPackedScoring).toBeUndefined();
+    });
+
+    it("parses strataBandCompact and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandCompact=1",
+      );
+      expect(on).not.toBeNull();
+      expect(on!.strataBandCompact).toBe(true);
+      const bare = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(bare).not.toBeNull();
+      expect(bare!.strataBandCompact).toBeUndefined();
+    });
+
+    it("rejects junk strataBandCompact", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataBandCompact=maybe",
+        ),
+      ).toBeNull();
+    });
+
+    it("parses strataBandDepth and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandDepth=root",
+      );
+      expect(on).not.toBeNull();
+      expect(on!.strataBandDepth).toBe("root");
+      const bare = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(bare).not.toBeNull();
+      expect(bare!.strataBandDepth).toBeUndefined();
+    });
+
+    it("parses every strataBandDepth role (exact-case, incl. mixed-case subnetZone)", () => {
+      for (const role of [
+        "root",
+        "provider",
+        "account",
+        "region",
+        "vpc",
+        "subnetZone",
+      ] as const) {
+        expect(
+          parseTerraformDemoUrlParams(
+            `?preset=demo&view=strata&strataBandDepth=${role}`,
+          )!.strataBandDepth,
+        ).toBe(role);
+      }
+    });
+
+    it("rejects a genuinely-bogus strataBandDepth but canonicalizes case (S3-7)", () => {
+      // Disposition c09 §7.3 / S3-7: strataBandDepth is now case-INSENSITIVE
+      // like every other enum param — a case slip no longer hard-fails the URL.
+      // A bogus role still rejects the whole URL.
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataBandDepth=bogus",
+        ),
+      ).toBeNull();
+      // Lowercased "subnetzone" now canonicalizes to "subnetZone" (was: reject).
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataBandDepth=subnetzone",
+        )?.strataBandDepth,
+      ).toBe("subnetZone");
+    });
+
+    it("legacy strataBandCompact=1 still parses on its own (alias fold-in happens downstream, not in the parser)", () => {
+      const legacy = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandCompact=1",
+      );
+      expect(legacy).not.toBeNull();
+      expect(legacy!.strataBandCompact).toBe(true);
+      expect(legacy!.strataBandDepth).toBeUndefined();
+    });
+
+    it("explicit strataBandDepth and legacy strataBandCompact can both parse from the same URL (precedence is resolved downstream)", () => {
+      const both = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataBandDepth=region&strataBandCompact=1",
+      );
+      expect(both).not.toBeNull();
+      expect(both!.strataBandDepth).toBe("region");
+      expect(both!.strataBandCompact).toBe(true);
+    });
+
+    it("parses strataPackedEps (integer, and fractional relative mode)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedScoring=1&strataPackedEps=1",
+        ),
+      ).toEqual({
+        presetId: "demo",
+        view: "strata",
+        strataPackedScoring: true,
+        strataPackedEps: 1,
+      });
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=0.01",
+        )!.strataPackedEps,
+      ).toBe(0.01);
+    });
+
+    it("rejects a negative or non-numeric strataPackedEps", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=-1",
+        ),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=abc",
+        ),
+      ).toBeNull();
+    });
+
+    it("rejects a fractional strataPackedEps >= 1 (absolute mode must be integer)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=1.5",
+        ),
+      ).toBeNull();
+    });
+
+    it("accepts strataPackedEps=0.5 (relative mode, fractional < 1 is valid)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=0.5",
+        )!.strataPackedEps,
+      ).toBe(0.5);
+    });
+
+    it("accepts strataPackedEps=2 (absolute mode, integer)", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataPackedEps=2",
+        )!.strataPackedEps,
+      ).toBe(2);
+    });
+
+    it("parses strataEdgeRouting and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeRouting=1",
+      );
+      expect(on).toMatchObject({ strataEdgeRouting: true });
+      const off = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeRouting=0",
+      );
+      expect(off).toMatchObject({ strataEdgeRouting: false });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(absent!.strataEdgeRouting).toBeUndefined();
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeRouting=maybe",
+        ),
+      ).toBeNull();
+    });
+
+    it("omits strataPackedEps when the URL does not carry it", () => {
+      const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(params).not.toBeNull();
+      expect(params!.strataPackedEps).toBeUndefined();
     });
 
     it("rejects a non-integer or negative strataSweeps", () => {
@@ -511,10 +690,52 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 4,
         strataCoordRefine: true,
         strataRankSeparate: true,
+        strataPackedScoring: true,
+        strataPackedEps: 2,
+        strataBandCompact: true,
+        strataPackedConverge: true,
+        strataTransitiveAdopt: true,
+        strataBlockClamp: true,
+        strataLeafShift: true,
       };
       expect(
         parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
       ).toEqual(full);
+    });
+
+    it("round-trips strataLeafShift on/off through build+parse", () => {
+      const on: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        strataLeafShift: true,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(on))),
+      ).toEqual(on);
+      // default-off ⇒ no param emitted (byte-identity).
+      const off = buildTerraformDemoUrl({ presetId: "demo", view: "strata" });
+      expect(queryOf(off)).not.toContain("strataLeafShift");
+    });
+
+    it("round-trips strataBandDepth through build+parse", () => {
+      const full: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        strataSweeps: 4,
+        strataBandDepth: "root",
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
+      ).toEqual(full);
+    });
+
+    it("emits no strataBandDepth param when the field is absent (byte-identity)", () => {
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+        strataSweeps: 4,
+      });
+      expect(queryOf(url)).not.toContain("strataBandDepth");
     });
   });
 
@@ -576,6 +797,24 @@ describe("terraformDemoUrlParams", () => {
       expect(params.ancillary).toBe(false);
     });
 
+    it("pipeline + rcll views never serialize privateApiRegional (strata-only)", () => {
+      // The flag is view-scoped to strata; a non-strata snapshot that happens to
+      // carry it true must NOT emit the param, so non-strata share URLs stay
+      // byte-identical (and never advertise a placement they won't apply).
+      const pipeline = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "pipeline",
+        pipelinePrivateApiRegional: true,
+      });
+      expect("privateApiRegional" in pipeline).toBe(false);
+      const rcll = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "rcll",
+        pipelinePrivateApiRegional: true,
+      });
+      expect("privateApiRegional" in rcll).toBe(false);
+    });
+
     it("rcll view with a custom profile spells out the eight flags", () => {
       const params = collectTerraformDemoParams({
         ...baseSnapshot,
@@ -603,7 +842,9 @@ describe("terraformDemoUrlParams", () => {
       });
     });
 
-    it("strata view captures only compact/ancillary — off by default, no engine-flag keys", () => {
+    it("strata view always emits the engine flags explicitly (both states)", () => {
+      // Post-W5 default flip: a truthy-only emit would make a turned-OFF share
+      // URL silently re-import with the (now ON) dialog defaults.
       const params = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
@@ -613,10 +854,24 @@ describe("terraformDemoUrlParams", () => {
         view: "strata",
         compact: true,
         ancillary: false,
+        // Strata defaults private-API regional placement ON, so it is emitted
+        // in both states too (here the baseSnapshot's OFF ⇒ explicit false).
+        privateApiRegional: false,
+        strataSweeps: 0,
+        strataCoordRefine: false,
+        strataRankSeparate: false,
+        // owner-decisions.md 2026-07-17: packedScoring/sift/transpose flipped to
+        // default ON, so they now emit EXPLICITLY (both states) too — here the
+        // baseSnapshot's OFF ⇒ explicit false (transpose absent ⇒ false).
+        strataPackedScoring: false,
+        strataSift: false,
+        strataTranspose: false,
+        // ε default flipped to 1; the baseSnapshot's ε=0 is non-default ⇒ emitted.
+        strataPackedEps: 0,
       });
     });
 
-    it("strata view emits the engine flags only when set", () => {
+    it("strata view emits set engine flags (strataNsRank stays truthy-only)", () => {
       const params = collectTerraformDemoParams({
         ...baseSnapshot,
         view: "strata",
@@ -633,6 +888,148 @@ describe("terraformDemoUrlParams", () => {
         strataSweeps: 4,
         strataCoordRefine: true,
         strataRankSeparate: true,
+      });
+    });
+
+    it("strataLeafShift emits truthy-only in the strata collect", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataLeafShift" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataLeafShift: true,
+      });
+      expect(on.strataLeafShift).toBe(true);
+    });
+
+    it("strataPackedScoring emits explicitly in both states (owner default-ON flip 2026-07-17)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      // Default-ON flag: a turned-OFF share must carry an explicit 0, not omit
+      // (else the recipient re-imports with the ON default).
+      expect(off.strataPackedScoring).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataPackedScoring: true,
+      });
+      expect(on.strataPackedScoring).toBe(true);
+    });
+
+    it("strataSift + strataTranspose emit explicitly in both states (owner default-ON flip 2026-07-17)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect(off.strataSift).toBe(false);
+      expect(off.strataTranspose).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataSiftRelocate: true,
+        strataTranspose: true,
+      });
+      expect(on.strataSift).toBe(true);
+      expect(on.strataTranspose).toBe(true);
+    });
+
+    it("strataEdgeRouting emits truthy-only (like strataPackedScoring)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataEdgeRouting" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataEdgeRouting: true,
+      });
+      expect(on.strataEdgeRouting).toBe(true);
+    });
+
+    it("strataBandCompact emits truthy-only (like strataPackedScoring)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataBandCompact" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBandCompact: true,
+      });
+      expect(on.strataBandCompact).toBe(true);
+    });
+
+    it("strataBandDepth emits only when != default 'account' (never truthy-gated — a nonempty string is always truthy)", () => {
+      const absent = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataBandDepth" in absent).toBe(false);
+
+      const explicitDefault = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBandDepth: "account",
+      });
+      expect("strataBandDepth" in explicitDefault).toBe(false);
+
+      const nonDefault = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBandDepth: "root",
+      });
+      expect(nonDefault.strataBandDepth).toBe("root");
+    });
+
+    it("strataPackedScoringEpsilon emits non-default-only as strataPackedEps (owner default ε=1 2026-07-17)", () => {
+      // ε default flipped to 1; emit only when it diverges from 1 (absent
+      // resolves to 1). An explicit 0 is non-default ⇒ emitted (round-trips).
+      const atDefault = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 1,
+      });
+      expect("strataPackedEps" in atDefault).toBe(false);
+      const explicitZero = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 0,
+      });
+      expect(explicitZero.strataPackedEps).toBe(0);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 2,
+      });
+      expect(on.strataPackedEps).toBe(2);
+    });
+
+    it("strata K=0 snapshot round-trips as an explicit K=0 URL", () => {
+      const params = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataSweeps: 0,
+        strataCoordinateRefine: false,
+        strataRankSeparate: false,
+      });
+      const reparsed = parseTerraformDemoUrlParams(
+        queryOf(buildTerraformDemoUrl(params)),
+      );
+      expect(reparsed).toMatchObject({
+        view: "strata",
+        strataSweeps: 0,
+        strataCoordRefine: false,
+        strataRankSeparate: false,
       });
     });
   });
@@ -674,6 +1071,28 @@ describe("terraformDemoUrlParams", () => {
       const parsed = parseTerraformDemoUrlParams(
         queryOf(buildTerraformDemoUrlFromSettings(snapshot)),
       );
+      expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
+    });
+
+    it("parses the legacy private-API-regional OFF param without error (round-trips; inert for strata)", () => {
+      // owner-decisions.md 2026-07-17 (Q9): private REST APIs are ALWAYS regional
+      // in strata and the toggle is removed. The legacy `privateApiRegional=0`
+      // param is kept PARSEABLE (reversibility — a saved/legacy URL must not
+      // error and must round-trip byte-for-byte), but it is now INERT for strata:
+      // the engine clamps pipelinePrivateApiRegional TRUE at the sceneContext seam
+      // regardless of this value (proven in terraformLayoutCoreStrataThreading).
+      // So this asserts the PARSER contract only, not geometry.
+      const snapshot: TerraformDemoSettingsSnapshot = {
+        ...baseSnapshot,
+        view: "strata",
+        pipelinePrivateApiRegional: false,
+      };
+      const url = buildTerraformDemoUrlFromSettings(snapshot);
+      expect(queryOf(url)).toContain("privateApiRegional=0");
+      const parsed = parseTerraformDemoUrlParams(queryOf(url));
+      // No error / non-null: the legacy param is accepted, not rejected.
+      expect(parsed).not.toBeNull();
+      expect(parsed!.privateApiRegional).toBe(false);
       expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
     });
   });
@@ -734,6 +1153,172 @@ describe("terraformDemoUrlParams", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&lodPreset=ultra"),
       ).toBeNull();
+    });
+
+    it("parses focusdir (W11 WP1) and omits it when absent", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&view=rcll&focusdir=deps"),
+      ).toMatchObject({ focusDirection: "dependencies" });
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=rcll&focusdir=dependents",
+        ),
+      ).toMatchObject({ focusDirection: "dependents" });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=rcll");
+      expect(absent).not.toBeNull();
+      expect(absent!.focusDirection).toBeUndefined();
+    });
+
+    it("rejects an unknown focusdir code (including the default 'both')", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focusdir=both"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focusdir=downstream"),
+      ).toBeNull();
+    });
+
+    it("parses focushops=all (W11 WP1) as Infinity and omits it when absent", () => {
+      const all = parseTerraformDemoUrlParams(
+        "?preset=demo&view=rcll&focushops=all",
+      );
+      expect(all).not.toBeNull();
+      expect(all!.focusMaxHops).toBe(Infinity);
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=rcll");
+      expect(absent).not.toBeNull();
+      expect(absent!.focusMaxHops).toBeUndefined();
+    });
+
+    it("parses finite non-negative focushops caps, including 0 and >99 (W13 WP1)", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=2"),
+      ).toMatchObject({ focusMaxHops: 2 });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=99"),
+      ).toMatchObject({ focusMaxHops: 99 });
+      // 0 = focused node only (W13 WP1); previously this rejected the URL.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0"),
+      ).toMatchObject({ focusMaxHops: 0 });
+      // Boundary: 100 was previously a whole-URL reject (the 1..99 cap).
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=100"),
+      ).toMatchObject({ focusMaxHops: 100 });
+    });
+
+    it("focushops=0 resolves to terraformFocusMaxHops: 0 (W13 WP1)", () => {
+      const parsed = parseTerraformDemoUrlParams("?preset=demo&focushops=0");
+      expect(parsed).not.toBeNull();
+      expect(resolveTerraformFocusSettingsFromDemoParams(parsed!)).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: 0,
+      });
+    });
+
+    it("rejects focushops values outside 'all' / non-negative safe integers", () => {
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=unlimited"),
+      ).toBeNull();
+      // Negatives (the -1 stored sentinel included) never appear in URLs.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=-1"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=-2"),
+      ).toBeNull();
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=2.5"),
+      ).toBeNull();
+    });
+
+    it("rejects non-canonical numeric spellings — lexical form first (W13 F4)", () => {
+      // Only `all` or /^(0|[1-9][0-9]*)$/ are accepted; every alias that
+      // Number() would coerce rejects the whole URL. (Reverses the W13 WP1
+      // "accept iff Number() yields an integer" decimal pin.)
+      for (const alias of ["-0", "007", "0x10", "%2B1", "1e2", "2.0"]) {
+        expect(
+          parseTerraformDemoUrlParams(`?preset=demo&focushops=${alias}`),
+          `focushops=${alias} must reject`,
+        ).toBeNull();
+      }
+      // Canonical spellings still accept.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=0"),
+      ).toMatchObject({ focusMaxHops: 0 });
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=100"),
+      ).toMatchObject({ focusMaxHops: 100 });
+      // Canonical digits beyond Number.MAX_SAFE_INTEGER still reject.
+      expect(
+        parseTerraformDemoUrlParams("?preset=demo&focushops=9007199254740992"),
+      ).toBeNull();
+    });
+
+    it("round-trips focusdir + focushops=all through build/parse", () => {
+      const full: TerraformDemoUrlParams = {
+        presetId: "demo",
+        view: "rcll",
+        focusDirection: "dependents",
+        focusMaxHops: Infinity,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
+      ).toEqual(full);
+    });
+
+    it("round-trips a finite focushops cap through build/parse (W11 F5)", () => {
+      const finite: TerraformDemoUrlParams = {
+        presetId: "demo",
+        view: "rcll",
+        focusMaxHops: 2,
+      };
+      const url = buildTerraformDemoUrl(finite);
+      expect(url).toContain("focushops=2");
+      expect(parseTerraformDemoUrlParams(queryOf(url))).toEqual(finite);
+    });
+
+    it("never emits focusdir=both; finite caps are emitted numerically", () => {
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        focusDirection: "both",
+        focusMaxHops: 3,
+      });
+      expect(url).not.toContain("focusdir");
+      expect(url).toContain("focushops=3");
+    });
+
+    it("resolveTerraformFocusSettingsFromDemoParams always yields the full pair (W11 F2)", () => {
+      // Omitted params = EXPLICIT defaults, so stale persisted settings reset.
+      expect(resolveTerraformFocusSettingsFromDemoParams({})).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: null,
+      });
+      // Infinity (focushops=all) maps to the JSON-safe -1 stored sentinel.
+      expect(
+        resolveTerraformFocusSettingsFromDemoParams({
+          focusDirection: "dependents",
+          focusMaxHops: Infinity,
+        }),
+      ).toEqual({
+        terraformFocusDirection: "dependents",
+        terraformFocusMaxHops: -1,
+      });
+      // Finite caps (W11 F5) are stored verbatim.
+      expect(
+        resolveTerraformFocusSettingsFromDemoParams({ focusMaxHops: 2 }),
+      ).toEqual({
+        terraformFocusDirection: "both",
+        terraformFocusMaxHops: 2,
+      });
+      // Partial URLs must not leave the other field stale either.
+      expect(
+        resolveTerraformFocusSettingsFromDemoParams({
+          focusDirection: "dependencies",
+        }),
+      ).toEqual({
+        terraformFocusDirection: "dependencies",
+        terraformFocusMaxHops: null,
+      });
     });
 
     it("round-trips a full runtime-settings params object", () => {

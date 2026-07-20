@@ -1,0 +1,372 @@
+{
+  "meta": {
+    "reportOnly": true,
+    "unregistered": true,
+    "scope": "W12 WP1 frozen INPUT-ONLY distinctness profile + P3 smoke wall-clocks (WP3 budget seed)",
+    "syntheticP3Disclosure": "staging-heldout-mesh is SELF-AUTHORED (scripts/generate-heldout-plan.mjs, mulberry32 seed 20260704): out-of-tuning-distribution transfer material, NOT an independently sampled held-out plan — R8-F4 stays formally open.",
+    "fixtureV2Amendment": "AMENDMENT-1 (docs/strata-view-w12-heldout-scale.md): v1 fixed a single provider/account/region band (generator artifact — zero slice-B edges, extent transfer unexercised, extent cells frozen-VOID); v2 introduces 3 account/region bands + cross-band audit/alert fan-ins. Band structure is the ONLY change; all thresholds/metrics/definitions unchanged. v1 profile preserved at P3_DISTINCTNESS_PROFILE.v1.{json,md}.",
+    "scaleNote": "resourceCount is ONE distinctness dimension (scale)",
+    "resolvedFlowNote": "degree/SCC/path metrics measured on RESOLVED TFD flow endpoints (DECLARED_DATAFLOW_ORDERED_KEY after applyTfdOverlayToNodes)",
+    "presets": {
+      "P1": "staging-extended-localstack-v2",
+      "P2": "staging-localstack",
+      "P3": "staging-heldout-mesh"
+    }
+  },
+  "profiles": {
+    "P1": {
+      "preset": "staging-extended-localstack-v2",
+      "resourceCount": 1175,
+      "moduleDepth": {
+        "histogram": {
+          "0": 298,
+          "1": 360,
+          "2": 424,
+          "3": 93
+        },
+        "max": 3,
+        "meanX100": 127
+      },
+      "bands": {
+        "distinct": 9,
+        "histogram": {
+          "unbanded": 623,
+          "000000000004/us-east-1": 14,
+          "000000000003/us-east-1": 72,
+          "000000000002/us-east-1": 167,
+          "000000000003/us-west-2": 33,
+          "000000000002/us-east-2": 63,
+          "000000000002/us-west-2": 88,
+          "000000000002/us-west-1": 54,
+          "000000000003/us-east-2": 34,
+          "000000000003/us-west-1": 27
+        },
+        "crossBandResolvedEdges": 3,
+        "unbandedEndpoints": 43
+      },
+      "resourceTypes": {
+        "distinct": 98,
+        "top": [
+          {
+            "type": "aws_security_group_rule",
+            "count": 76
+          },
+          {
+            "type": "aws_route_table_association",
+            "count": 64
+          },
+          {
+            "type": "aws_subnet",
+            "count": 64
+          },
+          {
+            "type": "aws_vpc_endpoint",
+            "count": 63
+          },
+          {
+            "type": "aws_iam_role",
+            "count": 59
+          },
+          {
+            "type": "aws_iam_role_policy",
+            "count": 58
+          },
+          {
+            "type": "aws_route",
+            "count": 58
+          },
+          {
+            "type": "aws_cloudwatch_log_group",
+            "count": 47
+          },
+          {
+            "type": "aws_security_group",
+            "count": 42
+          },
+          {
+            "type": "aws_route_table",
+            "count": 32
+          }
+        ]
+      },
+      "tfdFlow": {
+        "resolvedEdges": 155,
+        "endpoints": 138,
+        "outDegree": {
+          "p50": 1,
+          "p90": 3,
+          "max": 8
+        },
+        "scc": {
+          "countGe2": 0,
+          "sizesGe2": []
+        },
+        "pathLengths": {
+          "samples": 523,
+          "p50": 8,
+          "p90": 13,
+          "max": 15
+        }
+      }
+    },
+    "P2": {
+      "preset": "staging-localstack",
+      "resourceCount": 792,
+      "moduleDepth": {
+        "histogram": {
+          "0": 116,
+          "1": 343,
+          "2": 240,
+          "3": 93
+        },
+        "max": 3,
+        "meanX100": 139
+      },
+      "bands": {
+        "distinct": 4,
+        "histogram": {
+          "unbanded": 420,
+          "000000000000/us-east-1": 159,
+          "000000000000/us-east-2": 66,
+          "000000000000/us-west-2": 91,
+          "000000000000/us-west-1": 56
+        },
+        "crossBandResolvedEdges": 0,
+        "unbandedEndpoints": 19
+      },
+      "resourceTypes": {
+        "distinct": 68,
+        "top": [
+          {
+            "type": "aws_security_group_rule",
+            "count": 59
+          },
+          {
+            "type": "aws_route",
+            "count": 50
+          },
+          {
+            "type": "aws_iam_role_policy",
+            "count": 42
+          },
+          {
+            "type": "aws_iam_role",
+            "count": 39
+          },
+          {
+            "type": "aws_cloudwatch_log_group",
+            "count": 37
+          },
+          {
+            "type": "aws_route_table_association",
+            "count": 32
+          },
+          {
+            "type": "aws_subnet",
+            "count": 32
+          },
+          {
+            "type": "aws_security_group",
+            "count": 30
+          },
+          {
+            "type": "aws_ssm_parameter",
+            "count": 30
+          },
+          {
+            "type": "aws_vpc_endpoint",
+            "count": 28
+          }
+        ]
+      },
+      "tfdFlow": {
+        "resolvedEdges": 74,
+        "endpoints": 75,
+        "outDegree": {
+          "p50": 1,
+          "p90": 3,
+          "max": 7
+        },
+        "scc": {
+          "countGe2": 0,
+          "sizesGe2": []
+        },
+        "pathLengths": {
+          "samples": 74,
+          "p50": 10,
+          "p90": 15,
+          "max": 15
+        }
+      }
+    },
+    "P3": {
+      "preset": "staging-heldout-mesh",
+      "resourceCount": 399,
+      "moduleDepth": {
+        "histogram": {
+          "1": 160,
+          "2": 51,
+          "3": 112,
+          "4": 64,
+          "5": 12
+        },
+        "max": 5,
+        "meanX100": 229
+      },
+      "bands": {
+        "distinct": 3,
+        "histogram": {
+          "000000000000/us-east-1": 309,
+          "210987654321/us-east-1": 48,
+          "000000000000/us-west-2": 42
+        },
+        "crossBandResolvedEdges": 39,
+        "unbandedEndpoints": 0
+      },
+      "resourceTypes": {
+        "distinct": 19,
+        "top": [
+          {
+            "type": "aws_cloudwatch_log_group",
+            "count": 54
+          },
+          {
+            "type": "aws_cloudwatch_metric_alarm",
+            "count": 52
+          },
+          {
+            "type": "aws_sqs_queue",
+            "count": 36
+          },
+          {
+            "type": "aws_iam_role",
+            "count": 33
+          },
+          {
+            "type": "aws_iam_role_policy",
+            "count": 33
+          },
+          {
+            "type": "aws_cloudwatch_event_rule",
+            "count": 32
+          },
+          {
+            "type": "aws_lambda_function",
+            "count": 32
+          },
+          {
+            "type": "aws_sns_topic",
+            "count": 22
+          },
+          {
+            "type": "aws_cloudwatch_event_target",
+            "count": 16
+          },
+          {
+            "type": "aws_lambda_event_source_mapping",
+            "count": 16
+          }
+        ]
+      },
+      "tfdFlow": {
+        "resolvedEdges": 210,
+        "endpoints": 155,
+        "outDegree": {
+          "p50": 1,
+          "p90": 3,
+          "max": 16
+        },
+        "scc": {
+          "countGe2": 3,
+          "sizesGe2": [2, 2, 4]
+        },
+        "pathLengths": {
+          "samples": 152,
+          "p50": 4,
+          "p90": 5,
+          "max": 6
+        }
+      }
+    }
+  },
+  "distinctness": {
+    "nonScaleAxesDistinctFromBoth": ["moduleDepthMax", "sccCountGe2", "maxOutDegree", "pathLengthP90", "topTypeMixJaccard"],
+    "required": 3,
+    "axes": {
+      "moduleDepthMax": {
+        "p1": 3,
+        "p2": 3,
+        "p3": 5,
+        "distinctFromBoth": true
+      },
+      "sccCountGe2": {
+        "p1": 0,
+        "p2": 0,
+        "p3": 3,
+        "distinctFromBoth": true
+      },
+      "maxOutDegree": {
+        "p1": 8,
+        "p2": 7,
+        "p3": 16,
+        "distinctFromBoth": true
+      },
+      "pathLengthP90": {
+        "p1": 13,
+        "p2": 15,
+        "p3": 5,
+        "distinctFromBoth": true
+      },
+      "topTypeMixJaccard": {
+        "p1": 0.18,
+        "p2": 0.18,
+        "p3": "reference",
+        "distinctFromBoth": true
+      }
+    }
+  },
+  "p3Smokes": {
+    "note": "buildMs are single-run wall-clocks (informational; WP3 budget seed for full-detail cells). Arms copied from W11 battery (A_v2/I) and ExtentGate full-detail bundles.",
+    "arms": {
+      "A_v2": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": true
+        },
+        "buildMs": 131.45,
+        "elementCount": 1619
+      },
+      "I": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": true,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 124.98,
+        "elementCount": 1619
+      },
+      "F_v2_full_ancillary": {
+        "options": {
+          "layoutMode": "pipeline",
+          "pipelineLayoutVariant": "v2",
+          "pipelineCompact": false,
+          "pipelineIncludeAncillary": true
+        },
+        "buildMs": 205.3,
+        "elementCount": 4122
+      },
+      "I2_strata_k4_a7_full": {
+        "options": {
+          "layoutMode": "strata",
+          "pipelineCompact": false,
+          "strataSweeps": 4,
+          "strataCoordinateRefine": true
+        },
+        "buildMs": 171.07,
+        "elementCount": 2291
+      }
+    }
+  }
+}

@@ -19,7 +19,7 @@
  *
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataCoordRefine.test.ts
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import graphlibDot from "@dagrejs/graphlib-dot";
 
@@ -30,6 +30,11 @@ import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraf
 
 import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
 import { buildStrataModel } from "./terraformPipelineStrataModel";
+// Namespace import used ONLY to `vi.spyOn` the real `buildStrataModel` export
+// so the "cut default" test below can observe the literal `engineOptions`
+// object terraformPipelineStrata.ts hands it — see that test for why the
+// named import above can't be spied directly.
+import * as terraformPipelineStrataModelModule from "./terraformPipelineStrataModel";
 import {
   checkStrataStructure,
   placeStrataHulls,
@@ -666,4 +671,261 @@ describe("A7 full engine — flag OFF ≡ flag-absent, flag ON succeeds", () => 
       STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
     );
   }
+});
+
+// ── Band-depth cut: A7 constraints follow the resolved hull policy ────────────
+//
+// A7's `constraintPolicy` is now always the hull's RESOLVED `policy` (read off
+// the model). Building the model with `strataBandDepth: "root"` makes
+// provider/account packed, so A7 mirrors the A0 skyline for those hulls at BOTH
+// blocksConstrain (geometric x-overlap, not all-pairs) AND minGap (leaf-leaf
+// CLUSTER, not LANE) with no extra threading. The default-cut model keeps them
+// banded — the contrast that pins the LANE gap / stacked bands.
+
+describe("A7 band-depth cut — constraint policy follows the resolved hull policy", () => {
+  const ROOT_CUT: StrataEngineOptions = { ...OPTS, strataBandDepth: "root" };
+
+  /** Account 111 with two X-overlapping DIRECT leaves (same column). */
+  function leafBearingAccount(opts: StrataEngineOptions) {
+    const acct = (id: string, addr: string): PipelineCluster => ({
+      ...frameCluster(id, placement("aws", "111", "r1"), addr, 200, 80),
+      ancillaryScopeRole: "account",
+    });
+    const clusters = [acct("l1", "aws.l1"), acct("l2", "aws.l2")];
+    const model = buildStrataModel(prep(clusters), opts);
+    const primes = primeEdges([]);
+    const a0 = placeStrataHulls(
+      model,
+      primes,
+      rankStub({ l1: 0, l2: 0 }),
+      opts,
+    );
+    return { model, primes, a0 };
+  }
+
+  const leafGapOf = (p: StrataPlacementResult): number =>
+    p.leafBoxes.get("l2")!.y -
+    (p.leafBoxes.get("l1")!.y + p.leafBoxes.get("l1")!.height);
+
+  it("keeps the CLUSTER leaf-leaf gap through A7 when the account is packed (cut root)", () => {
+    const { model, primes, a0 } = leafBearingAccount(ROOT_CUT);
+    expect(leafGapOf(a0)).toBe(36); // A0 skyline: CLUSTER between two leaf cards
+
+    // A7 is a no-op here (no chords); the CLUSTER gap survives seedCompact
+    // because constraintPolicy === "packed" (minGap = CLUSTER, not LANE).
+    const refined = refineStrataCoordinates(a0, model, primes);
+    expect(leafGapOf(refined)).toBe(36);
+    expect(fingerprint(refined)).toBe(fingerprint(a0));
+  });
+
+  it("default cut keeps the account banded: leaf-leaf gap is LANE (the contrast)", () => {
+    const { model, primes, a0 } = leafBearingAccount(OPTS);
+    // Banded account: A0 stacks the two leaf bands at LANE; A7 preserves it.
+    expect(leafGapOf(a0)).toBe(96);
+    const refined = refineStrataCoordinates(a0, model, primes);
+    expect(leafGapOf(refined)).toBe(96);
+  });
+
+  it("uses geometric overlap at blocksConstrain: X-disjoint row-share survives A7 (cut root)", () => {
+    // Two accounts under one provider, X-disjoint columns; packed at cut root
+    // ⇒ A0 row-shares them at the provider level.
+    const clusters = [
+      frameCluster(
+        "c1",
+        placement("aws", "111", "r1", "vpc-1", "s1"),
+        "aws.c1",
+        200,
+        100,
+      ),
+      frameCluster(
+        "c2",
+        placement("aws", "222", "r1", "vpc-2", "s2"),
+        "aws.c2",
+        200,
+        100,
+      ),
+    ];
+    const model = buildStrataModel(prep(clusters), ROOT_CUT);
+    const primes = primeEdges([]);
+    const a0 = placeStrataHulls(
+      model,
+      primes,
+      rankStub({ c1: 0, c2: 1 }),
+      ROOT_CUT,
+    );
+    const a111 = keyOf("aws", "111");
+    const a222 = keyOf("aws", "222");
+    expect(a0.boxedHulls.get(a111)!.box.y).toBe(a0.boxedHulls.get(a222)!.box.y);
+
+    // constraintPolicy === "packed": the X-disjoint pair does not constrain ⇒
+    // the shared row survives (identity — no chords to act on).
+    const refined = refineStrataCoordinates(a0, model, primes);
+    expect(refined.boxedHulls.get(a111)!.box.y).toBe(
+      refined.boxedHulls.get(a222)!.box.y,
+    );
+    expect(fingerprint(refined)).toBe(fingerprint(a0));
+  });
+
+  it("default cut: constraintPolicy === policy — refine is run-twice byte-identical", () => {
+    const { model, primes, a0 } = fixtureB();
+    const r1 = refineStrataCoordinates(a0, model, primes);
+    const r2 = refineStrataCoordinates(a0, model, primes);
+    expect(fingerprint(r1)).toBe(fingerprint(r2));
+  });
+});
+
+// ── Band-depth cut: legacy strataBandCompact alias ⇒ strataBandDepth "root" ────
+
+describe("band-depth cut — legacy strataBandCompact alias + meta echo", () => {
+  const preset = "staging-localstack";
+
+  it(
+    "cut default: meta byte-identical for flag-absent, strataBandCompact:false, and strataBandDepth:'account'; no strataBandCompact* keys",
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+      const absent = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+      });
+      const off = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+        strataBandCompact: false,
+      });
+      const account = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        compact: true,
+        strataBandDepth: "account",
+      });
+      // The default cut is byte-identical across all three spellings.
+      expect(off.meta).toEqual(absent.meta);
+      expect(account.meta).toEqual(absent.meta);
+      expect(frameGeomByKey(account.elements)).toEqual(
+        frameGeomByKey(absent.elements),
+      );
+      expect(
+        Object.keys(absent.meta).filter((k) =>
+          k.startsWith("strataBandCompact"),
+        ),
+      ).toEqual([]);
+      expect(
+        Object.keys(off.meta).filter((k) => k.startsWith("strataBandCompact")),
+      ).toEqual([]);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  // codex P2 (WP2, on 4694b8ea2): the "cut default" test above only compares
+  // absent/off/account to EACH OTHER, and all three resolve
+  // `strataBandDepth` to `"account"` before engineOptions is even built — so
+  // it is circular. If the load-bearing `strataBandDepth !== "account"` guard
+  // in terraformPipelineStrata.ts regressed to a `&&`-truthy check, "account"
+  // (a non-empty string) is truthy, so the guard would wrongly spread
+  // `{ strataBandDepth: "account" }` into engineOptions on every default run
+  // — and the test above would still pass, because `buildStrataModel`'s sole
+  // consumer (`options.strataBandDepth ?? "account"`) resolves an EXPLICIT
+  // "account" the same way it resolves an ABSENT key, so scene output stays
+  // byte-identical either way. The only thing a truthy-guard regression
+  // actually changes is the literal SHAPE of the engineOptions object handed
+  // to buildStrataModel — which no scene-output assertion can see. Pin the
+  // guard at its only observable seam instead: spy on the real
+  // `buildStrataModel` export and assert the object it receives carries NO
+  // `strataBandDepth` own-key at the default cut (any spelling), and DOES
+  // carry one at a non-default cut (the discriminating control).
+  it(
+    'cut default: buildStrataModel receives engineOptions with NO strataBandDepth key (pins the `!== "account"` guard)',
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+      const spy = vi.spyOn(
+        terraformPipelineStrataModelModule,
+        "buildStrataModel",
+      );
+      const lastEngineOptions = (): Record<string, unknown> => {
+        const call = spy.mock.calls.at(-1);
+        expect(call).toBeDefined();
+        return call![1] as Record<string, unknown>;
+      };
+      try {
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+        });
+        const absentOpts = lastEngineOptions();
+
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+          strataBandCompact: false,
+        });
+        const compactFalseOpts = lastEngineOptions();
+
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+          strataBandDepth: "account",
+        });
+        const explicitAccountOpts = lastEngineOptions();
+
+        for (const opts of [
+          absentOpts,
+          compactFalseOpts,
+          explicitAccountOpts,
+        ]) {
+          expect(
+            Object.prototype.hasOwnProperty.call(opts, "strataBandDepth"),
+          ).toBe(false);
+        }
+
+        // Discriminating control — a non-default cut DOES carry the key, so
+        // the assertions above are not vacuously always-false.
+        spy.mockClear();
+        await buildTerraformStrataExcalidrawScene(nodes, plan, {
+          compact: true,
+          strataBandDepth: "root",
+        });
+        const rootOpts = lastEngineOptions();
+        expect(
+          Object.prototype.hasOwnProperty.call(rootOpts, "strataBandDepth"),
+        ).toBe(true);
+        expect(rootOpts.strataBandDepth).toBe("root");
+      } finally {
+        spy.mockRestore();
+      }
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 16,
+  );
+
+  it(
+    "legacy strataBandCompact:true ≡ strataBandDepth:'root' — same frame geometry (characterized alias)",
+    async () => {
+      const { nodes, plan } = loadNodes(preset);
+      const base = {
+        compact: true,
+        strataRankSeparate: true,
+        strataCoordinateRefine: true,
+      } as const;
+      const alias = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        ...base,
+        strataBandCompact: true,
+      });
+      const explicit = await buildTerraformStrataExcalidrawScene(nodes, plan, {
+        ...base,
+        strataBandDepth: "root",
+      });
+      // Neither degrades; both keep R2 zero.
+      expect(alias.meta.rcllV2Degraded).toBeUndefined();
+      expect(explicit.meta.rcllV2Degraded).toBeUndefined();
+      expect(alias.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
+      // The alias resolves to the same cut ⇒ identical frame geometry.
+      expect(frameGeomByKey(alias.elements)).toEqual(
+        frameGeomByKey(explicit.elements),
+      );
+      // The legacy alias still echoes its Requested marker (old links).
+      expect(alias.meta.strataBandCompactRequested).toBe(true);
+      // Explicit strataBandDepth does NOT set the legacy alias echo.
+      expect(explicit.meta.strataBandCompactRequested).toBeUndefined();
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 16,
+  );
 });

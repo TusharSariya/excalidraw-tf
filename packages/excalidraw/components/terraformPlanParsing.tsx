@@ -98,9 +98,16 @@ type TerraformPriorStateResource = {
   depends_on?: string[];
 };
 
+// O4 floor (Track B, overnight-20260717): hoist the instance-index RegExp to
+// module scope (compiled once, not re-created per call). `replace(re, "")` resets
+// the `g`-flag `lastIndex` to 0 on each call, so a shared module-level regex is
+// behaviorally identical to a fresh literal. This function is on both the
+// plan-parse head and the scene-apply tail of the canonical trace.
+const TERRAFORM_INSTANCE_INDEX_RE = /\[[^\]]+\]/g;
+
 /** Strip `count` / `for_each` instance keys so graph ids match `terraform graph` / `depends_on` variants. */
 const stripTerraformAddressIndexes = (address = "") =>
-  address.replace(/\[[^\]]+\]/g, "");
+  address.replace(TERRAFORM_INSTANCE_INDEX_RE, "");
 
 export type TerraformPlanParsingOptions = {
   /** When true, emit nested AWS topology frames (local import only); otherwise ELK module graph. */
@@ -131,6 +138,13 @@ export type TerraformPlanParsingOptions = {
   pipelinePackedPullLeft?: boolean;
   /** Pipeline: also draw non-TFD resources in per-hull "Unconnected" strips. */
   pipelineIncludeAncillary?: boolean;
+  /**
+   * Pipeline (opt-in, default off): private VPC-endpoint-bound REST APIs
+   * (`aws_api_gateway_rest_api` with `endpoint_configuration.types = ["PRIVATE"]`)
+   * are placed at ACCOUNT+REGION level with a companion-inferred owning account,
+   * instead of nested inside a VPC/subnet. OFF ⇒ byte-identical topology extraction.
+   */
+  pipelinePrivateApiRegional?: boolean;
   /**
    * Pipeline (opt-in, default off): nesting-aware semantic placement —
    * role-based forced topology bands + deterministic dataflow straightening.
@@ -176,12 +190,85 @@ export type TerraformPlanParsingOptions = {
    * on the separated floor REPLACES the A1 rank; mutually exclusive with
    * `strataNetworkSimplexRank` (rankSeparate wins). Default off. */
   strataRankSeparate?: boolean;
+  /** EXPERIMENTAL W5b probe (round-8 R8-F9): joint constrained-NS refinement of
+   * the separated floor. Harness-only, default off; inert without rankSeparate. */
+  strataJointNsRank?: boolean;
+  /** Strata round 9 (SDEC-57): whole-layout candidate-set scoring for packed-hull
+   * ordering (real-skyline trials; lexicographic crossings → penetrations →
+   * length). Default off. */
+  strataPackedScoring?: boolean;
+  /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
+  strataPackedScoringEpsilon?: number;
+  /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
+  strataPackedFrontierMeta?: boolean;
+  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing
+   * ("penetrating-only" scene-build detours). Default off. */
+  strataEdgeRouting?: boolean;
+  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
+  strataBorderRoute?: boolean;
+  /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
+   * primarily effective with rankSeparate. LEGACY ALIAS for
+   * `strataBandDepth: "root"`. */
+  strataBandCompact?: boolean;
+  /** Strata v3.2: band-depth slider cut — the deepest role still banded.
+   * Default "account" (today's fixed role→policy map, byte-identical). */
+  strataBandDepth?: import("./terraformPipelineStrataTypes").StrataHullRole;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0 (M1a; 4 in M1b). */
   strataSweeps?: number;
   /** Strata A7: slice-A coordinate refinement. S0a: accepted + threaded, unused
    * until the engine lands (M1). Default off. */
   strataCoordinateRefine?: boolean;
+  /** OD-15 crossings-≻-length relocate (cross-hull sift + post-A7 vertical
+   * slots). Default off. */
+  strataSiftRelocate?: boolean;
+  /** Relocate objective weight on penetrations. Default 1. */
+  strataCrossWeightPenetration?: number;
+  /** Relocate objective weight on edge-edge crossings. Default 1. */
+  strataCrossWeightEdge?: number;
+  /** Edge-edge regression cap for the relocate descent. Optional — absent
+   * inherits `strataPackedScoringEpsilon`. */
+  strataEdgeCrossCap?: number;
+  /** G-DESCENT remedy: the packed-scoring descent returns the best-seen
+   * ADOPTED snapshot instead of the rolling incumbent. Default off; inert at
+   * ε=0. */
+  strataPackedConverge?: boolean;
+  /** P0.2: transitive adoption relation for the packed descent. Default off. */
+  strataTransitiveAdopt?: boolean;
+  /** P4 pure-sink account block clamp: rigid-translate a dead-end account subtree
+   * left toward its sources. Default off. */
+  strataBlockClamp?: boolean;
+  /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
+   * remove leftover diagonal crossings. Default off. */
+  strataTranspose?: boolean;
+  /** Exclusive-downstream chain relocate: rigid Y co-translation of a unit and
+   * its exclusive downstream group. Default off. */
+  strataChainRelocate?: boolean;
+  /** A7 tie-cascade (extends coordinateRefine): let a net-zero fixed-point column
+   * escape to its two-sided median and chase chord-connected downstreams. Default
+   * off. */
+  strataCoordCascade?: boolean;
+  strataHeightGate?: boolean;
+  /** A01 leaf X-shift (post-A7): pull degree-1 pure-sink leaves left onto a grid
+   * column between source and current rank, Y-redrop, grow ancestor chain. Default
+   * off. Carries the mandatory right-edge column guard. */
+  strataLeafShift?: boolean;
+  /** A01 slack height gate absolute px budget (default 150). */
+  strataLeafShiftHeightBudgetPx?: number;
+  /** A01 slack height gate relative budget fraction (default 0.01). */
+  strataLeafShiftHeightBudgetFrac?: number;
+  /** A01 max target ranks tried per leaf (default 8). */
+  strataLeafShiftRankBudget?: number;
+  /** A01 right-edge column guard px (default 300). */
+  strataLeafShiftRightEdgeGuardPx?: number;
+  /** §3o ancillary greedy right-slack allocator. Default ON; inert unless
+   *  `pipelineIncludeAncillary` is also on, so it cannot affect the default
+   *  ("Connected only") scene. */
+  strataAncillaryAllocator?: boolean;
+  /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
+   * the Strata model build (structure phase). Default "none" (byte-identical).
+   * Suppressed when the absorbing parent stays banded under `strataBandDepth`. */
+  strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };
@@ -419,19 +506,34 @@ export function applyTfdOverlayToNodes(
   if (texts.length === 0) {
     return { errors: [], warnings: [] };
   }
-  if (texts.length === 1 && tfdTexts.length === 0 && legacySingleText) {
-    const { errors, warnings } = applyDeclaredDataFlow(
-      nodes as Record<string, TerraformPlanGraphNode>,
-      texts[0],
-    );
-    return { errors, warnings };
-  }
-  const { errors, warnings } = applyDeclaredDataFlowFromMany(
+  // W14 WP2 (always-on, byte-identical): the .tfd overlay resolves every declared
+  // dataflow endpoint against `nodes` via resolveTerraformPlanNodeKey
+  // (applyDeclaredDataFlow / applyDeclaredDataFlowFromMany). By the time overlay
+  // runs the `nodes` map is fully built and its resource-key set is frozen — the
+  // only key these writers add is the `__`-prefixed DECLARED_DATAFLOW_ORDERED_KEY,
+  // which the index excludes — so wrapping the whole synchronous overlay lets every
+  // resolution take the O(1) indexed path. Ref-equality holds: applyDeclaredDataFlow*
+  // thread this exact `nodes` object straight through to the resolver. This wrap
+  // covers both call sites (terraformLayoutCore `parse.tfd` and the prep-cache build),
+  // each of which passes the frozen post-build map.
+  return withTerraformPlanNodeKeyIndex(
     nodes as Record<string, TerraformPlanGraphNode>,
-    texts,
-    tfdLabels,
+    () => {
+      if (texts.length === 1 && tfdTexts.length === 0 && legacySingleText) {
+        const { errors, warnings } = applyDeclaredDataFlow(
+          nodes as Record<string, TerraformPlanGraphNode>,
+          texts[0],
+        );
+        return { errors, warnings };
+      }
+      const { errors, warnings } = applyDeclaredDataFlowFromMany(
+        nodes as Record<string, TerraformPlanGraphNode>,
+        texts,
+        tfdLabels,
+      );
+      return { errors, warnings };
+    },
   );
-  return { errors, warnings };
 }
 
 /** Multi-file local import (plans, states, `.tfd` overlays). */
@@ -613,6 +715,37 @@ let activePlanNodeKeyIndex: {
 } | null = null;
 
 /**
+ * W14 WP2 fallback-scan observability (dev/profiler-only). Counts how often
+ * {@link resolveTerraformPlanNodeKey} still pays the original O(N) `Object.keys(nodes)`
+ * scan path instead of the O(1) indexed path:
+ *   - `scanWithoutScope`: no {@link withTerraformPlanNodeKeyIndex} scope was active
+ *     (e.g. the deliberately-unwrapped, key-mutating parse regions
+ *     `mergeRawTerraformStateIntoNodes` / `buildExistingEdges`).
+ *   - `scopeRefMismatch`: a scope WAS active but was built on a different `nodes`
+ *     object reference than the one the resolver received (the ref-equality guard
+ *     defends against silent misresolution and falls back to scan).
+ * Pure integer increments — no logging, no allocation. Read/reset via the exported
+ * helpers below for tests and the W14 WP4 browser trace.
+ */
+let planNodeKeyScanWithoutScope = 0;
+let planNodeKeyScopeRefMismatch = 0;
+
+export function getTerraformPlanNodeKeyScanStats(): {
+  scanWithoutScope: number;
+  scopeRefMismatch: number;
+} {
+  return {
+    scanWithoutScope: planNodeKeyScanWithoutScope,
+    scopeRefMismatch: planNodeKeyScopeRefMismatch,
+  };
+}
+
+export function resetTerraformPlanNodeKeyScanStats(): void {
+  planNodeKeyScanWithoutScope = 0;
+  planNodeKeyScopeRefMismatch = 0;
+}
+
+/**
  * Activate a scoped {@link TerraformPlanNodeKeyIndex} for `nodes` for the synchronous extent of `fn`, so every
  * {@link resolveTerraformPlanNodeKey} call inside `fn` (directly or transitively) can use O(1)-average indexed
  * lookups instead of the original O(N) scans. Restores the previous context (supports nested/re-entrant calls)
@@ -660,6 +793,19 @@ export function resolveTerraformPlanNodeKey(
       address,
       activePlanNodeKeyIndex.index,
     );
+  }
+
+  // W14 WP2: falling through to the O(N) scan path — record why (no scope vs.
+  // scope present but ref-mismatch) for the fallback-scan observability counter.
+  // W14 F6: gate the increments behind `import.meta.env.DEV` so production builds
+  // pay nothing (the only consumers are dev tests + the WP4 dev-build trace, both
+  // of which run with DEV=true; prod skips the writes entirely).
+  if (import.meta.env.DEV) {
+    if (activePlanNodeKeyIndex !== null) {
+      planNodeKeyScopeRefMismatch += 1;
+    } else {
+      planNodeKeyScanWithoutScope += 1;
+    }
   }
 
   const parsed = parseStackAddress(address);

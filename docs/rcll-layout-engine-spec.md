@@ -6,6 +6,18 @@ This spec captures the **full decision-making context** for the layout engine's 
 
 ---
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Decision |
+| Status | Historical — A vs B frame; forward plan is architecture-decision → normative stack |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Children | [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Sisters | [`rcll-architecture-assessment-report.md`](./rcll-architecture-assessment-report.md) |
+| Next (agent) | Read sister assessment, then architecture-decision. |
+
 ## 1. What is decided vs. open
 
 |  | State |

@@ -201,16 +201,29 @@ export function buildPlacementMap(
   plan: unknown,
   enrichedOverride?: EnrichedTopologyPlacements,
   precomputedSatelliteAddresses?: ReadonlySet<string>,
+  opts?: { privateApiRegional?: boolean },
 ): Map<string, PipelinePlacement> {
+  const privateApiRegional = opts?.privateApiRegional === true;
   const awsPlan = filterPlanByProviderFamily(plan as any, "aws");
   const cache = getTerraformImportPrepCache();
-  let enriched = enrichedOverride ?? cache?.enrichedPlacements;
+  // Only reuse the cached placement when it was built under the SAME
+  // `privateApiRegional` flag — otherwise a flag change within one session/worker
+  // would silently serve the other value's placements (regional-vs-VPC private
+  // API), making ON inert after an OFF build or OFF non-legacy after an ON build.
+  let enriched =
+    enrichedOverride ??
+    (cache?.enrichedPlacements !== undefined &&
+    cache.enrichedPlacementsPrivateApiRegional === privateApiRegional
+      ? cache.enrichedPlacements
+      : undefined);
   if (!enriched) {
     enriched = buildEnrichedTopologyPlacements(awsPlan, nodes, {
       precomputedSatelliteAddresses,
+      privateApiRegional,
     });
     if (cache) {
       cache.enrichedPlacements = enriched;
+      cache.enrichedPlacementsPrivateApiRegional = privateApiRegional;
     }
   }
   const out = topologyAddressPlacementMap(enriched, awsPlan);
@@ -740,11 +753,21 @@ type NsEdge = { u: string; v: string; w: number };
  * shipped. Solves each weakly-connected component independently (a disconnected
  * DAG is min-span per component); nodes touched by no edge keep their longest-path
  * rank.
+ *
+ * `zeroWeightEdges` (optional, EXPERIMENTAL — the round-8 R8-F9 joint-solve
+ * probe): extra constraint edges with objective weight 0 and the same δ=1
+ * minimum length. They participate in feasibility (tight-tree growth, pivots,
+ * the balance window) but contribute nothing to Σ w·span — Gansner's standard
+ * device for constraint-only edges (dot uses w=0 for flat-edge constraints).
+ * The caller MUST pass a `longestPathDepths` floor that is feasible for the
+ * AUGMENTED edge set (e.g. a longest-path over real ∪ zero-weight edges).
+ * Absent/empty ⇒ byte-identical behavior to the 3-arg form.
  */
 export function computeNetworkSimplexDepths(
   collapsedEdges: readonly { source: string; target: string }[],
   clusterIds: readonly string[],
   longestPathDepths: ReadonlyMap<string, number>,
+  zeroWeightEdges?: readonly { source: string; target: string }[],
 ): Map<string, number> {
   const ids = [...clusterIds];
   const identity = (): Map<string, number> =>
@@ -765,13 +788,31 @@ export function computeNetworkSimplexDepths(
     const k = e.source + SEP + e.target;
     weightByPair.set(k, (weightByPair.get(k) ?? 0) + 1);
   }
+  const realPairCount = weightByPair.size;
+  // Zero-weight constraint edges: dedupe (u,v); a pair already present as a real
+  // edge is skipped — the real edge's δ=1 constraint subsumes it and a parallel
+  // w=0 copy could pair with it as a 2-edge... it can't (same direction), but it
+  // would be pure noise in every tie-break scan.
+  if (zeroWeightEdges) {
+    for (const e of zeroWeightEdges) {
+      if (e.source === e.target) {
+        continue;
+      }
+      const k = e.source + SEP + e.target;
+      if (!weightByPair.has(k)) {
+        weightByPair.set(k, 0);
+      }
+    }
+  }
   const edges: NsEdge[] = [...weightByPair.entries()]
     .map(([k, w]): NsEdge => {
       const sep = k.indexOf(SEP);
       return { u: k.slice(0, sep), v: k.slice(sep + 1), w };
     })
     .sort((a, b) => a.u.localeCompare(b.u) || a.v.localeCompare(b.v));
-  if (edges.length === 0) {
+  // No REAL (weighted) edges ⇒ objective is identically 0 and the supplied floor
+  // is already feasible (caller contract) ⇒ nothing to optimize.
+  if (realPairCount === 0) {
     return identity();
   }
 
@@ -1248,7 +1289,7 @@ export function ancillaryStripFrameId(scopeKey: string): string {
   return `tf-pipeline:ancillaryStrip:${encodeURIComponent(scopeKey)}`;
 }
 
-function ancillaryStripRows(
+export function ancillaryStripRows(
   strip: AncillaryStrip,
   wrapWidth: number,
 ): {
@@ -1501,6 +1542,12 @@ export type PreparePipelineLayoutOptions = {
    * rewrite the depth floor; NS takes precedence).
    */
   networkSimplexRank?: boolean;
+  /**
+   * Opt-in (default off): private VPC-endpoint-bound REST APIs are placed at
+   * ACCOUNT+REGION level (companion-account inferred) instead of nested in a VPC.
+   * OFF ⇒ byte-identical legacy topology extraction.
+   */
+  privateApiRegional?: boolean;
 };
 
 export function preparePipelineLayout(
@@ -1528,7 +1575,9 @@ export function preparePipelineLayout(
         placementByAddress: terraformImportProfilerMeasure(
           "pipeline.prep.resourceRects",
           () =>
-            buildPlacementMap(nodes, plan, undefined, new Set(owners.keys())),
+            buildPlacementMap(nodes, plan, undefined, new Set(owners.keys()), {
+              privateApiRegional: options?.privateApiRegional,
+            }),
         ),
       };
     },
@@ -1564,56 +1613,69 @@ export function preparePipelineLayout(
   const depthResult = computeDepths(collapsedEdges, clusterIds);
 
   let clusterBuilderCalls = 0;
+  // W14 WP1 (always-on, byte-identical): the skeleton materialization phase
+  // (`skeleton.resourceRects` — the dominant W12 timing-split leaf) re-pays O(N)
+  // `Object.keys(nodes)` address resolution per cluster builder. Wrap the whole
+  // synchronous `.map` in the scoped plan-node-key index so every
+  // `resolveTerraformPlanNodeKey` call underneath takes the O(1) indexed path.
+  // Ref-equality holds: the cluster builders thread this exact `nodes` object
+  // straight through to the resolvers. Shared by both the v2 and strata paths
+  // (both reach here via `preparePipelineLayout`). This region is fully
+  // synchronous (no await), and the earlier `withTerraformPlanNodeKeyIndex`
+  // scope at the top of this function has already exited, so this is a
+  // sequential — not nested — scope over the same `nodes`.
   const clusters: PipelineCluster[] = terraformImportProfilerMeasure(
     "pipeline.prep.materialize",
     () =>
-      clusterIds.map((address) => {
-        const placement = placementByAddress.get(address) ?? {
-          providerFamily: providerFamilyForType(
-            resourceTypeFor(nodes, address),
-          ),
-          accountId: "unknown-account",
-          region: "unknown-region",
-          vpcId: null,
-        };
-        const clusterPlacement = {
-          accountId: placement.accountId,
-          region: placement.region,
-          vpcId: placement.vpcId,
-          subnetTier: placement.subnetTier,
-          subnetSignature: placement.subnetSignature,
-        };
-        clusterBuilderCalls += 1;
-        let build = compact
-          ? buildCompactPipelinePrimaryCluster(
-              address,
-              nodes,
-              plan,
-              clusterPlacement,
-            )
-          : buildTopologyPrimaryClusterSkeletonForPipeline(
-              address,
-              nodes,
-              plan,
-              clusterPlacement,
-            );
-        if (
-          build.skeleton.length === 0 ||
-          build.width <= 0 ||
-          build.height <= 0
-        ) {
+      withTerraformPlanNodeKeyIndex(nodes, () =>
+        clusterIds.map((address) => {
+          const placement = placementByAddress.get(address) ?? {
+            providerFamily: providerFamilyForType(
+              resourceTypeFor(nodes, address),
+            ),
+            accountId: "unknown-account",
+            region: "unknown-region",
+            vpcId: null,
+          };
+          const clusterPlacement = {
+            accountId: placement.accountId,
+            region: placement.region,
+            vpcId: placement.vpcId,
+            subnetTier: placement.subnetTier,
+            subnetSignature: placement.subnetSignature,
+          };
           clusterBuilderCalls += 1;
-          build = buildFallbackCluster(address, nodes, plan, placement);
-        }
-        return {
-          id: address,
-          primaryAddress: address,
-          firstSequence: firstSequence.get(address) ?? 0,
-          depth: depthResult.depths.get(address) ?? 0,
-          placement,
-          build,
-        };
-      }),
+          let build = compact
+            ? buildCompactPipelinePrimaryCluster(
+                address,
+                nodes,
+                plan,
+                clusterPlacement,
+              )
+            : buildTopologyPrimaryClusterSkeletonForPipeline(
+                address,
+                nodes,
+                plan,
+                clusterPlacement,
+              );
+          if (
+            build.skeleton.length === 0 ||
+            build.width <= 0 ||
+            build.height <= 0
+          ) {
+            clusterBuilderCalls += 1;
+            build = buildFallbackCluster(address, nodes, plan, placement);
+          }
+          return {
+            id: address,
+            primaryAddress: address,
+            firstSequence: firstSequence.get(address) ?? 0,
+            depth: depthResult.depths.get(address) ?? 0,
+            placement,
+            build,
+          };
+        }),
+      ),
   );
 
   // Depth-floor swap slot. Two mutually-exclusive arms rewrite the longest-path

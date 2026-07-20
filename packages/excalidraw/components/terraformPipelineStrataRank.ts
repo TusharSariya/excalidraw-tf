@@ -38,6 +38,7 @@ import {
   computeNetworkSimplexDepths,
 } from "./terraformPipelineLayoutShared";
 import { computeStrataSeparatedFloor } from "./terraformPipelineStrataRankSeparate";
+import { computeStrataJointNsFloor } from "./terraformPipelineStrataJointNsProbe";
 
 import type {
   StrataCycleRepairResult,
@@ -60,6 +61,14 @@ export function rankStrataClusters(
      */
     rankSeparate?: boolean;
     hullRoot?: StrataHullNode;
+    /**
+     * EXPERIMENTAL W5b probe (round-8 R8-F9, default off): after an APPLIED
+     * separated floor, refine it with ONE joint network-simplex solve over
+     * (real E′ edges ∪ zero-weight separation edges) — constraints preserved
+     * inside the solve, real spans minimized. Inert without a live, applied
+     * `rankSeparate`. Never a shipping lever; harness-only.
+     */
+    jointNsProbe?: boolean;
   },
 ): StrataRankResult {
   // Effective (E′) edges: true-direction edges kept as-is; F-edges consumed
@@ -100,6 +109,10 @@ export function rankStrataClusters(
   let rankSeparateFallback: StrataRankResult["rankSeparateFallback"];
   let rankSeparatePairCount: StrataRankResult["rankSeparatePairCount"];
   let rankSeparateChangedRankCount: StrataRankResult["rankSeparateChangedRankCount"];
+  let jointNsApplied: StrataRankResult["jointNsApplied"];
+  let jointNsFallback: StrataRankResult["jointNsFallback"];
+  let jointNsRealSpanBefore: StrataRankResult["jointNsRealSpanBefore"];
+  let jointNsRealSpanAfter: StrataRankResult["jointNsRealSpanAfter"];
 
   if (opts.rankSeparate === true && opts.hullRoot) {
     // OD-14: the separated floor REPLACES the A1 rank. Runs FIRST so it WINS
@@ -114,6 +127,23 @@ export function rankStrataClusters(
     if (sep.applied && isDepthFloorValid(sep.floor, effEdges)) {
       rank = sep.floor;
       rankSeparateApplied = true;
+      // W5b probe: joint constrained-NS refinement of the accepted separated
+      // floor. Verify-or-abort inside; any fallback keeps the sequential floor.
+      if (opts.jointNsProbe === true) {
+        const joint = computeStrataJointNsFloor(
+          opts.hullRoot,
+          sep.floor,
+          effEdges,
+        );
+        jointNsApplied = joint.applied;
+        jointNsFallback =
+          joint.fallbackReason === "none" ? undefined : joint.fallbackReason;
+        jointNsRealSpanBefore = joint.realSpanBefore;
+        jointNsRealSpanAfter = joint.realSpanAfter;
+        if (joint.applied) {
+          rank = joint.floor;
+        }
+      }
     } else {
       rankSeparateApplied = false;
       rankSeparateFallback = sep.applied
@@ -121,6 +151,10 @@ export function rankStrataClusters(
         : sep.fallbackReason === "augmented-cycle"
         ? "augmented-cycle"
         : "no-pairs";
+      if (opts.jointNsProbe === true) {
+        jointNsApplied = false;
+        jointNsFallback = "rank-separate-not-applied";
+      }
     }
   } else if (!opts.networkSimplexRank) {
     nsSkipReason = "flag-off";
@@ -172,6 +206,15 @@ export function rankStrataClusters(
           rankSeparateFallback,
           rankSeparatePairCount,
           rankSeparateChangedRankCount,
+        }
+      : {}),
+    // W5b probe observability — present only when the probe flag was live.
+    ...(jointNsApplied !== undefined
+      ? {
+          jointNsApplied,
+          jointNsFallback,
+          jointNsRealSpanBefore,
+          jointNsRealSpanAfter,
         }
       : {}),
   };

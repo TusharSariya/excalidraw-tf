@@ -1,0 +1,247 @@
+{
+  "preset": "staging-localstack",
+  "seed": 20260704,
+  "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+  "rows": [
+    {
+      "index": 1,
+      "endpointA": "aws_ecs_service.producer",
+      "endpointB": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]",
+      "hint": {
+        "midpointRegion": "middle-left",
+        "endpointA": "aws_ecs_service.producer",
+        "endpointB": "module.ingress_queue.module.queue.aws_sqs_queue.this[0]"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 2,
+      "endpointA": "aws_ecs_service.producer",
+      "endpointB": "aws_lb.ecs",
+      "hint": {
+        "midpointRegion": "top-left",
+        "endpointA": "aws_ecs_service.producer",
+        "endpointB": "aws_lb.ecs"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 3,
+      "endpointA": "module.api10.aws_api_gateway_rest_api.private",
+      "endpointB": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api10.aws_api_gateway_rest_api.private",
+        "endpointB": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 4,
+      "endpointA": "module.api10_table.aws_dynamodb_table.this",
+      "endpointB": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api10_table.aws_dynamodb_table.this",
+        "endpointB": "module.api10.module.lambda_service.module.lambda.aws_lambda_function.this[0]"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 5,
+      "endpointA": "module.api11.aws_ecs_service.api",
+      "endpointB": "module.api11.aws_api_gateway_rest_api.private",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api11.aws_ecs_service.api",
+        "endpointB": "module.api11.aws_api_gateway_rest_api.private"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 6,
+      "endpointA": "module.api11.aws_ssm_parameter.api_name",
+      "endpointB": "module.api11.aws_ecs_service.api",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api11.aws_ssm_parameter.api_name",
+        "endpointB": "module.api11.aws_ecs_service.api"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 7,
+      "endpointA": "module.api14_table.aws_dynamodb_table.this",
+      "endpointB": "module.api14.aws_ecs_service.api",
+      "hint": {
+        "midpointRegion": "bottom-right",
+        "endpointA": "module.api14_table.aws_dynamodb_table.this",
+        "endpointB": "module.api14.aws_ecs_service.api"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 8,
+      "endpointA": "module.api15.aws_ecs_service.api",
+      "endpointB": "module.api15.aws_api_gateway_rest_api.private",
+      "hint": {
+        "midpointRegion": "bottom-right",
+        "endpointA": "module.api15.aws_ecs_service.api",
+        "endpointB": "module.api15.aws_api_gateway_rest_api.private"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 9,
+      "endpointA": "module.api15_aurora.aws_rds_cluster.this",
+      "endpointB": "module.api15.aws_ecs_service.api",
+      "hint": {
+        "midpointRegion": "bottom-right",
+        "endpointA": "module.api15_aurora.aws_rds_cluster.this",
+        "endpointB": "module.api15.aws_ecs_service.api"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 10,
+      "endpointA": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "endpointB": "module.api16.aws_api_gateway_rest_api.private",
+      "hint": {
+        "midpointRegion": "bottom-right",
+        "endpointA": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+        "endpointB": "module.api16.aws_api_gateway_rest_api.private"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 11,
+      "endpointA": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "endpointB": "module.api16.aws_ssm_parameter.api_name",
+      "hint": {
+        "midpointRegion": "bottom-right",
+        "endpointA": "module.api16.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+        "endpointB": "module.api16.aws_ssm_parameter.api_name"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 12,
+      "endpointA": "module.api2.aws_ssm_parameter.api_name",
+      "endpointB": "module.api2.aws_ecs_service.api",
+      "hint": {
+        "midpointRegion": "middle-center",
+        "endpointA": "module.api2.aws_ssm_parameter.api_name",
+        "endpointB": "module.api2.aws_ecs_service.api"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 13,
+      "endpointA": "module.api15.aws_api_gateway_rest_api.private",
+      "endpointB": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]",
+      "hint": {
+        "midpointRegion": "middle-center",
+        "endpointA": "module.api15.aws_api_gateway_rest_api.private",
+        "endpointB": "module.api6.module.lambda_service.module.lambda.aws_lambda_function.this[0]"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 14,
+      "endpointA": "module.api7.aws_ecs_service.api",
+      "endpointB": "module.api7.aws_ssm_parameter.api_name",
+      "hint": {
+        "midpointRegion": "middle-center",
+        "endpointA": "module.api7.aws_ecs_service.api",
+        "endpointB": "module.api7.aws_ssm_parameter.api_name"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 15,
+      "endpointA": "module.api7.aws_ecs_service.api",
+      "endpointB": "module.api9.aws_api_gateway_rest_api.private",
+      "hint": {
+        "midpointRegion": "top-center",
+        "endpointA": "module.api7.aws_ecs_service.api",
+        "endpointB": "module.api9.aws_api_gateway_rest_api.private"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 16,
+      "endpointA": "module.api9.aws_ecs_service.api",
+      "endpointB": "module.api9.aws_api_gateway_rest_api.private",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api9.aws_ecs_service.api",
+        "endpointB": "module.api9.aws_api_gateway_rest_api.private"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 17,
+      "endpointA": "module.api11.aws_api_gateway_rest_api.private",
+      "endpointB": "module.api9.aws_ecs_service.api",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api11.aws_api_gateway_rest_api.private",
+        "endpointB": "module.api9.aws_ecs_service.api"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 18,
+      "endpointA": "module.api9.aws_ssm_parameter.api_name",
+      "endpointB": "module.api9.aws_ecs_service.api",
+      "hint": {
+        "midpointRegion": "top-right",
+        "endpointA": "module.api9.aws_ssm_parameter.api_name",
+        "endpointB": "module.api9.aws_ecs_service.api"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 19,
+      "endpointA": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+      "endpointB": "module.api2.aws_api_gateway_rest_api.private",
+      "hint": {
+        "midpointRegion": "middle-center",
+        "endpointA": "module.consumer_lambda.module.lambda.aws_lambda_function.this[0]",
+        "endpointB": "module.api2.aws_api_gateway_rest_api.private"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    },
+    {
+      "index": 20,
+      "endpointA": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+      "endpointB": "aws_ecs_service.egress",
+      "hint": {
+        "midpointRegion": "middle-center",
+        "endpointA": "module.egress_queue.module.queue.aws_sqs_queue.this[0]",
+        "endpointB": "aws_ecs_service.egress"
+      },
+      "proposition": "On the canvas, which way does this connection read as flowing? (A->B / B->A / ambiguous)",
+      "ownerLabel": ""
+    }
+  ]
+}

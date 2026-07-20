@@ -141,6 +141,7 @@ describe("TerraformImportModal", () => {
       semanticLayout: false,
       layoutMode: "pipeline",
       pipelineCompact: true,
+      pipelinePrivateApiRegional: false,
       pipelineLayoutVariant: "classic",
       pipelinePacked: false,
       pipelinePackedPullLeft: false,
@@ -157,9 +158,31 @@ describe("TerraformImportModal", () => {
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
-      strataSweeps: 0,
-      strataCoordinateRefine: false,
+      // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
+      // and transpose/sift/packedScoring seed ON + ε=1 since the owner default
+      // flip (owner-decisions.md 2026-07-17) — all strata-only downstream (the
+      // pipeline engine ignores them).
+      strataSweeps: 4,
+      strataCoordinateRefine: true,
       strataRankSeparate: false,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 1,
+      strataPackedConverge: false,
+      strataTransitiveAdopt: false,
+      strataBlockClamp: false,
+      strataTranspose: true,
+      strataChainRelocate: false,
+      strataCoordCascade: false,
+      strataHeightGate: false,
+      // strataLeafShift threads for every view (default off); pin was missing it
+      // (pre-existing stale full-bag pin, unrelated to the default flip).
+      strataLeafShift: false,
+      strataEdgeRouting: false,
+      strataBorderRoute: false,
+      strataBandCompact: false,
+      strataSiftRelocate: true,
+      strataCrossWeightPenetration: 1,
+      strataCrossWeightEdge: 1,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -180,6 +203,7 @@ describe("TerraformImportModal", () => {
       semanticLayout: false,
       layoutMode: "pipeline",
       pipelineCompact: true,
+      pipelinePrivateApiRegional: false,
       pipelineLayoutVariant: "compound",
       pipelinePacked: false,
       pipelinePackedPullLeft: false,
@@ -196,9 +220,31 @@ describe("TerraformImportModal", () => {
       pipelineColumnPacking: "none",
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
-      strataSweeps: 0,
-      strataCoordinateRefine: false,
+      // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
+      // and transpose/sift/packedScoring seed ON + ε=1 since the owner default
+      // flip (owner-decisions.md 2026-07-17) — all strata-only downstream (the
+      // pipeline engine ignores them).
+      strataSweeps: 4,
+      strataCoordinateRefine: true,
       strataRankSeparate: false,
+      strataPackedScoring: true,
+      strataPackedScoringEpsilon: 1,
+      strataPackedConverge: false,
+      strataTransitiveAdopt: false,
+      strataBlockClamp: false,
+      strataTranspose: true,
+      strataChainRelocate: false,
+      strataCoordCascade: false,
+      strataHeightGate: false,
+      // strataLeafShift threads for every view (default off); pin was missing it
+      // (pre-existing stale full-bag pin, unrelated to the default flip).
+      strataLeafShift: false,
+      strataEdgeRouting: false,
+      strataBorderRoute: false,
+      strataBandCompact: false,
+      strataSiftRelocate: true,
+      strataCrossWeightPenetration: 1,
+      strataCrossWeightEdge: 1,
       moduleLayoutOptions: undefined,
       colorMode: "category",
     });
@@ -666,6 +712,53 @@ describe("TerraformImportModal", () => {
     );
   });
 
+  // The strata twin of the RCLL case above. The engine seam is already proven
+  // (terraformLayoutCoreStrataThreading.test.ts: layoutMode "strata" +
+  // pipelineIncludeAncillary → pipelineAncillaryCount > 0); what was missing is
+  // the UI seam, and it was BROKEN: the control was gated to pipeline/rcll and
+  // never passed to TerraformStrataSettings, so under strata the flag was
+  // reachable only via sticky state carried from another view or a ?ancillary=1
+  // URL — and could never be turned back off. This is the regression guard.
+  it("strata view: 'All resources' is clickable and included in import", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const resources = screen.getByRole("group", {
+      name: /strata resource scope/i,
+    });
+    const allResources = within(resources).getByRole("button", {
+      name: /^all resources$/i,
+    });
+    const dataflowOnly = within(resources).getByRole("button", {
+      name: /^dataflow only$/i,
+    });
+    // Default is the cheap arm — the +66% height is opt-in, never seeded.
+    expect(dataflowOnly).toHaveAttribute("aria-pressed", "true");
+    expect(allResources).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(allResources);
+    expect(allResources).toHaveAttribute("aria-pressed", "true");
+    // …and it turns back OFF from this panel, which was impossible before.
+    fireEvent.click(dataflowOnly);
+    expect(dataflowOnly).toHaveAttribute("aria-pressed", "true");
+    expect(allResources).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(allResources);
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        layoutMode: "strata",
+        pipelineIncludeAncillary: true,
+      }),
+    );
+  });
+
   it("passes semanticLayout false for module view", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
@@ -963,7 +1056,7 @@ describe("TerraformImportModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("Strata view: Layer ordering defaults Off and On flips aria-pressed + threads strataSweeps 4", async () => {
+  it("Strata view: untouched dialog threads the W5 defaults (sweeps 4, refine true, rankSeparate false)", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
       files: {},
@@ -972,28 +1065,33 @@ describe("TerraformImportModal", () => {
     fillFirstBundle();
     fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
 
-    const ordering = screen.getByRole("group", {
-      name: /strata layer ordering/i,
-    });
-    const offBtn = within(ordering).getByRole("button", { name: /^off$/i });
-    const onBtn = within(ordering).getByRole("button", { name: /^on$/i });
-
-    // Opt-in default-OFF: Off starts pressed.
-    expect(offBtn).toHaveAttribute("aria-pressed", "true");
-    expect(onBtn).toHaveAttribute("aria-pressed", "false");
-
-    fireEvent.click(onBtn);
-    expect(onBtn).toHaveAttribute("aria-pressed", "true");
-    expect(offBtn).toHaveAttribute("aria-pressed", "false");
-
+    // Wiring-checklist #15: selecting view=strata and touching NOTHING must
+    // reach the worker layout call with the validated W5 defaults.
     fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
-      expect.objectContaining({ strataSweeps: 4 }),
+      expect.objectContaining({
+        layoutMode: "strata",
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        // Owner default flip (owner-decisions.md 2026-07-17): the untouched
+        // dialog seeds packedScoring ON (ε=1) — mutually exclusive with
+        // rankSeparate, which stays OFF (the app default sits at packed ON /
+        // rankSeparate OFF).
+        strataRankSeparate: false,
+        strataPackedScoring: true,
+        strataPackedScoringEpsilon: 1,
+        strataEdgeRouting: false,
+        strataBandCompact: false,
+        // Private-API regional placement defaults ON in the strata view (the
+        // only view wired for it; every other view forces it false — see the
+        // pipeline/compound assertions above).
+        pipelinePrivateApiRegional: true,
+      }),
     );
   });
 
-  it("Strata view: Layer ordering On then back to Off threads strataSweeps 0", async () => {
+  it("Strata view: Layer ordering defaults On (W5 flip) and Off flips aria-pressed + threads strataSweeps 0", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
       files: {},
@@ -1008,7 +1106,10 @@ describe("TerraformImportModal", () => {
     const offBtn = within(ordering).getByRole("button", { name: /^off$/i });
     const onBtn = within(ordering).getByRole("button", { name: /^on$/i });
 
-    fireEvent.click(onBtn);
+    // W5 default flip: On starts pressed.
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
     fireEvent.click(offBtn);
     expect(offBtn).toHaveAttribute("aria-pressed", "true");
     expect(onBtn).toHaveAttribute("aria-pressed", "false");
@@ -1020,7 +1121,7 @@ describe("TerraformImportModal", () => {
     );
   });
 
-  it("Strata view: Straighten (A7) defaults Off and On flips aria-pressed + threads strataCoordinateRefine true", async () => {
+  it("Strata view: Layer ordering Off then back to On threads strataSweeps 4", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
       files: {},
@@ -1029,16 +1130,13 @@ describe("TerraformImportModal", () => {
     fillFirstBundle();
     fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
 
-    const straighten = screen.getByRole("group", {
-      name: /strata straighten/i,
+    const ordering = screen.getByRole("group", {
+      name: /strata layer ordering/i,
     });
-    const offBtn = within(straighten).getByRole("button", { name: /^off$/i });
-    const onBtn = within(straighten).getByRole("button", { name: /^on$/i });
+    const offBtn = within(ordering).getByRole("button", { name: /^off$/i });
+    const onBtn = within(ordering).getByRole("button", { name: /^on$/i });
 
-    // Opt-in default-OFF: Off starts pressed.
-    expect(offBtn).toHaveAttribute("aria-pressed", "true");
-    expect(onBtn).toHaveAttribute("aria-pressed", "false");
-
+    fireEvent.click(offBtn);
     fireEvent.click(onBtn);
     expect(onBtn).toHaveAttribute("aria-pressed", "true");
     expect(offBtn).toHaveAttribute("aria-pressed", "false");
@@ -1046,11 +1144,11 @@ describe("TerraformImportModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
-      expect.objectContaining({ strataCoordinateRefine: true }),
+      expect.objectContaining({ strataSweeps: 4 }),
     );
   });
 
-  it("Strata view: Straighten (A7) On then back to Off threads strataCoordinateRefine false", async () => {
+  it("Strata view: Straighten (A7) defaults On (W5 flip) and Off flips aria-pressed + threads strataCoordinateRefine false", async () => {
     vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
       elements: [],
       files: {},
@@ -1065,7 +1163,10 @@ describe("TerraformImportModal", () => {
     const offBtn = within(straighten).getByRole("button", { name: /^off$/i });
     const onBtn = within(straighten).getByRole("button", { name: /^on$/i });
 
-    fireEvent.click(onBtn);
+    // W5 default flip: On starts pressed.
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
     fireEvent.click(offBtn);
     expect(offBtn).toHaveAttribute("aria-pressed", "true");
     expect(onBtn).toHaveAttribute("aria-pressed", "false");
@@ -1074,6 +1175,33 @@ describe("TerraformImportModal", () => {
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
       expect.objectContaining({ strataCoordinateRefine: false }),
+    );
+  });
+
+  it("Strata view: Straighten (A7) Off then back to On threads strataCoordinateRefine true", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const straighten = screen.getByRole("group", {
+      name: /strata straighten/i,
+    });
+    const offBtn = within(straighten).getByRole("button", { name: /^off$/i });
+    const onBtn = within(straighten).getByRole("button", { name: /^on$/i });
+
+    fireEvent.click(offBtn);
+    fireEvent.click(onBtn);
+    expect(onBtn).toHaveAttribute("aria-pressed", "true");
+    expect(offBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataCoordinateRefine: true }),
     );
   });
 
@@ -1140,5 +1268,232 @@ describe("TerraformImportModal", () => {
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
       expect.objectContaining({ strataRankSeparate: false }),
     );
+  });
+
+  it("Strata view: Band depth slider defaults to Account (index 2) and moving it to Root threads strataBandDepth root", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Default cut is "account" — index 2 in the root/provider/account/region/vpc/subnetZone order.
+    expect(bandDepthSlider).toHaveValue("2");
+    expect(bandDepthSlider).toHaveAttribute("aria-valuetext", "Account");
+
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    expect(bandDepthSlider).toHaveValue("0");
+    expect(bandDepthSlider).toHaveAttribute("aria-valuetext", "Root");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataBandDepth: "root" }),
+    );
+  });
+
+  it("Strata view: Band depth slider moved to Root then back to Account omits strataBandDepth (default cut)", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    fireEvent.change(bandDepthSlider, { target: { value: "2" } });
+    expect(bandDepthSlider).toHaveValue("2");
+    expect(bandDepthSlider).toHaveAttribute("aria-valuetext", "Account");
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    // Default cut ("account") never materializes a `strataBandDepth` own key
+    // downstream — same byte-identity contract as every other default value.
+    expect(
+      vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1],
+    ).not.toHaveProperty("strataBandDepth");
+  });
+
+  it("Strata view: enabling Compact height auto-disables Packed edge scoring (hard exclusion, UI enforces)", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    const packedScoring = screen.getByRole("group", {
+      name: /strata packed edge scoring/i,
+    });
+
+    // Owner default flip (owner-decisions.md 2026-07-17): the app default sits
+    // at Packed edge scoring ON / Compact height OFF.
+    expect(
+      within(packedScoring).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(compactHeight).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // rankSeparate × packedScoring is a HARD exclusion (line 12): enabling
+    // Compact height auto-disables Packed edge scoring, so the on/on state the
+    // engine would silently resolve can never be reached from the UI. Without
+    // this, the default-ON packedScoring made Compact height a silent no-op.
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+    expect(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(packedScoring).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // The retired W8 "measured to conflict … prefer one or the other" advisory
+    // is gone (it described an undecided preference the hard rule replaced).
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+  });
+
+  it("Strata view: Packed edge scoring × Compact height are mutually exclusive in both directions", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    const packedScoring = screen.getByRole("group", {
+      name: /strata packed edge scoring/i,
+    });
+
+    // Compact height ON → Packed edge scoring OFF.
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+    expect(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(packedScoring).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // Packed edge scoring ON → Compact height OFF (the other direction).
+    fireEvent.click(
+      within(packedScoring).getByRole("button", { name: /^on$/i }),
+    );
+    expect(
+      within(packedScoring).getByRole("button", { name: /^on$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(compactHeight).getByRole("button", { name: /^off$/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    // The UI never produces the both-on state, so the retired W8 advisory
+    // never appears.
+    expect(screen.queryByText(/measured to conflict \(w8\)/i)).toBeNull();
+  });
+
+  it("Strata view: Band depth readout updates per role and the Root copy is corrected", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    // Default (Account) readout.
+    expect(
+      screen.getByText(
+        /providers and accounts stay full-width bands; regions and below pack/i,
+      ),
+    ).toBeInTheDocument();
+
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Root — the corrected copy (the old note wrongly said deeper cuts reclaim).
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    expect(
+      screen.getByText(/only root stays banded; providers and below pack/i),
+    ).toBeInTheDocument();
+
+    // Region.
+    fireEvent.change(bandDepthSlider, { target: { value: "3" } });
+    expect(
+      screen.getByText(/down to regions stay full-width; vpcs and below pack/i),
+    ).toBeInTheDocument();
+  });
+
+  it("Strata view: experimental caption shows exactly once for Region+ and never for Account-or-shallower", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Account (default) — no experimental caption.
+    expect(screen.queryByText(/experimental — usually wider/i)).toBeNull();
+
+    // Region — exactly one caption (not one per Region/VPC/Zone tick, the old bug).
+    fireEvent.change(bandDepthSlider, { target: { value: "3" } });
+    expect(screen.getAllByText(/experimental — usually wider/i)).toHaveLength(
+      1,
+    );
+
+    // Back to Provider — caption gone.
+    fireEvent.change(bandDepthSlider, { target: { value: "1" } });
+    expect(screen.queryByText(/experimental — usually wider/i)).toBeNull();
+  });
+
+  it("Strata view: coupling hint shows only for Root/Provider cuts while Compact height is off", () => {
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    const hint = /packing provider and account only reclaims height when/i;
+    const bandDepthSlider = screen.getByRole("slider", {
+      name: /strata band depth/i,
+    });
+
+    // Default cut (Account) + Compact height off — no hint.
+    expect(screen.queryByText(hint)).toBeNull();
+
+    // Provider — hint appears.
+    fireEvent.change(bandDepthSlider, { target: { value: "1" } });
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    // Root — still present.
+    fireEvent.change(bandDepthSlider, { target: { value: "0" } });
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    // Turning Compact height (rankSeparate) on removes the hint even at Root.
+    const compactHeight = screen.getByRole("group", {
+      name: /strata compact height/i,
+    });
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^on$/i }),
+    );
+    expect(screen.queryByText(hint)).toBeNull();
+
+    // Turn Compact height back off — hint returns at Root.
+    fireEvent.click(
+      within(compactHeight).getByRole("button", { name: /^off$/i }),
+    );
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    // Move to Account — hint gone regardless of Compact height.
+    fireEvent.change(bandDepthSlider, { target: { value: "2" } });
+    expect(screen.queryByText(hint)).toBeNull();
   });
 });

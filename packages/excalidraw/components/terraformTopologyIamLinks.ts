@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * Semantic topology: resolve Lambda execution IAM roles and attached policies from the
  * Terraform plan-shaped `nodes` map (no backend pipeline).
@@ -113,7 +114,27 @@ export function getResourceTypeFromPath(
 }
 
 /** Terraform module prefix for a resource address, e.g. `module.a.module.b` or `""` for root. */
+/**
+ * Module-level memo: `terraformModulePrefixForAddress` is a pure function of the
+ * address STRING alone — no config, no preset state — so the same input string
+ * always maps to the same output regardless of which preset is being imported.
+ * The function is called O(nodes × candidates) inside IAM-link building (1.99s
+ * self on the canonical trace); the memo collapses the repeated split/join.
+ * Values are immutable strings, so returning a cached value is byte-identical.
+ *
+ * The layout path reuses this module across jobs/runs, so the cache is BOUNDED
+ * (oldest-key eviction on overflow) to prevent a slow cross-run leak of every
+ * distinct address ever imported. Eviction only forces a recompute of the same
+ * value, so it stays byte-identical. See scratchpad/overnight-20260717 O4.
+ */
+const MODULE_PREFIX_CACHE_MAX_ENTRIES = 50_000;
+const terraformModulePrefixCache = new Map<string, string>();
+
 export function terraformModulePrefixForAddress(address: string): string {
+  const cached = terraformModulePrefixCache.get(address);
+  if (cached !== undefined) {
+    return cached;
+  }
   const parts = address.split(".");
   const segments: string[] = [];
   for (let i = 0; i < parts.length - 1; ) {
@@ -124,7 +145,18 @@ export function terraformModulePrefixForAddress(address: string): string {
       break;
     }
   }
-  return segments.join(".");
+  const result = segments.join(".");
+  if (
+    terraformModulePrefixCache.size >= MODULE_PREFIX_CACHE_MAX_ENTRIES &&
+    !terraformModulePrefixCache.has(address)
+  ) {
+    const oldest = terraformModulePrefixCache.keys().next().value;
+    if (oldest !== undefined) {
+      terraformModulePrefixCache.delete(oldest);
+    }
+  }
+  terraformModulePrefixCache.set(address, result);
+  return result;
 }
 
 function buildArnToNodePath(nodes: TerraformPlanNodesMap): Map<string, string> {

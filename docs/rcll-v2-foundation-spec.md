@@ -27,6 +27,18 @@ The single highest-leverage change is **F1**: replace the within-column Y-orderi
 | **F9** | Cyclic-leaf **repair**: FAS reversal + back-edge restyle — D5 | Fixes the silent un-styled backward arrow; keeps R3 for all other edges |
 | **F10** | **Configurable containment schema** (replace the AWS role enum) — D6 | De-hacks the one non-general piece; folded into the core refactor |
 
+## Document graph
+
+| Relation | Link |
+| --- | --- |
+| Role | Superseded |
+| Status | Superseded by `rcll-v2-spec.md` (v1.0), then by v2.0+ |
+| Hub | [`rcll-strata-doc-index.md`](./rcll-strata-doc-index.md) |
+| Parent | [`rcll-v2-architecture-decision.md`](./rcll-v2-architecture-decision.md) |
+| Children | [`rcll-v2-spec.md`](./rcll-v2-spec.md) |
+| Sisters | — |
+| Next (agent) | Do not implement from here; open v2.0 + v3.1 for current contract. |
+
 **Deferred out of Foundation:** the R4 _barycenter_ crossing-min sweep (distinct from F8's pierce gate), R5 _grid-packing_ of TFD-independent resources, and pattern/predicate group membership. The elkjs spike is **dropped** (D7). See **§4**.
 
 ---

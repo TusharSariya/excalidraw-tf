@@ -33,6 +33,15 @@ export type TerraformImportPrepCache = {
    * eagerly — keeping it off the semantic critical path.
    */
   enrichedPlacements?: EnrichedTopologyPlacements;
+  /**
+   * The `pipelinePrivateApiRegional` flag value that produced `enrichedPlacements`.
+   * Part of the placement cache identity: a later pipeline build with a different
+   * flag value MUST rebuild (a private REST API is placed at region level under the
+   * flag but nested in a VPC without it), so reuse is gated on this matching. Absent
+   * whenever `enrichedPlacements` is absent. Not part of the sources fingerprint, so
+   * the OFF fingerprint/format is unchanged.
+   */
+  enrichedPlacementsPrivateApiRegional?: boolean;
 };
 
 let sessionCache: TerraformImportPrepCache | null = null;

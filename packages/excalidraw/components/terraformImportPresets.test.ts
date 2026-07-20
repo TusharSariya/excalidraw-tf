@@ -34,12 +34,13 @@ describe("terraformImportPresets", () => {
       BUILTIN_TERRAFORM_IMPORT_PRESETS,
     );
     const presets = await listTerraformImportPresets();
-    expect(presets).toHaveLength(5);
+    expect(presets).toHaveLength(6);
     expect(presets[0]?.id).toBe("staging-multi-state-expanded");
     expect(presets[1]?.id).toBe("staging-localstack");
     expect(presets[2]?.id).toBe("staging-extended-localstack");
     expect(presets[3]?.id).toBe("staging-extended-localstack-v2");
-    expect(presets[4]?.id).toBe("staging-extended-localstack-strata");
+    expect(presets[4]?.id).toBe("staging-heldout-mesh");
+    expect(presets[5]?.id).toBe("staging-extended-localstack-strata");
     expect(presets[0]?.view).toBe("pipeline");
   });
 

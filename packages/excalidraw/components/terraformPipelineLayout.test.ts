@@ -5,6 +5,7 @@ import {
   buildTerraformPipelineExcalidrawScene,
 } from "./terraformPipelineLayout";
 import { collectAncillaryAddresses } from "./terraformPipelineLayoutAncillary";
+import { buildTerraformStrataExcalidrawScene } from "./terraformPipelineStrata";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import { preparePipelineLayout } from "./terraformPipelineLayoutShared";
 import {
@@ -776,6 +777,46 @@ describe("pipeline ancillary resources", () => {
         expect(disjoint).toBe(true);
       }
     }
+  });
+
+  it("strata honors includeAncillary with the SAME meta contract as v1", async () => {
+    // Cross-engine meta comparability: strata's post-layout band injection must
+    // echo v1's ancillary keys identically, or every consumer that reads them has
+    // to special-case the engine.
+    const off = await buildTerraformStrataExcalidrawScene(
+      ancillaryNodes(),
+      ancillaryPlan(),
+      { compact: true },
+    );
+    // The off-path assert (flag absent ⇒ key absent) is the byte-identity canary
+    // — keep it.
+    expect(off.meta.pipelineIncludeAncillary).toBeUndefined();
+    expect(off.meta.strataAncillaryBandCount).toBeUndefined();
+    expect(
+      off.elements.some(
+        (e: any) => e.customData?.terraformPipelineAncillary === true,
+      ),
+    ).toBe(false);
+
+    const on = await buildTerraformStrataExcalidrawScene(
+      ancillaryNodes(),
+      ancillaryPlan(),
+      { compact: true, includeAncillary: true },
+    );
+    expect(on.meta.rcllV2Degraded).toBeUndefined();
+    expect(on.meta.strataAncillaryDegraded).toBeUndefined();
+    // Same three cards / three strips v1 reports on this fixture.
+    expect(on.meta.pipelineIncludeAncillary).toBe(true);
+    expect(on.meta.pipelineAncillaryCount).toBe(3);
+    expect(on.meta.pipelineAncillaryStripCount).toBe(3);
+    expect(on.meta.strataAncillaryBandCount).toBeGreaterThan(0);
+    expect(on.meta.strataAncillaryContainment).toEqual({
+      bandEscapesHost: 0,
+      bandOverlaps: 0,
+      bandTitleCollisions: 0,
+    });
+    // The deferral marker is gone for good.
+    expect(on.meta.strataAncillaryDeferred).toBeUndefined();
   });
 
   it("stamps compound metadata on strips so they drag with their hull", async () => {

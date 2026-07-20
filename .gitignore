@@ -214,3 +214,7 @@ tools/rag-literature-rag/data/extract_cache/
 tools/rag-literature-rag/data/embed_cache/
 tools/rag-literature-rag/**/__pycache__/
 tools/rag-literature-rag/.pytest_cache/
+
+# Ephemeral research/measurement artifacts. Durable records live in docs/ —
+# see docs/strata-xcompact-removed-findings.md for the convention.
+/scratchpad/

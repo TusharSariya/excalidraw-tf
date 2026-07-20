@@ -32,6 +32,37 @@ const LAYOUT_CORE_MODULE = path.resolve(
   PLUGIN_DIR,
   "../../packages/excalidraw/components/terraformLayoutCore.ts",
 );
+// Rendered-metric + fingerprint + profiler modules, loaded headlessly the same way
+// (ssrLoadModule). We surface RENDERED metrics (diagnosePipelineScene /
+// computePierceMetrics), never chord proxies (trap #2), and the SHARED geometry
+// fingerprint (do NOT invent a second canonicalization).
+const COLLISION_DIAGNOSTICS_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts",
+);
+const PIERCE_METRICS_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformPipelineStrataPierceMetrics.ts",
+);
+const GEOMETRY_HASH_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformStrataGeometryHash.ts",
+);
+const IMPORT_PROFILER_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformImportProfiler.ts",
+);
+// The SHARED, unit-tested edge-collapse guard. Loaded headlessly (ssrLoadModule)
+// so the proof-API plugin seam and the probe seam run the IDENTICAL detector —
+// the round-2 defect was a hand-rolled duplicate here that measured over the
+// visible+REVEALED set (the revealed skeletons span [[0,0],[dx,dy]] by
+// construction), so it read 155/145-healthy on a scene the probe seam correctly
+// flagged 0/145-collapsed. There is now ONE detector, invoked over visible-only
+// elements, so the two seams can never diverge again.
+const EDGE_COLLAPSE_MODULE = path.resolve(
+  PLUGIN_DIR,
+  "../../packages/excalidraw/components/terraformEdgeCollapse.ts",
+);
 
 // RCLL pipeline toggles → `TerraformLayoutOptions` keys. Param names mirror the
 // `/demo` URL API (terraformDemoUrlParams.ts); `compact` is endpoint-only.
@@ -63,6 +94,28 @@ const LAYOUT_BOOLEAN_PARAMS = [
   ["strataNetworkSimplexRank", "strataNetworkSimplexRank"],
   ["strataCoordRefine", "strataCoordinateRefine"],
   ["strataCoordinateRefine", "strataCoordinateRefine"],
+  // OD-14 height lever — the demo URL parses it as `strataRankSep`
+  // (terraformDemoUrlParams.ts) mapping to option key `strataRankSeparate`. Both
+  // the URL param name and the canonical option name are accepted here (dual-alias
+  // pattern), last-present-wins like the URL.
+  ["strataRankSep", "strataRankSeparate"],
+  ["strataRankSeparate", "strataRankSeparate"],
+  // W5 effect-matrix exposure — the remaining engine toggles, threaded through
+  // `layoutTerraformFromSources`'s sceneContext literal (all already forwarded
+  // there; this table was the only gap). Param names mirror the /demo URL API
+  // (terraformDemoUrlParams.ts) exactly; `strataSift` carries the engine-key
+  // alias like the other dual-alias entries. All default OFF.
+  ["privateApiRegional", "pipelinePrivateApiRegional"],
+  ["strataPackedScoring", "strataPackedScoring"],
+  ["strataEdgeRouting", "strataEdgeRouting"],
+  ["strataBorderRoute", "strataBorderRoute"],
+  ["strataSift", "strataSiftRelocate"],
+  ["strataSiftRelocate", "strataSiftRelocate"],
+  ["strataPackedConverge", "strataPackedConverge"],
+  ["strataTransitiveAdopt", "strataTransitiveAdopt"],
+  ["strataBlockClamp", "strataBlockClamp"],
+  ["strataTranspose", "strataTranspose"],
+  ["strataHeightGate", "strataHeightGate"],
 ];
 
 // Enum (non-boolean) layout params: [paramName, optionKey, allowedValues].
@@ -75,6 +128,26 @@ const LAYOUT_ENUM_PARAMS = [
     "pipelineDeBandLevel",
     ["none", "subnet", "vpc", "region", "account", "provider"],
   ],
+  // Strata de-band ladder (OD-15 port) — dissolve the chosen level + all deeper
+  // levels at the strata model build. `none` = byte-identical. Distinct from
+  // `deBandLevel` above, which is the RCLL/v1 lever.
+  [
+    "strataDeBand",
+    "strataDeBandLevel",
+    ["none", "subnet", "vpc", "region", "account", "provider"],
+  ],
+  // W10 band-depth cut (SDEC-63) — hulls at/above the cut stay banded, deeper
+  // hulls pack. Engine default is "account"; mirrors the /demo URL param. The 4th
+  // tuple slot flags CASE-SENSITIVE matching: `subnetZone` is mixed-case, so —
+  // exactly like the demo parser (terraformDemoUrlParams.ts:470-479) — the raw
+  // value must NOT be lowercased before the membership check, or `subnetZone`
+  // would fall through as invalid.
+  [
+    "strataBandDepth",
+    "strataBandDepth",
+    ["root", "provider", "account", "region", "vpc", "subnetZone"],
+    true,
+  ],
   // Outcome-first "Layout" profile — expands into the RCLL flags in the core.
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
 ];
@@ -84,6 +157,16 @@ const LAYOUT_ENUM_PARAMS = [
 // 0 = off (M1a default, 4 planned for M1b). Passthrough-only until the strata
 // engine lands; default OFF like the strata booleans above.
 const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
+
+// W8b ε-constraint crossings budget for the packed scorer. Parsed apart from the
+// pure integers above because the demo URL API (terraformDemoUrlParams.ts:492-505)
+// accepts a FRACTIONAL value in RELATIVE mode (0 < eps < 1) while ABSOLUTE mode
+// (eps >= 1) stays an integer crossings budget. `[paramName, optionKey]`; both the
+// /demo name (`strataPackedEps`) and the canonical engine key are accepted.
+const LAYOUT_EPS_PARAMS = [
+  ["strataPackedEps", "strataPackedScoringEpsilon"],
+  ["strataPackedScoringEpsilon", "strataPackedScoringEpsilon"],
+];
 
 // Which engine variant `/api/terraform-layout` runs. Parsed separately from
 // LAYOUT_ENUM_PARAMS (below) because it selects `options.layoutMode` itself rather
@@ -111,10 +194,23 @@ const LAYOUT_PARAM_CATALOG = {
   enums: {
     columnPacking: ["spread", "none", "compact"],
     deBandLevel: ["none", "subnet", "vpc", "region", "account", "provider"],
+    strataDeBand: ["none", "subnet", "vpc", "region", "account", "provider"],
+    strataBandDepth: [
+      "root",
+      "provider",
+      "account",
+      "region",
+      "vpc",
+      "subnetZone",
+    ],
   },
   enumNotes: {
     deBandLevel:
       "Dissolve the chosen container level AND every deeper level into one shared column stack (cascades downward). `none` = today's boxed layout (byte-identical).",
+    strataDeBand:
+      "layoutMode=strata only. Dissolve the chosen level + every deeper one at the model build (structure phase), so ordering/transpose/A7 re-run over the collapsed model. `none` = byte-identical. SUPPRESSED (scene meta strataToggleSuppressions, and strataDeBandLevel absent from meta) when the absorbing parent is still banded under strataBandDepth — `provider` absorbs into the root, pinned banded, so it is never applied.",
+    strataBandDepth:
+      "CASE-SENSITIVE (unlike the other enums here): `subnetZone` is mixed-case, so the raw value is matched exact-case, NOT lowercased — `subnetzone` is rejected. Mirrors the /demo URL parser.",
   },
   booleans: {
     compact: "detail: collapse clusters to a representative",
@@ -129,6 +225,8 @@ const LAYOUT_PARAM_CATALOG = {
     crossingMin:
       "container-aware crossing minimization (M6c) — reorders whole groups + leaves; supersedes reorder",
     deDensify: "legacy alias ⇒ columnPacking=spread",
+    ancillary:
+      "pipelineIncludeAncillary — include ancillary (non-primary) resources.",
     strataNsRank:
       "alias of strataNetworkSimplexRank (OD-1) — Strata NS rank refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
     strataNetworkSimplexRank:
@@ -137,10 +235,71 @@ const LAYOUT_PARAM_CATALOG = {
       "alias of strataCoordinateRefine (A7) — Strata coordinate refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
     strataCoordinateRefine:
       "A7 flag — Strata coordinate refinement; scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataRankSep:
+      "alias of strataRankSeparate (OD-14) — whole-model sibling-separation ranking (the height lever). Threaded to the engine (sceneContext), active under layoutMode=strata.",
+    strataRankSeparate:
+      "OD-14 flag — Strata whole-model sibling-separation ranking (the height lever). Threaded to the engine (sceneContext), active under layoutMode=strata.",
+    privateApiRegional:
+      "pipelinePrivateApiRegional — private REST APIs bind by account+region (strata-only; forced false on other layoutModes).",
+    strataPackedScoring:
+      "W8 packed-scorer edge scoring (strataPackedScoring). layoutMode=strata only.",
+    strataEdgeRouting: "Strata edge routing (opt-in).",
+    strataBorderRoute: "Strata P3 clean container-exit routing (opt-in).",
+    strataSift:
+      "alias of strataSiftRelocate (OD-15) — crossings-≻-length relocate lever.",
+    strataSiftRelocate: "OD-15 flag — crossings-≻-length relocate lever.",
+    strataPackedConverge:
+      "Adopt the best-seen packed-scorer snapshot instead of the rolling incumbent.",
+    strataTransitiveAdopt: "Transitive ε adoption gate for the packed scorer.",
+    strataBlockClamp: "P4 pure-sink account block clamp.",
+    strataTranspose: "P2 within-column adjacent Y-exchange crossing reduction.",
+    strataHeightGate: "P5/Lever-C height gate after the block-clamp pass.",
   },
   ints: {
     strataSweeps:
       "Strata sweep count K for coordinate refinement (0 = off / M1a default, 4 planned for M1b); scaffold-only (passthrough to rcll v2) until the strata engine lands",
+  },
+  numbers: {
+    strataPackedEps:
+      "alias of strataPackedScoringEpsilon (W8b) — ε-constraint crossings budget for the packed scorer. ABSOLUTE mode (eps >= 1) is a whole-integer budget; RELATIVE mode (0 < eps < 1) is a fractional ratio and accepted (mirrors the /demo URL parser).",
+    strataPackedScoringEpsilon:
+      "W8b ε-constraint crossings budget for the packed scorer. Integer for eps >= 1; fractional allowed for 0 < eps < 1.",
+  },
+  metrics: {
+    note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2). The dataflow crossings/pierce metrics measure VISIBLE + REVEALED edges: the headless import pins every edge layer OFF (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false) so TFD arrows arrive soft-deleted, and computePierceMetrics/diagnosePipelineScene read customData.relationship ENDPOINTS — so on a visible-only set those scalars go quiet even though visible ROUTED geometry may still be present (the healthy branch's visible-only geometryHash carries the ~1.18M-char edge-connector points). geometryHash stays visible-only for baseline comparability; edgeGeometryHash is the edge-inclusive fingerprint; the edge-collapse fields below measure the visible spanning geometry directly.",
+    renderedCrossings:
+      "diagnosePipelineScene(visible+revealed edges).dataflow.crossings — polyline-aware rendered dataflow crossings.",
+    pierce:
+      "computePierceMetrics(visible+revealed edges).pierce.total — chord pierces through non-ancestor hulls.",
+    arrowCount:
+      "Non-deleted arrows in the measured (visible+revealed) set — the guard that renderedCrossings=0 means 'no crossings', not 'no arrows measured'.",
+    tfdArrowCount:
+      "Subset of arrowCount carrying a declared dataflow relationship (customData.relationship source/target strings, aggregated !== true) — the crossings-visibility guard.",
+    declaredEdgeCount:
+      "The declared-edge population = pierce.edgeCount — the denominator of the edge-collapse invariant.",
+    spanningVisibleLinearCount:
+      "Count of spanning (>= 64px, above the 53px icon-stroke ceiling) linear elements (arrow OR line) in the VISIBLE-ONLY set — NOT the visible+revealed set the crossings/pierce scalars use. This distinction is load-bearing: the revealed edges carry isDeleted:false and span [[0,0],[dx,dy]] BY CONSTRUCTION, so counting them read 155/145-healthy on a collapsed scene (round-2 defect). Computed by the SHARED detectEdgeCollapse helper (same as the arm-eval probe). NOT keyed off customData.relationship — the declared skeletons span by construction and arrive soft-deleted on the headless path, so a relationship-keyed span check is a no-op on a genuinely collapsed scene (deband-hash-anomaly.md fix #1).",
+    edgeSpanningFraction:
+      "spanningVisibleLinearCount / declaredEdgeCount, rounded to 3dp. Near 0 means the declared edges left no spanning VISIBLE connector geometry even though crossings/pierce (endpoint-based) look valid.",
+    edgeCollapseDetected:
+      "true when declaredEdgeCount >= 8 AND fewer than 10% of the declared population has spanning visible geometry — a catastrophic edge collapse the scalar metrics are blind to (the engine's once-per-process nondeterminism). The >= 8 population floor gates out the sparse-scene false-positive (a single valid short-connector edge). A true here means the scene is BROKEN, not a valid layout.",
+    revealedEdgeCount:
+      "Count of soft-deleted relationship edges revealed (un-deleted) for the rendered dataflow metrics — the edge geometry the strata toggles optimize.",
+    edgeGeometryHash:
+      "strataGeometryHash(visible + revealed edges) — the edge-inclusive fingerprint so edge-only toggles (edgeRouting/borderRoute) can't hide behind the box-only geometryHash.",
+    topoFrames:
+      "Count of topology hull frames (customData.terraformTopologyRole in provider/account/region/vpc/subnetZone — the exact hull set computePierceMetrics's numerator uses) — the pierce denominator (trap #3). NOT a raw terraformTopologyKey count: that key is also on primaryCluster card / ancillaryStrip / satellite frames, which are not pierce hulls.",
+    piercePerTopoFrame:
+      "pierce / max(1, topoFrames) — normalizes pierce so a deband that removes hulls can't fake a win (trap #3).",
+    height: "Scene bounds height (px).",
+    width: "Scene bounds width (px).",
+    elementCount: "Non-deleted element count.",
+    geometryHash:
+      "strataGeometryHash(elements) from the shared terraformStrataGeometryHash helper — `<count>:<length>:<fnv1a64hex>` of the canonical rounded geometry (sorted multiset of `type|x|y|w|h|angle|pts` lines). Deterministic across runs: the fingerprint OMITS element id, so the proof-API path's per-run id regeneration (nanoid via convertToExcalidrawElements regenerateIds) can't flip it — same request ⇒ same hash.",
+  },
+  timings: {
+    param: "timings",
+    note: 'Set `?timings=1` (alias `?profileTimings=1`) to include a `timings` array (terraformImportProfiler spans, sorted by selfMs). NOTE: the profiler toggle is `timings`, NOT `profile` — `profile` is the layout-profile enum (readable|balanced|compact). All layout requests are serialized through a single queue so the module-global profiler never interleaves spans across concurrent requests.',
   },
   responseShape: [
     "requested",
@@ -148,6 +307,9 @@ const LAYOUT_PARAM_CATALOG = {
     "applied",
     "suppressions",
     "bounds",
+    "metrics",
+    "geometryHash",
+    "timings (only when ?timings=1)",
     "rcll",
     "regions",
   ],
@@ -284,12 +446,18 @@ const parseLayoutBooleanParam = (raw) => {
   return null;
 };
 
-/** undefined when absent, null when invalid, else the matched enum value. */
-const parseLayoutEnumParam = (raw, allowed) => {
+/**
+ * undefined when absent, null when invalid, else the matched enum value.
+ * `caseSensitive` mirrors the demo parser: most enums are lowercased before the
+ * membership check, but `strataBandDepth` carries a mixed-case member
+ * (`subnetZone`) and MUST match exact-case or that value reads as invalid.
+ */
+const parseLayoutEnumParam = (raw, allowed, caseSensitive = false) => {
   if (raw == null || raw.trim() === "") {
     return undefined;
   }
-  const normalized = raw.trim().toLowerCase();
+  const trimmed = raw.trim();
+  const normalized = caseSensitive ? trimmed : trimmed.toLowerCase();
   return allowed.includes(normalized) ? normalized : null;
 };
 
@@ -306,6 +474,29 @@ const parseLayoutIntParam = (raw) => {
   // A hundreds-of-digits input passes the regex but parses to Infinity (or an
   // unrepresentable integer) — outside the documented contract, so reject.
   return Number.isSafeInteger(value) ? value : null;
+};
+
+/**
+ * ε-constraint budget parser (`strataPackedEps`). undefined when absent, null when
+ * invalid, else the parsed number. Mirrors the demo URL semantics exactly
+ * (terraformDemoUrlParams.ts:492-505): reject NaN / negative / non-finite; ABSOLUTE
+ * mode (eps >= 1) must be a whole integer crossings budget, but RELATIVE mode
+ * (0 < eps < 1) is legitimately fractional and accepted.
+ */
+const parseLayoutEpsParam = (raw) => {
+  if (raw == null || raw.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(raw.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  // A fractional value in absolute mode (e.g. 1.5) violates the crossings-budget
+  // contract; a fractional value in relative mode (0 < eps < 1) is valid.
+  if (parsed >= 1 && !Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
 };
 
 /** Overall bounds (min/max) over the non-deleted elements, or null when empty. */
@@ -328,6 +519,144 @@ const computeSceneBounds = (elements) => {
     y: Math.round(minY),
     width: Math.round(maxX - minX),
     height: Math.round(maxY - minY),
+  };
+};
+
+// The exact hull role set computePierceMetrics uses (TOPOLOGY_ROLES in
+// terraformPipelineStrataPierceMetrics.ts). The pierce denominator MUST mirror
+// the numerator's hull definition or the normalization lies.
+const TOPO_HULL_ROLES = new Set([
+  "provider",
+  "account",
+  "region",
+  "vpc",
+  "subnetZone",
+]);
+
+// Count topology hull frames — the honest pierce denominator (trap #3). A hull is
+// a frame whose `customData.terraformTopologyRole` is one of the five roles
+// computePierceMetrics treats as a hull (provider/account/region/vpc/subnetZone).
+// The `terraformTopologyKey` presence test is WRONG here: that key is also stamped
+// on primary-cluster resource-card frames, ancillary-strip frames, and satellite
+// frames (hundreds per scene), which are NOT pierce hulls. Counting them inflates
+// the denominator so a deband that dissolves real hulls barely moves it — exactly
+// the trap-#3 gaming this metric is meant to expose. Match the role set instead.
+const countTopoFrames = (elements) => {
+  let count = 0;
+  for (const el of elements) {
+    if (
+      el.type === "frame" &&
+      !el.isDeleted &&
+      TOPO_HULL_ROLES.has(String(el.customData?.terraformTopologyRole ?? ""))
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+};
+
+/**
+ * Rendered metrics + shared geometry fingerprint. Uses RENDERED signals only
+ * (diagnosePipelineScene / computePierceMetrics), never chord proxies (trap #2).
+ * `helpers` carries the ssr-loaded functions so this stays pure/testable.
+ */
+const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
+  const {
+    diagnosePipelineScene,
+    computePierceMetrics,
+    strataGeometryHash,
+    detectEdgeCollapse,
+  } =
+    helpers;
+  // W5 finding: headless import pins every edge layer OFF
+  // (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false), so the TFD arrows arrive
+  // soft-deleted and a metrics pass over visible elements alone is
+  // structurally blind (crossings/pierce identically 0 for every request).
+  // Measure over visible + revealed edges — the state the app shows once the
+  // dataflow layer pin (or hover) reveals them, i.e. the geometry the strata
+  // toggles actually optimize. Bounds / elementCount / geometryHash stay
+  // visible-only for baseline comparability; edgeGeometryHash adds an
+  // edge-inclusive fingerprint so edge-only togs (edgeRouting/borderRoute)
+  // cannot hide behind a box-only hash.
+  const metricsElements = elements.concat(revealedEdges);
+  let renderedCrossings = null;
+  try {
+    renderedCrossings =
+      diagnosePipelineScene(metricsElements)?.dataflow?.crossings ?? null;
+  } catch {
+    renderedCrossings = null;
+  }
+  let pierceTotal = null;
+  let pierceEdgeCount = 0;
+  try {
+    const pm = computePierceMetrics(metricsElements);
+    pierceTotal = pm?.pierce?.total ?? null;
+    pierceEdgeCount = pm?.pierce?.edgeCount ?? 0;
+  } catch {
+    pierceTotal = null;
+    pierceEdgeCount = 0;
+  }
+  const topoFrames = countTopoFrames(elements);
+  const piercePerTopoFrame =
+    pierceTotal == null
+      ? null
+      : Math.round((pierceTotal / Math.max(1, topoFrames)) * 1000) / 1000;
+  // Arrow visibility guard: renderedCrossings=0 is only meaningful when the
+  // measured set actually CONTAINS dataflow arrows. tfdArrowCount mirrors the
+  // exact diagnosePipelineScene predicate (customData.relationship
+  // source/target, aggregated !== true).
+  let arrowCount = 0;
+  let tfdArrowCount = 0;
+  for (const el of metricsElements) {
+    if (el.type === "arrow" && !el.isDeleted) {
+      arrowCount += 1;
+      const rel = el.customData?.relationship;
+      if (
+        rel &&
+        typeof rel === "object" &&
+        typeof rel.source === "string" &&
+        typeof rel.target === "string" &&
+        rel.aggregated !== true
+      ) {
+        tfdArrowCount += 1;
+      }
+    }
+  }
+  // Edge-collapse invariant (deband-hash-anomaly.md fix #1) — delegated to the
+  // SHARED, unit-tested `detectEdgeCollapse` so this proof-API seam and the
+  // arm-eval probe seam run byte-identical detection. CRITICAL: it is measured
+  // over the visible-only `elements` (which already excludes soft-deleted
+  // elements — line ~1218), NOT `metricsElements`. The revealed skeletons in
+  // `revealedEdges` carry `isDeleted:false` and span [[0,0],[dx,dy]] BY
+  // CONSTRUCTION, so measuring the numerator over the revealed set read
+  // 155/145-healthy on a genuinely collapsed scene (round-2 defect) — the
+  // revealed edges exist ONLY to make the endpoint-based crossings/pierce
+  // metrics non-trivial, they are NOT evidence of routed VISIBLE geometry. The
+  // declared-edge denominator is still `pierceEdgeCount` (computed over
+  // metricsElements above), matching the probe's `pm.pierce.edgeCount`.
+  const {
+    declaredEdgeCount,
+    spanningVisibleLinearCount,
+    edgeSpanningFraction,
+    edgeCollapseDetected,
+  } = detectEdgeCollapse(elements, pierceEdgeCount);
+  return {
+    renderedCrossings,
+    pierce: pierceTotal,
+    topoFrames,
+    piercePerTopoFrame,
+    arrowCount,
+    tfdArrowCount,
+    declaredEdgeCount,
+    spanningVisibleLinearCount,
+    edgeSpanningFraction,
+    edgeCollapseDetected,
+    revealedEdgeCount: revealedEdges.length,
+    height: bounds?.height ?? null,
+    width: bounds?.width ?? null,
+    elementCount: elements.length,
+    geometryHash: strataGeometryHash(elements),
+    edgeGeometryHash: strataGeometryHash(metricsElements),
   };
 };
 
@@ -427,7 +756,13 @@ const summarizeAncillaryAllocator = (allocator) => {
  *     (rankSeparate-needs-rise, column-packing-conflict) AND measured no-ops (a compaction
  *     that moved zero columns on this preset). The honest "why it didn't change" list.
  */
-const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
+const buildLayoutProofPayload = (
+  presetId,
+  requested,
+  scene,
+  layoutMode,
+  extras = {},
+) => {
   const elements = (scene.elements ?? []).filter((el) => !el.isDeleted);
   const meta = scene.meta ?? {};
   const placement = meta.rcllStageMeta?.placement ?? {};
@@ -503,6 +838,14 @@ const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
     resolved: {
       profile: meta.pipelineLayoutProfile ?? requested.profile ?? "balanced",
       flags: resolvedFlags,
+      // Strata engine flags the layout actually ran (from the strata flagMeta echo).
+      // All default off/0 on non-strata runs (meta omits them). Additive.
+      strata: {
+        networkSimplexRank: meta.strataNetworkSimplexRank ?? false,
+        rankSeparate: meta.strataRankSeparate ?? false,
+        coordinateRefine: meta.strataCoordinateRefine ?? false,
+        sweeps: meta.strataSweeps ?? 0,
+      },
     },
     applied: {
       pipelineRankSeparate: meta.pipelineRankSeparate ?? false,
@@ -526,10 +869,52 @@ const buildLayoutProofPayload = (presetId, requested, scene, layoutMode) => {
       // request" (C6′) discipline. `null`/`false` until that wiring lands.
       pipelineLayoutVariant: meta.pipelineLayoutVariant ?? null,
       strataPassthrough: meta.strataPassthrough ?? false,
+      // Strata engine flag echoes (from scene.meta flagMeta) — additive; default
+      // off/0 on non-strata runs. Proves a requested strata param was applied.
+      strataNetworkSimplexRank: meta.strataNetworkSimplexRank ?? false,
+      strataRankSeparate: meta.strataRankSeparate ?? false,
+      strataCoordinateRefine: meta.strataCoordinateRefine ?? false,
+      strataSweeps: meta.strataSweeps ?? 0,
+      // W5 toggle echoes — the remaining engine flags exposed as URL params in
+      // 17bd203f3. flagMeta writes each key present-only-when-active (flag-off
+      // meta byte-identical), so `?? default` here reads the applied state
+      // honestly: a value proves the engine actually ran the toggle.
+      strataPackedScoring: meta.strataPackedScoring ?? false,
+      strataPackedScoringEpsilon: meta.strataPackedScoringEpsilon ?? 0,
+      strataEdgeRouting: meta.strataEdgeRouting ?? false,
+      strataBorderRoute: meta.strataBorderRoute ?? false,
+      strataSiftRelocate: meta.strataSiftRelocate ?? false,
+      strataPackedConverge: meta.strataPackedConverge ?? false,
+      strataTransitiveAdopt: meta.strataTransitiveAdopt ?? false,
+      strataBlockClamp: meta.strataBlockClamp ?? false,
+      strataTranspose: meta.strataTranspose ?? false,
+      strataHeightGate: meta.strataHeightGate ?? false,
+      strataDeBandLevel: meta.strataDeBandLevel ?? "none",
+      // privateApiRegional and strataBandDepth are NOT echoed to scene.meta by
+      // the engine, so `applied` must REPLICATE core's mode-scoping instead of
+      // parroting the request. `terraformLayoutCore.ts:1176-1177` forces
+      // pipelinePrivateApiRegional false for every non-strata layoutMode (it is
+      // only wired for strata; it gate-fails on v2/rcll/compound/pipeline/
+      // semantic), and strataBandDepth is a Strata-only cut the pipeline body
+      // ignores off-strata — so reporting either as applied on a non-strata mode
+      // (e.g. layoutMode=rcll&privateApiRegional=1) is a lie. Gate both on
+      // strata; the caller's raw ask stays visible under `requested`.
+      pipelinePrivateApiRegional:
+        layoutMode === "strata" ? requested.privateApiRegional ?? false : false,
+      strataBandDepth:
+        layoutMode === "strata"
+          ? requested.strataBandDepth ?? "account"
+          : "account",
     },
     suppressions,
     bounds: computeSceneBounds(elements),
     elementCount: elements.length,
+    // Rendered metrics + shared geometry fingerprint (additive; always present).
+    ...(extras.metrics
+      ? { metrics: extras.metrics, geometryHash: extras.metrics.geometryHash }
+      : {}),
+    // Profiler spans, only when ?timings=1 (additive; absent otherwise).
+    ...(extras.timings ? { timings: extras.timings } : {}),
     rcll: {
       rankSeparateApplied: placement.rankSeparateApplied ?? null,
       rankSeparatePairCount: placement.rankSeparatePairCount ?? null,
@@ -623,6 +1008,22 @@ const parseCompositionRoute = (url) => {
   };
 };
 
+// The terraformImportProfiler is MODULE-GLOBAL (one span stack, one totals map).
+// Two concurrent `/api/terraform-layout` requests would interleave their spans and
+// corrupt every timing. Serialize ALL layout work through a single promise chain so
+// each request runs to completion before the next begins. Applied unconditionally
+// (also stabilizes the numbers even when ?timings is off). A rejection never breaks
+// the chain — the tail always resolves.
+let layoutRequestQueue = Promise.resolve();
+const enqueueLayout = (task) => {
+  const run = layoutRequestQueue.then(task, task);
+  layoutRequestQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+};
+
 export const terraformImportPresetDevPlugin = () => ({
   name: "terraform-import-preset-dev",
   configureServer(server) {
@@ -689,8 +1090,17 @@ export const terraformImportPresetDevPlugin = () => ({
             requested[param] = value;
           }
         }
-        for (const [param, optionKey, allowed] of LAYOUT_ENUM_PARAMS) {
-          const value = parseLayoutEnumParam(params.get(param), allowed);
+        for (const [
+          param,
+          optionKey,
+          allowed,
+          caseSensitive,
+        ] of LAYOUT_ENUM_PARAMS) {
+          const value = parseLayoutEnumParam(
+            params.get(param),
+            allowed,
+            caseSensitive === true,
+          );
           if (value === null) {
             sendJson(res, 400, {
               error: `Invalid value for ?${param} (use ${allowed.join("/")}).`,
@@ -715,33 +1125,121 @@ export const terraformImportPresetDevPlugin = () => ({
             requested[param] = value;
           }
         }
+        for (const [param, optionKey] of LAYOUT_EPS_PARAMS) {
+          const value = parseLayoutEpsParam(params.get(param));
+          if (value === null) {
+            sendJson(res, 400, {
+              error: `Invalid value for ?${param} (use a non-negative number; fractional only in relative mode 0<eps<1, integer for eps>=1).`,
+            });
+            return;
+          }
+          if (value !== undefined) {
+            options[optionKey] = value;
+            requested[param] = value;
+          }
+        }
+
+        // Profiler toggle. NOTE: the param is `timings` (alias `profileTimings`),
+        // NOT `profile` — `profile` is the layout-profile enum (readable/balanced/
+        // compact) parsed above. `?timings=1` adds the profiler-span array.
+        const timingsParsed =
+          parseLayoutBooleanParam(params.get("timings")) ??
+          parseLayoutBooleanParam(params.get("profileTimings"));
+        if (timingsParsed === null) {
+          sendJson(res, 400, {
+            error: "Invalid boolean for ?timings (use 1/0/true/false).",
+          });
+          return;
+        }
+        const timingsRequested = timingsParsed === true;
 
         try {
-          const sources = getTerraformImportPresetSourcesFromDb(presetId);
-          if (!sources) {
-            sendJson(res, 404, { error: `Preset "${presetId}" not found.` });
-            return;
-          }
-          await ensureLayoutDomGlobals();
-          const core = await server.ssrLoadModule(LAYOUT_CORE_MODULE);
-          const result = await core.layoutTerraformFromSources(
-            sources,
-            options,
-          );
-          if (!result.ok) {
-            sendJson(res, result.status ?? 422, { error: result.error });
-            return;
-          }
-          sendJson(
-            res,
-            200,
-            buildLayoutProofPayload(
-              presetId,
-              requested,
-              result.scene,
-              layoutMode,
-            ),
-          );
+          // All layout work is serialized through a single queue: the profiler is
+          // module-global, so concurrent requests must never interleave spans.
+          const outcome = await enqueueLayout(async () => {
+            const sources = getTerraformImportPresetSourcesFromDb(presetId);
+            if (!sources) {
+              return {
+                status: 404,
+                body: { error: `Preset "${presetId}" not found.` },
+              };
+            }
+            await ensureLayoutDomGlobals();
+            const [
+              core,
+              diagnosticsMod,
+              pierceMod,
+              hashMod,
+              profilerMod,
+              edgeCollapseMod,
+            ] = await Promise.all([
+              server.ssrLoadModule(LAYOUT_CORE_MODULE),
+              server.ssrLoadModule(COLLISION_DIAGNOSTICS_MODULE),
+              server.ssrLoadModule(PIERCE_METRICS_MODULE),
+              server.ssrLoadModule(GEOMETRY_HASH_MODULE),
+              server.ssrLoadModule(IMPORT_PROFILER_MODULE),
+              server.ssrLoadModule(EDGE_COLLAPSE_MODULE),
+            ]);
+
+            // reset → enable → layout → summary → restore prior enabled-state.
+            // Safe because we hold the queue lock (no interleaving possible).
+            const priorEnabled =
+              profilerMod.isTerraformImportProfilerEnabled();
+            let timingsSummary = null;
+            if (timingsRequested) {
+              profilerMod.terraformImportProfilerReset();
+              profilerMod.setTerraformImportProfilerEnabled(true);
+            }
+            let result;
+            try {
+              result = await core.layoutTerraformFromSources(sources, options);
+            } finally {
+              if (timingsRequested) {
+                timingsSummary =
+                  profilerMod.terraformImportProfilerSummary();
+                profilerMod.setTerraformImportProfilerEnabled(priorEnabled);
+              }
+            }
+            if (!result.ok) {
+              return {
+                status: result.status ?? 422,
+                body: { error: result.error },
+              };
+            }
+            const elements = (result.scene.elements ?? []).filter(
+              (el) => !el.isDeleted,
+            );
+            // Soft-deleted edge-layer elements (customData.relationship),
+            // revealed (isDeleted stripped) for the rendered metrics only —
+            // see the W5 note on buildSceneMetrics.
+            const revealedEdges = (result.scene.elements ?? [])
+              .filter((el) => {
+                if (!el.isDeleted) {
+                  return false;
+                }
+                const rel = el.customData?.relationship;
+                return rel != null && typeof rel === "object";
+              })
+              .map((el) => ({ ...el, isDeleted: false }));
+            const bounds = computeSceneBounds(elements);
+            const metrics = buildSceneMetrics(elements, revealedEdges, bounds, {
+              diagnosePipelineScene: diagnosticsMod.diagnosePipelineScene,
+              computePierceMetrics: pierceMod.computePierceMetrics,
+              strataGeometryHash: hashMod.strataGeometryHash,
+              detectEdgeCollapse: edgeCollapseMod.detectEdgeCollapse,
+            });
+            return {
+              status: 200,
+              body: buildLayoutProofPayload(
+                presetId,
+                requested,
+                result.scene,
+                layoutMode,
+                { metrics, timings: timingsSummary },
+              ),
+            };
+          });
+          sendJson(res, outcome.status, outcome.body);
         } catch (error) {
           // eslint-disable-next-line no-console
           console.error("[terraform-layout] failed:", error);

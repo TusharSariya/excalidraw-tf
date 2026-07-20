@@ -33,6 +33,7 @@ export async function buildTerraformPipelineExcalidrawScene(
     includeAncillary?: boolean;
     semanticPlacement?: boolean;
     experimentalLayout?: boolean;
+    pipelinePrivateApiRegional?: boolean;
   },
 ): Promise<{
   elements: ExcalidrawElement[];
@@ -47,6 +48,7 @@ export async function buildTerraformPipelineExcalidrawScene(
   const experimentalLayout = options?.experimentalLayout === true;
   let prep = preparePipelineLayout(nodes, plan, compact, {
     experimentalLayout,
+    privateApiRegional: options?.pipelinePrivateApiRegional,
   });
   const ancillaryStrips = includeAncillary
     ? buildAncillaryStrips(nodes, plan, prep, { compact })

@@ -6,7 +6,10 @@ import {
   getTerraformGraphAddressForElement,
   isTerraformResourceElement,
 } from "./terraformElementMetadata";
-import { applyTerraformRelationshipFocus } from "./terraformRelationshipFocus";
+import {
+  applyTerraformRelationshipFocus,
+  isValidTerraformFocusHopCount,
+} from "./terraformRelationshipFocus";
 import {
   getTerraformElementForSelection,
   terraformEdgesVisibilitySig,
@@ -36,6 +39,8 @@ export const buildTerraformRuntimeFocusUpdate = ({
   skipBindingRepair,
   lastFocusInputsSig,
   lastFocusSceneSig,
+  focusDirection = "both",
+  focusMaxHops = null,
 }: {
   allElements: readonly NonDeletedExcalidrawElement[];
   activeFocusNodePath: string | null;
@@ -45,12 +50,43 @@ export const buildTerraformRuntimeFocusUpdate = ({
   skipBindingRepair: boolean;
   lastFocusInputsSig: string | null;
   lastFocusSceneSig: string | null;
+  /** W11 WP1: opt-in traversal direction; `"both"` takes the legacy code path. */
+  focusDirection?: AppState["terraformFocusDirection"];
+  /** W11 WP1: opt-in hop-cap override; `null` = legacy default (3 hops). */
+  focusMaxHops?: AppState["terraformFocusMaxHops"];
 }) => {
+  // ── W11 F4: AppState ingress normalization ─────────────────────────────
+  // AppState may carry junk in these two fields via the public `updateScene`
+  // API or `restore` (the TS types are compile-time promises only). This is
+  // the consumption boundary, so normalize BEFORE building the options/sig:
+  // - direction: anything but "dependencies"/"dependents" ⇒ "both".
+  // - maxHops: `-1` (the JSON-safe stored sentinel) ⇒ Infinity; `null`/
+  //   undefined ⇒ legacy default (3 hops); `Infinity` (API misuse) ⇒ tolerated
+  //   as Infinity here but never re-stored — storage-side Infinity degrades
+  //   safely to `null` through JSON.stringify (accepted); any other
+  //   non-finite/NaN/<0 / non-integer / unsafe-integer value ⇒ ignored
+  //   (legacy default; W13 F3 — `isValidTerraformFocusHopCount`, so e.g.
+  //   `1e21` no longer passes); 0 = focused node only (W13 WP1).
+  const normalizedFocusDirection: AppState["terraformFocusDirection"] =
+    focusDirection === "dependencies" || focusDirection === "dependents"
+      ? focusDirection
+      : "both";
+  const effectiveMaxHops =
+    focusMaxHops == null
+      ? null
+      : focusMaxHops === -1 || focusMaxHops === Infinity
+      ? Infinity
+      : isValidTerraformFocusHopCount(focusMaxHops)
+      ? focusMaxHops
+      : null;
+
   const focusInputsSig = terraformFocusInputsSig(
     activeFocusNodePath,
     selectedElementIds,
     pins,
     viewBackgroundColor,
+    normalizedFocusDirection,
+    effectiveMaxHops,
   );
   const currentSceneSig = terraformFocusSceneSig(
     allElements,
@@ -68,10 +104,25 @@ export const buildTerraformRuntimeFocusUpdate = ({
     };
   }
 
+  // Options are omitted entirely at the (normalized) default ("both" + no hop
+  // override) so `applyTerraformRelationshipFocus` takes its byte-identical
+  // legacy path. AppState stores the JSON-safe sentinel `-1` for "unlimited";
+  // it is mapped to Infinity only above, at this traversal boundary.
+  const focusOptions =
+    normalizedFocusDirection === "both" && effectiveMaxHops == null
+      ? undefined
+      : {
+          ...(normalizedFocusDirection !== "both"
+            ? { direction: normalizedFocusDirection }
+            : {}),
+          ...(effectiveMaxHops != null ? { maxHops: effectiveMaxHops } : {}),
+        };
+
   const result = applyTerraformRelationshipFocus(
     allElements,
     activeFocusNodePath,
     viewBackgroundColor,
+    focusOptions,
   );
   const pinReconcile = buildTerraformReconcileOptionsForAppState(
     pins,
@@ -154,6 +205,8 @@ export function useTerraformRelationshipFocusEffect({
       skipBindingRepair: runtimeSnapshot.value.skipBindingRepairDuringFocus,
       lastFocusInputsSig: lastTerraformFocusInputsSigRef.current,
       lastFocusSceneSig: lastTerraformFocusSceneSigRef.current,
+      focusDirection: appState.terraformFocusDirection,
+      focusMaxHops: appState.terraformFocusMaxHops,
     });
     lastTerraformFocusInputsSigRef.current = update.focusInputsSig;
     lastTerraformFocusSceneSigRef.current = update.focusSceneSig;
@@ -166,6 +219,8 @@ export function useTerraformRelationshipFocusEffect({
     appState.selectedElementIds,
     appState.selectedGroupIds,
     appState.terraformEdgeLayerPins,
+    appState.terraformFocusDirection,
+    appState.terraformFocusMaxHops,
     appState.viewBackgroundColor,
     elements,
     runtimeSnapshot.version,

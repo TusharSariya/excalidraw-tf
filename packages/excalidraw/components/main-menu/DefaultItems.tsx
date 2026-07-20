@@ -87,7 +87,11 @@ import { buildTerraformCanvasShareUrl } from "../terraformCanvasShareUrl";
 import { getTerraformRuntimePerformanceSnapshot } from "../terraformRuntimePerformance";
 import { copyTextToSystemClipboard } from "../../clipboard";
 
+import { isValidTerraformFocusHopCount } from "../terraformRelationshipFocus";
+
 import "./DefaultItems.scss";
+
+import type { TerraformFocusDirection } from "../terraformRelationshipFocus";
 
 type TerraformEdgeLayer =
   | "dependency"
@@ -298,6 +302,144 @@ const TerraformLayerItem = ({
   );
 };
 
+/**
+ * Relationship-focus direction + hop-cap controls (W11 WP1) — colocated with the
+ * edge-layer pins per owner decision. Copy deliberately says "dependencies" /
+ * "dependents" only — no "downstream/upstream/dataflow" claims until Q7-AXIS
+ * establishes what the axis reads as on canvas.
+ */
+export const TerraformFocusControls = () => {
+  const app = useApp();
+  const setAppState = useExcalidrawSetAppState();
+  const direction = app.state.terraformFocusDirection ?? "both";
+  const maxHops = app.state.terraformFocusMaxHops;
+
+  // Radio value derived from terraformFocusMaxHops:
+  //   null      → "3"   (legacy default; stored as null, never literal 3)
+  //   -1 / ∞    → "all" (JSON-safe unlimited sentinel)
+  //   0|1|2|3   → curated numeric choices
+  //   other N   → dynamic uncurated choice (URL/API-set) inserted between
+  //               "3" and "all" so the control never lies about state.
+  //               RadioGroup is stateless (pure map keyed by String(value)),
+  //               so a changing choices array is safe.
+  //   junk      → default derivation ("3") — W13 F3: only values passing
+  //               `isValidTerraformFocusHopCount` (non-negative SAFE integer)
+  //               may become a checked dynamic choice; anything else (e.g.
+  //               `1e21`, NaN, 2.5) is what the ingress guard ignores, so the
+  //               control shows the effective default instead of echoing junk.
+  const hopsValue =
+    maxHops == null
+      ? "3"
+      : maxHops === -1 || maxHops === Infinity
+      ? "all"
+      : isValidTerraformFocusHopCount(maxHops)
+      ? String(maxHops)
+      : "3";
+  const hopsChoices: {
+    value: string;
+    label: string;
+    ariaLabel: string;
+    testId: string;
+  }[] = [
+    {
+      value: "0",
+      label: "0",
+      ariaLabel: "Focus hops: focused node only",
+      testId: "terraform-focus-hops-0",
+    },
+    {
+      value: "1",
+      label: "1",
+      ariaLabel: "Focus hops: 1",
+      testId: "terraform-focus-hops-1",
+    },
+    {
+      value: "2",
+      label: "2",
+      ariaLabel: "Focus hops: 2",
+      testId: "terraform-focus-hops-2",
+    },
+    {
+      value: "3",
+      label: "3",
+      ariaLabel: "Focus hops: 3 (default)",
+      testId: "terraform-focus-hops-3",
+    },
+    {
+      value: "all",
+      label: "∞",
+      ariaLabel: "Focus hops: unlimited",
+      testId: "terraform-focus-hops-unlimited",
+    },
+  ];
+  if (
+    hopsValue !== "all" &&
+    !hopsChoices.some((choice) => choice.value === hopsValue)
+  ) {
+    hopsChoices.splice(hopsChoices.length - 1, 0, {
+      value: hopsValue,
+      label: hopsValue,
+      ariaLabel: `Focus hops: ${hopsValue}`,
+      testId: `terraform-focus-hops-${hopsValue}`,
+    });
+  }
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItemContentRadio<TerraformFocusDirection>
+        name="terraform-focus-direction"
+        icon={ExportImageIcon}
+        value={direction}
+        onChange={(value) => {
+          setAppState({ terraformFocusDirection: value });
+        }}
+        choices={[
+          {
+            value: "both",
+            label: "Both",
+            ariaLabel: "Focus direction: both",
+            testId: "terraform-focus-direction-both",
+          },
+          {
+            value: "dependencies",
+            label: "Dependencies",
+            ariaLabel: "Focus direction: dependencies",
+            testId: "terraform-focus-direction-dependencies",
+          },
+          {
+            value: "dependents",
+            label: "Dependents",
+            ariaLabel: "Focus direction: dependents",
+            testId: "terraform-focus-direction-dependents",
+          },
+        ]}
+      >
+        Focus direction
+      </DropdownMenuItemContentRadio>
+      <DropdownMenuItemContentRadio<string>
+        name="terraform-focus-hops"
+        icon={ExportImageIcon}
+        value={hopsValue}
+        onChange={(value) => {
+          setAppState({
+            // -1 = JSON-safe "unlimited" sentinel (Infinity would not survive
+            // localStorage/export JSON round-trips). "3" stores null (legacy
+            // default) — never literal 3 — to preserve the byte-identical
+            // default path and URL omission.
+            terraformFocusMaxHops:
+              value === "all" ? -1 : value === "3" ? null : Number(value),
+          });
+        }}
+        choices={hopsChoices}
+      >
+        Focus hops
+      </DropdownMenuItemContentRadio>
+    </>
+  );
+};
+TerraformFocusControls.displayName = "TerraformFocusControls";
+
 export const TerraformLayers = () => {
   const app = useApp();
   const hasTerraformLayers = app.scene
@@ -329,6 +471,7 @@ export const TerraformLayers = () => {
         <TerraformLayerItem layer="topologyFrameFlow">
           Topology box edges
         </TerraformLayerItem>
+        <TerraformFocusControls />
       </DropdownMenuSub.Content>
     </DropdownMenuSub>
   );
@@ -471,6 +614,8 @@ export const TerraformCopyCanvasUrl = () => {
         terraformLodPreset: app.state.terraformLodPreset,
         terraformMinimapEnabled: app.state.terraformMinimapEnabled,
         terraformEdgeLayerPins: app.state.terraformEdgeLayerPins,
+        terraformFocusDirection: app.state.terraformFocusDirection,
+        terraformFocusMaxHops: app.state.terraformFocusMaxHops,
         runtimePerformance: getTerraformRuntimePerformanceSnapshot().value,
       },
       // Absolute URL so the copied link is shareable as-is (not a bare `/demo?…` path).

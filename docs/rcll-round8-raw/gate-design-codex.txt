@@ -1,0 +1,279 @@
+I’m using the project’s `graphify` workflow to scope the code/spec inspection and the local graph-layout RAG skill for the literature review. I’ll keep this strictly read-only and will not touch the prohibited Claude/agent paths or `agents/openai.yaml`.
+[codex ran] /bin/zsh -lc "sed -n '1,240p' .agents/skills/graphify/SKILL.md && sed -n '1,280p' .agents/skills/graph-layout-rag/SKILL.md"
+[codex ran] /bin/zsh -lc 'test -f graphify-out/graph.json && graphify query "Strata RCLL v3.1 readability metrics gates bootstrap impact tracing slice metrics collision diagnostics" --budget 3000'
+Graphify confirms the existing measurement surface is centered in `terraformPipelineSliceMetrics.ts`, with geometry helpers and collision diagnostics already connected. I’m now extracting the exact current gates/floors/bootstrap contracts before proposing replacements.
+[codex ran] /bin/zsh -lc "rg -n '"'^#{1,4} '"' docs/rcll-v2-shit-test-round8.md docs/rcll-v2-spec-v3.md docs/rcll-v2-spec-v3.1.md docs/strata-view-w3-battery-report.md docs/strata-view-w4-extent-report.md && wc -l docs/rcll-v2-shit-test-round8.md docs/rcll-v2-spec-v3.md docs/rcll-v2-spec-v3.1.md docs/strata-view-w3-battery-report.md docs/strata-view-w4-extent-report.md packages/excalidraw/components/terraformPipelineSliceMetrics.ts packages/excalidraw/components/terraformPipelineBootstrapCi.ts packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts"
+[codex ran] /bin/zsh -lc "sed -n '1,220p' docs/strata-view-w3-battery-report.md; sed -n '1,220p' docs/strata-view-w4-extent-report.md"
+[codex ran] /bin/zsh -lc "sed -n '1,220p' docs/rcll-v2-shit-test-round8.md; sed -n '1,230p' docs/rcll-v2-spec-v3.md; sed -n '1,230p' docs/rcll-v2-spec-v3.1.md"
+[codex ran] /bin/zsh -lc "sed -n '38,78p' docs/rcll-v2-spec-v3.md; sed -n '130,158p' docs/rcll-v2-spec-v3.md; sed -n '34,70p' docs/rcll-v2-spec-v3.1.md; sed -n '119,164p' docs/rcll-v2-spec-v3.1.md; sed -n '115,136p' docs/rcll-v2-shit-test-round8.md"
+[codex ran] /bin/zsh -lc "rg -n '"'^(export )?(type|interface|const|function|class) |export const|export function|edgeGeometry|polyline|cross|deviation|eligible|bandsSkipped|slice|extent|areaUtil|stacked'"' packages/excalidraw/components/terraformPipelineSliceMetrics.ts"
+[codex ran] /bin/zsh -lc "rg -n '"'^(export )?(type|interface|const|function|class) |export const|export function|paired|bootstrap|percentile|mulberry|degenerate|void|unmatched'"' packages/excalidraw/components/terraformPipelineBootstrapCi.ts"
+[codex ran] /bin/zsh -lc "rg -n '"'^(export )?(type|interface|const|function|class) |export const|export function|polyline|cross|segment|deviation|arrow|point|collision'"' packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts"
+[codex ran] /bin/zsh -lc "sed -n '1,280p' packages/excalidraw/components/terraformPipelineBootstrapCi.ts"
+[codex ran] /bin/zsh -lc "sed -n '40,180p' packages/excalidraw/components/terraformPipelineSliceMetrics.ts; sed -n '223,330p' packages/excalidraw/components/terraformPipelineSliceMetrics.ts; sed -n '439,744p' packages/excalidraw/components/terraformPipelineSliceMetrics.ts"
+[codex ran] /bin/zsh -lc "sed -n '120,225p' packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts; sed -n '338,430p' packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts; sed -n '470,510p' packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts"
+The current implementation already exposes canonical edge identities, full rendered polylines, endpoint topology paths, band order, and a reusable proper-crossing kernel. The main missing layer is graph/path reconstruction plus angle- and path-aware aggregation; no new rendering instrumentation is required. I’m now grounding each proposed metric against the empirical literature, separating empirical findings from engineering priors.
+[codex ran] /bin/zsh -lc 'bin/rag graph "Wang Chi metro map straightness path continuity line tracing schematic network maps" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "Huang Eades Hong crossing angle geodesic path tendency graph readability experiment" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "Ware Purchase path continuity crossings on path branching shortest path tracing graph readability empirical" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "metro map octilinearity straightness Nöllenburg Wolff Stott Rodgers metro map layout readability" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag read graph doi-10-1109-pacificvis-2008-4475457 --pages 1-8 --json'
+[codex ran] /bin/zsh -lc 'bin/rag read graph forward-10-1109-iv-2004-1320168 --pages 1-10 --json'
+[codex ran] /bin/zsh -lc 'bin/rag read graph doi-10-1057-palgrave-ivs-9500013 --pages 1-12 --json'
+[codex ran] /bin/zsh -lc 'bin/rag read graph doi-10-1109-pacificvis-2009-4906848 --pages 1-8 --json'
+[codex ran] /bin/zsh -lc 'bin/rag read graph forward-10-48550-arxiv-0810-4431 --pages 1-10 --json'
+[codex ran] /bin/zsh -lc 'bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 1-18 --json'
+[codex ran] /bin/zsh -lc "curl -L --max-time 20 -s https://export.arxiv.org/api/query?id_list=2508.15557 | sed -n '1,120p'"
+[codex ran] /bin/zsh -lc "curl -L --max-time 20 -s 'https://export.arxiv.org/api/query?id_list=2508.15557' | sed -n '1,140p'"
+[codex ran] /bin/zsh -lc 'bin/rag graph "Purchase graph drawing aesthetics empirical crossings bends symmetry orthogonality task performance" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "metro map usability octilinear straight curves journey planning empirical Roberts" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "edge length graph drawing readability empirical path tracing Purchase Ware" --top 8'
+[codex ran] /bin/zsh -lc 'bin/rag graph "branching fan out path tracing continuity shared node graph readability" --top 8'
+[codex ran] /bin/zsh -lc 'for f in docs/strata-baselines/Q2_AUDIT_REPORT_P1.json docs/strata-baselines/Q2_AUDIT_REPORT_P2.json; do shasum -a 256 "$f"; jq '"'keys, (.arms // .results // .)' \""'$f" | sed -n '"'1,80p'; done"
+[codex ran] /bin/zsh -lc "jq '.A_v2_baseline.metrics.slices | keys, (.perEdge[0] // null), (.perEdge | length // 0)' docs/strata-baselines/Q2_AUDIT_REPORT_P1.json; jq '.F_v2_full_ancillary.metrics.slices | keys, (.perEdge | length // 0)' docs/strata-baselines/Q2_AUDIT_REPORT_P1.json"
+[codex ran] /bin/zsh -lc "curl -L --max-time 30 -s https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf | pdftotext - - | rg -n -C 5 'regression|continuity|branch|crossing|model|coefficient|seconds|spl|tll|pcr'"
+[codex ran] /bin/zsh -lc "bin/rag read graph forward-10-1109-iv-2004-1320168 --pages 1-8 --json | jq -r '.status, .message, (.pages[]? | \"PAGE \\(.page)\\n\\(.text)\")' | rg -n -C 4 'fitness|criteria|straight|octilinear|edge length|bend|cross|angular|line'"
+[codex ran] /bin/zsh -lc "bin/rag read graph forward-10-1109-iv-2004-1320168 --pages 1-8 --json | sed -n '1,30p'"
+[codex ran] /bin/zsh -lc "bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 2-9 --json | jq -r '.pages[]? | \"PAGE \\(.page)\\n\\(.text)\"' | rg -n -C 4 'Rule|rule|octilinear|bend|straight|length|Stott|Rodgers|Nöllenburg|Wolff'"
+[codex ran] /bin/zsh -lc "bin/rag read graph s2-10-1007-bfb0021827 --pages 1-12 --json | jq -r '.pages[]? | \"PAGE \\(.page)\\n\\(.text)\"' | rg -n -C 5 'cross|bend|orthogon|symmetr|angular|result|task|important'"
+[codex ran] /bin/zsh -lc "curl -L --max-time 30 -s https://arxiv.org/pdf/2508.15557 | pdftotext - - | rg -n -C 4 'morph|shape|metric|crossing|stress|angular|conclusion|arbitrary|same quality|limitation'"
+[codex ran] /bin/zsh -lc "bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 18 --json | jq -r '.pages[]?.text' | rg -n -C 2 'Nöllenburg|Stott|Rodgers|Wang|Ware'"
+[codex ran] /bin/zsh -lc "bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 16-17 --json | jq -r '.pages[]?.text' | rg -n -C 2 'Nöllenburg|Stott|Rodgers|Ware|Hong'"
+[codex ran] /bin/zsh -lc "bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 14-15 --json | jq -r '.pages[]?.text' | tail -220"
+[codex ran] /bin/zsh -lc "bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 16-18 --json | jq -r '.status, .total_pages, (.pages[]? | \"PAGE \\(.page)\\n\\(.text)\")' | tail -180"
+[codex ran] /bin/zsh -lc "bin/rag read graph doi-10-1007-s00450-007-0036-y --pages 21-22 --json | jq -r '.pages[]?.text' | rg -n -C 2 'Nöllenburg|ollenburg|Stott|Rodgers|Ware|Huang'"
+## Proposed metric family
+
+Let \(G=(V,E)\) be the declared, non-aggregated TFD graph. Each edge has its canonical true-direction key and rendered world-coordinate polyline \(p_e=(p_0,\dots,p_m)\). Remove zero-length segments. Define
+
+\[
+\operatorname{turn}(a,b)=\frac{180}{\pi}\arccos(\operatorname{clamp}(a\cdot b,-1,1)),
+\]
+
+where both vectors are oriented in the path-traversal direction; straight continuation is \(0^\circ\).
+
+The general Goodhart warning is real: drawings can be morphed toward arbitrary shapes while preserving one or several conventional quality metrics. Strata’s rank pinning and hull containment remove much of that paper’s free 2-D relocation space, but do not constitute a proof; the defense must remain scoped to structural invariants, all-edge path coverage, and several non-substitutable task metrics. [van Wageningen, Mchedlidze & Telea 2025](https://arxiv.org/abs/2508.15557).
+
+| Metric | Precise rendered-scene definition | Empirical grounding | Role | Statistic | Goodhart/fooling risk and limit |
+|---|---|---|---|---|---|
+| **Hierarchy integrity \(H\)** | Count: leaf/card outside its immediate hull; overlapping sibling hull interiors; interleaved band Y-intervals; non-endpoint arrow/polyline intersecting an unrelated card interior; declared edge with target center left of source center by \(>1\) px. | Topology/embedding preservation is a hard metro-map constraint in Nöllenburg–Wolff, but this is primarily the owner’s structural invariant, not a perceptual result. [Wolff survey](https://link.springer.com/content/pdf/10.1007/s00450-007-0036-y.pdf). | **Hard gate** | Exact count \(H=0\); no bootstrap. | Easy to satisfy with an ugly drawing. It only establishes validity; task gates do the readability work. |
+| **Ware impact-cost proxy \(W(P)\)** | \(W(P)=1.390k+0.01699C(P)+0.654X(P)+0.295B(P)\), where \(k\) is edge count, \(C\) node-continuity deviation in degrees, \(X\) crossings on the path, and \(B=\sum(\deg(v_i)-2)\). Omit the published \(-4.970\) intercept. Use only for paired relative comparison, not as predicted seconds. | Ware et al.’s 43-subject shortest-path regression; continuity, path crossings and branching remained significant, while total drawing crossings and geometric line length did not. One crossing was approximately equivalent to \(38^\circ\) of bendiness. [Ware et al. 2002](https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf). | **Primary gate** | Separately bootstrapped **p50 and p90**. p50 covers typical tracing; p90 protects difficult chains. | Coefficients came from spring-layout shortest-path tasks, not Terraform DAGs. Limit transfer by gating components and trap metrics separately; never interpret the score as literal time. |
+| **Path continuity \(C(P)\)** | At each intermediate node, sum the angular deviation between the incoming edge’s terminal tangent and outgoing edge’s initial tangent: \(C(P)=\sum_i\operatorname{turn}(t_i^-,t_i^+)\). | Ware defined continuity exactly as summed angular deviation at path nodes and found it the most important layout-controlled factor in that experiment. [Ware 2002](https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf). | **Component gate** | **p90** no-regression guardrail; p50 reported. | Can straighten paths by introducing crossings or severe detours. Crossing, angle, bend and stretch metrics constrain that escape. |
+| **Crossings on path \(X(P)\)** | Number of distinct unordered rendered edge pairs \(\{e,f\}\) having a proper segment crossing and at least one edge in \(P\). Shared graph endpoints are excluded; a polyline pair counts once even if several segment pairs intersect. | Ware found crossings of the sought path significant, while total drawing crossings were not significant for shortest-path tracing. Purchase independently found crossings harmful for broader graph tasks. [Ware 2002](https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf), [Purchase et al. 1996](https://link.springer.com/content/pdf/10.1007/BFb0021827.pdf). | **Component gate** | **p90** no-regression; p50 and mean report. | Count can be preserved while crossings become acute, or reduced via long bends. Crossing-angle, continuity and bend gates prevent those substitutions. |
+| **Worst crossing-angle severity \(A(P)\)** | For every crossing edge pair touching \(P\), compute each intersecting segment pair’s acute angle \(\alpha\in[0,90^\circ]\); retain the pair’s minimum \(\alpha\). \(A(P)=\max \cos\alpha\), with \(A=0\) when there is no crossing. Higher is worse. | Huang’s path-task median times rose from 6.81 s without crossings to 14.74 s near \(90^\circ\), and 29.41 s for small angles; eye movements also slowed and backtracked. [Huang 2008](https://arxiv.org/pdf/0810.4431.pdf), [Huang, Hong & Eades 2008](https://doi.org/10.1109/PACIFICVIS.2008.4475457). | **Gate** | **p90**, because a single acute crossing can dominate a path. | Can maximize angles by adding more crossings. \(X(P)\) gates their count. |
+| **Misleading-geodesic tendency \(G(P)\)** | At path node \(v_i\), let \(g_i\) point from the node center to final target center, \(d_i\) be the correct outgoing tangent, and \(d_f\) each wrong same-direction branch whose next node cannot reach the target. \(G_i=[\angle(d_i,g_i)-\min_f\angle(d_f,g_i)]_+/180^\circ\); \(G(P)=\max_iG_i\). | Controlled experiments and eye tracking found that readers preferentially follow branches geometrically directed toward the target, even when they are not on the correct path. [Huang, Eades & Hong 2009](https://doi.org/10.1109/PACIFICVIS.2009.4906848), [Huang 2008](https://arxiv.org/pdf/0810.4431.pdf). | **Gate** | **p90** worst-path trap margin. | Target bearings can improve merely by stretching the layout. Path stretch, hierarchy and branch-fan gates constrain this. |
+| **Branch-fan confusability \(F(P)\)** | At intermediate node \(v_i\), let \(\delta_i^\*\) be the turn from incoming tangent to the correct continuation. For wrong same-direction branches \(f\), \(F_i=\#\{f:\delta_{if}\le\delta_i^\*+1^\circ\}/\max(1,\#f)\); \(F(P)=\max_iF_i\). The \(1^\circ\) tolerance is a frozen numerical convention. | Ware found branch count significant; good continuation explains why branches at least as straight as the correct continuation are especially hazardous. The exact rank/fraction formula is an **engineering operationalization**, not an empirically calibrated law. [Ware 2002](https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf). | **Gate**, but only as a no-regression veto; exclude from weighted \(W\). | **p90**. | Could rotate all alternatives away while producing long or crossed routes. Other path gates and hull constraints limit this. |
+| **Within-edge bend burden \(D(P)\)** | Sum direction changes at internal polyline vertices: \(D(P)=\sum_{e\in P}\sum_j\operatorname{turn}(s_{ej},s_{e,j+1})\). Also report raw non-collinear bend count. | Purchase found more polyline bends significantly increased errors in sparse and dense graphs. Metro-map work minimizes bends and prefers obtuse over acute turns to support line following. [Purchase et al.](https://link.springer.com/content/pdf/10.1007/BFb0021827.pdf), [Wolff survey](https://link.springer.com/content/pdf/10.1007/s00450-007-0036-y.pdf). | **Gate** | **p90** no-regression; raw bend-count mean report. | Can replace many small bends with one severe bend; angular sum and p90 limit that. Can still create long straight detours, covered by stretch telemetry. |
+| **Path routing stretch \(R(P)\)** | \(\sum_{e\in P}\operatorname{polylineLength}(e)\ /\ \sum_{e\in P}\max(1,\lVert p_{e,m}-p_{e,0}\rVert)\). Also report raw px length. | Total edge length is a standard metro-map soft criterion, but Wolff explicitly notes the rules lacked user validation; geometric line length was not significant in Ware’s final regression. This is an **owner engineering prior**. [Wolff survey](https://link.springer.com/content/pdf/10.1007/s00450-007-0036-y.pdf), [Ware 2002](https://vislab-ccom.unh.edu/pdfs/GraphAesthetics.pdf). | **Report-only** in v3.2 | p50/p90; p90 is the candidate for later promotion. | Raw length is defeated by scaling; the ratio is scale-resistant, while frozen geometry constants protect the raw companion. |
+| **Octilinear deviation \(O(P)\)** | Length-weighted angular distance of every segment to the nearest multiple of \(45^\circ\): \(O(P)=\sum_s\ell_s\min_k\lvert\operatorname{wrap}_{180}(\theta_s-45k)\rvert/\sum_s\ell_s\), range \(0..22.5^\circ\). | Octilinearity, straightness, angular resolution and edge length are recurring metro-map objectives in Stott–Rodgers, Nöllenburg–Wolff and Wang–Chi. This is design literature, not isolated evidence that octilinearity improves dependency tracing. [Stott & Rodgers 2004](https://doi.org/10.1109/IV.2004.1320168), [Nöllenburg & Wolff](https://i11www.iti.kit.edu/extra/publications/nw-dlhqm-10.pdf), [Wang & Chi 2011](https://doi.org/10.1109/TVCG.2011.205), [transit-map survey](https://onlinelibrary.wiley.com/doi/full/10.1111/cgf.14030). | **Report-only** | Mean and p90. | Particularly easy to optimize into a tidy but misleading map. Never let it compensate for task metrics. |
+| **Global aesthetics and compactness** | Existing global crossings/eligible pairs, slice extents, bands skipped, stacked height, area utilization, W×H and aspect. | Purchase supports crossings and bends for general tasks; Ware shows total crossings are not the right impact-tracing statistic. No cited study isolates vertical-vs-horizontal edge cost. | **Report-only** | Totals/means and existing p50/p90 as descriptive telemetry. | These are the easiest metrics to improve while moving difficulty onto the actual traced paths. |
+
+## Path-level metrics for impact tracing
+
+**Path population.** Build \(G\) from true-direction canonical TFD edges, independent of the rendered arm. Canonically sort nodes and edges.
+
+Use deterministic edge-anchored walks so every dependency edge is represented:
+
+1. For each canonical edge \(e=(u,v)\) and replica \(r\in\{0,1,2,3\}\), initialize path \([e]\).
+2. Extend alternately forward and backward until \(L=8\) edges or both ends are blocked. Forward candidates are outgoing edges from the tail; backward candidates are incoming edges to the head.
+3. Never repeat a vertex, so cycles terminate as simple paths.
+4. Candidate choice uses canonical ordering plus a fresh `mulberry32(FNV1a32("20260704\0" + edgeKey + "\0" + r + "\0" + side + "\0" + step))`.
+5. Evaluate both the downstream ordering and its exact upstream reversal.
+6. Keep paths grouped by anchor edge; deduplicate only within the same anchor/replica. The path key is `anchorKey + replica + orientation + ordered edge keys`.
+
+At P1 this yields at most \(145\times4\times2=1{,}160\) path observations before within-anchor deduplication. Single-edge paths contribute to crossing/angle/stretch; continuity, fan and geodesic metrics require at least two edges.
+
+**Exact path formulas.**
+
+For \(P=(v_0,e_1,v_1,\dots,e_k,v_k)\):
+
+\[
+C(P)=\sum_{i=1}^{k-1}\operatorname{turn}
+  \left(t^-_{e_i,v_i},t^+_{e_{i+1},v_i}\right).
+\]
+
+The tangents are the last and first nonzero rendered segments after orienting each polyline in traversal direction.
+
+\[
+X(P)=\#\{\{e,f\}:e\in P,\ f\in E,\ e\ne f,\ e\text{ and }f
+\text{ properly cross}\}.
+\]
+
+Each unordered edge pair is counted once; pairs sharing a graph endpoint are excluded.
+
+For a proper segment crossing,
+
+\[
+\alpha(s,t)=\arccos\left(\lvert\hat s\cdot\hat t\rvert\right)\in[0,90^\circ],
+\qquad
+A(P)=\max_{\text{crossings touching }P}\cos\alpha.
+\]
+
+For misleading geodesics, let \(T=v_k\), \(g_i=\widehat{c(T)-c(v_i)}\), and let \(\mathcal A_i\) contain wrong branches in the current traversal direction. A branch is not “wrong” if \(T\) remains reachable through it.
+
+\[
+G_i=
+\frac{
+  [\angle(d_i^\*,g_i)-\min_{f\in\mathcal A_i}\angle(d_f,g_i)]_+
+}{180^\circ},
+\qquad
+G(P)=\max_iG_i.
+\]
+
+For branch-fan confusability,
+
+\[
+F_i=
+\frac{
+ \#\{f\in\mathcal A_i:
+ \operatorname{turn}(t_i^-,d_f)
+ \le \operatorname{turn}(t_i^-,d_i^\*)+1^\circ\}
+}{
+ \max(1,\lvert\mathcal A_i\rvert)
+},
+\qquad
+F(P)=\max_iF_i.
+\]
+
+This is deliberately rank-based: it asks whether a wrong branch is at least as visually continuous as the correct branch, without inventing an ungrounded smooth weighting curve.
+
+The Ware branching term remains
+
+\[
+B(P)=\sum_{i=1}^{k-1}\max(0,\deg(v_i)-2).
+\]
+
+It is topological and therefore constant across paired arms. It stratifies intrinsic path difficulty in \(W(P)\), but cannot by itself certify a layout improvement.
+
+## Gate policy
+
+**Gated cells.**
+
+- P1 compact: frozen v2 arm A → shipping Strata configuration.
+- P1 full: frozen v2 arm F → shipping Strata full.
+- P2 compact and full: same comparisons.
+- Cyclic fixture: hierarchy plus all path gates whose floors are met.
+- P3 remains composition/report-only because its effective graph duplicates P2.
+- Slice classification is not part of path pairing, so the current full-mode A/B classification asymmetry no longer voids an otherwise identical dependency graph.
+
+A missing/duplicate edge key, unresolved TFD endpoint, path-set mismatch, or VOID result fails the milestone. There is no owner visual override.
+
+**Correct statistic bootstrap.** For lower-is-better metric \(m\), the observed p90 effect is
+
+\[
+\widehat\Delta_{.9}
+=Q_{.9}(\{m_C(P)\})-Q_{.9}(\{m_B(P)\}),
+\]
+
+not the mean of paired deltas and not \(Q_{.9}(m_C-m_B)\).
+
+Generate one deterministic \(B=1000\) index matrix using `mulberry32(20260704)`. For each draw:
+
+1. Resample matched canonical anchor-edge keys \(n\)-out-of-\(n\), with replacement.
+2. Bring along every sampled anchor’s baseline and candidate path block.
+3. Compute \(Q_{.5}(C_b)-Q_{.5}(B_b)\) for the **p50 distribution**.
+4. Separately compute \(Q_{.9}(C_b)-Q_{.9}(B_b)\) for the **p90 distribution**.
+5. For a mean gate, separately compute \(\operatorname{mean}(C_b)-\operatorname{mean}(B_b)\).
+6. Sort each replicate distribution and take its own 2.5%/97.5% percentile CI.
+
+Thus a result labelled `p90` is a bootstrap CI on p90 itself. Per-edge metrics use the same procedure with individual canonical edge keys rather than anchor blocks.
+
+**Floors and voids.**
+
+- \(n<10\): report-only.
+- p90 requires \(n\ge31\), correcting v3.1’s off-by-one: with `floor(0.9n)`, \(n=31\) is the first size with three observations above the selected order statistic.
+- \(10\le n<31\): gate p50; report p90.
+- Unmatched keys \(>20\%\) of `min(nBaseline,nCandidate)`: VOID.
+- \(n=0\): VOID.
+- For p90, if the 97.5% bound equals the maximum bootstrap replicate statistic, mark `P90_DEGENERATE` and apply the frozen fallback to p50; never report that p90 “passed.”
+- Zero-width p50/mean intervals are valid: equality passes a no-regression gate but not a strict-improvement gate.
+
+**Milestone composition: lexicographic, not compensatory.**
+
+1. Every hierarchy/identity/determinism gate passes.
+2. In every eligible cell, Ware \(W\) p50 and p90 must strictly improve: CI upper bound \(<0\).
+3. Continuity, crossings-on-path, crossing-angle severity, geodesic tendency, branch-fan confusability and bend burden must each not regress at p90: CI upper bound \(\le0\); use the floor/degeneracy fallback above.
+4. Report-only metrics never rescue a failed task gate.
+5. Any gated-cell VOID means the milestone is not decided, therefore not passed.
+
+This uses Ware’s published weights only inside the primary task score while retaining non-substitutable component vetoes. A weighted global “beauty score” is explicitly rejected.
+
+**Frozen baselines.** The current [P1 frozen JSON](/Users/tusharsariya/Projects/excalidraw-tf/docs/strata-baselines/Q2_AUDIT_REPORT_P1.json) and [P2 frozen JSON](/Users/tusharsariya/Projects/excalidraw-tf/docs/strata-baselines/Q2_AUDIT_REPORT_P2.json) contain aggregates but no `perEdge` rows, so they cannot support a correct p50/p90 bootstrap.
+
+v3.2 therefore needs a one-time, pre-candidate freeze from the pinned historical v2 revision containing:
+
+- canonical per-edge keys and rendered polylines or complete derived edge rows;
+- canonical path keys, anchor groups and all per-path scalar values;
+- source revision, preset/card-mode identity, geometry constants, seed, \(B\), \(L\), replicas and schema version;
+- headline summaries and SHA-256.
+
+Normal CI must load this artifact—never call the v2 builder—and assert:
+
+- exact SHA-256;
+- exact expected edge/path populations and unique keys;
+- summaries recomputed from raw rows equal the freeze register;
+- geometry and sampling pins match;
+- baseline artifacts and their hash manifest are unchanged in ordinary PRs.
+
+A dedicated refreeze workflow may replace both artifact and normative register; ordinary gate tests must fail if either drifts.
+
+## What to demote/drop
+
+- **Raw vertical extent p50/p90:** demote to report-only. It measures the W4 band-height residual, not path-following difficulty. Literature does not isolate vertical from horizontal edge cost; retain it explicitly as an owner engineering prior.
+- **Mean bands skipped:** report-only optimizer telemetry. It is useful for A2 but ignores actual path continuity, crossings and branch decisions.
+- **Stacked band height, aggregate canvas height, W×H, aspect and area utilization:** report-only compactness diagnostics.
+- **Global crossings/eligible pairs:** report-only. Purchase supports global crossings for mixed graph tasks, but Ware found crossings on the sought path—not total crossings—predicted shortest-path time.
+- **24 px near-straight fraction and raw vertical-deviation median/mean/p95:** replace as gates with angle-based path continuity and bend burden. The pixel threshold is scale/constants-sensitive and assumes vertical displacement is uniquely harmful.
+- **Hub centering and fan-out column rate:** report-only. They are incomplete in current full-mode scenes and are weaker than explicit branch-fan and geodesic trap metrics.
+- **Raw edge length:** report-only. Ware’s geometric-length variables did not survive the regression; metro-map support is a design convention rather than direct impact-tracing evidence.
+- **Keep collisions, containment and semantic direction:** promote/retain as exact structural gates, not readability scores.
+- **A4 diff stability:** retain as a separate shipping gate; it should not be blended into readability.
+
+## Migration & cost
+
+| Order | Work | Reuse | P1-scale cost estimate |
+|---|---|---|---|
+| 1 | Define/load the v3.2 raw baseline schema and hash-lock tests. | Existing frozen reports and canonical address conventions. | JSON load/hash: \<5 ms. |
+| 2 | Extract a shared rendered-edge geometry index: oriented segments, lengths, endpoint tangents, node centers and adjacency. | `tfdArrowsOf`, `edgeGeometry`, `SliceEdgeRow`, topology-path resolution in [terraformPipelineSliceMetrics.ts](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineSliceMetrics.ts). | \(O(E+S)\), approximately \<2 ms. |
+| 3 | Build crossing matrix with count and minimum crossing angle. | `Seg` and `segmentsCross` in [terraformPipelineCollisionDiagnostics.ts](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineCollisionDiagnostics.ts). Existing P1 diagnostics are about 1–5 ms. | \(O(E^2s^2)\); about 2–8 ms for 145 edges. |
+| 4 | Generate edge-anchored paths and compute continuity, bends, geodesic and fan metrics. | Canonical true-direction relationship data and frame/address maps. | \(O(RE L\Delta)\); approximately 2–10 ms for ≤1,160 paths. |
+| 5 | Generalize bootstrap to `statistic: mean \| p50 \| p90` and anchor-block inputs. | `mulberry32`, seed, \(B\), canonical keys and unmatched policy in [terraformPipelineBootstrapCi.ts](/Users/tusharsariya/Projects/excalidraw-tf/packages/excalidraw/components/terraformPipelineBootstrapCi.ts). | Naive TypeScript: roughly 20–80 ms per statistic; reuse index draws and selection buffers to keep the full family around 100–300 ms. |
+| 6 | Wire all-gates verdict, void diagnostics and report-only legacy metrics. | Existing battery/report structures. | Negligible beyond bootstrap. |
+
+These are complexity-based estimates, not benchmarks.
+
+Minimal first slice:
+
+1. **Ware path cost**, which delivers continuity plus crossings-on-path with published relative weights.
+2. **Worst crossing-angle severity**, nearly free once the crossing matrix exists and strongly supported by Huang.
+3. **Geodesic plus branch-fan traps**, computed in one adjacency/tangent pass.
+
+Hierarchy integrity remains mandatory infrastructure rather than an optional readability metric.
+
+## Research log
+
+RAG queries executed:
+
+- `Ware Purchase path continuity crossings on path branching shortest path tracing graph readability empirical`
+- `Huang Eades Hong crossing angle geodesic path tendency graph readability experiment`
+- `metro map octilinearity straightness Nöllenburg Wolff Stott Rodgers metro map layout readability`
+- `Wang Chi metro map straightness path continuity line tracing schematic network maps`
+- `Purchase graph drawing aesthetics empirical crossings bends symmetry orthogonality task performance`
+- `edge length graph drawing readability empirical path tracing Purchase Ware`
+- `metro map usability octilinear straight curves journey planning empirical Roberts`
+- `branching fan out path tracing continuity shared node graph readability`
+
+Papers actually consulted:
+
+- Ware, Purchase, Colpoys & McGill, *Cognitive Measurements of Graph Aesthetics* — corpus `doi-10-1057-palgrave-ivs-9500013`; full author PDF consulted.
+- Purchase, Cohen & James, *Validating Graph Drawing Aesthetics* — corpus `s2-10-1007-bfb0021827`; full text consulted.
+- Huang, *An Eye Tracking Study into the Effects of Graph Layout* — corpus `forward-10-48550-arxiv-0810-4431`; full PDF/pages 1–10 consulted.
+- Huang, Hong & Eades, *Effects of Crossing Angles* — corpus `doi-10-1109-pacificvis-2008-4475457`; metadata plus the related full eye-tracking paper consulted.
+- Huang, Eades & Hong, *A Graph Reading Behavior: Geodesic-Path Tendency* — corpus `doi-10-1109-pacificvis-2009-4906848`; abstract and detailed treatment in Huang’s eye-tracking paper consulted.
+- Wolff, *Drawing Subway Maps: A Survey* — corpus `doi-10-1007-s00450-007-0036-y`; rules, Stott–Rodgers and Nöllenburg–Wolff sections consulted.
+- Stott & Rodgers, *Metro Map Layout Using Multicriteria Optimization* — corpus `forward-10-1109-iv-2004-1320168`; metadata and Wolff’s detailed survey account consulted.
+- Wang & Chi, *Focus+Context Metro Maps* — official abstract/DOI consulted.
+- van Wageningen, Mchedlidze & Telea, *Same Quality Metrics, Different Graph Drawings* — arXiv:2508.15557; full PDF consulted.
+
+tokens used: 3062010
+CODEX_EXIT=0

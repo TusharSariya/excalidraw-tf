@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildModuleCompanionAccountIndex,
   extractDefaultAwsProviderAccountRegion,
   extractTerraformTopologyFromPlan,
   mergeTerraformTopologyAccountRegionFromSameRegionSubnets,
@@ -8,10 +9,13 @@ import {
   parseAwsArnLocation,
   pickResourceChangeValues,
   pickResourceValuesForTopologyPlacement,
+  resolveModuleCompanionAccount,
   resolveTerraformDeployRoleIamArnFromPlan,
   TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT,
   TERRAFORM_TOPOLOGY_UNKNOWN_REGION,
 } from "./terraformTopologyExtract";
+
+import type { ResourceChange } from "./terraformTopologyExtract";
 
 describe("resolveTerraformDeployRoleIamArnFromPlan", () => {
   it("prefers explicit terraform_deploy_role_arn variable", () => {
@@ -218,6 +222,192 @@ describe("mergeTerraformTopologyAccountRegionFromSameRegionSubnets", () => {
         ]),
       ).account,
     ).toBe(TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT);
+  });
+
+  it("P2.2 guard: fills in a single-account region but stays UNKNOWN in a multi-account region", () => {
+    // Single distinct account in eu-west-1 -> the guess is applied.
+    const singleAccountRegion = new Map([
+      ["subnet-a", { account: "111122223333", region: "eu-west-1" }],
+      ["subnet-b", { account: "111122223333", region: "eu-west-1" }],
+    ]);
+    expect(
+      mergeTerraformTopologyAccountRegionFromSameRegionSubnets(
+        { account: TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT, region: "eu-west-1" },
+        singleAccountRegion,
+        { privateApiRegional: true },
+      ),
+    ).toEqual({ account: "111122223333", region: "eu-west-1" });
+
+    // Two distinct accounts share eu-west-1 -> guessing the first-sorted subnet
+    // would split a VPC across accounts, so the account is left UNKNOWN.
+    const multiAccountRegion = new Map([
+      ["subnet-a", { account: "111122223333", region: "eu-west-1" }],
+      ["subnet-b", { account: "444455556666", region: "eu-west-1" }],
+    ]);
+    expect(
+      mergeTerraformTopologyAccountRegionFromSameRegionSubnets(
+        { account: TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT, region: "eu-west-1" },
+        multiAccountRegion,
+        { privateApiRegional: true },
+      ).account,
+    ).toBe(TERRAFORM_TOPOLOGY_UNKNOWN_ACCOUNT);
+  });
+});
+
+describe("resolveModuleCompanionAccount", () => {
+  const apiAddr = "module.api.aws_api_gateway_rest_api.private";
+
+  /** A companion resource change carrying an owning account via a top-level ARN. */
+  const companionWithArn = (address: string, arn: string): ResourceChange =>
+    ({
+      address,
+      mode: "managed",
+      type: "aws_cloudwatch_log_group",
+      provider_name: "registry.terraform.io/hashicorp/aws",
+      change: { actions: ["create"], after: { arn } },
+    } as unknown as ResourceChange);
+
+  it("(a) resolves the single distinct companion account in the same module + region", () => {
+    const index = buildModuleCompanionAccountIndex([
+      companionWithArn(
+        "module.api.aws_cloudwatch_log_group.access",
+        "arn:aws:logs:us-east-1:111111111111:log-group:/api",
+      ),
+    ]);
+    expect(resolveModuleCompanionAccount(apiAddr, "us-east-1", index)).toBe(
+      "111111111111",
+    );
+  });
+
+  it("(a2) resolves from a descendant-module companion", () => {
+    const index = buildModuleCompanionAccountIndex([
+      companionWithArn(
+        "module.api.module.lambda_service.aws_cloudwatch_log_group.fn",
+        "arn:aws:logs:us-east-1:111111111111:log-group:/fn",
+      ),
+    ]);
+    expect(resolveModuleCompanionAccount(apiAddr, "us-east-1", index)).toBe(
+      "111111111111",
+    );
+  });
+
+  it("(b) returns null when no companion shares the module", () => {
+    const index = buildModuleCompanionAccountIndex([
+      companionWithArn(
+        "module.other.aws_cloudwatch_log_group.x",
+        "arn:aws:logs:us-east-1:111111111111:log-group:/x",
+      ),
+    ]);
+    expect(
+      resolveModuleCompanionAccount(apiAddr, "us-east-1", index),
+    ).toBeNull();
+  });
+
+  it("(c) returns null when the module has >1 distinct companion account (ambiguous)", () => {
+    const index = buildModuleCompanionAccountIndex([
+      companionWithArn(
+        "module.api.aws_cloudwatch_log_group.a",
+        "arn:aws:logs:us-east-1:111111111111:log-group:/a",
+      ),
+      companionWithArn(
+        "module.api.aws_sqs_queue.b",
+        "arn:aws:sqs:us-east-1:222222222222:queue-b",
+      ),
+    ]);
+    expect(
+      resolveModuleCompanionAccount(apiAddr, "us-east-1", index),
+    ).toBeNull();
+  });
+
+  it("(d) excludes companions in a different region", () => {
+    const index = buildModuleCompanionAccountIndex([
+      companionWithArn(
+        "module.api.aws_cloudwatch_log_group.access",
+        "arn:aws:logs:us-west-2:111111111111:log-group:/api",
+      ),
+    ]);
+    // Same module, but the API's region (us-east-1) has no companion there.
+    expect(
+      resolveModuleCompanionAccount(apiAddr, "us-east-1", index),
+    ).toBeNull();
+    // The companion's own region does resolve.
+    expect(resolveModuleCompanionAccount(apiAddr, "us-west-2", index)).toBe(
+      "111111111111",
+    );
+  });
+
+  it("(e) keeps two merged stacks with identical module.api paths disambiguated", () => {
+    const index = buildModuleCompanionAccountIndex([
+      companionWithArn(
+        "stack-a::module.api.aws_cloudwatch_log_group.access",
+        "arn:aws:logs:us-east-1:111111111111:log-group:/a",
+      ),
+      companionWithArn(
+        "stack-b::module.api.aws_cloudwatch_log_group.access",
+        "arn:aws:logs:us-east-1:222222222222:log-group:/b",
+      ),
+    ]);
+    // Each stack's API resolves to its OWN companion account — the identical
+    // bare module path must NOT collapse into an ambiguous cross-stack set.
+    expect(
+      resolveModuleCompanionAccount(`stack-a::${apiAddr}`, "us-east-1", index),
+    ).toBe("111111111111");
+    expect(
+      resolveModuleCompanionAccount(`stack-b::${apiAddr}`, "us-east-1", index),
+    ).toBe("222222222222");
+  });
+
+  it("(f) resolves an owner_id companion by its own region, and DROPS a region-less one", () => {
+    // owner_id + explicit region -> indexed under that region.
+    const ownerIdWithRegion = {
+      address: "module.api.aws_sqs_queue.q",
+      mode: "managed",
+      type: "aws_sqs_queue",
+      provider_name: "registry.terraform.io/hashicorp/aws",
+      change: {
+        actions: ["create"],
+        after: { owner_id: "111111111111", region: "us-east-1" },
+      },
+    } as unknown as ResourceChange;
+    const index = buildModuleCompanionAccountIndex([ownerIdWithRegion]);
+    expect(resolveModuleCompanionAccount(apiAddr, "us-east-1", index)).toBe(
+      "111111111111",
+    );
+
+    // owner_id but NO region signal -> deliberately DROPPED (not bucketed under a
+    // provider default). The implementation prefers "obviously unresolved" over
+    // "silently misplaced" via a non-default provider alias, so it resolves null.
+    const ownerIdNoRegion = {
+      address: "module.api.aws_sqs_queue.q",
+      mode: "managed",
+      type: "aws_sqs_queue",
+      provider_name: "registry.terraform.io/hashicorp/aws",
+      change: { actions: ["create"], after: { owner_id: "111111111111" } },
+    } as unknown as ResourceChange;
+    const droppedIndex = buildModuleCompanionAccountIndex([ownerIdNoRegion]);
+    expect(
+      resolveModuleCompanionAccount(apiAddr, "us-east-1", droppedIndex),
+    ).toBeNull();
+  });
+
+  it("(g) indexes a companion being destroyed via its `before` ownership fields", () => {
+    const destroyedCompanion = {
+      address: "module.api.aws_cloudwatch_log_group.access",
+      mode: "managed",
+      type: "aws_cloudwatch_log_group",
+      provider_name: "registry.terraform.io/hashicorp/aws",
+      change: {
+        actions: ["delete"],
+        before: {
+          arn: "arn:aws:logs:us-east-1:111111111111:log-group:/api",
+        },
+        after: null,
+      },
+    } as unknown as ResourceChange;
+    const index = buildModuleCompanionAccountIndex([destroyedCompanion]);
+    expect(resolveModuleCompanionAccount(apiAddr, "us-east-1", index)).toBe(
+      "111111111111",
+    );
   });
 });
 

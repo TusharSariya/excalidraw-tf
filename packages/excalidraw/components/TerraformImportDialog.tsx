@@ -72,6 +72,21 @@ export const TerraformImportModal = ({
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
+    strataPackedScoring,
+    strataPackedScoringEpsilon,
+    strataBlockClamp,
+    strataTranspose,
+    strataHeightGate,
+    strataEdgeRouting,
+    strataBorderRoute,
+    strataBandDepth,
+    strataDeBandLevel,
+    strataSiftRelocate,
+    strataChainRelocate,
+    strataCoordCascade,
+    strataCrossWeightPenetration,
+    strataCrossWeightEdge,
+    strataEdgeCrossCap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -639,9 +654,47 @@ terraform show -json tfplan > plan.json`}</code>
               strataSweeps={strataSweeps}
               strataCoordinateRefine={strataCoordinateRefine}
               strataRankSeparate={strataRankSeparate}
+              strataPackedScoring={strataPackedScoring}
+              strataPackedScoringEpsilon={strataPackedScoringEpsilon}
+              strataBlockClamp={strataBlockClamp}
+              strataTranspose={strataTranspose}
+              strataHeightGate={strataHeightGate}
+              strataEdgeRouting={strataEdgeRouting}
+              strataBorderRoute={strataBorderRoute}
+              strataBandDepth={strataBandDepth}
+              strataDeBandLevel={strataDeBandLevel}
+              pipelineCompact={pipelineCompact}
+              pipelineIncludeAncillary={pipelineIncludeAncillary}
+              strataSiftRelocate={strataSiftRelocate}
+              strataChainRelocate={strataChainRelocate}
+              strataCoordCascade={strataCoordCascade}
+              strataCrossWeightPenetration={strataCrossWeightPenetration}
+              strataCrossWeightEdge={strataCrossWeightEdge}
+              strataEdgeCrossCap={strataEdgeCrossCap}
               setStrataSweeps={dialog.setStrataSweeps}
               setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
               setStrataRankSeparate={dialog.setStrataRankSeparate}
+              setStrataPackedScoring={dialog.setStrataPackedScoring}
+              setStrataPackedScoringEpsilon={
+                dialog.setStrataPackedScoringEpsilon
+              }
+              setStrataBlockClamp={dialog.setStrataBlockClamp}
+              setStrataTranspose={dialog.setStrataTranspose}
+              setStrataHeightGate={dialog.setStrataHeightGate}
+              setStrataEdgeRouting={dialog.setStrataEdgeRouting}
+              setStrataBorderRoute={dialog.setStrataBorderRoute}
+              setStrataBandDepth={dialog.setStrataBandDepth}
+              setStrataDeBandLevel={dialog.setStrataDeBandLevel}
+              setPipelineCompact={dialog.setPipelineCompact}
+              setPipelineIncludeAncillary={dialog.setPipelineIncludeAncillary}
+              setStrataSiftRelocate={dialog.setStrataSiftRelocate}
+              setStrataChainRelocate={dialog.setStrataChainRelocate}
+              setStrataCoordCascade={dialog.setStrataCoordCascade}
+              setStrataCrossWeightPenetration={
+                dialog.setStrataCrossWeightPenetration
+              }
+              setStrataCrossWeightEdge={dialog.setStrataCrossWeightEdge}
+              setStrataEdgeCrossCap={dialog.setStrataEdgeCrossCap}
             />
           )}
           {view === "module" && (
