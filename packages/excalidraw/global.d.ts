@@ -16,6 +16,10 @@ interface Window {
     zoom: number;
   };
   __resetElementCanvasRegenStats?: () => void;
+  // Import-time benchmark hooks (scripts/terraform/benchmark-import-time.mjs).
+  // Only assigned in dev builds (or VITE_TERRAFORM_IMPORT_PROFILE builds).
+  __terraformImportProfilerSummary?: () => import("./components/terraformImportProfiler").TerraformImportProfilerSpan[];
+  __terraformImportProfilerReset?: () => void;
 }
 
 interface CanvasRenderingContext2D {
