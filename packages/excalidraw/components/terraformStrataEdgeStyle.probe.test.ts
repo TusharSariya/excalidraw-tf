@@ -61,6 +61,7 @@ type Row = {
   bendMax: number;
   nearFlatShare: number;
   nearFlatSeg: string;
+  horizSeg: number;
   endpointResMin: number;
   endpointResMean: number;
   endpointSides: number;
@@ -81,6 +82,7 @@ const rowOf = (style: string, els: ExcalidrawElement[]): Row => {
     bendMax: ea.bendCountMax,
     nearFlatShare: ea.nearFlatShare,
     nearFlatSeg: `${ea.nearFlatSegments}/${ea.longSegments}`,
+    horizSeg: ea.horizontalSegments,
     endpointResMin: ea.endpointAngularResolutionMinDeg,
     endpointResMean: ea.endpointAngularResolutionMeanDeg,
     endpointSides: ea.endpointSidesConsidered,

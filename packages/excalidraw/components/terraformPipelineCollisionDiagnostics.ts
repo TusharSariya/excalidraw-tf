@@ -99,11 +99,20 @@ export const SHARP_CROSSING_MAX_DEG = 30;
  */
 export const SHARP_CROSSING_MAX_DEG_70 = 70;
 
-/** Near-flat segment thresholds (edge-angle metric, probe P2). A segment counts
- * as "near-flat" when its acute angle to the horizontal is below
- * `NEAR_FLAT_MAX_DEG` AND it is longer than `NEAR_FLAT_MIN_LEN_PX` — the owner's
- * "extreme angle" complaint operationalized (a long, almost-horizontal run). */
+/** Near-flat segment thresholds (edge-angle metric, probe P2). A LONG segment
+ * (> `NEAR_FLAT_MIN_LEN_PX`) counts as "near-flat" when its acute angle to the
+ * horizontal falls in the half-open band `(NEAR_FLAT_MIN_DEG, NEAR_FLAT_MAX_DEG]`
+ * — the owner's "extreme angle" complaint operationalized as a long,
+ * almost-but-not-quite-horizontal diagonal.
+ *
+ * The `NEAR_FLAT_MIN_DEG` (1°) floor is a FAIRNESS fix for orthogonal routing
+ * (step / channel arms): an exact-horizontal segment (≤ 1°) is a DELIBERATE run,
+ * not a near-flat readability defect, so it is excluded from the numerator and
+ * tallied separately as `horizontalSegments`. Before the floor, the channel arm
+ * read nearFlatShare ≈ 0.62 purely from its intentional horizontals — a
+ * meaningless number. */
 export const NEAR_FLAT_MAX_DEG = 15;
+export const NEAR_FLAT_MIN_DEG = 1;
 export const NEAR_FLAT_MIN_LEN_PX = 40;
 
 /** A polyline vertex is a "bend" when the turn between its incoming and outgoing
@@ -142,11 +151,18 @@ export type EdgeAngleSummary = {
   bendCountMeanPerEdge: number;
   /** Arrows considered (polyline-derivable TFD arrows). */
   edgeCount: number;
-  /** Fraction of LONG segments (> NEAR_FLAT_MIN_LEN_PX) that are near-flat
-   * (acute angle to horizontal < NEAR_FLAT_MAX_DEG). 0 when no long segments. */
+  /** Fraction of LONG segments (> NEAR_FLAT_MIN_LEN_PX) that are near-flat —
+   * acute angle to horizontal in `(NEAR_FLAT_MIN_DEG, NEAR_FLAT_MAX_DEG]`, i.e.
+   * true near-flat diagonals, EXCLUDING deliberate horizontals (≤ 1°). 0 when no
+   * long segments. */
   nearFlatShare: number;
-  /** Long, near-flat segments (numerator of nearFlatShare). */
+  /** Long, near-flat DIAGONAL segments — angle in (1°, 15°] (numerator of
+   * nearFlatShare). Excludes exact horizontals. */
   nearFlatSegments: number;
+  /** Long, deliberately-horizontal segments — angle ≤ NEAR_FLAT_MIN_DEG (1°).
+   * Reported separately so orthogonal (step/channel) routing is not penalized
+   * for its intentional horizontal runs. */
+  horizontalSegments: number;
   /** Segments longer than NEAR_FLAT_MIN_LEN_PX (denominator of nearFlatShare). */
   longSegments: number;
   /** Scene-level MIN over card sides of the per-side minimum angular gap
@@ -746,6 +762,7 @@ export function edgeAngleSummaryOf(
   let bendCountTotal = 0;
   let bendCountMax = 0;
   let nearFlatSegments = 0;
+  let horizontalSegments = 0;
   let longSegments = 0;
   for (const g of geoms) {
     let bends = 0;
@@ -759,7 +776,12 @@ export function edgeAngleSummaryOf(
     for (const seg of g.segments) {
       if (segLen(seg) > NEAR_FLAT_MIN_LEN_PX) {
         longSegments += 1;
-        if (segAngleToHorizontalDeg(seg) < NEAR_FLAT_MAX_DEG) {
+        const deg = segAngleToHorizontalDeg(seg);
+        if (deg <= NEAR_FLAT_MIN_DEG) {
+          // Deliberate horizontal (≤ 1°) — counted separately, never near-flat.
+          horizontalSegments += 1;
+        } else if (deg <= NEAR_FLAT_MAX_DEG) {
+          // True near-flat diagonal in (1°, 15°].
           nearFlatSegments += 1;
         }
       }
@@ -848,6 +870,7 @@ export function edgeAngleSummaryOf(
     edgeCount,
     nearFlatShare: longSegments > 0 ? round2(nearFlatSegments / longSegments) : 0,
     nearFlatSegments,
+    horizontalSegments,
     longSegments,
     endpointAngularResolutionMinDeg: sidesConsidered
       ? round2(Math.min(...perSideMin))

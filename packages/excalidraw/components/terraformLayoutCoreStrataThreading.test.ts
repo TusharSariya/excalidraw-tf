@@ -39,22 +39,30 @@ const v2Sources = () =>
 
 /** Geometry-only fingerprint (ids/seeds/versions are non-deterministic across
  * builds in the same process — see the canonicalize() comment in the rcll
- * threading test for why). Sorted so element ORDER differences don't matter. */
+ * threading test for why). Sorted so element ORDER differences don't matter.
+ *
+ * Deliberately does NOT filter `isDeleted`: the headless import pins every edge
+ * layer OFF, so 161/164 TFD arrows arrive soft-deleted. Filtering them would
+ * shrink a byte-identity check to the ~3 visible arrows and let a mutated (but
+ * still-hidden) routed polyline slip through. Both sides of every identity
+ * comparison carry the same deleted set, so including them is sound. */
 const geometryTuples = (elements: readonly ExcalidrawElement[]): string[] =>
   elements
-    .filter((el) => !el.isDeleted)
     .map((el) => `${el.x},${el.y},${el.width},${el.height}`)
     .sort();
 
 /** Arrow polyline fingerprint: origin + every relative point + the routed
  * marker. Stronger than geometryTuples (which sees only the bbox), so a
  * default-off byte-identity check catches a mutated polyline that leaves the
- * bounding box unchanged. */
+ * bounding box unchanged. Includes soft-deleted arrows for the same reason
+ * geometryTuples does — the routed TFD arrows the strata togs reshape arrive
+ * `isDeleted` on the headless path, so filtering them out compared only ~3 of
+ * 164 arrows (identity-fingerprint vacuity, wave-1 hardening item 2). */
 const arrowPolySignatures = (
   elements: readonly ExcalidrawElement[],
 ): string[] =>
   elements
-    .filter((el) => !el.isDeleted && el.type === "arrow")
+    .filter((el) => el.type === "arrow")
     .map((el) => {
       const pts =
         (el as unknown as { points?: ReadonlyArray<readonly number[]> })

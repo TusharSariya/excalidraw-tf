@@ -75,6 +75,7 @@ type Row = {
   bendTotal: number;
   nearFlatShare: number;
   nearFlatSeg: string;
+  horizSeg: number;
   endpointResMean: number;
   pierce: number;
   pierceEdges: number;
@@ -92,6 +93,7 @@ const rowOf = (arm: string, els: ExcalidrawElement[]): Row => {
     bendTotal: ea.bendCountTotal,
     nearFlatShare: ea.nearFlatShare,
     nearFlatSeg: `${ea.nearFlatSegments}/${ea.longSegments}`,
+    horizSeg: ea.horizontalSegments,
     endpointResMean: ea.endpointAngularResolutionMeanDeg,
     pierce: pm.pierce.total,
     pierceEdges: pm.pierce.edgeCount,

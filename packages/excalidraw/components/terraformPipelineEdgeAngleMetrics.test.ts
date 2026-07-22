@@ -87,10 +87,12 @@ describe("edgeAngleSummaryOf — bends", () => {
   });
 });
 
-describe("edgeAngleSummaryOf — nearFlatShare", () => {
-  it("counts only LONG (>40px) segments; near-flat = angle-to-horizontal <15°", () => {
-    // Z with 50px legs: seg1 horizontal (0°, near-flat), seg2 vertical (90°),
-    // seg3 horizontal (0°, near-flat). All three > 40px. share = 2/3.
+describe("edgeAngleSummaryOf — nearFlatShare (metric v2: (1°,15°] diagonals)", () => {
+  it("excludes exact horizontals (≤1°) — they are deliberate, tallied separately", () => {
+    // Z with 50px legs: seg1 horizontal (0°), seg2 vertical (90°), seg3
+    // horizontal (0°). All three > 40px. Under metric v2 the two 0° runs are
+    // DELIBERATE horizontals, not near-flat: horizontalSegments=2,
+    // nearFlatSegments=0, share=0 (fairness fix for orthogonal routing).
     const m = diagnosePipelineScene([
       arrow(0, 0, [
         [0, 0],
@@ -100,8 +102,39 @@ describe("edgeAngleSummaryOf — nearFlatShare", () => {
       ]),
     ]).edgeAngles;
     expect(m.longSegments).toBe(3);
-    expect(m.nearFlatSegments).toBe(2);
-    expect(m.nearFlatShare).toBe(0.67);
+    expect(m.horizontalSegments).toBe(2);
+    expect(m.nearFlatSegments).toBe(0);
+    expect(m.nearFlatShare).toBe(0);
+  });
+
+  it("counts a true near-flat diagonal in (1°,15°] as near-flat", () => {
+    // (0,0)->(100,10): length 100.5 > 40, angle atan2(10,100)=5.71° ∈ (1,15].
+    const m = diagnosePipelineScene([
+      arrow(0, 0, [
+        [0, 0],
+        [100, 10],
+      ]),
+    ]).edgeAngles;
+    expect(m.longSegments).toBe(1);
+    expect(m.horizontalSegments).toBe(0);
+    expect(m.nearFlatSegments).toBe(1);
+    expect(m.nearFlatShare).toBe(1);
+  });
+
+  it("mixes a near-flat diagonal and a deliberate horizontal in one edge", () => {
+    // seg1 (0,0)->(100,10): 5.71° near-flat; seg2 (100,10)->(200,10): 0°
+    // horizontal. Both long. near-flat numerator = 1, share = 1/2 = 0.5.
+    const m = diagnosePipelineScene([
+      arrow(0, 0, [
+        [0, 0],
+        [100, 10],
+        [200, 10],
+      ]),
+    ]).edgeAngles;
+    expect(m.longSegments).toBe(2);
+    expect(m.horizontalSegments).toBe(1);
+    expect(m.nearFlatSegments).toBe(1);
+    expect(m.nearFlatShare).toBe(0.5);
   });
 
   it("ignores short segments (≤40px) in the denominator", () => {
@@ -113,12 +146,13 @@ describe("edgeAngleSummaryOf — nearFlatShare", () => {
       ]),
     ]).edgeAngles;
     expect(m.longSegments).toBe(0);
+    expect(m.horizontalSegments).toBe(0);
     expect(m.nearFlatSegments).toBe(0);
     expect(m.nearFlatShare).toBe(0);
   });
 
-  it("a steep (>15°) long segment is not near-flat", () => {
-    // (0,0)->(100,50): length 111.8 > 40, angle atan2(50,100)=26.6° ≥ 15.
+  it("a steep (>15°) long segment is neither near-flat nor horizontal", () => {
+    // (0,0)->(100,50): length 111.8 > 40, angle atan2(50,100)=26.6° > 15.
     const m = diagnosePipelineScene([
       arrow(0, 0, [
         [0, 0],
@@ -126,6 +160,7 @@ describe("edgeAngleSummaryOf — nearFlatShare", () => {
       ]),
     ]).edgeAngles;
     expect(m.longSegments).toBe(1);
+    expect(m.horizontalSegments).toBe(0);
     expect(m.nearFlatSegments).toBe(0);
     expect(m.nearFlatShare).toBe(0);
   });
