@@ -39,6 +39,7 @@ describe("elementCanvasRegenStats", () => {
       sameObjectRemiss: 0,
     });
     expect(elementCanvasRegenStats.nullReturns).toBe(0);
+    expect(elementCanvasRegenStats.nullVerdictHits).toBe(0);
   });
 
   it("reset zeroes all counters (including byCause) without touching the enabled flag", () => {
@@ -52,6 +53,7 @@ describe("elementCanvasRegenStats", () => {
     elementCanvasRegenStats.missDetail.identitySwap = 9;
     elementCanvasRegenStats.missDetail.sameObjectRemiss = 4;
     elementCanvasRegenStats.nullReturns = 11;
+    elementCanvasRegenStats.nullVerdictHits = 7;
 
     resetElementCanvasRegenStats();
 
@@ -72,6 +74,7 @@ describe("elementCanvasRegenStats", () => {
       sameObjectRemiss: 0,
     });
     expect(elementCanvasRegenStats.nullReturns).toBe(0);
+    expect(elementCanvasRegenStats.nullVerdictHits).toBe(0);
     // reset is a measurement boundary, not a teardown — it must leave the
     // counter armed so the next workload keeps counting.
     expect(elementCanvasRegenStats.enabled).toBe(true);

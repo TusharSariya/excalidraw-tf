@@ -669,9 +669,44 @@ const drawElementOnCanvas = (
   }
 };
 
+/**
+ * E05b: null-verdict sentinel cached in place of a canvas for elements that
+ * `cappedElementCanvasSize` caps to 0×0 at the current zoom. `generateElementCanvas`
+ * returns `null` for such elements; before E05b that `null` was never cached, so
+ * every visible frame re-attempted rasterization (~37% of drag regens — the
+ * `sameObjectRemiss`/`nullReturns` waste seen in E04 byCause data).
+ *
+ * The sentinel lives in the SAME identity-keyed `elementWithCanvasCache` WeakMap
+ * and carries EVERY field the regeneration predicate in `generateElementWithCanvas`
+ * reads, so all existing invalidation terms apply automatically (zoom, theme,
+ * bound-text signature/version, imageCrop, containing-frame opacity, arrow angle,
+ * plus element identity — a re-clone misses, and `ShapeCache.delete` drops the
+ * entry on geometry change). It also carries `devicePixelRatio`: DPR is the one
+ * remaining input to the 0-size verdict (see `cappedElementCanvasSize`:
+ * `elementWidth * window.devicePixelRatio + padding * 2`) that is NOT already a
+ * predicate term, so it must be part of the sentinel key or a DPR change could
+ * leave a stale "draw nothing" verdict.
+ *
+ * `canvas: null` is the discriminator. Consumers NEVER receive a sentinel:
+ * `generateElementWithCanvas` converts a still-valid sentinel back to `null` (its
+ * pre-existing "draw nothing" contract), so rendering behavior is byte-identical —
+ * only the wasted rasterization is removed.
+ */
+export type ElementCanvasNullVerdict = {
+  canvas: null;
+  zoomValue: AppState["zoom"]["value"];
+  theme: AppState["theme"];
+  devicePixelRatio: number;
+  angle: number;
+  boundTextElementVersion: number | null;
+  boundTextSignature: string | null;
+  imageCrop: ExcalidrawImageElement["crop"] | null;
+  containingFrameOpacity: number;
+};
+
 export const elementWithCanvasCache = new WeakMap<
   ExcalidrawElement,
-  ExcalidrawElementWithCanvas
+  ExcalidrawElementWithCanvas | ElementCanvasNullVerdict
 >();
 
 /**
@@ -749,6 +784,17 @@ export const elementCanvasRegenStats = {
    * element re-misses on every visible frame → shows up as `sameObjectRemiss`.
    */
   nullReturns: 0,
+  /**
+   * E05b: count of frames on which a cached null-verdict sentinel (see
+   * {@link ElementCanvasNullVerdict}) still matched the current key fields, so
+   * the element short-circuited to "draw nothing" WITHOUT re-rasterizing. This
+   * is the engagement counter for the E05b optimization: pre-E05b these frames
+   * were `total`/`nullReturns` regens (a `sameObjectRemiss` re-miss every frame);
+   * post-E05b they move here and never touch `generateElementCanvas`. Not part of
+   * `byCause` — a sentinel hit is the ABSENCE of a regen, so folding it into
+   * `byCause` would break the `sum(byCause) === total` invariant.
+   */
+  nullVerdictHits: 0,
 };
 
 /**
@@ -778,6 +824,7 @@ export const resetElementCanvasRegenStats = () => {
   missDetail.identitySwap = 0;
   missDetail.sameObjectRemiss = 0;
   elementCanvasRegenStats.nullReturns = 0;
+  elementCanvasRegenStats.nullVerdictHits = 0;
   elementCanvasRegenLastSeenById.clear();
 };
 
@@ -827,6 +874,16 @@ const generateElementWithCanvas = (
     !!boundTextElement &&
     element.angle !== prevElementWithCanvas.angle;
 
+  // E05b: a cached null-verdict sentinel must additionally re-evaluate when the
+  // devicePixelRatio changes, since DPR feeds the 0-size verdict
+  // (`cappedElementCanvasSize`) but is not one of the shared predicate terms
+  // above. Guarded on `canvas === null` (narrows the union to the sentinel), so
+  // real canvas entries — which never store `devicePixelRatio` — are unaffected.
+  const nullVerdictDprChanged =
+    !!prevElementWithCanvas &&
+    prevElementWithCanvas.canvas === null &&
+    prevElementWithCanvas.devicePixelRatio !== window.devicePixelRatio;
+
   if (
     !prevElementWithCanvas ||
     shouldRegenerateBecauseZoom ||
@@ -834,7 +891,8 @@ const generateElementWithCanvas = (
     boundTextChanged ||
     prevElementWithCanvas.imageCrop !== imageCrop ||
     prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity ||
-    arrowAngleChanged
+    arrowAngleChanged ||
+    nullVerdictDprChanged
   ) {
     if (elementCanvasRegenStats.enabled) {
       elementCanvasRegenStats.total += 1;
@@ -872,7 +930,13 @@ const generateElementWithCanvas = (
         prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity
       ) {
         byCause.frameOpacity += 1;
+      } else if (arrowAngleChanged) {
+        byCause.arrowAngle += 1;
       } else {
+        // Only remaining term: a null-verdict sentinel re-evaluated after a DPR
+        // change (E05b). Rare (never during a fixed-DPR benchmark), so it is
+        // folded into `arrowAngle` rather than adding a bucket — the
+        // `sum(byCause) === total` invariant is preserved either way.
         byCause.arrowAngle += 1;
       }
     }
@@ -887,16 +951,44 @@ const generateElementWithCanvas = (
 
     if (!elementWithCanvas) {
       if (elementCanvasRegenStats.enabled) {
-        // Never cached (0-size cap) → this element re-misses every visible
-        // frame, surfacing as missDetail.sameObjectRemiss on later frames.
         elementCanvasRegenStats.nullReturns += 1;
       }
+      // E05b: cache a null-verdict sentinel instead of leaving the element
+      // uncached. It carries every field the regen predicate reads (plus DPR),
+      // so subsequent frames short-circuit to "draw nothing" via the fall-through
+      // below without re-rasterizing, while any invalidating change (zoom, theme,
+      // bound text, imageCrop, frame opacity, arrow angle, DPR, or re-clone /
+      // ShapeCache.delete) correctly forces a regen through the predicate above.
+      elementWithCanvasCache.set(element, {
+        canvas: null,
+        zoomValue: zoom.value,
+        theme: appState.theme,
+        devicePixelRatio: window.devicePixelRatio,
+        angle: element.angle,
+        boundTextElementVersion,
+        boundTextSignature: getBoundTextContentSignature(
+          element,
+          boundTextElement,
+        ),
+        imageCrop,
+        containingFrameOpacity,
+      });
       return null;
     }
 
     elementWithCanvasCache.set(element, elementWithCanvas);
 
     return elementWithCanvas;
+  }
+  // Fall-through: no invalidation term fired. If the cached entry is a
+  // null-verdict sentinel (E05b), the element still caps to 0×0 at this zoom, so
+  // reproduce today's null return ("draw nothing") WITHOUT re-rasterizing — this
+  // is the regen win. Consumers therefore never receive a sentinel object.
+  if (prevElementWithCanvas.canvas === null) {
+    if (elementCanvasRegenStats.enabled) {
+      elementCanvasRegenStats.nullVerdictHits += 1;
+    }
+    return null;
   }
   return prevElementWithCanvas;
 };
