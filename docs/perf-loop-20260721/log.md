@@ -190,6 +190,19 @@ Owner ideas (spatial indexing, staggered radial updates, "modern canvas tricks")
 - Assessment: laptop L1 PASS (median 27.35s, +1.7% vs 26.9s ref; prep.cache 4282ms). Desktop baseline-c2 at tip VALID (all workloads ±2% vs c1, byte-identical regens; zoom-lod-thrash "+49%" = the documented vsync-bucket artifact, c1b agrees; new focus-toggle-storm baselines at 17ms p95). Laptop HAS a live X session — tile-eviction trace unlocked but deprioritized per owner (old hardware; pan-path deferred).
 - Orchestration gotcha (cost one D-track agent): workflow subagents never receive background-task notifications — benchmark waits must be foreground blocking ssh loops. Also: 3 stale self-pgrep-matching watcher loops from the prior session killed on desktop.
 
+## Assessment 2026-07-22 (Phase 1 close-out — all stages complete)
+
+| Measure | At promoted tip | vs prior anchor | Verdict |
+| --- | --- | --- | --- |
+| Import, laptop (gating) | **23.95s** (E11 measured; 27.35s pre-E11 confirm at a9d2d9f7) | 50.9s at loop start → **−53%** | E11 promoted; next: prep.nodes ~1.2s |
+| Import, desktop (informational, pre-E11 tip) | **5.20s** median, spread 2.8% | 7.29s (e02) → −28.7%; 8.81s loop start → −41% | prep.cache 2860→724ms (E07); layout.pipeline 2689 + resourceRects 2077 now dominate; E11 will cut prep.cache further |
+| Canvas, desktop baseline-c2 (gating) | valid at tip; all workloads ±2% vs c1, regens byte-identical | zoom-lod-thrash "+49%" = documented vsync-bucket artifact | new focus-toggle-storm baseline 17ms p95 |
+| D2 wash ON/OFF (isolated, toggles asserted) | click-storm p95 **250→100ms**, regen 12720→**135**; focus-toggle-storm regen 2019→112; edit-churn p95 733→617; drag/nudge mixed within noise | reproduces E08 keep evidence | recommend pinned-URL flip → owner decision |
+| D4 E09 dpr2 matrix (toggles asserted, regens identical across arms) | **dprCap zoom-lod-thrash p95 −17%** (every run ≥1 bucket better); select-all-drag +9% claimed within spread 19.8% | quantize **+17% regression** at dpr2 (won regens at dpr1); opaque inert | dprCap → dual results-attack in flight, promote if VALID; quantize stays unpromoted (E05 precedent); opaque CLOSED NULL |
+| L2 pan diagnostic | X session exists on laptop; trace not run | — | pan-path DEFERRED per owner (old hardware) |
+
+Go/no-go outcomes vs plan: E10 hit-index = pending hover-rate workload (still owed); E11 = done+promoted; E09 = split verdict above; pan-path = deferred. Edge-routing track running as its own loop (waves 1–3, see below).
+
 ## E11 [import] DOT line-scan edge extraction in mergeDotAdjacency — 2026-07-22
 
 - Hypothesis (from iteration-3 queue): prep.cache residual ~4.3s = structuredClone in namespacePlanForStack/attachModuleTree/dataflow edges. **Investigation REFUTED it** (evidence over plan): on the pinned 1-bundle preset namespacePlanForStack never runs; attachModuleTree ~1-2ms. Real dominant: `graphlibDot.read()` in `mergeDotAdjacency` fully parsing a 5.3MB DOT (11,923 nodes / 28,271 edges) to read only edge (v,w) pairs — 514ms of ~740ms Mac-side prep.cache.
