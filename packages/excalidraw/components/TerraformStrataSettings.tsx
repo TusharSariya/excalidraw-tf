@@ -9,6 +9,7 @@ import { TerraformStrataSettingsHeight } from "./TerraformStrataSettingsHeight";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 // Re-exported from their new home so this module's public surface is unchanged
 // by the "Height & packing" extraction — both moved with the section that is
@@ -55,6 +56,7 @@ export const TerraformStrataSettings = ({
   strataHeightGate,
   strataEdgeRouting,
   strataBorderRoute,
+  strataEdgeStyle,
   strataBandDepth,
   strataDeBandLevel,
   pipelineCompact,
@@ -75,6 +77,7 @@ export const TerraformStrataSettings = ({
   setStrataHeightGate,
   setStrataEdgeRouting,
   setStrataBorderRoute,
+  setStrataEdgeStyle,
   setStrataBandDepth,
   setStrataDeBandLevel,
   setPipelineCompact,
@@ -96,6 +99,7 @@ export const TerraformStrataSettings = ({
   strataHeightGate: boolean;
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
+  strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
   strataDeBandLevel: DeBandLevel;
   /** Content filter, not an engine pass — already honored end-to-end by the
@@ -127,6 +131,7 @@ export const TerraformStrataSettings = ({
   setStrataHeightGate: (heightGate: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
+  setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
   setPipelineCompact: (compact: boolean) => void;
@@ -700,6 +705,35 @@ export const TerraformStrataSettings = ({
                     </span>
                   </div>
                 )}
+              </div>
+              <div role="group" aria-label="Strata edge style">
+                <span className="TerraformImportModal__controlLabel">
+                  Edge style{" "}
+                  <span>
+                    reshape un-routed arrows: straight chords, orthogonal
+                    step (React-Flow smoothstep), or a soft curve
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Straight",
+                    strataEdgeStyle === "straight",
+                    "strata.edgestyle.straight",
+                    () => setStrataEdgeStyle("straight"),
+                  )}
+                  {option(
+                    "Step",
+                    strataEdgeStyle === "step",
+                    "strata.edgestyle.step",
+                    () => setStrataEdgeStyle("step"),
+                  )}
+                  {option(
+                    "Curve",
+                    strataEdgeStyle === "curve",
+                    "strata.edgestyle.curve",
+                    () => setStrataEdgeStyle("curve"),
+                  )}
+                </div>
               </div>
             </details>
           </div>

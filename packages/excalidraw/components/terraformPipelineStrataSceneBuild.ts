@@ -50,6 +50,11 @@ import {
   routeStrataBorderExits,
   type StrataBorderRouteMeta,
 } from "./terraformPipelineStrataBorderRoute";
+import {
+  applyStrataEdgeStyle,
+  type StrataEdgeStyle,
+  type StrataEdgeStyleMeta,
+} from "./terraformPipelineStrataEdgeStyle";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import {
   isTerraformImportProfilerEnabled,
@@ -106,6 +111,14 @@ export type StrataSceneBuildInput = {
    * sets). Default off — absent, the module never runs (byte-identical).
    */
   borderRoute?: boolean;
+  /**
+   * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
+   * reshape un-routed TFD arrow chords with React-Flow smoothstep / bezier
+   * geometry (terraformPipelineStrataEdgeStyle.ts). Runs AFTER edgeRouting +
+   * borderRoute and SKIPS arrows they already stamped. Absent / `"straight"`
+   * the module never runs (byte-identical).
+   */
+  edgeStyle?: StrataEdgeStyle;
   /**
    * OD-15 de-band level (default `"none"`). MUST be the same level the model
    * tree was built with: this input drives the `terraformTopologyPath` stamped
@@ -184,6 +197,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   edgeRouting?: StrataEdgeRoutingMeta;
   /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
   borderRoute?: StrataBorderRouteMeta;
+  /** Present only when a non-"straight" `edgeStyle` was requested. */
+  edgeStyle?: StrataEdgeStyleMeta;
 } {
   const { prep, model, placement, nodes } = input;
   const skeleton: ExcalidrawElementSkeleton[] = [];
@@ -377,6 +392,20 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     ? routeStrataBorderExits(skeleton, input.model, input.placement)
     : undefined;
 
+  // ── Probe P2 edge STYLE (flag-gated). Runs LAST of the edge passes and
+  // SKIPS any arrow the two routers above already stamped, so routing wins and
+  // only un-routed chords get restyled. Absent / "straight" this never runs
+  // (byte-identical). ──
+  const edgeStyle =
+    input.edgeStyle && input.edgeStyle !== "straight"
+      ? applyStrataEdgeStyle(
+          skeleton,
+          input.model,
+          input.placement,
+          input.edgeStyle,
+        )
+      : undefined;
+
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
   const frameEdgeCount = appendCompoundTopologyFrameEdgeSkeletons(
@@ -393,6 +422,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     frameEdgeCount,
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
+    ...(edgeStyle ? { edgeStyle } : {}),
   };
 }
 
@@ -415,6 +445,8 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   edgeRouting?: StrataEdgeRoutingMeta;
   /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
   borderRoute?: StrataBorderRouteMeta;
+  /** Present only when a non-"straight" `edgeStyle` was requested. */
+  edgeStyle?: StrataEdgeStyleMeta;
 }> {
   // Closure-free stage timing (see terraformPipelineStrata.ts): zero overhead
   // when the profiler is disabled, and the async span is timed around its await
@@ -428,7 +460,7 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   };
 
   const tSkeleton = spanNow();
-  const { skeleton, frameEdgeCount, edgeRouting, borderRoute } =
+  const { skeleton, frameEdgeCount, edgeRouting, borderRoute, edgeStyle } =
     assembleStrataSceneSkeleton(input);
   spanRecord("strata.sceneBuild.skeleton", tSkeleton);
   const tConvert = spanNow();
@@ -444,5 +476,6 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
     frameEdgeCount,
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
+    ...(edgeStyle ? { edgeStyle } : {}),
   };
 }

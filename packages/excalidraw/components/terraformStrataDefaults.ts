@@ -43,6 +43,11 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** P3-pierce clean container-exit routing — probe lever, default off /
    * byte-identical (NOT in the frozen measurement config). */
   strataBorderRoute: false,
+  /** Probe P2 edge render style (React-Flow smoothstep/bezier transplant):
+   * `"straight"` default is byte-identical (the style module never runs);
+   * `"step"` | `"curve"` reshape un-routed TFD arrow chords. Plain string
+   * literal (not `StrataEdgeStyle`) per the no-layout-import rule above. */
+  strataEdgeStyle: "straight",
   /** W10 (SDEC-63): banded row-share compaction lever — probe lever, default
    * off pending owner adjudication (primarily effective with rankSeparate). */
   strataBandCompact: false,
@@ -115,6 +120,9 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedEps?: number;
   strataEdgeRouting?: boolean;
   strataBorderRoute?: boolean;
+  /** Probe P2 edge render style. Plain string union (not `StrataEdgeStyle`) per
+   * the no-layout-import rule above. */
+  strataEdgeStyle?: "straight" | "step" | "curve";
   strataBandCompact?: boolean;
   /** Plain string union (not `StrataHullRole`) per the no-layout-import rule
    * above — mirrors the engine's `StrataHullRole` domain exactly. */
@@ -196,6 +204,17 @@ export const resolveStrataDemoOptions = (params: {
     strataBorderRoute:
       params.strataBorderRoute ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute,
+    // Forward the style RAW: omit at the default "straight" (never materialize a
+    // default own key), matching the band-depth/de-band cuts above. Non-default
+    // styles forward and reach the engine.
+    ...((params.strataEdgeStyle ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle) !== "straight"
+      ? {
+          strataEdgeStyle:
+            params.strataEdgeStyle ??
+            TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle,
+        }
+      : {}),
     strataBandCompact:
       params.strataBandCompact ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,

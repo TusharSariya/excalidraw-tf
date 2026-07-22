@@ -346,6 +346,69 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataEdgeStyle end-to-end (sceneContext + builderOptions literals -> scene build -> meta echo + styled counts; default byte-identical)",
+    async () => {
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default "straight": no style meta keys emitted (byte-identical off).
+      expect(off.meta.strataEdgeStyle).toBeUndefined();
+      expect(off.meta.strataEdgeStyleStyled).toBeUndefined();
+
+      const step = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeStyle: "step",
+      });
+      expect(step.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH literals (sceneContext + builderOptions) → engine echo.
+      expect(step.meta.strataEdgeStyle).toBe("step");
+      expect(typeof step.meta.strataEdgeStyleStyled).toBe("number");
+      expect(step.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
+      // Styled arrows carry a multi-point routed polyline in the final scene.
+      const styledArrows = step.elements.filter((el) => {
+        if (el.type !== "arrow") {
+          return false;
+        }
+        const cd = el.customData as Record<string, unknown> | undefined;
+        const rel = cd?.relationship as Record<string, unknown> | undefined;
+        return (
+          typeof rel?.source === "string" &&
+          rel?.aggregated !== true &&
+          cd?.terraformRoutedPolyline === true &&
+          ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
+        );
+      });
+      expect(styledArrows.length).toBeGreaterThan(0);
+
+      const curve = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeStyle: "curve",
+      });
+      expect(curve.meta.strataEdgeStyle).toBe("curve");
+      expect(curve.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
+
+      // Explicit "straight" is byte-identical to the flag-off scene (the module
+      // never runs), checked at bbox AND polyline level.
+      const explicitStraight = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeStyle: "straight",
+      });
+      expect(geometryTuples(explicitStraight.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitStraight.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
     "threads strataBandCompact through the sceneContext literal (WP2 — threading-only; engine consumption + meta echo is WP1's parallel build)",
     async () => {
       // Both literals in terraformLayoutCore.ts (LayoutSceneContext +

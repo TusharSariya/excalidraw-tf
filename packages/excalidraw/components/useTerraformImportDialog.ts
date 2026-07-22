@@ -189,6 +189,14 @@ export const useTerraformImportDialog = ({
   const [strataBorderRoute, setStrataBorderRoute] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute as boolean,
   );
+  // Strata probe P2 (strata-only): edge render style (straight | step | curve).
+  // Default "straight" / byte-identical (the style module never runs).
+  const [strataEdgeStyle, setStrataEdgeStyle] = useState<
+    "straight" | "step" | "curve"
+  >(TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle as
+    | "straight"
+    | "step"
+    | "curve");
   // Strata band-depth slider (v3.2, strata-only): the deepest role still
   // banded — deeper roles pack X-disjoint siblings into shared rows. Default
   // "account" reproduces today's fixed role→policy map byte-identically.
@@ -554,6 +562,7 @@ export const useTerraformImportDialog = ({
         strataHeightGate,
         strataEdgeRouting,
         strataBorderRoute,
+        strataEdgeStyle,
         strataBandDepth,
         strataDeBandLevel,
         strataSiftRelocate,
@@ -716,6 +725,7 @@ export const useTerraformImportDialog = ({
           strataHeightGate,
           strataEdgeRouting,
           strataBorderRoute,
+          strataEdgeStyle,
           strataBandDepth,
           strataDeBandLevel,
           strataSiftRelocate,
@@ -841,6 +851,7 @@ export const useTerraformImportDialog = ({
         strataHeightGate,
         strataEdgeRouting,
         strataBorderRoute,
+        strataEdgeStyle,
         strataBandDepth,
         strataDeBandLevel,
         // Keep this handler's strata option shape identical to the regular
@@ -1087,6 +1098,7 @@ export const useTerraformImportDialog = ({
         strataHeightGate,
         strataEdgeRouting,
         strataBorderRoute,
+        strataEdgeStyle,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
         // false so a new share URL never re-emits the old `strataBandCompact`
@@ -1137,6 +1149,7 @@ export const useTerraformImportDialog = ({
     strataHeightGate,
     strataEdgeRouting,
     strataBorderRoute,
+    strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
@@ -1183,6 +1196,7 @@ export const useTerraformImportDialog = ({
     strataHeightGate,
     strataEdgeRouting,
     strataBorderRoute,
+    strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
@@ -1251,6 +1265,7 @@ export const useTerraformImportDialog = ({
     setStrataHeightGate,
     setStrataEdgeRouting,
     setStrataBorderRoute,
+    setStrataEdgeStyle,
     setStrataBandDepth,
     setStrataDeBandLevel,
     setStrataSiftRelocate,

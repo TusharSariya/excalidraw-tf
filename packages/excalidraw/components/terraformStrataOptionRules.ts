@@ -39,6 +39,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataPackedScoringEpsilon",
   "strataEdgeRouting",
   "strataBorderRoute",
+  "strataEdgeStyle",
   "strataBandCompact",
   "strataBandDepth",
   "strataDeBandLevel",
@@ -214,6 +215,11 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
 > = [
   ["strataSweeps", "strataCoordinateRefine"],
   ["strataEdgeRouting", "strataBorderRoute"],
+  // Probe P2 edge STYLE composes UNDER both routers (it only reshapes chords
+  // they left un-routed) — no conflict, declared independent so the totality
+  // guard has these pairs on record.
+  ["strataEdgeStyle", "strataEdgeRouting"],
+  ["strataEdgeStyle", "strataBorderRoute"],
   // NOTE: bandDepth × deBandLevel is NOT independent — it is a declared
   // value-conflict (STRATA_VALUE_CONFLICTS), so it is deliberately absent here.
 ];

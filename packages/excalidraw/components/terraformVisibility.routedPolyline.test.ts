@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { repairTerraformEdgeBindings } from "./terraformVisibility";
+import { smoothStepPolyline } from "./terraformPipelineStrataEdgeStyle";
 
 // ── fixtures ────────────────────────────────────────────────────────────────
 
@@ -212,6 +213,54 @@ describe("repairTerraformEdgeBindings — routed polyline validate-before-trust"
     const out = repairEdge([rectA, rectB, marked], "routed");
     expect(out.points.length).toBe(2);
     expect(out.customData?.terraformRoutedPolyline).toBeUndefined();
+  });
+
+  it("preserves a probe-P2 smoothstep polyline whose endpoints still match (edge-style round-trip)", () => {
+    const rectA = resourceRect("r-a", A, 0, 0);
+    const rectB = resourceRect("r-b", B, 400, 300);
+    // Derive the exact repaired chord, then reshape it with the P2 step style
+    // between the SAME absolute endpoints — the geometry applyStrataEdgeStyle
+    // stamps. Endpoints are unchanged, so validate-before-trust must keep it.
+    const straight = repairEdge(
+      [rectA, rectB, depEdge("routed", A, B)],
+      "routed",
+    );
+    const pts = (straight as unknown as { points: [number, number][] }).points;
+    const sRel = pts[0]!;
+    const eRel = pts[pts.length - 1]!;
+    const start: readonly [number, number] = [
+      straight.x + sRel[0],
+      straight.y + sRel[1],
+    ];
+    const end: readonly [number, number] = [
+      straight.x + eRel[0],
+      straight.y + eRel[1],
+    ];
+    const poly = smoothStepPolyline(start, end);
+    expect(poly.length).toBeGreaterThan(2);
+    const relPoints = poly.map(
+      ([px, py]) => [px - straight.x, py - straight.y] as [number, number],
+    );
+    const xs = relPoints.map((p) => p[0]);
+    const ys = relPoints.map((p) => p[1]);
+    const stepped = depEdge("routed", A, B, {
+      x: straight.x,
+      y: straight.y,
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys),
+      points: relPoints,
+      customData: {
+        terraformEdgeLayer: "dependency",
+        relationship: { source: A, target: B },
+        terraformRoutedPolyline: true,
+      },
+    } as unknown as Partial<ExcalidrawElement>);
+
+    const out = repairEdge([rectA, rectB, stepped], "routed");
+    expect(out.points.length).toBe(poly.length); // step geometry kept
+    expect(out.customData?.terraformRoutedPolyline).toBe(true);
+    expect(out.startBinding?.elementId).toBe("r-a");
+    expect(out.endBinding?.elementId).toBe("r-b");
   });
 
   it("flattens + strips a foreign arrow carrying the flag with garbage points", () => {

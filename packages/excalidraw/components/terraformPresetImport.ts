@@ -124,6 +124,8 @@ export type RunTerraformImportFromSourcesArgs = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: "straight" | "step" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -194,6 +196,7 @@ export const runTerraformImportWithView = async ({
   strataDeBandLevel,
   strataEdgeRouting,
   strataBorderRoute,
+  strataEdgeStyle,
   strataBandCompact,
   strataBandDepth,
   strataSiftRelocate,
@@ -280,6 +283,7 @@ export const runTerraformImportWithView = async ({
           strataDeBandLevel,
           strataEdgeRouting,
           strataBorderRoute,
+          strataEdgeStyle,
           strataBandCompact,
           strataBandDepth,
           strataSiftRelocate,
@@ -357,6 +361,8 @@ export type RunTerraformPresetImportOptions = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: "straight" | "step" | "curve";
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
@@ -450,6 +456,7 @@ export const runTerraformPresetImport = async (
     strataDeBandLevel: options.strataDeBandLevel,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBorderRoute: options.strataBorderRoute,
+    strataEdgeStyle: options.strataEdgeStyle,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,
     strataSiftRelocate: options.strataSiftRelocate,

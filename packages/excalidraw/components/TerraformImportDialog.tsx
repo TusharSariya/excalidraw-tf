@@ -79,6 +79,7 @@ export const TerraformImportModal = ({
     strataHeightGate,
     strataEdgeRouting,
     strataBorderRoute,
+    strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
@@ -661,6 +662,7 @@ terraform show -json tfplan > plan.json`}</code>
               strataHeightGate={strataHeightGate}
               strataEdgeRouting={strataEdgeRouting}
               strataBorderRoute={strataBorderRoute}
+              strataEdgeStyle={strataEdgeStyle}
               strataBandDepth={strataBandDepth}
               strataDeBandLevel={strataDeBandLevel}
               pipelineCompact={pipelineCompact}
@@ -683,6 +685,7 @@ terraform show -json tfplan > plan.json`}</code>
               setStrataHeightGate={dialog.setStrataHeightGate}
               setStrataEdgeRouting={dialog.setStrataEdgeRouting}
               setStrataBorderRoute={dialog.setStrataBorderRoute}
+              setStrataEdgeStyle={dialog.setStrataEdgeStyle}
               setStrataBandDepth={dialog.setStrataBandDepth}
               setStrataDeBandLevel={dialog.setStrataDeBandLevel}
               setPipelineCompact={dialog.setPipelineCompact}

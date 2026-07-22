@@ -176,6 +176,17 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "M2 'Route edges'; composes with edgeRouting; owner-decisions.md 2026-07-17 declutter: SHIPPED into the same collapsed 'Advanced: edge routing' <details> disclosure as edgeRouting; parses independently forever",
   },
   {
+    urlParam: "strataEdgeStyle",
+    optionKey: "strataEdgeStyle",
+    kind: "enum",
+    default: "straight",
+    domain: ["straight", "step", "curve"],
+    surface: "advanced",
+    emitClass: "C3",
+    decidedNow: false,
+    note: "probe P2 (edge-routing-research 2026-07-22): React-Flow smoothstep/bezier render styles for un-routed TFD chords; composes UNDER edgeRouting/borderRoute; default 'straight' byte-identical (module never runs) and omitted from URLs (non-default-only emit); scored on angle metrics + eyeball A/B",
+  },
+  {
     urlParam: "strataBandCompact",
     optionKey: "strataBandCompact",
     kind: "boolean",
