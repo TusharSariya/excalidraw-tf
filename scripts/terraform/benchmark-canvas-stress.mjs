@@ -33,7 +33,7 @@ const getArg = (name, fallback) => {
 const hasFlag = (name) => args.includes(name);
 
 const PINNED_DEMO_PATH =
-  "/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&ancillary=1&privateApiRegional=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=0&strataBandDepth=root&strataDeBand=vpc&strataSift=1&strataBlockClamp=1&strataTranspose=1&lodEnabled=1&lodPreset=balanced&minimap=0&layers=declared";
+  "/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&ancillary=1&privateApiRegional=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=0&strataBandDepth=root&strataDeBand=vpc&strataSift=1&strataBlockClamp=1&strataTranspose=1&lodEnabled=1&lodPreset=balanced&minimap=0&layers=declared&canvasPerf=focuswash";
 
 const DEFAULT_OUT =
   "/private/tmp/claude-501/-Users-tusharsariya-Projects-excalidraw-tf/c7c39f5c-073a-4039-b046-685eb395a02e/scratchpad/perf-loop-20260721/canvas";
