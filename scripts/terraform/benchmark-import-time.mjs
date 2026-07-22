@@ -35,7 +35,7 @@ const getArg = (name, fallback) => {
 const hasFlag = (name) => args.includes(name);
 
 const DEFAULT_DEMO_PATH =
-  "/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&ancillary=1&privateApiRegional=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=0&strataBandDepth=root&strataDeBand=vpc&strataSift=1&strataBlockClamp=1&strataTranspose=1&lodEnabled=1&lodPreset=balanced&minimap=0&layers=declared";
+  "/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&ancillary=1&privateApiRegional=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=0&strataBandDepth=root&strataDeBand=vpc&strataSift=1&strataBlockClamp=1&strataTranspose=1&lodEnabled=1&lodPreset=balanced&minimap=0&layers=declared&canvasPerf=focuswash";
 
 const baseUrl = getArg("--url", "http://localhost:3001").replace(/\/$/, "");
 const targetUrlOverride = getArg("--target-url", null);
