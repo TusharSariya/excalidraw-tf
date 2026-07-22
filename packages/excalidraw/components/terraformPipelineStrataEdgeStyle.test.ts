@@ -13,6 +13,8 @@ import {
   calculateControlOffset,
   smoothStepPolyline,
 } from "./terraformPipelineStrataEdgeStyle";
+import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
+import type { StrataBox } from "./terraformPipelineStrataTypes";
 import type {
   StrataModel,
   StrataPlacementResult,
@@ -94,6 +96,28 @@ describe("bezierPolyline", () => {
     expect(poly[1]![0]).toBeCloseTo(50, 6);
     expect(poly[1]![1]).toBeCloseTo(20, 6);
   });
+
+  // DEFECT 1 (Fable attacker): the old control-offset hardcoded React Flow's
+  // Right/Bottom-port push (`calculateControlOffset` on the SIGNED chord), so a
+  // Δx<0 or Δy<0 chord looped its control arm the wrong way — bulging back INTO
+  // the source card and overshooting THROUGH the target. Direction-aware offsets
+  // + the forward-edge monotone clamp make every curve monotone in its major
+  // axis. FAILS pre-fix (old code excursions ≈+16.8px / dips ≈+14.5px).
+  it("keeps a leftward (Δx<0) horizontal edge x-monotone — no excursion into source or past target", () => {
+    const poly = bezierPolyline([0, 0], [-500, 0]);
+    const xs = poly.map((p) => p[0]);
+    // No sample bulges to the right of the source anchor (x=0).
+    expect(Math.max(...xs)).toBeLessThanOrEqual(1e-6);
+    // No sample overshoots past the target anchor (x=-500).
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(-500 - 1e-6);
+  });
+
+  it("keeps an upward (Δy<0) vertical edge y-monotone — no dip below the source", () => {
+    const poly = bezierPolyline([0, 0], [0, -300]);
+    const ys = poly.map((p) => p[1]);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(1e-6);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(-300 - 1e-6);
+  });
 });
 
 describe("applyStrataEdgeStyle", () => {
@@ -122,6 +146,62 @@ describe("applyStrataEdgeStyle", () => {
     expect(meta.styled).toBe(0);
     expect(meta.skipped).toBe(1);
     expect(JSON.stringify(skeleton[0])).toBe(before);
+  });
+
+  // DEFECT 1 orbit class (W3-1): a genuine back-edge (target strictly left of
+  // source) whose monotone chord would slice an intermediate card is rerouted
+  // as a guard-gated orbit arc OUTSIDE the occupied band. Needs real placement
+  // geometry. FAILS pre-fix (no orbit; back-edge bezier pierces the mid card).
+  it("routes a back-edge as an orbit that clears an intermediate card the chord would slice", () => {
+    const mid: StrataBox = { x: 240, y: 90, width: 80, height: 40 };
+    const leafBoxes = new Map<string, StrataBox>([
+      ["A", { x: 0, y: 80, width: 80, height: 40 }],
+      ["B", { x: 500, y: 80, width: 80, height: 40 }],
+      ["M", mid],
+    ]);
+    const placementReal = {
+      leafBoxes,
+    } as unknown as StrataPlacementResult;
+    // Back-edge B(right) → A(left); its straight chord at y=100 crosses M.
+    const skeleton = [
+      tfdArrow(500, 100, [-500, 0], {
+        relationship: { source: "B", target: "A" },
+      }),
+    ];
+    const meta = applyStrataEdgeStyle(skeleton, model, placementReal, "curve");
+    expect(meta.orbited).toBe(1);
+    expect(meta.styled).toBe(1);
+    expect(meta.orbitReverted).toBe(0);
+    const el = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      points: Array<[number, number]>;
+    };
+    const abs = el.points.map(
+      ([px, py]) => [el.x + px, el.y + py] as [number, number],
+    );
+    // Endpoints preserved.
+    expect(abs[0]).toEqual([500, 100]);
+    expect(abs[abs.length - 1]).toEqual([0, 100]);
+    // No segment of the emitted orbit pierces the intermediate card interior.
+    let slices = false;
+    for (let i = 0; i + 1 < abs.length; i++) {
+      if (
+        segmentIntersectsStrataBoxInterior(
+          abs[i]![0],
+          abs[i]![1],
+          abs[i + 1]![0],
+          abs[i + 1]![1],
+          mid.x,
+          mid.y,
+          mid.x + mid.width,
+          mid.y + mid.height,
+        )
+      ) {
+        slices = true;
+      }
+    }
+    expect(slices).toBe(false);
   });
 
   it("ignores non-TFD arrows (no relationship)", () => {

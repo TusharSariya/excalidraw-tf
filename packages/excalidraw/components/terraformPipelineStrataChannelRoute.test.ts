@@ -19,6 +19,7 @@ import {
   deriveStrataColumns,
   routeStrataChannelEdges,
 } from "./terraformPipelineStrataChannelRoute";
+import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
 import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
 
 import type {
@@ -341,6 +342,99 @@ describe("routeStrataChannelEdges (scene pass)", () => {
     const x1 = verticalRunXs(absPointsOf(skeleton[0]!))[0]!;
     const x2 = verticalRunXs(absPointsOf(skeleton[1]!))[0]!;
     expect(x1).not.toBe(x2);
+  });
+
+  // DEFECT 2 (Fable attacker): a multi-channel edge's horizontal transfer over
+  // an intermediate rank used a uniform fractional Y that sliced that rank's
+  // cards; the pierce guard passed on TIES. The transfer Y is now slid onto a
+  // clear corridor row. FAILS pre-fix (transfer [240,170]→[640,170] slices the
+  // mid card at (400,150,80,40)).
+  it("routes an inter-channel transfer along a clear corridor instead of slicing the intermediate rank's card", () => {
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const b = hull("hull-b", ["vpc-b"], ["mid"]);
+    const c = hull("hull-c", ["vpc-c"], ["c1"]);
+    root.children = [a, b, c];
+    const mid = box(400, 150, 80, 40);
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 80, 80, 40)],
+      ["mid", mid], // column 1 — the intermediate rank the transfer crosses
+      ["c1", box(800, 220, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["__root__", { hull: root, box: box(-40, -40, 960, 360) }],
+      ["hull-a", { hull: a, box: box(-20, 60, 120, 80) }],
+      ["hull-b", { hull: b, box: box(380, 130, 120, 80) }],
+      ["hull-c", { hull: c, box: box(780, 200, 120, 80) }],
+    ]);
+    // a1 (col0, right-mid) → c1 (col2, left-mid) spans channels [0,1]; the
+    // uniform transfer Y = (100+240)/2 = 170 lands inside mid's [150,190].
+    const skeleton = [tfdArrow("a1", "c1", [80, 100], [800, 240])];
+    const meta = routeStrataChannelEdges(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+      false,
+    );
+    expect(meta.routed).toBe(1);
+    const abs = absPointsOf(skeleton[0]!);
+    let slices = false;
+    for (let i = 0; i + 1 < abs.length; i++) {
+      if (
+        segmentIntersectsStrataBoxInterior(
+          abs[i]![0],
+          abs[i]![1],
+          abs[i + 1]![0],
+          abs[i + 1]![1],
+          mid.x,
+          mid.y,
+          mid.x + mid.width,
+          mid.y + mid.height,
+        )
+      ) {
+        slices = true;
+      }
+    }
+    expect(slices).toBe(false);
+  });
+
+  // DEFECT 3 (Fable attacker): occupancy was tallied during PLANNING from
+  // `runsByChannel`, which is never pruned when the pierce guard reverts an
+  // edge — so a reverted edge's phantom runs inflated tracksUsed / runs and
+  // biased the P5 gate. Occupancy is now recomputed post-guard over accepted
+  // runs only. FAILS pre-fix (occupancy has a phantom channel-0 entry).
+  it("excludes a guard-reverted edge's runs from the occupancy report", () => {
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const b = hull("hull-b", ["vpc-b"], ["b1"]);
+    const cc = hull("hull-c", ["vpc-c"], []);
+    root.children = [a, b, cc];
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 0, 80, 40)],
+      ["b1", box(400, 120, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["__root__", { hull: root, box: box(-40, -40, 600, 240) }],
+      ["hull-a", { hull: a, box: box(-20, -20, 120, 80) }],
+      ["hull-b", { hull: b, box: box(380, 100, 120, 80) }],
+      // Foreign hull straddling the vertical run at channel centre → the route
+      // pierces it, the chord does not → guard reverts.
+      ["hull-c", { hull: cc, box: box(230, 100, 20, 30) }],
+    ]);
+    const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 140])];
+    const meta = routeStrataChannelEdges(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+      false,
+    );
+    expect(meta.guardReverted).toBe(1);
+    expect(meta.routed).toBe(0);
+    // No accepted runs ⇒ occupancy is empty and peak tracks is 0 (pre-fix these
+    // carried the reverted edge's phantom channel-0 run).
+    expect(meta.occupancy).toHaveLength(0);
+    expect(meta.maxTracksInChannel).toBe(0);
+    expect(meta.runsTotal).toBe(0);
   });
 
   it("emits roundness on channel polylines when corner-softening is requested (edgeStyle composition)", () => {

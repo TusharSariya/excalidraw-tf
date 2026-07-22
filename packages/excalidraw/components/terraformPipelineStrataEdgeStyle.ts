@@ -11,6 +11,19 @@
  * ORIENTATION-AWARE. Strata is LR, but a backward or predominantly-vertical
  * edge would look wrong forced horizontal, so each edge picks its major axis
  * from |Δx| vs |Δy|: horizontal-major departs L/R, vertical-major departs T/B.
+ * The bezier control points travel TOWARD the target along the chord sign (like
+ * the step branch's `dir`), NOT React Flow's fixed Right-port push — a Δx<0 or
+ * Δy<0 edge no longer loops its control arm out through the source card. Forward
+ * edges keep the classic 0.5·distance offset (byte-identical), and are additionally
+ * x-monotone-clamped (Fritsch–Carlson analog: control coords stay in [x0,x3], so
+ * x'(t)≥0 — no against-flow excursion, and two forward curves cross like straight
+ * chords). Genuine back-edges (target strictly left of source) are NOT clamped —
+ * a monotone chord through the spanned ranks would slice every intervening card;
+ * they route as the ORBIT class in `applyStrataEdgeStyle` (arc over/under the
+ * occupied Y band with vertical entry/exit — the dot/ELK reverse-then-route
+ * idiom), guard-gated per edge against foreign-card pierce (revert to chord on
+ * failure). The orbit needs obstacle geometry, so it runs only when real
+ * `placement` leaf boxes are supplied.
  *
  * COMPOSES UNDER THE ROUTERS. Runs AFTER edgeRouting + borderRoute in the
  * scene-build seam and SKIPS any arrow already stamped `terraformRoutedPolyline`
@@ -33,8 +46,10 @@ import type { LocalPoint } from "@excalidraw/math";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
+import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
 
 import type {
+  StrataBox,
   StrataModel,
   StrataPlacementResult,
 } from "./terraformPipelineStrataTypes";
@@ -59,6 +74,12 @@ export type StrataEdgeStyleMeta = {
   skipped: number;
   /** Total polyline points across all styled arrows (router cost budget). */
   pointsTotal: number;
+  /** Back-edges (target left of source) routed as an orbit arc (subset of
+   * `styled`). Only counted when real placement geometry is supplied. */
+  orbited: number;
+  /** Back-edges whose orbit pierced MORE foreign cards than the chord, so the
+   * chord was kept (guard revert). */
+  orbitReverted: number;
 };
 
 type Pt = readonly [number, number];
@@ -167,9 +188,21 @@ export function smoothStepPolyline(
 
 /**
  * Cubic-bezier polyline with axis-aligned control points (React Flow
- * `getBezierPath`), sampled to a `samples`+1 point polyline (Excalidraw arrows
- * are polylines). Horizontal-major edges use Right/Left ports; vertical-major
- * use Bottom/Top.
+ * `getBezierPath` shape), sampled to a `samples`+1 point polyline (Excalidraw
+ * arrows are polylines).
+ *
+ * DIRECTION-AWARE control offsets: the control arms push TOWARD the target along
+ * the chord sign (`dir`), not React Flow's hardcoded Right/Bottom-port push. The
+ * magnitude is the classic forward offset 0.5·|distance| (`curvature` retained
+ * for signature compatibility / `calculateControlOffset` parity but no longer
+ * used to loop backward arms out). For a FORWARD major axis the interior control
+ * coords are additionally clamped into the endpoint interval [start,end] so the
+ * curve is monotone in the flow direction (x'(t)≥0 for horizontal-major,
+ * y'(t)≥0 for vertical-major) — this both kills the "+16.8px into the source
+ * card" excursion the old Right-port offset produced on Δ<0 edges and makes two
+ * forward curves cross like straight function graphs (≤1 crossing per pair).
+ * A backward major axis (target on the wrong side) is left monotone-but-straight
+ * here; `applyStrataEdgeStyle` upgrades those to the orbit class.
  */
 export function bezierPolyline(
   start: Pt,
@@ -184,13 +217,31 @@ export function bezierPolyline(
   let c1: Pt;
   let c2: Pt;
   if (Math.abs(dx) >= Math.abs(dy)) {
-    const off = calculateControlOffset(dx, curvature);
-    c1 = [sx + off, sy];
-    c2 = [ex - off, ey];
+    // Horizontal-major: control arms travel toward the target (chord sign).
+    const dir = dx >= 0 ? 1 : -1;
+    const mag = 0.5 * Math.abs(dx);
+    let c1x = sx + dir * mag;
+    let c2x = ex - dir * mag;
+    if (ex >= sx) {
+      // Forward: clamp interior control x into [sx,ex] ⇒ x'(t)≥0 (monotone).
+      c1x = Math.max(sx, Math.min(c1x, ex));
+      c2x = Math.max(c1x, Math.min(c2x, ex));
+    }
+    c1 = [c1x, sy];
+    c2 = [c2x, ey];
   } else {
-    const off = calculateControlOffset(dy, curvature);
-    c1 = [sx, sy + off];
-    c2 = [ex, ey - off];
+    // Vertical-major: control arms travel toward the target (chord sign).
+    const dir = dy >= 0 ? 1 : -1;
+    const mag = 0.5 * Math.abs(dy);
+    let c1y = sy + dir * mag;
+    let c2y = ey - dir * mag;
+    if (ey >= sy) {
+      // Forward (top→bottom): clamp interior control y into [sy,ey] ⇒ monotone.
+      c1y = Math.max(sy, Math.min(c1y, ey));
+      c2y = Math.max(c1y, Math.min(c2y, ey));
+    }
+    c1 = [sx, c1y];
+    c2 = [ex, c2y];
   }
   const out: Pt[] = [];
   const n = Math.max(2, samples);
@@ -209,18 +260,66 @@ export function bezierPolyline(
   return out;
 }
 
+/** Number of `foreign` boxes whose interior the polyline pierces. */
+function piercedCardCount(poly: readonly Pt[], foreign: readonly StrataBox[]): number {
+  let n = 0;
+  for (const b of foreign) {
+    let hit = false;
+    for (let s = 0; s + 1 < poly.length && !hit; s++) {
+      if (
+        segmentIntersectsStrataBoxInterior(
+          poly[s]![0],
+          poly[s]![1],
+          poly[s + 1]![0],
+          poly[s + 1]![1],
+          b.x,
+          b.y,
+          b.x + b.width,
+          b.y + b.height,
+        )
+      ) {
+        hit = true;
+      }
+    }
+    if (hit) {
+      n += 1;
+    }
+  }
+  return n;
+}
+
+/**
+ * Orbit polyline for a genuine back-edge: vertical exit from `start` to an
+ * `orbitY` OUTSIDE the occupied band, one horizontal run across the spanned X
+ * at `orbitY`, then vertical entry into `end`. The dot/ELK "reverse-then-route"
+ * idiom rendered directly on fixed endpoints.
+ */
+function orbitPolyline(start: Pt, end: Pt, orbitY: number): Pt[] {
+  return simplifyPolyline([
+    start,
+    [start[0], orbitY],
+    [end[0], orbitY],
+    end,
+  ]);
+}
+
 /**
  * Scene-level pass: reshape, IN PLACE in the skeleton array, every un-routed
  * TFD arrow to the requested render style. Endpoints are preserved; only
  * interior path shape changes. Arrows already stamped `terraformRoutedPolyline`
- * (by edgeRouting / borderRoute) are skipped. `model`/`placement` are accepted
- * for signature parity with the sibling routers (endpoint-local styling needs
- * no obstacle data) and to leave room for future hull-padding-aware clamping.
+ * (by edgeRouting / borderRoute) are skipped.
+ *
+ * `curve` style additionally routes genuine BACK-EDGES (target strictly left of
+ * source) as an orbit arc over/under the occupied Y band (W3-1 orbit class),
+ * guard-gated against foreign-card pierce (revert to chord on failure). That
+ * needs obstacle geometry, so it activates only when `placement` supplies leaf
+ * boxes; with a null/empty placement the pass degrades to the pure endpoint-
+ * local styling (back-edges fall through to the monotone bezier).
  */
 export function applyStrataEdgeStyle(
   skeleton: ExcalidrawElementSkeleton[],
   _model: StrataModel,
-  _placement: StrataPlacementResult,
+  placement: StrataPlacementResult,
   style: Exclude<StrataEdgeStyle, "straight">,
 ): StrataEdgeStyleMeta {
   const meta: StrataEdgeStyleMeta = {
@@ -228,15 +327,24 @@ export function applyStrataEdgeStyle(
     styled: 0,
     skipped: 0,
     pointsTotal: 0,
+    orbited: 0,
+    orbitReverted: 0,
   };
   const stub = Math.min(STRATA_EDGE_STYLE_STUB_PX, PIPELINE_FRAME_PAD);
+  // Card catalogue for the orbit pierce guard (curve style only). Null-safe:
+  // a null/degenerate placement disables orbiting entirely.
+  const leafBoxes =
+    placement && placement.leafBoxes instanceof Map
+      ? placement.leafBoxes
+      : null;
 
   for (let i = 0; i < skeleton.length; i++) {
     const el = skeleton[i] as ArrowSkeleton;
     if (el.type !== "arrow") {
       continue;
     }
-    if (!relationshipOf(el)) {
+    const rel = relationshipOf(el);
+    if (!rel) {
       continue;
     }
     // First-stamper-wins: a routed arrow keeps its obstacle-aware geometry.
@@ -259,10 +367,59 @@ export function applyStrataEdgeStyle(
       continue;
     }
 
+    // Genuine back-edge (target strictly left of source): a monotone chord/curve
+    // would slice every intervening rank card, so route it as a guard-gated
+    // orbit arc OUTSIDE the occupied Y band. Needs obstacle geometry — skipped
+    // when placement is null/empty (back-edge then falls through to the bezier).
+    let orbitPoly: Pt[] | null = null;
+    if (leafBoxes && end[0] < start[0]) {
+      const foreign: StrataBox[] = [];
+      for (const [id, b] of leafBoxes) {
+        if (id === rel.source || id === rel.target) {
+          continue;
+        }
+        foreign.push(b);
+      }
+      const loX = Math.min(start[0], end[0]);
+      const hiX = Math.max(start[0], end[0]);
+      let bandTop = Infinity;
+      let bandBottom = -Infinity;
+      for (const b of foreign) {
+        // Band = Y-extent of cards overlapping the spanned X corridor.
+        if (b.x + b.width > loX && b.x < hiX) {
+          bandTop = Math.min(bandTop, b.y);
+          bandBottom = Math.max(bandBottom, b.y + b.height);
+        }
+      }
+      if (Number.isFinite(bandTop)) {
+        const chordPierce = piercedCardCount([start, end], foreign);
+        const topOrbit = orbitPolyline(start, end, bandTop - stub);
+        const bottomOrbit = orbitPolyline(start, end, bandBottom + stub);
+        // Prefer the arc with the fewer foreign-card pierces (tie → over-the-top,
+        // the conventional feedback-arc idiom).
+        const topPierce = piercedCardCount(topOrbit, foreign);
+        const bottomPierce = piercedCardCount(bottomOrbit, foreign);
+        const best =
+          topPierce <= bottomPierce
+            ? { poly: topOrbit, pierce: topPierce }
+            : { poly: bottomOrbit, pierce: bottomPierce };
+        if (best.pierce <= chordPierce) {
+          orbitPoly = best.poly;
+          meta.orbited += 1;
+        } else {
+          // Never-worse guard failed: keep the straight chord (unstyled).
+          meta.orbitReverted += 1;
+          meta.skipped += 1;
+          continue;
+        }
+      }
+    }
+
     const poly =
-      style === "step"
+      orbitPoly ??
+      (style === "step"
         ? smoothStepPolyline(start, end, stub)
-        : bezierPolyline(start, end);
+        : bezierPolyline(start, end));
 
     if (poly.length < 2) {
       meta.skipped += 1;
@@ -287,7 +444,7 @@ export function applyStrataEdgeStyle(
       // Step: round the orthogonal corners in the renderer (React Flow
       // smoothstep look) while the polyline stays clean 2-bend geometry for the
       // bend metric. Curve is already smooth — leave its roundness untouched.
-      ...(style === "step" ? { roundness: { type: 2 } } : {}),
+      ...(style === "step" || orbitPoly ? { roundness: { type: 2 } } : {}),
       customData: {
         ...(el.customData ?? {}),
         terraformRoutedPolyline: true,
