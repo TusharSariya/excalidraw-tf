@@ -18,7 +18,7 @@ import {
   shouldApplyFrameClip,
 } from "@excalidraw/element";
 
-import { renderElement } from "@excalidraw/element";
+import { renderElement, setTerraformCanvasHints } from "@excalidraw/element";
 
 import { getElementAbsoluteCoords } from "@excalidraw/element";
 
@@ -278,6 +278,14 @@ const _renderStaticScene = ({
           focusWashNowTs,
         )
       : undefined;
+
+  // E09 hint bundle: push the current toggles into the element-package canvas
+  // cache (zoom quantization / DPR cap) before rendering any element. Both
+  // default OFF, so this is inert unless an experiment enables them.
+  setTerraformCanvasHints({
+    zoomQuantize: terraformRuntimeSettings.terraformZoomQuantize,
+    dprCap: false,
+  });
 
   const [normalizedWidth, normalizedHeight] = getNormalizedCanvasDimensions(
     canvas,

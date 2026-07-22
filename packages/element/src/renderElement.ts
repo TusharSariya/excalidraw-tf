@@ -146,6 +146,53 @@ export interface ExcalidrawElementWithCanvas {
   boundTextCanvas: HTMLCanvasElement;
 }
 
+/**
+ * E09 "hint bundle" runtime toggles for the canvas cache. These live in the
+ * element package (mirroring the module-level `elementCanvasRegenStats` pattern)
+ * rather than being imported from `@excalidraw/excalidraw`, which would invert
+ * the package dependency arrow (element → excalidraw). The static scene renderer
+ * pushes the current `TerraformRuntimePerformanceSettings` values here each frame
+ * via {@link setTerraformCanvasHints}; both default OFF so behavior is
+ * byte-identical unless an experiment enables them.
+ */
+const terraformCanvasHints = {
+  /** E09.1: bucket the zoom cache key so micro zoom-ticks reuse a bitmap. */
+  zoomQuantize: false,
+  /** E09.3: cap the effective devicePixelRatio (see {@link TERRAFORM_CANVAS_DPR_CAP}). */
+  dprCap: false,
+};
+
+export const setTerraformCanvasHints = (hints: {
+  zoomQuantize: boolean;
+  dprCap: boolean;
+}) => {
+  terraformCanvasHints.zoomQuantize = hints.zoomQuantize;
+  terraformCanvasHints.dprCap = hints.dprCap;
+};
+
+/** Effective devicePixelRatio cap applied when `terraformDprCap` is ON (E09.3). */
+export const TERRAFORM_CANVAS_DPR_CAP = 1.5;
+
+/**
+ * Log-spaced bucket base for the E09.1 zoom cache-key quantization. Chosen
+ * strictly finer than the tightest spacing between adjacent Terraform LOD
+ * thresholds (`getTerraformLodThresholds` — the closest pair is ~1.14× apart, at
+ * icon 0.4 / label 0.35), so a single bucket can never straddle two LOD
+ * thresholds. Two zooms in the same bucket therefore differ by < ~10% resolution;
+ * that residual is absorbed by `drawElementFromCanvas`, which draws the cached
+ * bitmap at absolute element coords scaled by the *current* outer-context zoom
+ * (the stored `scale`/dpr cancel in `canvas.width / scale`), so geometry stays
+ * exact and only crispness varies — the identical mechanism already exercised
+ * today whenever `appState.shouldCacheIgnoreZoom` is true.
+ */
+export const TERRAFORM_ZOOM_QUANTIZE_LOG_BASE = 1.1;
+
+const LOG_ZOOM_QUANTIZE_BASE = Math.log(TERRAFORM_ZOOM_QUANTIZE_LOG_BASE);
+
+/** Integer log-spaced bucket index for a zoom value (E09.1). */
+export const terraformZoomBucket = (zoomValue: number): number =>
+  Math.round(Math.log(zoomValue) / LOG_ZOOM_QUANTIZE_BASE);
+
 const cappedElementCanvasSize = (
   element: NonDeletedExcalidrawElement,
   elementsMap: ElementsMap,
@@ -643,10 +690,23 @@ const generateElementWithCanvas = (
         value: 1 as NormalizedZoomValue,
       };
   const prevElementWithCanvas = elementWithCanvasCache.get(element);
-  const shouldRegenerateBecauseZoom =
-    prevElementWithCanvas &&
-    prevElementWithCanvas.zoomValue !== zoom.value &&
-    !appState?.shouldCacheIgnoreZoom;
+  // E09.1: with `terraformZoomQuantize` ON, a real cached bitmap is reused as
+  // long as the new zoom lands in the same log-spaced bucket, killing the
+  // micro-tick re-raster storm; the residual resolution mismatch is blit-scaled
+  // by `drawElementFromCanvas` (see `terraformZoomBucket`). Null-verdict
+  // sentinels (`canvas === null`) are deliberately EXCLUDED from quantization —
+  // an element that caps to 0×0 at the bucket's low edge but is drawable at its
+  // high edge must re-evaluate, or bucketing could pin it invisible. Sentinels
+  // therefore keep the exact-zoom compare.
+  let shouldRegenerateBecauseZoom = false;
+  if (prevElementWithCanvas && !appState?.shouldCacheIgnoreZoom) {
+    const quantize =
+      terraformCanvasHints.zoomQuantize && prevElementWithCanvas.canvas !== null;
+    shouldRegenerateBecauseZoom = quantize
+      ? terraformZoomBucket(prevElementWithCanvas.zoomValue) !==
+        terraformZoomBucket(zoom.value)
+      : prevElementWithCanvas.zoomValue !== zoom.value;
+  }
   const boundTextElement = getBoundTextElement(element, elementsMap);
   const boundTextElementVersion = boundTextElement?.version || null;
   const imageCrop = isImageElement(element) ? element.crop : null;
