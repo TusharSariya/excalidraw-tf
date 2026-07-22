@@ -284,7 +284,7 @@ const _renderStaticScene = ({
   // default OFF, so this is inert unless an experiment enables them.
   setTerraformCanvasHints({
     zoomQuantize: terraformRuntimeSettings.terraformZoomQuantize,
-    dprCap: false,
+    dprCap: terraformRuntimeSettings.terraformDprCap,
   });
 
   const [normalizedWidth, normalizedHeight] = getNormalizedCanvasDimensions(

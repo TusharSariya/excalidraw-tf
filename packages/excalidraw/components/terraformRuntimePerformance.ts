@@ -34,6 +34,8 @@ export type TerraformRuntimePerformanceSettings = {
   terraformZoomQuantize: boolean;
   /** E09.2: request an opaque (alpha:false) static-scene 2D context (default OFF). */
   terraformStaticCanvasOpaque: boolean;
+  /** E09.3: cap the effective devicePixelRatio for element bitmaps (default OFF). */
+  terraformDprCap: boolean;
   lowZoomThreshold: 0.2 | 0.3 | 0.4;
 };
 
@@ -47,6 +49,7 @@ export const TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS: TerraformRuntimePerformance
     terraformFocusWashOverlay: false,
     terraformZoomQuantize: false,
     terraformStaticCanvasOpaque: false,
+    terraformDprCap: false,
     lowZoomThreshold: 0.3,
   };
 
@@ -58,6 +61,7 @@ const BOOLEAN_SETTING_KEYS = [
   "skipBindingRepairDuringFocus",
   "terraformZoomQuantize",
   "terraformStaticCanvasOpaque",
+  "terraformDprCap",
 ] as const;
 
 const isLowZoomThreshold = (
