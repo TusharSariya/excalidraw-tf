@@ -25,6 +25,16 @@ interface Window {
       frameOpacity: number;
       arrowAngle: number;
     };
+    // Decomposition of byCause.miss by id-vs-object identity: firstSeen +
+    // identitySwap + sameObjectRemiss === byCause.miss. Names the miss cause
+    // (genuine first paint vs re-clone vs never-persisted/null-return).
+    missDetail: {
+      firstSeen: number;
+      identitySwap: number;
+      sameObjectRemiss: number;
+    };
+    // generateElementCanvas calls that returned null (0-size cap; never cached).
+    nullReturns: number;
   };
   __resetElementCanvasRegenStats?: () => void;
   // Import-time benchmark hooks (scripts/terraform/benchmark-import-time.mjs).

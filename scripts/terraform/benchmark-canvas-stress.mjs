@@ -150,6 +150,9 @@ const REGEN_CAUSES = [
   "arrowAngle",
 ];
 
+// Decomposition of the `miss` bucket by id-vs-object identity (sums to miss).
+const REGEN_MISS_DETAILS = ["firstSeen", "identitySwap", "sameObjectRemiss"];
+
 const snapshotCounters = async (page) =>
   page.evaluate(() => {
     const stats = window.__elementCanvasRegenStats;
@@ -166,6 +169,13 @@ const snapshotCounters = async (page) =>
         frameOpacity: stats?.byCause?.frameOpacity ?? 0,
         arrowAngle: stats?.byCause?.arrowAngle ?? 0,
       },
+      // decomposition of miss by id-vs-object identity + null-return count
+      regenMissDetail: {
+        firstSeen: stats?.missDetail?.firstSeen ?? 0,
+        identitySwap: stats?.missDetail?.identitySwap ?? 0,
+        sameObjectRemiss: stats?.missDetail?.sameObjectRemiss ?? 0,
+      },
+      regenNullReturns: stats?.nullReturns ?? 0,
       replaceAll: window.__terraformReplaceAllElementsCount ?? 0,
       heap: performance.memory?.usedJSHeapSize ?? null,
     };
@@ -883,6 +893,14 @@ const measureWorkload = async (page, workload, ctx) => {
             (before.regenByCause?.[cause] ?? 0),
         ]),
       ),
+      missDetail: Object.fromEntries(
+        REGEN_MISS_DETAILS.map((kind) => [
+          kind,
+          (after.regenMissDetail?.[kind] ?? 0) -
+            (before.regenMissDetail?.[kind] ?? 0),
+        ]),
+      ),
+      nullReturns: (after.regenNullReturns ?? 0) - (before.regenNullReturns ?? 0),
     },
     replaceAllDelta: after.replaceAll - before.replaceAll,
     heapDeltaBytes:
@@ -913,6 +931,12 @@ const AGG_FIELDS = [
     `regenCause${cause[0].toUpperCase()}${cause.slice(1)}`,
     (m) => m.regenDelta.byCause?.[cause] ?? 0,
   ]),
+  // miss decomposition (median across runs) — regenMissFirstSeen, etc.
+  ...REGEN_MISS_DETAILS.map((kind) => [
+    `regenMiss${kind[0].toUpperCase()}${kind.slice(1)}`,
+    (m) => m.regenDelta.missDetail?.[kind] ?? 0,
+  ]),
+  ["regenNullReturns", (m) => m.regenDelta.nullReturns ?? 0],
   ["replaceAllDelta", (m) => m.replaceAllDelta],
   ["heapDeltaBytes", (m) => m.heapDeltaBytes],
 ];
@@ -1081,7 +1105,16 @@ const printSummary = (configName, aggregate, spreadPct) => {
       const key = `regenCause${cause[0].toUpperCase()}${cause.slice(1)}`;
       return `${cause}=${m[key] ?? 0}`;
     });
+    const missParts = REGEN_MISS_DETAILS.map((kind) => {
+      const key = `regenMiss${kind[0].toUpperCase()}${kind.slice(1)}`;
+      return `${kind}=${m[key] ?? 0}`;
+    });
     console.log(`  ${name}: total=${m.regenTotal ?? "?"} | ${parts.join(" ")}`);
+    console.log(
+      `      miss-detail: ${missParts.join(" ")} | nullReturns=${
+        m.regenNullReturns ?? 0
+      }`,
+    );
   }
 };
 
