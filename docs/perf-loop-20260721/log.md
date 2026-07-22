@@ -2,7 +2,9 @@
 
 Plan: autonomous alternating loop (import ↔ canvas) on the pinned strata URL; desktop = gating numbers, laptop-dell-studio = low-power profile, Mac = orchestrator/fallback. Harnesses: `scripts/terraform/benchmark-import-time.mjs`, `scripts/terraform/benchmark-canvas-stress.mjs` (seeded workload registry; ≥1 new stress workload added per iteration). Keep rule: import median improves > noise (max(5%, spread)); canvas: no workload p95 regresses > noise and ≥1 improves >5%; no matrix config regresses; laptop regression ⇒ INCONCLUSIVE. Full revert otherwise. Never `test:update` to mask goldens. Every experiment passes **2 adversarial validators** (implementation attacker + results attacker) before a keep decision; both must return VALID.
 
-Pinned URL path: `/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&ancillary=1&privateApiRegional=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=0&strataBandDepth=root&strataDeBand=vpc&strataSift=1&strataBlockClamp=1&strataTranspose=1&lodEnabled=1&lodPreset=balanced&minimap=0&layers=declared`
+Pinned URL path: `/demo?preset=staging-extended-localstack-v2&view=strata&compact=0&ancillary=1&privateApiRegional=1&strataSweeps=4&strataCoordRefine=1&strataRankSep=1&strataPackedScoring=0&strataBandDepth=root&strataDeBand=vpc&strataSift=1&strataBlockClamp=1&strataTranspose=1&lodEnabled=1&lodPreset=balanced&minimap=0&layers=declared&canvasPerf=focuswash`
+
+(2026-07-22: `canvasPerf=focuswash` joined the pinned URL by owner decision after the D2 ON/OFF matrix + visual eyeball — commit `001a999f0` updates both harness constants. Canvas comparisons against pre-flip baselines (c1/c2) are cross-config for focus-dependent workloads; **baseline-c3 (wash-ON) is the new canvas gating baseline** once run.)
 
 ## Phase 0 — harness build (2026-07-21)
 
