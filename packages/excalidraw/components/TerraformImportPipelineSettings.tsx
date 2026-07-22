@@ -497,6 +497,53 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.channelroute.off": {
+    title: "Route edges through inter-rank channels · Off",
+    body: "Cross-rank arrows keep their straight centre-to-centre chord — a diagonal that may cut across cards at a shallow angle. Byte-identical scenes (the channel-routing module never runs).",
+    dev: {
+      implements:
+        "strataChannelRoute=false: routeStrataChannelEdges never runs; TFD arrows keep their two-point chords (byte-identical).",
+    },
+  },
+  "strata.channelroute.on": {
+    title: "Route edges through inter-rank channels · On — P1",
+    body: "The owner's dummy-column idea. Each inter-rank arrow is re-drawn as Manhattan geometry: a perpendicular exit stub off the source card, one vertical run per traversed inter-column gap at an assigned track (tracks are interval-coloured and ordered by target-Y to reduce in-channel crossings), then a perpendicular entry stub into the target. All cross-axis displacement happens in the channels at 90°, so shallow near-flat diagonals across cards disappear. Zero-width channels in v1 — NO geometry moves. Endpoints never move; an edge whose channel path would pierce MORE cards than its chord keeps the chord (acceptance guard). Same-rank edges stay chords in v1. Runs first among the edge passes and owns the polyline topology.",
+    dev: {
+      implements:
+        "strataChannelRoute=true: routeStrataChannelEdges derives columns by X-interval merging leafBoxes, routes each inter-rank TFD arrow to exit-stub → per-channel vertical run at a track X (left-edge interval colouring + Sander mean-target-Y ordering, trackGap clamped to channel width, 2px stacking on overflow) → entry-stub, stamps terraformRoutedPolyline, guards on pierce (never emit worse); emits per-channel occupancy. Composes UNDER edgeStyle (softens channel corners with roundness, no double-route).",
+      refs: [
+        "Hashimoto & Stevens 1971 — Wire Routing by Optimizing Channel Assignment",
+        "Sander 1996 — Layout of Compound Directed Graphs",
+        "Raykov 2021 — Orthogonal Edge Routing for Layered Graphs",
+      ],
+    },
+  },
+  "strata.edgestyle.straight": {
+    title: "Edge style · Straight",
+    body: "Un-routed arrows keep their straight centre-to-centre chord. The default — byte-identical scenes (the style module never runs).",
+    dev: {
+      implements:
+        'strataEdgeStyle="straight" (default): the terraformPipelineStrataEdgeStyle module never runs; TFD arrows keep their two-point chords (byte-identical).',
+    },
+  },
+  "strata.edgestyle.step": {
+    title: "Edge style · Step (smoothstep)",
+    body: "Un-routed arrows are re-drawn as orthogonal Z-paths: a perpendicular escape stub off each card, a single mid-path bend, rounded corners (React Flow's smoothstep look). Endpoints never move; routed arrows (Route edges / Exit containers) keep their obstacle-aware geometry. Pure aesthetics — crossing/pierce topology is essentially unchanged.",
+    dev: {
+      implements:
+        'strataEdgeStyle="step": applyStrataEdgeStyle rewrites each un-routed TFD chord to a smoothstep polyline (20px stubs clamped to PIPELINE_FRAME_PAD, Z-bend at stepPosition 0.5, roundness type 2), stamping terraformRoutedPolyline; skips arrows already stamped by edgeRouting/borderRoute.',
+      refs: ["React Flow (xyflow) — getSmoothStepPath (MIT)"],
+    },
+  },
+  "strata.edgestyle.curve": {
+    title: "Edge style · Curve (bezier)",
+    body: "Un-routed arrows are re-drawn as a soft cubic bezier with axis-aligned control points (React Flow's default edge look), sampled to a polyline. Endpoints never move; routed arrows keep their geometry. Pure aesthetics.",
+    dev: {
+      implements:
+        'strataEdgeStyle="curve": applyStrataEdgeStyle samples a cubic bezier (control offset 0.5·distance forward / 0.25·25·√|distance| backward) to a 14-point polyline per un-routed TFD chord, stamping terraformRoutedPolyline; skips already-routed arrows.',
+      refs: ["React Flow (xyflow) — getBezierPath (MIT)"],
+    },
+  },
   "strata.banddepth": {
     title: "Band depth",
     body: "Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. Shallower cuts toward Root pack provider and account, which reclaims vertical height when Compact height (rankSeparate) is on. Region, VPC, and Zone cuts are experimental and usually make the canvas wider. Root is always banded — packing it would collapse the top-level providers side-by-side.",

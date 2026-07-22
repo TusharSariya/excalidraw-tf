@@ -136,6 +136,12 @@ export type TerraformDemoUrlParams = {
   /** Strata P3-pierce clean container-exit routing (`strataBorderRoute=1/0`).
    * Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1 inter-rank channel routing (`strataChannelRoute=1/0`,
+   * the owner's dummy-column idea). Default off. */
+  strataChannelRoute?: boolean;
+  /** Strata probe P2 edge render style
+   * (`strataEdgeStyle=straight|step|curve`). Default `"straight"`. */
+  strataEdgeStyle?: "straight" | "step" | "curve";
   /** W10 (SDEC-63): banded row-share compaction lever
    * (`strataBandCompact=1/0`). Default off; primarily effective with
    * rankSeparate. LEGACY ALIAS for `strataBandDepth: "root"` — kept for old
@@ -481,6 +487,26 @@ export const parseTerraformDemoUrlParams = (
   if (strataBorderRoute === null) {
     return null;
   }
+  const strataChannelRoute = parseBooleanParam("strataChannelRoute");
+  if (strataChannelRoute === null) {
+    return null;
+  }
+  // Probe P2 edge style enum. Hard-fail on an invalid value (same contract as
+  // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
+  // default downstream. Case-insensitive, matching the band-depth parse.
+  const strataEdgeStyleRaw = params.get("strataEdgeStyle");
+  let strataEdgeStyle: "straight" | "step" | "curve" | undefined;
+  if (strataEdgeStyleRaw != null && strataEdgeStyleRaw.trim() !== "") {
+    const normalized = strataEdgeStyleRaw.trim().toLowerCase();
+    if (
+      normalized !== "straight" &&
+      normalized !== "step" &&
+      normalized !== "curve"
+    ) {
+      return null;
+    }
+    strataEdgeStyle = normalized;
+  }
   const strataBandCompact = parseBooleanParam("strataBandCompact");
   if (strataBandCompact === null) {
     return null;
@@ -756,6 +782,8 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
     ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
+    ...(strataChannelRoute != null ? { strataChannelRoute } : {}),
+    ...(strataEdgeStyle != null ? { strataEdgeStyle } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
     ...(strataDeBandLevel != null ? { strataDeBandLevel } : {}),
@@ -841,6 +869,8 @@ export const buildTerraformDemoUrl = (
   setNum("strataPackedEps", params.strataPackedEps);
   setBool("strataEdgeRouting", params.strataEdgeRouting);
   setBool("strataBorderRoute", params.strataBorderRoute);
+  setBool("strataChannelRoute", params.strataChannelRoute);
+  setEnum("strataEdgeStyle", params.strataEdgeStyle);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
   setEnum("strataDeBand", params.strataDeBandLevel);
@@ -955,6 +985,13 @@ export type TerraformDemoSettingsSnapshot = {
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
+  /** Probe P1 inter-rank channel routing. Optional (like `strataEdgeStyle`) so a
+   * snapshot literal predating this field still type-checks; absent ⇒ false. */
+  strataChannelRoute?: boolean;
+  /** Probe P2 edge render style. Optional (like `strataBandDepth`) so a
+   * snapshot literal predating this field still type-checks; absent ⇒
+   * "straight". */
+  strataEdgeStyle?: "straight" | "step" | "curve";
   strataBandCompact: boolean;
   /** v3.2 band-depth slider. Optional (unlike the other Strata flags above)
    * so a snapshot literal that predates this field still type-checks;
@@ -1096,6 +1133,13 @@ export const collectTerraformDemoParams = (
       // Package C spike (W9): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
       ...(snapshot.strataBorderRoute ? { strataBorderRoute: true } : {}),
+      // Probe P1 channel routing: default-off — truthy-only, like border route.
+      ...(snapshot.strataChannelRoute ? { strataChannelRoute: true } : {}),
+      // Probe P2 edge style: default "straight" omitted (non-default only),
+      // like the band-depth cut.
+      ...((snapshot.strataEdgeStyle ?? "straight") !== "straight"
+        ? { strataEdgeStyle: snapshot.strataEdgeStyle }
+        : {}),
       // W10 (SDEC-63): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataBandCompact ? { strataBandCompact: true } : {}),
       // v3.2 band-depth slider: emit only when it diverges from the default

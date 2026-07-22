@@ -9,6 +9,7 @@ import { TerraformStrataSettingsHeight } from "./TerraformStrataSettingsHeight";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 // Re-exported from their new home so this module's public surface is unchanged
 // by the "Height & packing" extraction — both moved with the section that is
@@ -55,6 +56,8 @@ export const TerraformStrataSettings = ({
   strataHeightGate,
   strataEdgeRouting,
   strataBorderRoute,
+  strataChannelRoute,
+  strataEdgeStyle,
   strataBandDepth,
   strataDeBandLevel,
   pipelineCompact,
@@ -75,6 +78,8 @@ export const TerraformStrataSettings = ({
   setStrataHeightGate,
   setStrataEdgeRouting,
   setStrataBorderRoute,
+  setStrataChannelRoute,
+  setStrataEdgeStyle,
   setStrataBandDepth,
   setStrataDeBandLevel,
   setPipelineCompact,
@@ -96,6 +101,8 @@ export const TerraformStrataSettings = ({
   strataHeightGate: boolean;
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
+  strataChannelRoute: boolean;
+  strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
   strataDeBandLevel: DeBandLevel;
   /** Content filter, not an engine pass — already honored end-to-end by the
@@ -127,6 +134,8 @@ export const TerraformStrataSettings = ({
   setStrataHeightGate: (heightGate: boolean) => void;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
+  setStrataChannelRoute: (channelRoute: boolean) => void;
+  setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
   setPipelineCompact: (compact: boolean) => void;
@@ -700,6 +709,70 @@ export const TerraformStrataSettings = ({
                     </span>
                   </div>
                 )}
+              </div>
+              <div role="group" aria-label="Strata channel routing">
+                <span className="TerraformImportModal__controlLabel">
+                  Route edges through inter-rank channels{" "}
+                  <span>
+                    the owner's dummy-column idea: send each cross-rank arrow
+                    out a perpendicular stub, down a vertical track in the gap
+                    between columns, then into its target — Manhattan geometry
+                    instead of shallow diagonals
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Off",
+                    !strataChannelRoute,
+                    "strata.channelroute.off",
+                    () => setStrataChannelRoute(false),
+                  )}
+                  {option(
+                    "On",
+                    strataChannelRoute,
+                    "strata.channelroute.on",
+                    () => setStrataChannelRoute(true),
+                  )}
+                </div>
+                {strataChannelRoute &&
+                  (strataEdgeRouting || strataBorderRoute) && (
+                    <div className="TerraformImportModal__couplingHint">
+                      <span aria-hidden="true">ⓘ</span>
+                      <span>
+                        Runs first and owns the polyline topology — the other
+                        routers only touch edges it left as chords.
+                      </span>
+                    </div>
+                  )}
+              </div>
+              <div role="group" aria-label="Strata edge style">
+                <span className="TerraformImportModal__controlLabel">
+                  Edge style{" "}
+                  <span>
+                    reshape un-routed arrows: straight chords, orthogonal step
+                    (React-Flow smoothstep), or a soft curve
+                  </span>
+                </span>
+                <div className="TerraformImportModal__segmentedControl">
+                  {option(
+                    "Straight",
+                    strataEdgeStyle === "straight",
+                    "strata.edgestyle.straight",
+                    () => setStrataEdgeStyle("straight"),
+                  )}
+                  {option(
+                    "Step",
+                    strataEdgeStyle === "step",
+                    "strata.edgestyle.step",
+                    () => setStrataEdgeStyle("step"),
+                  )}
+                  {option(
+                    "Curve",
+                    strataEdgeStyle === "curve",
+                    "strata.edgestyle.curve",
+                    () => setStrataEdgeStyle("curve"),
+                  )}
+                </div>
               </div>
             </details>
           </div>

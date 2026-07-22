@@ -39,22 +39,30 @@ const v2Sources = () =>
 
 /** Geometry-only fingerprint (ids/seeds/versions are non-deterministic across
  * builds in the same process — see the canonicalize() comment in the rcll
- * threading test for why). Sorted so element ORDER differences don't matter. */
+ * threading test for why). Sorted so element ORDER differences don't matter.
+ *
+ * Deliberately does NOT filter `isDeleted`: the headless import pins every edge
+ * layer OFF, so 161/164 TFD arrows arrive soft-deleted. Filtering them would
+ * shrink a byte-identity check to the ~3 visible arrows and let a mutated (but
+ * still-hidden) routed polyline slip through. Both sides of every identity
+ * comparison carry the same deleted set, so including them is sound. */
 const geometryTuples = (elements: readonly ExcalidrawElement[]): string[] =>
   elements
-    .filter((el) => !el.isDeleted)
     .map((el) => `${el.x},${el.y},${el.width},${el.height}`)
     .sort();
 
 /** Arrow polyline fingerprint: origin + every relative point + the routed
  * marker. Stronger than geometryTuples (which sees only the bbox), so a
  * default-off byte-identity check catches a mutated polyline that leaves the
- * bounding box unchanged. */
+ * bounding box unchanged. Includes soft-deleted arrows for the same reason
+ * geometryTuples does — the routed TFD arrows the strata togs reshape arrive
+ * `isDeleted` on the headless path, so filtering them out compared only ~3 of
+ * 164 arrows (identity-fingerprint vacuity, wave-1 hardening item 2). */
 const arrowPolySignatures = (
   elements: readonly ExcalidrawElement[],
 ): string[] =>
   elements
-    .filter((el) => !el.isDeleted && el.type === "arrow")
+    .filter((el) => el.type === "arrow")
     .map((el) => {
       const pts =
         (el as unknown as { points?: ReadonlyArray<readonly number[]> })
@@ -334,6 +342,127 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
         strataSweeps: 4,
         strataCoordinateRefine: true,
         strataBorderRoute: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
+    "threads strataEdgeStyle end-to-end (sceneContext + builderOptions literals -> scene build -> meta echo + styled counts; default byte-identical)",
+    async () => {
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default "straight": no style meta keys emitted (byte-identical off).
+      expect(off.meta.strataEdgeStyle).toBeUndefined();
+      expect(off.meta.strataEdgeStyleStyled).toBeUndefined();
+
+      const step = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeStyle: "step",
+      });
+      expect(step.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH literals (sceneContext + builderOptions) → engine echo.
+      expect(step.meta.strataEdgeStyle).toBe("step");
+      expect(typeof step.meta.strataEdgeStyleStyled).toBe("number");
+      expect(step.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
+      // Styled arrows carry a multi-point routed polyline in the final scene.
+      const styledArrows = step.elements.filter((el) => {
+        if (el.type !== "arrow") {
+          return false;
+        }
+        const cd = el.customData as Record<string, unknown> | undefined;
+        const rel = cd?.relationship as Record<string, unknown> | undefined;
+        return (
+          typeof rel?.source === "string" &&
+          rel?.aggregated !== true &&
+          cd?.terraformRoutedPolyline === true &&
+          ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
+        );
+      });
+      expect(styledArrows.length).toBeGreaterThan(0);
+
+      const curve = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeStyle: "curve",
+      });
+      expect(curve.meta.strataEdgeStyle).toBe("curve");
+      expect(curve.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
+
+      // Explicit "straight" is byte-identical to the flag-off scene (the module
+      // never runs), checked at bbox AND polyline level.
+      const explicitStraight = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeStyle: "straight",
+      });
+      expect(geometryTuples(explicitStraight.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitStraight.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
+    "threads strataChannelRoute end-to-end (both silent-drop literals -> scene build -> meta echo + routed counts; default-off byte-identical)",
+    async () => {
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default off: no channel-route meta keys emitted (byte-identical off).
+      expect(off.meta.strataChannelRoute).toBeUndefined();
+      expect(off.meta.strataChannelRouteRouted).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataChannelRoute: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH silent-drop literals (sceneContext + builderOptions) →
+      // engine echo, and the pass actually rewrote inter-rank edges.
+      expect(on.meta.strataChannelRoute).toBe(true);
+      expect(typeof on.meta.strataChannelRouteRouted).toBe("number");
+      expect(on.meta.strataChannelRouteRouted as number).toBeGreaterThan(0);
+      expect(typeof on.meta.strataChannelRouteColumns).toBe("number");
+      expect(on.meta.strataChannelRouteColumns as number).toBeGreaterThan(1);
+      // Routed arrows carry a multi-point stamped polyline in the final scene.
+      const routedArrows = on.elements.filter((el) => {
+        if (el.type !== "arrow") {
+          return false;
+        }
+        const cd = el.customData as Record<string, unknown> | undefined;
+        const rel = cd?.relationship as Record<string, unknown> | undefined;
+        return (
+          typeof rel?.source === "string" &&
+          rel?.aggregated !== true &&
+          cd?.terraformRoutedPolyline === true &&
+          ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
+        );
+      });
+      expect(routedArrows.length).toBeGreaterThan(0);
+
+      // Explicit false is byte-identical to the flag-off scene (the module never
+      // runs), checked at bbox AND polyline level.
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataChannelRoute: false,
       });
       expect(geometryTuples(explicitFalse.elements)).toEqual(
         geometryTuples(off.elements),

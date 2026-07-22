@@ -235,6 +235,10 @@ export type RunTerraformImportFromSourcesOptions = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1: inter-rank channel routing. Default off. */
+  strataChannelRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: import("./terraformPipelineStrataEdgeStyle").StrataEdgeStyle;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -334,6 +338,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataPackedScoringEpsilon"
   | "strataEdgeRouting"
   | "strataBorderRoute"
+  | "strataChannelRoute"
+  | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
   | "strataSiftRelocate"
@@ -386,6 +392,13 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
   strataEdgeRouting: session.strataEdgeRouting === true,
   strataBorderRoute: session.strataBorderRoute === true,
+  strataChannelRoute: session.strataChannelRoute === true,
+  // Raw forward — omit at default ("straight")/absent so a replayed session
+  // never re-materializes a default style key. Non-default styles forward.
+  ...(session.strataEdgeStyle !== undefined &&
+  session.strataEdgeStyle !== "straight"
+    ? { strataEdgeStyle: session.strataEdgeStyle }
+    : {}),
   strataBandCompact: session.strataBandCompact === true,
   // Raw forward — omit at default ("account")/absent so a replayed session
   // never re-materializes a default cut. A bare `strataBandCompact` session
@@ -480,6 +493,8 @@ function buildPipelineFamilyLayoutOptions(
   | "strataPackedScoringEpsilon"
   | "strataEdgeRouting"
   | "strataBorderRoute"
+  | "strataChannelRoute"
+  | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
   | "strataSiftRelocate"
@@ -543,6 +558,13 @@ function buildPipelineFamilyLayoutOptions(
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
     strataEdgeRouting: options.strataEdgeRouting === true,
     strataBorderRoute: options.strataBorderRoute === true,
+    strataChannelRoute: options.strataChannelRoute === true,
+    // Raw forward — omit at default ("straight")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default style key.
+    ...(options.strataEdgeStyle !== undefined &&
+    options.strataEdgeStyle !== "straight"
+      ? { strataEdgeStyle: options.strataEdgeStyle }
+      : {}),
     strataBandCompact: options.strataBandCompact === true,
     // Raw forward — omit at default ("account")/absent so neither the engine
     // request nor the persisted session snapshot carries a default cut key.

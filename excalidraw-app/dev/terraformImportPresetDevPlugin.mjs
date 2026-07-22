@@ -69,7 +69,7 @@ const EDGE_COLLAPSE_MODULE = path.resolve(
 // Each entry is [paramName, optionKey]. Several params carry a clearer alias that
 // matches the menu vocabulary (laneRise/laneSplit/cycleRise) alongside the legacy
 // milestone name; both map to the same option key (last one present wins, like the URL).
-const LAYOUT_BOOLEAN_PARAMS = [
+export const LAYOUT_BOOLEAN_PARAMS = [
   ["compact", "pipelineCompact"],
   ["laneRise", "pipelineSwimlaneLaneRise"],
   ["swimlaneRise", "pipelineSwimlaneLaneRise"],
@@ -116,10 +116,20 @@ const LAYOUT_BOOLEAN_PARAMS = [
   ["strataBlockClamp", "strataBlockClamp"],
   ["strataTranspose", "strataTranspose"],
   ["strataHeightGate", "strataHeightGate"],
+  // Wave-1 edge-routing probe exposure — the remaining strata booleans the
+  // /demo URL API (terraformDemoUrlParams.ts) parses that this allowlist was
+  // silently dropping (API arms no-op'd, applied.<key>=null). Param names mirror
+  // the /demo URL exactly; all default OFF. `strataBandCompact` is the legacy
+  // boolean alias for `strataBandDepth:"root"` (the engine folds it in).
+  ["strataBandCompact", "strataBandCompact"],
+  ["strataChannelRoute", "strataChannelRoute"],
+  ["strataChainRelocate", "strataChainRelocate"],
+  ["strataCoordCascade", "strataCoordCascade"],
+  ["strataLeafShift", "strataLeafShift"],
 ];
 
 // Enum (non-boolean) layout params: [paramName, optionKey, allowedValues].
-const LAYOUT_ENUM_PARAMS = [
+export const LAYOUT_ENUM_PARAMS = [
   ["columnPacking", "pipelineColumnPacking", ["spread", "none", "compact"]],
   // De-band depth — dissolve the chosen container level + all deeper levels into one
   // shared column stack. `none` = today's boxed layout (byte-identical).
@@ -150,22 +160,39 @@ const LAYOUT_ENUM_PARAMS = [
   ],
   // Outcome-first "Layout" profile — expands into the RCLL flags in the core.
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
+  // Probe P2 edge render style (straight|step|curve). Case-INSENSITIVE like the
+  // /demo parser (terraformDemoUrlParams.ts:497-509); default "straight" is
+  // byte-identical (the style module never runs). Mirrors the /demo URL param.
+  ["strataEdgeStyle", "strataEdgeStyle", ["straight", "step", "curve"]],
 ];
 
 // Integer (non-boolean, non-enum) layout params: [paramName, optionKey].
 // Strata (S0a scaffold) — sweep count (K) for the coordinate-refinement pass;
 // 0 = off (M1a default, 4 planned for M1b). Passthrough-only until the strata
 // engine lands; default OFF like the strata booleans above.
-const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
+export const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
 
 // W8b ε-constraint crossings budget for the packed scorer. Parsed apart from the
 // pure integers above because the demo URL API (terraformDemoUrlParams.ts:492-505)
 // accepts a FRACTIONAL value in RELATIVE mode (0 < eps < 1) while ABSOLUTE mode
 // (eps >= 1) stays an integer crossings budget. `[paramName, optionKey]`; both the
 // /demo name (`strataPackedEps`) and the canonical engine key are accepted.
-const LAYOUT_EPS_PARAMS = [
+export const LAYOUT_EPS_PARAMS = [
   ["strataPackedEps", "strataPackedScoringEpsilon"],
   ["strataPackedScoringEpsilon", "strataPackedScoringEpsilon"],
+];
+
+// Non-negative FINITE float params (`[paramName, optionKey]`). Distinct from the
+// ε params above (which reject fractional values in absolute mode) and the pure
+// integers: the relocate objective weights and edge-edge regression cap accept
+// any non-negative finite number, fractional included — exactly the /demo URL
+// contract (terraformDemoUrlParams.ts:591-617). These were absent from every
+// allowlist, so a URL/proof-API relocate arm silently ran the engine defaults
+// (weights 1/1, cap inherits ε) no matter what the caller passed.
+export const LAYOUT_NUM_PARAMS = [
+  ["strataPenW", "strataCrossWeightPenetration"],
+  ["strataCrossW", "strataCrossWeightEdge"],
+  ["strataEdgeCap", "strataEdgeCrossCap"],
 ];
 
 // Which engine variant `/api/terraform-layout` runs. Parsed separately from
@@ -203,6 +230,7 @@ const LAYOUT_PARAM_CATALOG = {
       "vpc",
       "subnetZone",
     ],
+    strataEdgeStyle: ["straight", "step", "curve"],
   },
   enumNotes: {
     deBandLevel:
@@ -254,6 +282,16 @@ const LAYOUT_PARAM_CATALOG = {
     strataBlockClamp: "P4 pure-sink account block clamp.",
     strataTranspose: "P2 within-column adjacent Y-exchange crossing reduction.",
     strataHeightGate: "P5/Lever-C height gate after the block-clamp pass.",
+    strataBandCompact:
+      "W10 banded row-share compaction — legacy boolean alias for strataBandDepth=root (the engine folds it in). layoutMode=strata.",
+    strataChannelRoute:
+      "Probe P1 inter-rank channel routing (owner's dummy-column idea) — orthogonal per-channel track routing of inter-rank TFD arrows. layoutMode=strata.",
+    strataChainRelocate:
+      "Exclusive-downstream chain relocate — post-A7 rigid Y co-translation of a unit and its exclusive downstream group. layoutMode=strata.",
+    strataCoordCascade:
+      "A7 tie-cascade — a net-zero fixed-point column escapes to its two-sided median and chases chord-connected downstreams. layoutMode=strata.",
+    strataLeafShift:
+      "A01 leaf X-shift — pull degree-1 pure-sink leaves left toward their source (carries the right-edge column guard). layoutMode=strata.",
   },
   ints: {
     strataSweeps:
@@ -264,7 +302,15 @@ const LAYOUT_PARAM_CATALOG = {
       "alias of strataPackedScoringEpsilon (W8b) — ε-constraint crossings budget for the packed scorer. ABSOLUTE mode (eps >= 1) is a whole-integer budget; RELATIVE mode (0 < eps < 1) is a fractional ratio and accepted (mirrors the /demo URL parser).",
     strataPackedScoringEpsilon:
       "W8b ε-constraint crossings budget for the packed scorer. Integer for eps >= 1; fractional allowed for 0 < eps < 1.",
+    strataPenW:
+      "alias of strataCrossWeightPenetration — relocate objective weight on hull penetrations (non-negative finite, fractional allowed). Default 1.",
+    strataCrossW:
+      "alias of strataCrossWeightEdge — relocate objective weight on edge-edge crossings (non-negative finite, fractional allowed). Default 1.",
+    strataEdgeCap:
+      "alias of strataEdgeCrossCap — edge-edge regression cap (non-negative finite, fractional allowed). Absent ⇒ inherits strataPackedScoringEpsilon.",
   },
+  enumNotesEdgeStyle:
+    "Probe P2 edge render style (React-Flow smoothstep/bezier transplant). `straight` (default) is byte-identical; `step`/`curve` reshape un-routed TFD arrow chords. Case-insensitive (mirrors the /demo URL parser).",
   metrics: {
     note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2). The dataflow crossings/pierce metrics measure VISIBLE + REVEALED edges: the headless import pins every edge layer OFF (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false) so TFD arrows arrive soft-deleted, and computePierceMetrics/diagnosePipelineScene read customData.relationship ENDPOINTS — so on a visible-only set those scalars go quiet even though visible ROUTED geometry may still be present (the healthy branch's visible-only geometryHash carries the ~1.18M-char edge-connector points). geometryHash stays visible-only for baseline comparability; edgeGeometryHash is the edge-inclusive fingerprint; the edge-collapse fields below measure the visible spanning geometry directly.",
     renderedCrossings:
@@ -494,6 +540,24 @@ const parseLayoutEpsParam = (raw) => {
   // A fractional value in absolute mode (e.g. 1.5) violates the crossings-budget
   // contract; a fractional value in relative mode (0 < eps < 1) is valid.
   if (parsed >= 1 && !Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
+};
+
+/**
+ * Non-negative finite float parser (relocate weights / edge-cap). undefined when
+ * absent, null when invalid (NaN / negative / non-finite), else the parsed
+ * number. Unlike `parseLayoutEpsParam` there is NO integer constraint —
+ * fractional values are legal at every magnitude (mirrors the /demo URL parser
+ * for strataPenW/strataCrossW/strataEdgeCap).
+ */
+const parseLayoutNumParam = (raw) => {
+  if (raw == null || raw.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(raw.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) {
     return null;
   }
   return parsed;
@@ -883,12 +947,29 @@ const buildLayoutProofPayload = (
       strataPackedScoringEpsilon: meta.strataPackedScoringEpsilon ?? 0,
       strataEdgeRouting: meta.strataEdgeRouting ?? false,
       strataBorderRoute: meta.strataBorderRoute ?? false,
+      // Wave-1 edge-routing probe echoes — flagMeta writes each present-only-
+      // when-active, so `?? default` reads the applied state honestly (a value
+      // proves the engine ran the toggle; the routed/styled counts prove
+      // engagement). These arms silently no-op'd before the allowlist fix.
+      strataChannelRoute: meta.strataChannelRoute ?? false,
+      strataChannelRouteRouted: meta.strataChannelRouteRouted ?? null,
+      strataEdgeStyle: meta.strataEdgeStyle ?? "straight",
+      strataEdgeStyleStyled: meta.strataEdgeStyleStyled ?? null,
       strataSiftRelocate: meta.strataSiftRelocate ?? false,
       strataPackedConverge: meta.strataPackedConverge ?? false,
       strataTransitiveAdopt: meta.strataTransitiveAdopt ?? false,
       strataBlockClamp: meta.strataBlockClamp ?? false,
       strataTranspose: meta.strataTranspose ?? false,
       strataHeightGate: meta.strataHeightGate ?? false,
+      strataChainRelocate: meta.strataChainRelocate ?? false,
+      strataCoordCascade: meta.strataCoordCascade ?? false,
+      strataLeafShift: meta.strataLeafShift ?? false,
+      // Relocate-objective knobs — echoed by the engine only when a relocate
+      // operator (sift/leaf-shift/…) actually consumes them, so `?? null` reads
+      // honestly (a number proves the knob reached the engine's option bag).
+      strataCrossWeightPenetration: meta.strataCrossWeightPenetration ?? null,
+      strataCrossWeightEdge: meta.strataCrossWeightEdge ?? null,
+      strataEdgeCrossCap: meta.strataEdgeCrossCap ?? null,
       strataDeBandLevel: meta.strataDeBandLevel ?? "none",
       // privateApiRegional and strataBandDepth are NOT echoed to scene.meta by
       // the engine, so `applied` must REPLICATE core's mode-scoping instead of
@@ -1130,6 +1211,19 @@ export const terraformImportPresetDevPlugin = () => ({
           if (value === null) {
             sendJson(res, 400, {
               error: `Invalid value for ?${param} (use a non-negative number; fractional only in relative mode 0<eps<1, integer for eps>=1).`,
+            });
+            return;
+          }
+          if (value !== undefined) {
+            options[optionKey] = value;
+            requested[param] = value;
+          }
+        }
+        for (const [param, optionKey] of LAYOUT_NUM_PARAMS) {
+          const value = parseLayoutNumParam(params.get(param));
+          if (value === null) {
+            sendJson(res, 400, {
+              error: `Invalid value for ?${param} (use a non-negative finite number).`,
             });
             return;
           }

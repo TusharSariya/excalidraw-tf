@@ -604,6 +604,43 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
+    it("parses strataChannelRoute and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataChannelRoute=1",
+      );
+      expect(on).toMatchObject({ strataChannelRoute: true });
+      const off = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataChannelRoute=0",
+      );
+      expect(off).toMatchObject({ strataChannelRoute: false });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(absent!.strataChannelRoute).toBeUndefined();
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataChannelRoute=maybe",
+        ),
+      ).toBeNull();
+    });
+
+    it("round-trips strataChannelRoute through buildTerraformDemoUrl", () => {
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+        strataChannelRoute: true,
+      });
+      expect(url).toContain("strataChannelRoute=1");
+      // Emitted param re-parses to the same value.
+      const query = url.slice(url.indexOf("?"));
+      const parsed = parseTerraformDemoUrlParams(query);
+      expect(parsed).toMatchObject({ strataChannelRoute: true });
+      // Absent ⇒ omitted from the URL entirely.
+      const absentUrl = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+      });
+      expect(absentUrl).not.toContain("strataChannelRoute");
+    });
+
     it("omits strataPackedEps when the URL does not carry it", () => {
       const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(params).not.toBeNull();

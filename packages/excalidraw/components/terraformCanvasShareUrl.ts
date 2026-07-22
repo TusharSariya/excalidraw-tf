@@ -123,6 +123,14 @@ const sessionToDemoSnapshot = (
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
   strataEdgeRouting: session.strataEdgeRouting ?? false,
   strataBorderRoute: session.strataBorderRoute ?? false,
+  strataChannelRoute: session.strataChannelRoute ?? false,
+  // Raw forward — omit at default ("straight")/absent so the demo snapshot (and
+  // the URL built from it) never carries a default style key. Non-default
+  // styles forward.
+  ...(session.strataEdgeStyle !== undefined &&
+  session.strataEdgeStyle !== "straight"
+    ? { strataEdgeStyle: session.strataEdgeStyle }
+    : {}),
   strataBandCompact: session.strataBandCompact ?? false,
   // Raw forward — omit at default ("account")/absent so the demo snapshot (and
   // the URL built from it) never carries a default cut key, matching
