@@ -34,6 +34,7 @@ Pinned URL path: `/demo?preset=staging-extended-localstack-v2&view=strata&compac
 - Adversarial validation: results attacker VALID (null real; warm-vs-warm delta reproducible <1ms; ~half of +1.8% is pre-layout session drift); implementation attacker VALID (keys/arnIndex/scope-cleanup/read-only-consumers/ctx-branching all sound; addr memos confirmed never-hit → mechanism of the null). Caveats fed into E02: hit/miss counters, DEV freeze-guards, broadened equivalence test.
 
 ## E02 validation — 2026-07-22
+
 - Results attacker: **VALID.** −17.3% reproduces (−18.7% vs E01 state); independent console-marker timeline decomposes the felt delta to within 0.3% (planParsed→prep −1360ms = the materialize win); both comparisons warm-vs-warm; E02 ran later + under higher load, so the effect is conservative. Hygiene: span deltas are nested (never sum them); counter pseudo-spans excluded from topSpans rankings. Residual: n=3 non-interleaved single-session — accepted given marker corroboration.
 - Implementation attacker: **VALID.** Meta-key exclusion safe (all sites re-apply guards + type checks); no first-match-across-union site exists (all sorted/partitioned — structural safety); index staleness impossible (no nodes mutation post-parse); E01 memo guard set still sufficient (arnIndex/nodesByType pure functions of guarded nodes); kill-switch test genuinely exercises the pre-E02 fallback path. Note: DEV-only freeze is DEV-only (prod would share-corrupt silently if a future consumer mutates — acceptable, tests guard).
 - **Decision: KEEP E02 (with E01 substrate). Cherry-pick to strata-overnight-20260717 + full gauntlet batched with E03's verdict.**
@@ -51,9 +52,11 @@ Pinned URL path: `/demo?preset=staging-extended-localstack-v2&view=strata&compac
 - Verdict: WIN on measurement (−17.3%, all three predicted spans down 11–45%, byte-identical). Pending the loop's 2 adversarial validators before the final keep decision.
 
 ## E02 decision — 2026-07-22
+
 - Both validators VALID. **KEPT**: cherry-picked to strata-overnight-20260717 as 543ef9253 (E01) + 7a78189d6 (E02), full gauntlet green (301 files, 3161 tests, 0 failures, no snapshot diffs), perf-doc entry committed in 3ef3f55ee, pushed. New import gating baseline = e02-desktop 7290ms.
 
 ## E03 [canvas] bound-text content-signature cache key — 2026-07-21
+
 - Hypothesis: drag/nudge regens caused by boundTextElementVersion bumps on label co-move (false invalidation of the container's cached bitmap). Predicted −50–70% regens on select-all-drag/nudge-storm.
 - Change: content-signature comparison (translation-invariant superset of every label field the container bitmap reads: width/height/relative dx,dy/angle/font/align/lineHeight/strokeColor/opacity/text) with boundTextElementVersion kept as fast-path (renderElement.ts). No toggle — pixel-identity proven (label is only clearRect'd relative to container; never painted into its bitmap).
 - Baseline: baseline-c1-desktop. After: e03-desktop — regen counts **byte-identical on every workload** (select-all-drag 11166=11166, edit-churn 34341=34341); p50/p95 deltas within spread.
@@ -62,21 +65,34 @@ Pinned URL path: `/demo?preset=staging-extended-localstack-v2&view=strata&compac
 - Tests: typecheck ✓; element/text/move/export/linearEditor/binding/regression suites ✓; NEW packages/excalidraw/tests/boundTextCacheKey.test.tsx (18 ✓, co-move test fails on baseline).
 
 ## E04 [canvas] regen-cause instrumentation + drag-regen diagnosis — 2026-07-22
+
 - E04a/E04a2 (commits cbb7ba91a, 9a6cc598b on perf-loop-exp): `elementCanvasRegenStats.byCause` {miss, zoom, theme, boundText, imageCrop, frameOpacity, arrowAngle} with first-failing-term attribution + missDetail {firstSeen, identitySwap, sameObjectRemiss} + nullReturns; harness serializes it. DEV-gated; sum(byCause)===total. Gate: typecheck ✓, 445 element/boundText tests ✓.
 - Diagnosis (desktop, 1 run): select-all-drag 11,166 regens = 100% MISS — firstSeen 6,590 (legit one-time first paint of ~93% of scene), identitySwap 481 (reconcile re-clone tail, minor), **sameObjectRemiss ~4,100 ≈ nullReturns ~4,200 = the repeating waste**: elements whose canvas caps to 0-size at fitted zoom return null, null is never cached, so they re-"rasterize"-to-nothing every frame — each allocating a throwaway `<canvas>` before the size check (the +58–192MB heap churn). multi-stress (zoomed in) nullReturns=0 → zoom-dependent. frameOpacity/zoom/theme/boundText terms all 0.
 - Refutes: "drag regens = re-clone storm" (only 4.3%) and "bound-text churn" (0 here). Confirms E03's null mechanistically.
 - Next (E05): (1) hoist 0-size check above canvas allocation (trivial, zero behavior change); (2) zoom-keyed null-verdict sentinel so 0-size elements short-circuit (−~37% drag regens; needs zoom/resize invalidation + guarding test).
 
 ## E03 validation — 2026-07-22
+
 - Results attacker: **SUSPECT (null outcome VALID, explanation corrected).** The no-effect conclusion is overdetermined, but (a) the "0 container-bound labels" scene probe is unsourced in artifacts and superseded: E04's byCause data shows the boundText predicate term is structurally UNREACHABLE on drag workloads — misses (identity/null-return) preempt it earlier in the chain, so E03's branch can't fire there regardless of scene content; (b) "byte-identical on every workload" was imprecise — multi-stress regens differed +0.8-1.9% (timing-driven zoom/LOD component); (c) edit-churn p95 spread anomaly (baseline 0.0% → e03 14.8%) flagged unexplained. E01+E02 riding along is harmless for count metrics (E03 is the only touch to the regen predicate) but untested for timing metrics. If E03 is ever promoted, re-measure in isolation on a bound-text-heavy scene.
 - Implementation attacker (E03): **VALID** — pixel-identity proof holds (label only clearRect'd in the arrow branch; containers never read boundTextElement in generateElementCanvas); tests genuinely discriminating (15/18 fail on pre-E03 code). One hygiene defect found: raw NUL byte as the signature join delimiter (renderElement.ts:207) making the file read as binary to grep/diff — fix delegated to E05's commit. Repo-wide control-byte lint gate recommended (3rd occurrence of this defect class).
 
 ## Regime v2 — 2026-07-22 (owner-approved throughput restructure)
-Host exclusivity (desktop gates canvas, laptop gates import; one benchmark/gauntlet per host at a time; same-host same-lineage comparisons only) · persistent isolated worktrees wtA/wtB with own installs for implementation · perf-budget suites only in exclusive keep-gauntlets · impl-attacker launches at commit time · canvas fast-gate subset for triage, full suite for keep confirmation.
-**Laptop import gating baseline (baseline-i2-laptop @ 3ef3f55ee, 5 runs + warmup): median 35.59s, spread 3.5%** (was 50.9s pre-E02 → E02 = −30% on low-end hardware). Top spans: prep.cache 13.0s, layout.pipeline 12.6s, resourceRects 9.4s, ancillary 8.4s.
+
+Host exclusivity (desktop gates canvas, laptop gates import; one benchmark/gauntlet per host at a time; same-host same-lineage comparisons only) · persistent isolated worktrees wtA/wtB with own installs for implementation · perf-budget suites only in exclusive keep-gauntlets · impl-attacker launches at commit time · canvas fast-gate subset for triage, full suite for keep confirmation. **Laptop import gating baseline (baseline-i2-laptop @ 3ef3f55ee, 5 runs + warmup): median 35.59s, spread 3.5%** (was 50.9s pre-E02 → E02 = −30% on low-end hardware). Top spans: prep.cache 13.0s, layout.pipeline 12.6s, resourceRects 9.4s, ancillary 8.4s.
 
 ## E05 [canvas] 0-size alloc hoist + zoom-keyed null-verdict sentinel — 2026-07-22
+
 - Change: E05a (fcf118854) hoist 0-size check above canvas alloc + NUL-delimiter fix; E05b (ac168c221) null-verdict sentinel in elementWithCanvasCache (all predicate key fields + dpr), no toggle (contract-preserving proof). Gates green (typecheck; 427 element tests; LOD/regression suites; 5 new sentinel tests).
 - Measured (desktop, 3 runs vs baseline-c1): drag/nudge regens −37% (sameObjectRemiss 4095/4200 → 0, exactly E04's prediction); claimed p95 wins click-storm −6.6% / edit-churn −7.6%.
 - Results attacker: **INVALID as a keep-rule p95 win.** Edit-churn's −7.6% equals the baseline's own repeat wobble (same-code c1b re-run = 400ms = e05's 400ms); click-storm is a single 16.7ms vsync-bucket shift on 2/3 runs with unchanged regens+longtasks; the real −37% regen win landed on workloads whose p95 didn't improve (off-critical-path work). Bonus: baseline's zoom-lod-thrash 33.4 was itself the lucky bucket sample (c1b=50=e05) — no regression there either. Honest relabel: deterministic regen/allocation win, frame-time neutral on desktop.
 - Verdict: NOT PROMOTED on desktop evidence. PENDING: implementation attacker (stale-sentinel-after-resize probe) + laptop low-power confirmation (does −37% regen work move p95 when CPU-starved?) queued behind E06/E07. Harness backlog from this: serialize nullVerdictHits; per-run p95 arrays + bucket-aware comparison; interleaved A/B mode.
+
+## E07 [import] wrap buildExistingEdges in the plan-node-key index with incremental registration — 2026-07-21
+
+- Hypothesis: `buildExistingEdges` (`terraformPlanParsing.tsx`) resolves each edge endpoint via `resolveTerraformPlanNodeKey`, which falls back to its original O(N) `Object.keys(nodes)`+regex scan whenever called outside an active `withTerraformPlanNodeKeyIndex` scope. `buildExistingEdges` was never called inside that scope, so every edge resolution over N≈3,886 resources paid the full linear scan — the same O(N²) class as the 2026-06-23 node-key-index fix, just at a different call site.
+- Change: wrapped the `buildExistingEdges` call in `withTerraformPlanNodeKeyIndex`, and added incremental key registration so keys discovered mid-build (module-tree attachment, satellite address expansion) get folded into the live index scope instead of triggering a fallback or a rebuild. Byte-identical: reuses the same `byBareKey`/`byGraphId`/`knownStackIds` index structure already proven equivalent to the naive resolver.
+- Baseline: laptop (i3-M350) cold import median **35.59s**. After: laptop cold import median **26.89s** — **−24.4%**. `prep.cache` 13.0s → 4.3s.
+- Verdict: **KEPT.** Full gate green on `strata-overnight-20260717` (cherry-picked from `wt-b` `10ccd1e7d` as `46a5c57f4`): typecheck ✓, `yarn test:app` 295 test files / 3138 tests passed (56 skipped, 1 todo), 0 failures, zero `.snap` diffs.
+- Tests: extended `terraformPlanNodeKeyIndexEquivalence.test.ts` — P2 residual-fallback-scan assertions now assert 0 fallback scans on the `buildExistingEdges` path (previously many).
+- Commit: `10ccd1e7d` (wt-b) → cherry-picked as `46a5c57f4` on `strata-overnight-20260717`.
+- Adversarial validation: both validators returned **VALID**. Confound decomposition: paint tail adds +20ms — immaterial against the −8.7s wall-clock win.
