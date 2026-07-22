@@ -125,4 +125,26 @@ describe("mergeDotAdjacency fast path", () => {
     setDotAdjacencyFastPathDisabledForTest(false);
     expect(JSON.stringify(fast)).toBe(JSON.stringify(orig));
   });
+
+  // Adversarial-review regression (2026-07-22): an edge-shaped line inside a
+  // /* ... */ block comment must not be extracted as a phantom edge. The mere
+  // presence of "/*" bails the whole DOT to graphlib, which parses the comment
+  // away — so the commented edge must be absent from the merged adjacency.
+  it("bails on block comments so commented-out edges never become phantom edges", () => {
+    const dot =
+      'digraph {\n/*\n"ghost" -> "target"\n*/\n"real" -> "sink"\n}';
+    resetDotAdjacencyFastPathStats();
+    setDotAdjacencyFastPathDisabledForTest(false);
+    const fast = mergeDotAdjacency([dot]);
+    const { hits, bails } = getDotAdjacencyFastPathStats();
+    expect(bails).toBe(1);
+    expect(hits).toBe(0);
+    expect(fast.ghost).toBeUndefined();
+    expect(fast.real).toEqual(["sink"]);
+
+    setDotAdjacencyFastPathDisabledForTest(true);
+    const orig = mergeDotAdjacency([dot]);
+    setDotAdjacencyFastPathDisabledForTest(false);
+    expect(JSON.stringify(fast)).toBe(JSON.stringify(orig));
+  });
 });

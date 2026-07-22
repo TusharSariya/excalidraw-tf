@@ -104,9 +104,18 @@ function sourceLabel(label: string | undefined, index: number): string {
  * Correctness fallback: any line that contains `->` but does NOT match the strict
  * single-edge shape (edge attributes, unquoted ids, multiple edges per line,
  * a label containing `->`, a wrapped statement) makes the fast path return `null`
- * for that whole DOT text, and the caller re-parses it with graphlib. The output
- * can therefore never diverge — it is either the identical fast result or the
- * original graphlib result.
+ * for that whole DOT text, and the caller re-parses it with graphlib. A `/*`
+ * anywhere in the text also bails the whole DOT (adversarial review 2026-07-22:
+ * an edge-shaped line inside a block comment would otherwise be extracted as a
+ * phantom edge — line scanning has no comment-lexer state).
+ *
+ * Known, intentional leniency (recorded by the same review): DOT that graphlib
+ * would REJECT with a parse error on a non-edge line (e.g. a malformed label
+ * without `->`) is skipped by the line scan, so such inputs extract successfully
+ * where the graphlib path used to throw. This divergence is only reachable for
+ * hand-corrupted DOT — `terraform graph` output never produces it — and trades a
+ * hard import failure for a successful import; accepted rather than paying full
+ * grammar validation on the hot path.
  */
 const DOT_EDGE_LINE_RE =
   /^[ \t]*"((?:[^"\\]|\\.)*)"[ \t]*->[ \t]*"((?:[^"\\]|\\.)*)"[ \t]*$/;
@@ -145,6 +154,12 @@ export function getDotAdjacencyFastPathStats(): {
 function extractDotEdgePairsFast(
   dotText: string,
 ): Array<readonly [string, string]> | null {
+  // Block comments defeat line-by-line scanning (an edge-shaped line inside
+  // `/* ... */` must NOT become an edge). terraform graph never emits them, so
+  // bailing on the mere substring is free on real inputs and sound on all.
+  if (dotText.includes("/*")) {
+    return null;
+  }
   const edges: Array<readonly [string, string]> = [];
   let start = 0;
   const len = dotText.length;
