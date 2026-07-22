@@ -1,3 +1,10 @@
+/* eslint-disable max-lines -- Aggregator diagnostics leaf: the wave-3 additive
+ * badPatterns block (report 3 §0-§6: samePairMultiCross / parallelCross /
+ * backwardTurn / endpointOcclusion + offenders) lands here per spec because the
+ * `badPatterns` field is part of PipelineSceneDiagnostics and reuses this file's
+ * segmentsCross / arrowGeometry / frameByAddress kernels. Matches the
+ * eslint-disable precedent of the sibling large leaves (terraformPipelineLayoutShared.ts,
+ * terraformPipelineStrataAncillary.ts). */
 /**
  * Final-scene collision / hierarchy diagnostics for the pipeline view.
  *
@@ -30,6 +37,10 @@ import {
   computeSliceMetrics,
   type PipelineSliceMetrics,
 } from "./terraformPipelineSliceMetrics";
+// Wave-3 badPatterns (M4 own-card re-entry): reuse the pierce leaf's normative
+// interior-intersection kernel rather than re-implementing it. Sibling leaf, no
+// layout-module dependency (per the file's L163-165 constraint).
+import { segmentIntersectsRectInterior } from "./terraformPipelineStrataPierceMetrics";
 
 export type CollisionCategory =
   | "region-region"
@@ -78,6 +89,11 @@ export type PipelineSceneDiagnostics = {
   /** Probe P2 edge-angle metrics (bends, near-flat share, endpoint angular
    * resolution), polyline-aware. Additive. */
   edgeAngles: EdgeAngleSummary;
+  /** Wave-3 owner-theory validation metrics (samePairMultiCross, parallelCross
+   * + bundleGridCross, backwardTurn, endpointOcclusion) + edgeLengthPxTotal.
+   * Additive; computed from the SAME polyline geometry as `dataflow.crossings`
+   * without altering it (report 3 §0-§6). */
+  badPatterns: BadPatternsSummary;
 };
 
 /**
@@ -176,6 +192,128 @@ export type EdgeAngleSummary = {
   endpointSidesConsidered: number;
 };
 
+/**
+ * Edge geometry WITH identity (report 3 §0-A). Extends the anonymous
+ * ArrowGeometry with the arrow's element id + terraform source/target addresses
+ * + world-coordinate polyline points, so the badPatterns metrics can attribute
+ * offenders. `segments`/`verticalExtent` are byte-identical to `arrowGeometry`.
+ */
+export type EdgeGeom = {
+  id: string;
+  source: string;
+  target: string;
+  segments: Seg[];
+  points: Array<[number, number]>;
+  verticalExtent: number;
+};
+
+/**
+ * One deduped crossing between two edges (report 3 §0-B). `x`/`y` = intersection
+ * point (world coords); `degAcute` = acute crossing angle; `dirADeg`/`dirBDeg` =
+ * each segment's direction folded into [0,180); `segA`/`segB` = the crossing
+ * segment indices on edge A / edge B.
+ */
+export type CrossingEvent = {
+  x: number;
+  y: number;
+  degAcute: number;
+  dirADeg: number;
+  dirBDeg: number;
+  segA: number;
+  segB: number;
+};
+
+/** Wave-3 owner-theory validation metrics (report 3 §5). Every rate pairs with
+ * its count (0-when-vacuous, DEC-6). */
+export type BadPatternsSummary = {
+  /** M1 — edge pairs that cross ≥2 times (removable, zero information). */
+  samePairMultiCross: {
+    pairs: number;
+    excess: number;
+    maxPerPair: number;
+    totalCrossEvents: number;
+  };
+  /** M2 — (2a) near-parallel small-angle bundle crossings (PENALTY);
+   * (2b) organized bundle-grid crossings (DESCRIPTIVE ONLY — never gated, a rise
+   * with fewer scattered crossings may be an improvement). */
+  parallelCross: {
+    events: number;
+    share: number;
+    gridEvents: number;
+    gridShare: number;
+    totalEvents: number;
+  };
+  /** M3 — signed-run against-flow excursions beyond one stub (H_BACKTRACK). */
+  backwardTurn: {
+    edges: number;
+    countTotal: number;
+    backtrackPxTotal: number;
+    backtrackPxMax: number;
+    edgeCount: number;
+  };
+  /** M4 — (4a) own-card re-entry beyond the stub; (4b) crossings within
+   * R_ANCHOR of an attachment point, split own/foreign. */
+  endpointOcclusion: {
+    ownCardReentryCount: number;
+    ownCardReentryEdges: number;
+    endpointCrossOwn: number;
+    endpointCrossForeign: number;
+    anchorCount: number;
+    endpointsResolved: number;
+    endpointsUnresolved: number;
+  };
+  /** Literature adjustment #2 (F3 guard axis): Σ polyline arc length over edges. */
+  edgeLengthPxTotal: number;
+};
+
+type EdgeRef = { id: string; source: string; target: string };
+
+/** Per-metric top-10 offenders (report 3 §6) — element ids + terraform
+ * addresses + integer world coords for screenshot/refinement/share-URL repro. */
+export type BadPatternOffenders = {
+  samePairMultiCross: Array<{
+    edgeA: EdgeRef;
+    edgeB: EdgeRef;
+    crossCount: number;
+    points: Array<[number, number]>;
+    minDeg: number;
+  }>;
+  parallelCross: Array<{
+    id: string;
+    source: string;
+    target: string;
+    parallelEvents: number;
+    gridEvents: number;
+    samplePoints: Array<[number, number]>;
+    partnerEdgeIds: string[];
+  }>;
+  backwardTurn: Array<{
+    id: string;
+    source: string;
+    target: string;
+    backwardTurns: number;
+    backtrackPx: number;
+    worstRun: { fromX: number; toX: number; y: number } | null;
+    semanticViolation: boolean;
+  }>;
+  endpointOcclusion: Array<{
+    id: string;
+    source: string;
+    target: string;
+    reentry: "src" | "tgt" | "both" | null;
+    reentryRect: {
+      frameId: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    } | null;
+    anchorCrossOwn: number;
+    anchorCrossForeign: number;
+    anchorPoints: Array<[number, number]>;
+  }>;
+};
+
 // Metric tolerances, derived from the layout spacing in
 // terraformPipelineLayoutShared.ts (kept local so this diagnostics leaf does
 // not depend on the heavy layout module). If that spacing changes, update here.
@@ -184,6 +322,39 @@ export type EdgeAngleSummary = {
 const FANOUT_COLUMN_TOLERANCE_PX = 75;
 const CENTERING_EPSILON_PX = 36;
 const NEAR_STRAIGHT_MAX_PX = 24;
+
+// ── Wave-3 badPatterns constants (report 3 §5). All re-declared locally with
+// their donor named, matching the FANOUT_COLUMN_TOLERANCE_PX precedent above —
+// this diagnostics leaf must not import the heavy layout / edge-style / channel
+// modules. If a donor constant changes, update the value here.
+
+/** Two crossing events closer than one routing track read as ONE crossing.
+ * Donor: STRATA_CHANNEL_TRACK_GAP_PX (terraformPipelineStrataChannelRoute.ts).
+ * > the 1px endpoint-share tolerance and < the 20px stub, so genuinely separate
+ * crossings (≥ one track apart) survive dedup. */
+export const CROSS_DEDUP_PX = 12;
+/** Acute crossing angle below which a crossing is "near-parallel" (the worst
+ * tail of sharp crossings — sits between NEAR_FLAT_MAX_DEG=15 and
+ * SHARP_CROSSING_MAX_DEG=30). Huang 2008 (already cited above). */
+export const PARALLEL_CROSS_MAX_DEG = 20;
+/** Direction-alignment band for two edges to count as a near-parallel bundle.
+ * Donor: NEAR_FLAT_MAX_DEG (this file) — the existing near-parallel band. */
+export const PARALLEL_ALIGN_MAX_DEG = 15;
+/** Spatial-neighbor radius / grid cell for the parallelCross bundle test.
+ * Donor: FANOUT_COLUMN_TOLERANCE_PX = PIPELINE_COLUMN_GAP/2 — "same visual
+ * column" locality. */
+export const D_NEIGH_PX = 75;
+/** A signed x-run below this magnitude is stub/jitter, not a genuine backward
+ * excursion. Donor: STRATA_EDGE_STYLE_STUB_PX = STRATA_CHANNEL_STUB_PX = 20 —
+ * one perpendicular escape/entry stub. */
+export const H_BACKTRACK_PX = 20;
+/** Arc-length skipped from each endpoint before own-card re-entry is tested
+ * (clears the exit/entry stub). Donor: STRATA_EDGE_STYLE_STUB_PX = 20. */
+export const STUB_SKIP_PX = 20;
+/** A crossing within this radius of an edge's attachment point reads as "at the
+ * card". Donor: PIPELINE_FRAME_PAD (terraformPipelineLayoutShared.ts, =28);
+ * also ≈ NEAR_STRAIGHT_MAX_PX=24, same perceptual scale. */
+export const R_ANCHOR_PX = 28;
 
 const TOPOLOGY_ROLES = new Set([
   "provider",
@@ -570,10 +741,14 @@ export function diagnosePipelineScene(
     }
   }
 
-  // dataflow metrics — polyline-aware (RFC DEC-6).
+  // dataflow metrics — polyline-aware (RFC DEC-6). `geoms` now carries edge
+  // identity (EdgeGeom) so the additive badPatterns block can attribute
+  // offenders; `segments`/`verticalExtent` are byte-identical to the previous
+  // anonymous ArrowGeometry (same `arrowGeometry` output, same <2-point filter,
+  // same tfdArrows order), so crossings/crossingAngles are unchanged.
   const geoms = tfdArrows
-    .map(arrowGeometry)
-    .filter((g): g is ArrowGeometry => g != null);
+    .map(edgeGeomOf)
+    .filter((g): g is EdgeGeom => g != null);
   // Crossings: count each arrow PAIR at most once, even if multiple of their
   // segments intersect ("edges that cross", not segment intersections). For
   // 2-point arrows this reduces to the previous chord-vs-chord count. The same
@@ -719,6 +894,7 @@ export function diagnosePipelineScene(
     slices: computeSliceMetrics(elements),
     crossingAngles: crossingAngleSummaryOf(crossingAngleDegs),
     edgeAngles: edgeAngleSummaryOf(geoms, tfdArrows, frameByAddress),
+    badPatterns: computeBadPatterns(geoms, frameByAddress).summary,
   };
 }
 
@@ -866,9 +1042,11 @@ export function edgeAngleSummaryOf(
   return {
     bendCountTotal,
     bendCountMax,
-    bendCountMeanPerEdge: edgeCount > 0 ? round2(bendCountTotal / edgeCount) : 0,
+    bendCountMeanPerEdge:
+      edgeCount > 0 ? round2(bendCountTotal / edgeCount) : 0,
     edgeCount,
-    nearFlatShare: longSegments > 0 ? round2(nearFlatSegments / longSegments) : 0,
+    nearFlatShare:
+      longSegments > 0 ? round2(nearFlatSegments / longSegments) : 0,
     nearFlatSegments,
     horizontalSegments,
     longSegments,
@@ -880,4 +1058,809 @@ export function edgeAngleSummaryOf(
       : 0,
     endpointSidesConsidered: sidesConsidered,
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Wave-3 badPatterns (report 3 §0-§6). Additive; the crossings/crossingAngles
+// computation above is untouched. All geometry is world-coordinate polylines.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Wrap `arrowGeometry` with edge identity + world-coordinate points (§0-A).
+ * Returns null under exactly the same condition as the old `geoms` filter
+ * (arrow with <2 points), preserving byte-identity of the crossing set. */
+function edgeGeomOf(el: ExcalidrawElement): EdgeGeom | null {
+  const g = arrowGeometry(el);
+  if (!g) {
+    return null;
+  }
+  const pts = (el as { points?: ReadonlyArray<readonly [number, number]> })
+    .points!;
+  const points = pts.map(
+    ([px, py]) => [el.x + px, el.y + py] as [number, number],
+  );
+  const r = relOf(el);
+  return {
+    id: el.id,
+    source: r && typeof r.source === "string" ? r.source : "",
+    target: r && typeof r.target === "string" ? r.target : "",
+    segments: g.segments,
+    points,
+    verticalExtent: g.verticalExtent,
+  };
+}
+
+/** Direction of a segment vector folded into [0,180) degrees (undirected). */
+function foldDirDeg(dx: number, dy: number): number {
+  const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  return ((deg % 180) + 180) % 180;
+}
+
+/** Minimal folded difference between two [0,180) directions, into [0,90]. */
+function foldedAngleDiff(d1: number, d2: number): number {
+  let d = Math.abs(d1 - d2) % 180;
+  if (d > 90) {
+    d = 180 - d;
+  }
+  return d;
+}
+
+/**
+ * Deduped crossing events between two edges' polylines (§0-B). For each segment
+ * pair passing the EXISTING `segmentsCross` kernel (not forked), compute the
+ * intersection point; skip |D| < 1e-9 (near-collinear pairs orient's 1e-6
+ * tolerance can admit). Sampled curves graze tangentially and emit several
+ * intersections one sample apart that read as ONE crossing: sort by (segA,
+ * t-along-A) and merge events within CROSS_DEDUP_PX of the running cluster's
+ * last point; each cluster emits one event (min degAcute, first member's point).
+ */
+export function crossingEventsOf(a: EdgeGeom, b: EdgeGeom): CrossingEvent[] {
+  const raw: Array<CrossingEvent & { tA: number }> = [];
+  for (let i = 0; i < a.segments.length; i++) {
+    const sa = a.segments[i]!;
+    const rx = sa.x2 - sa.x1;
+    const ry = sa.y2 - sa.y1;
+    for (let j = 0; j < b.segments.length; j++) {
+      const sb = b.segments[j]!;
+      if (!segmentsCross(sa, sb)) {
+        continue;
+      }
+      const ux = sb.x2 - sb.x1;
+      const uy = sb.y2 - sb.y1;
+      const D = rx * uy - ry * ux;
+      if (Math.abs(D) < 1e-9) {
+        continue;
+      }
+      const t = ((sb.x1 - sa.x1) * uy - (sb.y1 - sa.y1) * ux) / D;
+      raw.push({
+        x: sa.x1 + t * rx,
+        y: sa.y1 + t * ry,
+        degAcute: segmentAngleDeg(sa, sb),
+        dirADeg: foldDirDeg(rx, ry),
+        dirBDeg: foldDirDeg(ux, uy),
+        segA: i,
+        segB: j,
+        tA: t,
+      });
+    }
+  }
+  if (raw.length <= 1) {
+    return raw.map(({ tA: _tA, ...e }) => e);
+  }
+  raw.sort((p, q) => p.segA - q.segA || p.tA - q.tA);
+  const emit = (
+    cluster: Array<CrossingEvent & { tA: number }>,
+  ): CrossingEvent => {
+    let minDeg = cluster[0]!.degAcute;
+    for (const e of cluster) {
+      minDeg = Math.min(minDeg, e.degAcute);
+    }
+    const f = cluster[0]!;
+    return {
+      x: f.x,
+      y: f.y,
+      degAcute: minDeg,
+      dirADeg: f.dirADeg,
+      dirBDeg: f.dirBDeg,
+      segA: f.segA,
+      segB: f.segB,
+    };
+  };
+  const out: CrossingEvent[] = [];
+  let cluster: Array<CrossingEvent & { tA: number }> = [raw[0]!];
+  let lastX = raw[0]!.x;
+  let lastY = raw[0]!.y;
+  for (let k = 1; k < raw.length; k++) {
+    const e = raw[k]!;
+    if (Math.hypot(e.x - lastX, e.y - lastY) <= CROSS_DEDUP_PX) {
+      cluster.push(e);
+      lastX = e.x;
+      lastY = e.y;
+    } else {
+      out.push(emit(cluster));
+      cluster = [e];
+      lastX = e.x;
+      lastY = e.y;
+    }
+  }
+  out.push(emit(cluster));
+  return out;
+}
+
+type ScenedEvent = CrossingEvent & {
+  pairIdx: number;
+  edgeA: string;
+  edgeB: string;
+};
+
+type SignedRun = { dx: number; startIdx: number; endIdx: number };
+
+const runSign = (v: number): number => (v > 1e-6 ? 1 : v < -1e-6 ? -1 : 0);
+
+/** Merge consecutive same-sign (or neutral) runs, preserving span indices. */
+function mergeAdjacentRuns(runs: SignedRun[]): SignedRun[] {
+  if (runs.length === 0) {
+    return runs;
+  }
+  const out: SignedRun[] = [{ ...runs[0]! }];
+  for (let k = 1; k < runs.length; k++) {
+    const last = out[out.length - 1]!;
+    const cur = runs[k]!;
+    const sl = runSign(last.dx);
+    const sc = runSign(cur.dx);
+    if (sl === sc || sl === 0 || sc === 0) {
+      last.dx += cur.dx;
+      last.endIdx = cur.endIdx;
+    } else {
+      out.push({ ...cur });
+    }
+  }
+  return out;
+}
+
+/**
+ * Signed-run compression for backwardTurn (§3): build maximal signed x-runs,
+ * then fold the smallest run ≤ H_BACKTRACK into its surroundings and re-merge,
+ * repeating until every surviving run exceeds one stub. Smallest-first folding
+ * matches "fold jitter into surrounding context" (a small neutral/backward blip
+ * between two forward runs is absorbed, merging them).
+ */
+function compressBackwardRuns(points: Array<[number, number]>): SignedRun[] {
+  let runs: SignedRun[] = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const dx = points[i + 1]![0] - points[i]![0];
+    if (runs.length === 0) {
+      runs.push({ dx, startIdx: i, endIdx: i + 1 });
+      continue;
+    }
+    const last = runs[runs.length - 1]!;
+    const sl = runSign(last.dx);
+    const sc = runSign(dx);
+    if (sc === 0 || sl === 0 || sc === sl) {
+      last.dx += dx;
+      last.endIdx = i + 1;
+    } else {
+      runs.push({ dx, startIdx: i, endIdx: i + 1 });
+    }
+  }
+  runs = mergeAdjacentRuns(runs);
+  // Fold smallest ≤H run, re-merge, until stable.
+  for (;;) {
+    let idx = -1;
+    let best = Infinity;
+    for (let k = 0; k < runs.length; k++) {
+      const mag = Math.abs(runs[k]!.dx);
+      if (mag <= H_BACKTRACK_PX && mag < best) {
+        best = mag;
+        idx = k;
+      }
+    }
+    if (idx < 0) {
+      break;
+    }
+    runs.splice(idx, 1);
+    if (runs.length === 0) {
+      break;
+    }
+    runs = mergeAdjacentRuns(runs);
+  }
+  return runs;
+}
+
+/** Own-card re-entry test (§4a): does the polyline pierce `rect`'s interior
+ * after STUB_SKIP_PX of arc length from the start? Walk forward, split the
+ * segment straddling the skip point, test each remaining (sub)segment via the
+ * pierce leaf's `segmentIntersectsRectInterior`. Call with reversed points to
+ * test the target end. */
+function polylineReentersRect(
+  points: ReadonlyArray<readonly [number, number]>,
+  rect: Rect,
+  skipPx: number,
+): boolean {
+  let acc = 0;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (acc + L <= skipPx) {
+      acc += L;
+      continue;
+    }
+    let start: readonly [number, number] = a;
+    if (acc < skipPx && L > 0) {
+      const tt = (skipPx - acc) / L;
+      start = [a[0] + tt * (b[0] - a[0]), a[1] + tt * (b[1] - a[1])];
+    }
+    if (segmentIntersectsRectInterior(start, b, rect)) {
+      return true;
+    }
+    acc += L;
+  }
+  return false;
+}
+
+/**
+ * Compute the Wave-3 badPatterns summary + top-10 offenders in one pass over the
+ * identity-carrying edge geometry. `frameByAddress` resolves terraform addresses
+ * to primary-cluster frames (same map + Full-empty coverage caveat as
+ * `edgeAngles`; unresolvable endpoints count in `endpointsUnresolved`).
+ */
+export function computeBadPatterns(
+  edgeGeoms: readonly EdgeGeom[],
+  frameByAddress: ReadonlyMap<string, ExcalidrawElement>,
+): { summary: BadPatternsSummary; offenders: BadPatternOffenders } {
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const refOf = (g: EdgeGeom): EdgeRef => ({
+    id: g.id,
+    source: g.source,
+    target: g.target,
+  });
+
+  // ── Materialize crossing events once (§0-B).
+  const pairRecords: Array<{
+    a: EdgeGeom;
+    b: EdgeGeom;
+    events: CrossingEvent[];
+  }> = [];
+  const allEvents: ScenedEvent[] = [];
+  for (let i = 0; i < edgeGeoms.length; i++) {
+    for (let j = i + 1; j < edgeGeoms.length; j++) {
+      const events = crossingEventsOf(edgeGeoms[i]!, edgeGeoms[j]!);
+      if (events.length === 0) {
+        continue;
+      }
+      const pairIdx = pairRecords.length;
+      pairRecords.push({ a: edgeGeoms[i]!, b: edgeGeoms[j]!, events });
+      for (const e of events) {
+        allEvents.push({
+          ...e,
+          pairIdx,
+          edgeA: edgeGeoms[i]!.id,
+          edgeB: edgeGeoms[j]!.id,
+        });
+      }
+    }
+  }
+  const totalEvents = allEvents.length;
+
+  // ── M1 samePairMultiCross (§1).
+  let m1Pairs = 0;
+  let m1Excess = 0;
+  let m1Max = 0;
+  for (const pr of pairRecords) {
+    const c = pr.events.length;
+    if (c >= 2) {
+      m1Pairs += 1;
+    }
+    m1Excess += Math.max(0, c - 1);
+    m1Max = Math.max(m1Max, c);
+  }
+
+  // ── Spatial grid over events for M2 / M4b (cell = D_NEIGH_PX / R_ANCHOR_PX).
+  const buildGrid = (cell: number, xs: number[], ys: number[]) => {
+    const grid = new Map<string, number[]>();
+    for (let idx = 0; idx < xs.length; idx++) {
+      const key = `${Math.floor(xs[idx]! / cell)},${Math.floor(
+        ys[idx]! / cell,
+      )}`;
+      let arr = grid.get(key);
+      if (!arr) {
+        arr = [];
+        grid.set(key, arr);
+      }
+      arr.push(idx);
+    }
+    return grid;
+  };
+  const eventXs = allEvents.map((e) => e.x);
+  const eventYs = allEvents.map((e) => e.y);
+  const eventGrid = buildGrid(D_NEIGH_PX, eventXs, eventYs);
+  const eventNeighbors = (idx: number): number[] => {
+    const e = allEvents[idx]!;
+    const cx = Math.floor(e.x / D_NEIGH_PX);
+    const cy = Math.floor(e.y / D_NEIGH_PX);
+    const res: number[] = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const arr = eventGrid.get(`${cx + dx},${cy + dy}`);
+        if (!arr) {
+          continue;
+        }
+        for (const j of arr) {
+          if (j === idx) {
+            continue;
+          }
+          const f = allEvents[j]!;
+          if (Math.hypot(f.x - e.x, f.y - e.y) <= D_NEIGH_PX) {
+            res.push(j);
+          }
+        }
+      }
+    }
+    return res;
+  };
+  const inPair = (edge: string, e: ScenedEvent) =>
+    edge === e.edgeA || edge === e.edgeB;
+
+  // ── M2 parallelCross (2a) + bundleGridCross (2b) (§2).
+  let parallelEvents = 0;
+  let gridEvents = 0;
+  type ParAgg = {
+    parallel: number;
+    grid: number;
+    samples: Array<[number, number]>;
+    partners: Set<string>;
+  };
+  const parAgg = new Map<string, ParAgg>();
+  const parOf = (id: string): ParAgg => {
+    let a = parAgg.get(id);
+    if (!a) {
+      a = { parallel: 0, grid: 0, samples: [], partners: new Set() };
+      parAgg.set(id, a);
+    }
+    return a;
+  };
+  for (let idx = 0; idx < allEvents.length; idx++) {
+    const e = allEvents[idx]!;
+    const neighbors = eventNeighbors(idx);
+    // (2a)
+    if (e.degAcute < PARALLEL_CROSS_MAX_DEG) {
+      let qualified = false;
+      const partners: string[] = [];
+      for (const j of neighbors) {
+        const f = allEvents[j]!;
+        const thirdEdge = !inPair(f.edgeA, e) || !inPair(f.edgeB, e);
+        if (!thirdEdge) {
+          continue;
+        }
+        const minPair = Math.min(
+          foldedAngleDiff(e.dirADeg, f.dirADeg),
+          foldedAngleDiff(e.dirADeg, f.dirBDeg),
+          foldedAngleDiff(e.dirBDeg, f.dirADeg),
+          foldedAngleDiff(e.dirBDeg, f.dirBDeg),
+        );
+        if (minPair <= PARALLEL_ALIGN_MAX_DEG) {
+          qualified = true;
+          if (!inPair(f.edgeA, e)) {
+            partners.push(f.edgeA);
+          }
+          if (!inPair(f.edgeB, e)) {
+            partners.push(f.edgeB);
+          }
+        }
+      }
+      if (qualified) {
+        parallelEvents += 1;
+        for (const id of [e.edgeA, e.edgeB]) {
+          const agg = parOf(id);
+          agg.parallel += 1;
+          if (agg.samples.length < 3) {
+            agg.samples.push([Math.round(e.x), Math.round(e.y)]);
+          }
+          for (const p of partners) {
+            agg.partners.add(p);
+          }
+        }
+      }
+    }
+    // (2b) — ≥2 neighbors sharing exactly one edge with e, non-shared partners
+    // near-parallel. Captures bundle-vs-bundle grids at any crossing angle.
+    let gridCount = 0;
+    for (const j of neighbors) {
+      const f = allEvents[j]!;
+      const aShared = inPair(f.edgeA, e);
+      const bShared = inPair(f.edgeB, e);
+      if (aShared === bShared) {
+        continue; // shares 0 or 2 edges — not a one-edge bundle neighbor
+      }
+      const shared = aShared ? f.edgeA : f.edgeB;
+      const ePartnerDir = shared === e.edgeA ? e.dirBDeg : e.dirADeg;
+      const fPartnerDir = shared === f.edgeA ? f.dirBDeg : f.dirADeg;
+      if (foldedAngleDiff(ePartnerDir, fPartnerDir) <= PARALLEL_ALIGN_MAX_DEG) {
+        gridCount += 1;
+      }
+    }
+    if (gridCount >= 2) {
+      gridEvents += 1;
+      parOf(e.edgeA).grid += 1;
+      parOf(e.edgeB).grid += 1;
+    }
+  }
+
+  // ── M3 backwardTurn (§3).
+  let btEdges = 0;
+  let btCountTotal = 0;
+  let btPxTotal = 0;
+  let btPxMax = 0;
+  const btOffenders: BadPatternOffenders["backwardTurn"] = [];
+  for (const g of edgeGeoms) {
+    const runs = compressBackwardRuns(g.points);
+    let backwardTurns = 0;
+    let backtrackPx = 0;
+    let worst: SignedRun | null = null;
+    for (const r of runs) {
+      if (r.dx < 0) {
+        backwardTurns += 1;
+        backtrackPx += Math.abs(r.dx);
+        if (worst === null || Math.abs(r.dx) > Math.abs(worst.dx)) {
+          worst = r;
+        }
+      }
+    }
+    if (backwardTurns > 0) {
+      btEdges += 1;
+      btCountTotal += backwardTurns;
+      btPxTotal += backtrackPx;
+      btPxMax = Math.max(btPxMax, backtrackPx);
+      const srcF = frameByAddress.get(g.source);
+      const tgtF = frameByAddress.get(g.target);
+      const semanticViolation =
+        srcF != null &&
+        tgtF != null &&
+        tgtF.x + tgtF.width / 2 < srcF.x + srcF.width / 2 - 1;
+      btOffenders.push({
+        id: g.id,
+        source: g.source,
+        target: g.target,
+        backwardTurns,
+        backtrackPx: round2(backtrackPx),
+        worstRun: worst
+          ? {
+              fromX: Math.round(g.points[worst.startIdx]![0]),
+              toX: Math.round(g.points[worst.endIdx]![0]),
+              y: Math.round(g.points[worst.startIdx]![1]),
+            }
+          : null,
+        semanticViolation,
+      });
+    }
+  }
+
+  // ── M4 endpointOcclusion (§4).
+  // (4a) own-card re-entry.
+  let ownCardReentryCount = 0;
+  let ownCardReentryEdges = 0;
+  let endpointsResolved = 0;
+  let endpointsUnresolved = 0;
+  const occ = new Map<
+    string,
+    {
+      reentry: "src" | "tgt" | "both" | null;
+      reentryRect: {
+        frameId: string;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      } | null;
+      own: number;
+      foreign: number;
+      anchorPoints: Array<[number, number]>;
+    }
+  >();
+  const occOf = (g: EdgeGeom) => {
+    let o = occ.get(g.id);
+    if (!o) {
+      o = {
+        reentry: null,
+        reentryRect: null,
+        own: 0,
+        foreign: 0,
+        anchorPoints: [
+          [Math.round(g.points[0]![0]), Math.round(g.points[0]![1])],
+          [
+            Math.round(g.points[g.points.length - 1]![0]),
+            Math.round(g.points[g.points.length - 1]![1]),
+          ],
+        ],
+      };
+      occ.set(g.id, o);
+    }
+    return o;
+  };
+  for (const g of edgeGeoms) {
+    const o = occOf(g);
+    let edgeReentry = 0;
+    const srcF = frameByAddress.get(g.source);
+    if (srcF) {
+      endpointsResolved += 1;
+      if (polylineReentersRect(g.points, rectOf(srcF), STUB_SKIP_PX)) {
+        edgeReentry += 1;
+        o.reentry = "src";
+        o.reentryRect = {
+          frameId: srcF.id,
+          x: Math.round(srcF.x),
+          y: Math.round(srcF.y),
+          w: Math.round(srcF.width),
+          h: Math.round(srcF.height),
+        };
+      }
+    } else {
+      endpointsUnresolved += 1;
+    }
+    const tgtF = frameByAddress.get(g.target);
+    if (tgtF) {
+      endpointsResolved += 1;
+      const reversed = [...g.points].reverse();
+      if (polylineReentersRect(reversed, rectOf(tgtF), STUB_SKIP_PX)) {
+        edgeReentry += 1;
+        o.reentry = o.reentry === "src" ? "both" : "tgt";
+        if (!o.reentryRect) {
+          o.reentryRect = {
+            frameId: tgtF.id,
+            x: Math.round(tgtF.x),
+            y: Math.round(tgtF.y),
+            w: Math.round(tgtF.width),
+            h: Math.round(tgtF.height),
+          };
+        }
+      }
+    } else {
+      endpointsUnresolved += 1;
+    }
+    ownCardReentryCount += edgeReentry;
+    if (edgeReentry > 0) {
+      ownCardReentryEdges += 1;
+    }
+  }
+
+  // (4b) anchor-region crossings. Anchors = first+last point of every edge.
+  const anchorXs: number[] = [];
+  const anchorYs: number[] = [];
+  const anchorEdge: string[] = [];
+  for (const g of edgeGeoms) {
+    anchorXs.push(g.points[0]![0], g.points[g.points.length - 1]![0]);
+    anchorYs.push(g.points[0]![1], g.points[g.points.length - 1]![1]);
+    anchorEdge.push(g.id, g.id);
+  }
+  const anchorGrid = buildGrid(R_ANCHOR_PX, anchorXs, anchorYs);
+  const anchorsNear = (x: number, y: number): number[] => {
+    const cx = Math.floor(x / R_ANCHOR_PX);
+    const cy = Math.floor(y / R_ANCHOR_PX);
+    const res: number[] = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const arr = anchorGrid.get(`${cx + dx},${cy + dy}`);
+        if (!arr) {
+          continue;
+        }
+        for (const ai of arr) {
+          if (Math.hypot(anchorXs[ai]! - x, anchorYs[ai]! - y) <= R_ANCHOR_PX) {
+            res.push(ai);
+          }
+        }
+      }
+    }
+    return res;
+  };
+  let endpointCrossOwn = 0;
+  let endpointCrossForeign = 0;
+  for (const e of allEvents) {
+    const near = anchorsNear(e.x, e.y);
+    let own = false;
+    let foreign = false;
+    const bumpedOwn = new Set<string>();
+    const bumpedForeign = new Set<string>();
+    for (const ai of near) {
+      const owner = anchorEdge[ai]!;
+      if (owner === e.edgeA || owner === e.edgeB) {
+        own = true;
+        if (!bumpedOwn.has(owner)) {
+          bumpedOwn.add(owner);
+          const g = edgeGeoms.find((x) => x.id === owner);
+          if (g) {
+            occOf(g).own += 1;
+          }
+        }
+      } else {
+        foreign = true;
+        if (!bumpedForeign.has(owner)) {
+          bumpedForeign.add(owner);
+          const g = edgeGeoms.find((x) => x.id === owner);
+          if (g) {
+            occOf(g).foreign += 1;
+          }
+        }
+      }
+    }
+    if (own) {
+      endpointCrossOwn += 1;
+    }
+    if (foreign) {
+      endpointCrossForeign += 1;
+    }
+  }
+
+  // ── edgeLengthPxTotal (F3 guard axis).
+  let edgeLengthPxTotal = 0;
+  for (const g of edgeGeoms) {
+    for (const s of g.segments) {
+      edgeLengthPxTotal += segLen(s);
+    }
+  }
+
+  const summary: BadPatternsSummary = {
+    samePairMultiCross: {
+      pairs: m1Pairs,
+      excess: m1Excess,
+      maxPerPair: m1Max,
+      totalCrossEvents: totalEvents,
+    },
+    parallelCross: {
+      events: parallelEvents,
+      share: totalEvents > 0 ? round2(parallelEvents / totalEvents) : 0,
+      gridEvents,
+      gridShare: totalEvents > 0 ? round2(gridEvents / totalEvents) : 0,
+      totalEvents,
+    },
+    backwardTurn: {
+      edges: btEdges,
+      countTotal: btCountTotal,
+      backtrackPxTotal: round2(btPxTotal),
+      backtrackPxMax: round2(btPxMax),
+      edgeCount: edgeGeoms.length,
+    },
+    endpointOcclusion: {
+      ownCardReentryCount,
+      ownCardReentryEdges,
+      endpointCrossOwn,
+      endpointCrossForeign,
+      anchorCount: anchorEdge.length,
+      endpointsResolved,
+      endpointsUnresolved,
+    },
+    edgeLengthPxTotal: round2(edgeLengthPxTotal),
+  };
+
+  // ── Offenders (§6). Top-10 per metric.
+  const samePairOffenders: BadPatternOffenders["samePairMultiCross"] =
+    pairRecords
+      .map((pr) => {
+        let minDeg = pr.events[0]!.degAcute;
+        for (const e of pr.events) {
+          minDeg = Math.min(minDeg, e.degAcute);
+        }
+        return {
+          edgeA: refOf(pr.a),
+          edgeB: refOf(pr.b),
+          crossCount: pr.events.length,
+          points: pr.events.map(
+            (e) => [Math.round(e.x), Math.round(e.y)] as [number, number],
+          ),
+          minDeg: round2(minDeg),
+        };
+      })
+      .sort((a, b) => b.crossCount - a.crossCount || a.minDeg - b.minDeg)
+      .slice(0, 10);
+
+  const parallelOffenders: BadPatternOffenders["parallelCross"] = [
+    ...parAgg.entries(),
+  ]
+    .map(([id, agg]) => {
+      const g = edgeGeoms.find((x) => x.id === id)!;
+      return {
+        id,
+        source: g.source,
+        target: g.target,
+        parallelEvents: agg.parallel,
+        gridEvents: agg.grid,
+        samplePoints: agg.samples.slice(0, 3),
+        partnerEdgeIds: [...agg.partners].slice(0, 5),
+      };
+    })
+    .filter((r) => r.parallelEvents > 0 || r.gridEvents > 0)
+    .sort(
+      (a, b) =>
+        b.parallelEvents - a.parallelEvents || b.gridEvents - a.gridEvents,
+    )
+    .slice(0, 10);
+
+  const backwardOffenders = [...btOffenders]
+    .sort((a, b) => b.backtrackPx - a.backtrackPx)
+    .slice(0, 10);
+
+  const endpointOffenders: BadPatternOffenders["endpointOcclusion"] = [
+    ...occ.entries(),
+  ]
+    .map(([id, o]) => {
+      const g = edgeGeoms.find((x) => x.id === id)!;
+      return {
+        id,
+        source: g.source,
+        target: g.target,
+        reentry: o.reentry,
+        reentryRect: o.reentryRect,
+        anchorCrossOwn: o.own,
+        anchorCrossForeign: o.foreign,
+        anchorPoints: o.anchorPoints,
+      };
+    })
+    .filter(
+      (r) =>
+        r.reentry !== null || r.anchorCrossOwn > 0 || r.anchorCrossForeign > 0,
+    )
+    .sort((a, b) => {
+      const ra = a.reentry === "both" ? 2 : a.reentry ? 1 : 0;
+      const rb = b.reentry === "both" ? 2 : b.reentry ? 1 : 0;
+      return rb - ra || b.anchorCrossOwn - a.anchorCrossOwn;
+    })
+    .slice(0, 10);
+
+  return {
+    summary,
+    offenders: {
+      samePairMultiCross: samePairOffenders,
+      parallelCross: parallelOffenders,
+      backwardTurn: backwardOffenders,
+      endpointOcclusion: endpointOffenders,
+    },
+  };
+}
+
+/** Build the identity-carrying edge geometry + address→frame map for a scene
+ * (the inputs `computeBadPatterns` needs), matching `diagnosePipelineScene`'s
+ * own construction. */
+export function buildBadPatternInputs(elements: readonly ExcalidrawElement[]): {
+  edgeGeoms: EdgeGeom[];
+  frameByAddress: Map<string, ExcalidrawElement>;
+} {
+  const tfdArrows = elements.filter((el) => {
+    if (el.type !== "arrow") {
+      return false;
+    }
+    const r = relOf(el);
+    return (
+      r != null &&
+      typeof r.source === "string" &&
+      typeof r.target === "string" &&
+      r.aggregated !== true
+    );
+  });
+  const edgeGeoms = tfdArrows
+    .map(edgeGeomOf)
+    .filter((g): g is EdgeGeom => g != null);
+  const frameByAddress = new Map<string, ExcalidrawElement>();
+  for (const el of elements) {
+    if (
+      el.type === "frame" &&
+      !el.isDeleted &&
+      (el.customData as { terraformTopologyRole?: string } | undefined)
+        ?.terraformTopologyRole === "primaryCluster"
+    ) {
+      const addr = (el.customData as { terraformPrimaryAddress?: string })
+        ?.terraformPrimaryAddress;
+      if (typeof addr === "string") {
+        frameByAddress.set(addr, el);
+      }
+    }
+  }
+  return { edgeGeoms, frameByAddress };
+}
+
+/** Per-metric top-10 badPattern offenders for a scene (§6) — the probe prints
+ * these; a fresh pass over the scene reusing the same kernels. */
+export function diagnoseBadPatternOffenders(
+  elements: readonly ExcalidrawElement[],
+): BadPatternOffenders {
+  const { edgeGeoms, frameByAddress } = buildBadPatternInputs(elements);
+  return computeBadPatterns(edgeGeoms, frameByAddress).offenders;
 }
