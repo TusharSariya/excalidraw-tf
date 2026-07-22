@@ -321,8 +321,14 @@ export function s3SatelliteStackHeightPx(
   tier1H: number,
   tier2H: number,
   satelliteGap: number,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
-  const { cluster } = buildS3CompanionCluster(nodes, address, arnIndex);
+  const { cluster } = buildS3CompanionCluster(
+    nodes,
+    address,
+    arnIndex,
+    nodesByType,
+  );
   if (!cluster || cluster.stack.length === 0) {
     return 0;
   }

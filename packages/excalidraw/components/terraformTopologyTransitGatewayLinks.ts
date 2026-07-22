@@ -641,11 +641,13 @@ export function transitGatewaySatelliteStackHeightPx(
   tier2SatelliteH: number,
   satelliteGap: number,
   planChanges?: readonly PlanRc[],
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
   const { cluster } = buildTransitGatewayCompanionCluster(
     nodes,
     tgwAddress,
     planChanges,
+    nodesByType,
   );
   if (!cluster) {
     return 0;

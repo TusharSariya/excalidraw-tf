@@ -58,6 +58,7 @@ import {
   buildSatelliteClusterForKind,
   collectSatelliteAddressesForKind,
   getAllCatalogPluginIds,
+  getMemoizedNodesByTypeIndex,
   type SatelliteBuildContext,
 } from "./terraformTopologySatelliteEngine";
 
@@ -151,6 +152,11 @@ export function buildSatelliteContext(
     arnIndex,
     plan,
     planChanges,
+    // Perf-loop E02: attach the memoized per-`nodes` type index (TODO-3). Built once and
+    // shared across every context, it lets every reverse-ref / companion / plugin scan
+    // resolve candidates by type instead of falling back to an O(all-nodes) `Object.keys`
+    // walk per kind per address. `undefined` only under the test kill switch.
+    nodesByType: getMemoizedNodesByTypeIndex(nodes),
   };
 }
 
@@ -187,10 +193,15 @@ export function buildTopologyPrimarySatelliteBundles(
   const enabled = enabledKindsForPrimaryType(primaryType);
   const empty = { cluster: null, edges: [] as TopologyIamEdge[] };
 
+  // Perf-loop E02: thread the memoized type index into every direct builder call so the
+  // satellite-bundle path (skeleton.satelliteBundles, nested in skeleton.resourceRects)
+  // resolves by type instead of full-scanning. `aurora`/`rds` take no index — they read
+  // the primary node directly and never scan by type — so they are intentionally omitted.
+  const { nodesByType } = ctx;
   return {
     primaryType,
     iam: enabled.has("iam")
-      ? buildPrimaryIamCluster(nodes, address, arnIndex)
+      ? buildPrimaryIamCluster(nodes, address, arnIndex, undefined, nodesByType)
       : empty,
     kms: enabled.has("kms_policies")
       ? (buildSatelliteClusterForKind("kms_policies", ctx) as ReturnType<
@@ -198,41 +209,58 @@ export function buildTopologyPrimarySatelliteBundles(
         >)
       : empty,
     sg: enabled.has("security_groups")
-      ? buildPrimarySgCluster(nodes, address, arnIndex, plan)
+      ? buildPrimarySgCluster(nodes, address, arnIndex, plan, nodesByType)
       : empty,
     s3: enabled.has("s3_companions")
-      ? buildS3CompanionCluster(nodes, address, arnIndex)
+      ? buildS3CompanionCluster(nodes, address, arnIndex, nodesByType)
       : empty,
     alb: enabled.has("alb_companions")
-      ? buildAlbListenerTargetCluster(nodes, address, arnIndex)
+      ? buildAlbListenerTargetCluster(nodes, address, arnIndex, nodesByType)
       : empty,
     ecs: enabled.has("ecs_companions")
-      ? buildEcsServiceCompanionCluster(nodes, address, arnIndex)
+      ? buildEcsServiceCompanionCluster(nodes, address, arnIndex, nodesByType)
       : empty,
     eks: enabled.has("eks_companions")
-      ? buildEksCompanionCluster(nodes, address, arnIndex)
+      ? buildEksCompanionCluster(nodes, address, arnIndex, nodesByType)
       : empty,
     ecsCluster: enabled.has("ecs_cluster_companions")
-      ? buildEcsClusterCompanionCluster(nodes, address, plan)
+      ? buildEcsClusterCompanionCluster(nodes, address, plan, nodesByType)
       : empty,
     ecsEc2: enabled.has("ecs_ec2_capacity_companions")
-      ? buildEcsEc2CapacityCompanionCluster(nodes, address, arnIndex, plan)
+      ? buildEcsEc2CapacityCompanionCluster(
+          nodes,
+          address,
+          arnIndex,
+          plan,
+          nodesByType,
+        )
       : empty,
     api: enabled.has("api_gateway_companions")
-      ? buildApiGatewayCompanionCluster(nodes, address, plan)
+      ? buildApiGatewayCompanionCluster(nodes, address, plan, nodesByType)
       : empty,
     apiVpc: enabled.has("api_gateway_vpc_links")
-      ? buildApiGatewayVpcLinkCluster(nodes, address, plan)
+      ? buildApiGatewayVpcLinkCluster(nodes, address, plan, nodesByType)
       : empty,
     tgw:
       enabled.has("tgw_companions") && primaryType === "aws_ec2_transit_gateway"
-        ? buildTransitGatewayCompanionCluster(nodes, address, ctx.planChanges)
+        ? buildTransitGatewayCompanionCluster(
+            nodes,
+            address,
+            ctx.planChanges,
+            nodesByType,
+          )
         : empty,
     lambdaPermission: enabled.has("lambda_permission")
-      ? buildLambdaPermissionCluster(nodes, address, arnIndex, plan)
+      ? buildLambdaPermissionCluster(
+          nodes,
+          address,
+          arnIndex,
+          plan,
+          nodesByType,
+        )
       : empty,
     sqs: enabled.has("sqs_companions")
-      ? buildSqsCompanionCluster(nodes, address, arnIndex)
+      ? buildSqsCompanionCluster(nodes, address, arnIndex, nodesByType)
       : empty,
     aurora: enabled.has("aurora_companions")
       ? buildAuroraCompanionCluster(nodes, address)
@@ -242,7 +270,7 @@ export function buildTopologyPrimarySatelliteBundles(
       : empty,
     cloudWatch:
       enabled.has("cloudwatch_alarms") || enabled.has("cloudwatch_log_groups")
-        ? buildResourceCloudWatchCluster(nodes, address)
+        ? buildResourceCloudWatchCluster(nodes, address, nodesByType)
         : empty,
   };
 }
@@ -256,7 +284,8 @@ export function satelliteStackHeightPxForKind(
     return 0;
   }
 
-  const { nodes, primaryAddress, arnIndex, plan, primaryType } = ctx;
+  const { nodes, primaryAddress, arnIndex, plan, primaryType, nodesByType } =
+    ctx;
   const tier1H = config.tiers.tier1H;
   const tier2H = config.tiers.tier2H;
   const gap = config.gaps.satellite;
@@ -269,6 +298,7 @@ export function satelliteStackHeightPxForKind(
         primaryAddress,
         tier1H,
         gap,
+        nodesByType,
       );
     case "iam":
       return iamSatelliteStackHeightPx(
@@ -279,6 +309,7 @@ export function satelliteStackHeightPxForKind(
         tier2H,
         gap,
         ctx.plan,
+        nodesByType,
       );
     case "kms_policies": {
       installSatellitePlugins();
@@ -302,6 +333,7 @@ export function satelliteStackHeightPxForKind(
         tier2H,
         gap,
         plan,
+        nodesByType,
       );
     case "s3_companions":
       return s3SatelliteStackHeightPx(
@@ -311,6 +343,7 @@ export function satelliteStackHeightPxForKind(
         tier1H,
         tier2H,
         gap,
+        nodesByType,
       );
     case "alb_companions":
       return albSatelliteStackHeightPx(
@@ -320,6 +353,7 @@ export function satelliteStackHeightPxForKind(
         tier1H,
         tier2H,
         gap,
+        nodesByType,
       );
     case "ecs_companions":
       return primaryType === "aws_ecs_service"
@@ -330,6 +364,7 @@ export function satelliteStackHeightPxForKind(
             tier1H,
             tier2H,
             gap,
+            nodesByType,
           )
         : 0;
     case "eks_companions":
@@ -341,6 +376,7 @@ export function satelliteStackHeightPxForKind(
             tier1H,
             tier2H,
             gap,
+            nodesByType,
           )
         : 0;
     case "ecs_cluster_companions":
@@ -352,6 +388,7 @@ export function satelliteStackHeightPxForKind(
             tier2H,
             gap,
             ctx.plan,
+            nodesByType,
           )
         : 0;
     case "ecs_ec2_capacity_companions":
@@ -364,6 +401,7 @@ export function satelliteStackHeightPxForKind(
             tier2H,
             gap,
             ctx.plan,
+            nodesByType,
           )
         : 0;
     case "api_gateway_companions":
@@ -374,6 +412,7 @@ export function satelliteStackHeightPxForKind(
             tier1H,
             tier2H,
             gap,
+            nodesByType,
           )
         : 0;
     case "api_gateway_vpc_links":
@@ -388,6 +427,7 @@ export function satelliteStackHeightPxForKind(
             tier2H,
             gap,
             ctx.planChanges,
+            nodesByType,
           )
         : 0;
     case "lambda_permission": {
@@ -417,6 +457,7 @@ export function satelliteStackHeightPxForKind(
         tier1H,
         tier2H,
         gap,
+        nodesByType,
       );
     case "aurora_companions":
       return primaryType === "aws_rds_cluster"
@@ -457,6 +498,10 @@ export function collectTopologySatelliteAddressesFromRegistry(
         nodes,
         arnIndex,
         plan,
+        // Perf-loop E02: `ctx.nodesByType` is the memoized index (attached by
+        // `buildSatelliteContext`); passing it here stops the per-kind ancillary scans
+        // (strata.ancillary) from full-walking `Object.keys(nodes)`.
+        ctx.nodesByType,
       )) {
         out.add(addr);
       }
@@ -480,7 +525,13 @@ export function buildAllSatellitePrimaryMappings(
   plan?: unknown,
 ): Map<string, string> {
   installSatellitePlugins();
-  const nodesByType = buildNodesByTypeIndex(nodes);
+  // Perf-loop E02: reuse the shared per-`nodes` memoized index (same instance the
+  // `buildSatelliteContext` paths use) so the cluster memo's `nodesByType` reference guard
+  // sees one identity across bundles / collect / owner-map. Falls back to a direct build
+  // when the test kill switch is set. `?? buildNodesByTypeIndex(nodes)` keeps the batch
+  // resolver's own scans indexed even under that switch.
+  const nodesByType =
+    getMemoizedNodesByTypeIndex(nodes) ?? buildNodesByTypeIndex(nodes);
   const sortedPrimaries = [...primaryAddresses].sort();
   const out = new Map<string, string>();
 
