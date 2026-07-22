@@ -32,6 +32,8 @@ export type TerraformRuntimePerformanceSettings = {
   terraformFocusWashOverlay: boolean;
   /** E09.1: bucket the per-element canvas zoom cache key (default OFF). */
   terraformZoomQuantize: boolean;
+  /** E09.2: request an opaque (alpha:false) static-scene 2D context (default OFF). */
+  terraformStaticCanvasOpaque: boolean;
   lowZoomThreshold: 0.2 | 0.3 | 0.4;
 };
 
@@ -44,6 +46,7 @@ export const TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS: TerraformRuntimePerformance
     skipBindingRepairDuringFocus: false,
     terraformFocusWashOverlay: false,
     terraformZoomQuantize: false,
+    terraformStaticCanvasOpaque: false,
     lowZoomThreshold: 0.3,
   };
 
@@ -54,6 +57,7 @@ const BOOLEAN_SETTING_KEYS = [
   "suppressFrameClippingBelowZoom",
   "skipBindingRepairDuringFocus",
   "terraformZoomQuantize",
+  "terraformStaticCanvasOpaque",
 ] as const;
 
 const isLowZoomThreshold = (

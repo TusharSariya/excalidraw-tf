@@ -300,6 +300,9 @@ const _renderStaticScene = ({
     theme: appState.theme,
     isExporting,
     viewBackgroundColor: appState.viewBackgroundColor,
+    // E09.2: opaque static context (skips the alpha compositing pass) — only for
+    // the static layer, and internally re-guarded on an opaque background.
+    requestOpaque: terraformRuntimeSettings.terraformStaticCanvasOpaque,
   });
 
   // Apply zoom
