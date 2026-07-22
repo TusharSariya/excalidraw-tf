@@ -31,6 +31,12 @@ Pinned URL path: `/demo?preset=staging-extended-localstack-v2&view=strata&compac
 - Verdict: NOT KEPT on main branch (no win). Retained on `perf-loop-exp` (commit `a26ff09d8`) as substrate for E02 (correct seam: height-fn memo + wrap strata.ancillary builds), pending adversarial validation.
 - Tests: typecheck ✓; snapshot/prep-cache/worker-parity 23/23 ✓; NEW `terraformPipelineTopologyMemoScopeEquivalence.test.ts` (memo-on vs -off deep-equality on the pinned preset) ✓.
 - Commit: a26ff09d8 (perf-loop-exp only).
+- Adversarial validation: results attacker VALID (null real; warm-vs-warm delta reproducible <1ms; ~half of +1.8% is pre-layout session drift); implementation attacker VALID (keys/arnIndex/scope-cleanup/read-only-consumers/ctx-branching all sound; addr memos confirmed never-hit → mechanism of the null). Caveats fed into E02: hit/miss counters, DEV freeze-guards, broadened equivalence test.
+
+## E02 validation — 2026-07-22
+- Results attacker: **VALID.** −17.3% reproduces (−18.7% vs E01 state); independent console-marker timeline decomposes the felt delta to within 0.3% (planParsed→prep −1360ms = the materialize win); both comparisons warm-vs-warm; E02 ran later + under higher load, so the effect is conservative. Hygiene: span deltas are nested (never sum them); counter pseudo-spans excluded from topSpans rankings. Residual: n=3 non-interleaved single-session — accepted given marker corroboration.
+- Implementation attacker: **VALID.** Meta-key exclusion safe (all sites re-apply guards + type checks); no first-match-across-union site exists (all sorted/partitioned — structural safety); index staleness impossible (no nodes mutation post-parse); E01 memo guard set still sufficient (arnIndex/nodesByType pure functions of guarded nodes); kill-switch test genuinely exercises the pre-E02 fallback path. Note: DEV-only freeze is DEV-only (prod would share-corrupt silently if a future consumer mutates — acceptable, tests guard).
+- **Decision: KEEP E02 (with E01 substrate). Cherry-pick to strata-overnight-20260717 + full gauntlet batched with E03's verdict.**
 
 ## E02 [import] thread memoized nodesByType index through buildSatelliteContext — 2026-07-21
 
