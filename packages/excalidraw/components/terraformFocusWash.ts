@@ -16,10 +16,23 @@
  * bitmap (never by re-rasterizing), the animation costs one `drawImage` alpha
  * change per element per frame — no `generateElementCanvas` work.
  *
- * This is a module-level singleton store, mirroring the existing
- * `terraformRuntimePerformance` snapshot store: there is exactly one canvas, and
- * the renderer reads the current descriptor directly each frame.
+ * Multiple `<Excalidraw/>` instances can be mounted on one page at once (a
+ * supported, tested configuration — see `withInternalFallback.test.tsx`), each
+ * with its own static canvas. The descriptor store below is therefore keyed
+ * per instance by that instance's static canvas element (`app.canvas`, already
+ * threaded into every call site that needs the wash: the focus effect has
+ * `app`, and the static-scene renderer already receives `canvas` in its render
+ * config) via a `WeakMap`, mirroring how `renderer/staticScene.ts` already
+ * scopes its own per-canvas caches. This avoids one instance's focus
+ * engage/clear overwriting another's wash state, and lets an unmounting
+ * instance release its own entry without touching a sibling's.
  */
+
+/** Stable per-`<Excalidraw/>`-instance key for the wash descriptor store. Any
+ * object unique to the instance works; callers pass `app.canvas` (the static
+ * canvas element), which is already threaded through both the focus effect
+ * and the static-scene renderer. */
+export type TerraformFocusWashInstanceKey = object;
 
 export type TerraformFocusWashDescriptor = {
   /**
@@ -56,32 +69,59 @@ export const TERRAFORM_FOCUS_WASH_DURATION_MS = 260;
  */
 const TERRAFORM_FOCUS_WASH_EDGE = 420;
 
-let current: TerraformFocusWashDescriptor | null = null;
-const subscribers = new Set<() => void>();
+const descriptorsByInstance = new WeakMap<
+  TerraformFocusWashInstanceKey,
+  TerraformFocusWashDescriptor
+>();
+const subscribersByInstance = new WeakMap<
+  TerraformFocusWashInstanceKey,
+  Set<() => void>
+>();
 
-export const getTerraformFocusWashDescriptor =
-  (): TerraformFocusWashDescriptor | null => current;
+export const getTerraformFocusWashDescriptor = (
+  instanceKey: TerraformFocusWashInstanceKey,
+): TerraformFocusWashDescriptor | null =>
+  descriptorsByInstance.get(instanceKey) ?? null;
 
 export const publishTerraformFocusWashDescriptor = (
+  instanceKey: TerraformFocusWashInstanceKey,
   next: TerraformFocusWashDescriptor | null,
 ) => {
-  current = next;
-  for (const subscriber of subscribers) {
-    subscriber();
+  if (next === null) {
+    descriptorsByInstance.delete(instanceKey);
+  } else {
+    descriptorsByInstance.set(instanceKey, next);
+  }
+  const subscribers = subscribersByInstance.get(instanceKey);
+  if (subscribers) {
+    for (const subscriber of subscribers) {
+      subscriber();
+    }
   }
 };
 
-/** Clear the descriptor (no-op if already clear) so the wash stops rendering. */
-export const clearTerraformFocusWashDescriptor = () => {
-  if (current !== null) {
-    publishTerraformFocusWashDescriptor(null);
+/** Clear this instance's descriptor (no-op if already clear) so its wash stops
+ * rendering. Does not touch any other instance's descriptor. */
+export const clearTerraformFocusWashDescriptor = (
+  instanceKey: TerraformFocusWashInstanceKey,
+) => {
+  if (descriptorsByInstance.has(instanceKey)) {
+    publishTerraformFocusWashDescriptor(instanceKey, null);
   }
 };
 
-export const subscribeTerraformFocusWash = (subscriber: () => void) => {
+export const subscribeTerraformFocusWash = (
+  instanceKey: TerraformFocusWashInstanceKey,
+  subscriber: () => void,
+) => {
+  let subscribers = subscribersByInstance.get(instanceKey);
+  if (!subscribers) {
+    subscribers = new Set();
+    subscribersByInstance.set(instanceKey, subscribers);
+  }
   subscribers.add(subscriber);
   return () => {
-    subscribers.delete(subscriber);
+    subscribers!.delete(subscriber);
   };
 };
 

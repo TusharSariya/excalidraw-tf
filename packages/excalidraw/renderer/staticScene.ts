@@ -255,9 +255,12 @@ const _renderStaticScene = ({
   // E08 focus wash overlay: apply relationship-focus dimming as a draw-time
   // per-element alpha wash (radial sweep) instead of mutating element colors.
   // Skipped on export so exports render undimmed (documented view-only wash).
+  // E08 bugfix: scope the wash descriptor read to THIS App instance's static
+  // canvas, so two mounted `<Excalidraw/>` instances never read each other's
+  // wash state.
   const focusWashDescriptor =
     terraformRuntimeSettings.terraformFocusWashOverlay && !isExporting
-      ? getTerraformFocusWashDescriptor()
+      ? getTerraformFocusWashDescriptor(canvas)
       : null;
   const focusWashNowTs = focusWashDescriptor ? performance.now() : 0;
   const washAlphaForElement = (
