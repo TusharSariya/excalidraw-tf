@@ -14,6 +14,17 @@ interface Window {
     enabled: boolean;
     total: number;
     zoom: number;
+    // First-failing-term breakdown of `total` (sum(byCause) === total). Lets
+    // the canvas-stress harness attribute regens without wall-clock timing.
+    byCause: {
+      miss: number;
+      zoom: number;
+      theme: number;
+      boundText: number;
+      imageCrop: number;
+      frameOpacity: number;
+      arrowAngle: number;
+    };
   };
   __resetElementCanvasRegenStats?: () => void;
   // Import-time benchmark hooks (scripts/terraform/benchmark-import-time.mjs).

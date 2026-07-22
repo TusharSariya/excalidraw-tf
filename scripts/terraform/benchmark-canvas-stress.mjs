@@ -138,13 +138,38 @@ const stopMeasurement = async (page) =>
     };
   });
 
+// Per-cause regen buckets exposed by elementCanvasRegenStats.byCause, in the
+// same first-failing-term order as the source predicate.
+const REGEN_CAUSES = [
+  "miss",
+  "zoom",
+  "theme",
+  "boundText",
+  "imageCrop",
+  "frameOpacity",
+  "arrowAngle",
+];
+
 const snapshotCounters = async (page) =>
-  page.evaluate(() => ({
-    regenTotal: window.__elementCanvasRegenStats?.total ?? 0,
-    regenZoom: window.__elementCanvasRegenStats?.zoom ?? 0,
-    replaceAll: window.__terraformReplaceAllElementsCount ?? 0,
-    heap: performance.memory?.usedJSHeapSize ?? null,
-  }));
+  page.evaluate(() => {
+    const stats = window.__elementCanvasRegenStats;
+    return {
+      regenTotal: stats?.total ?? 0,
+      regenZoom: stats?.zoom ?? 0,
+      // full byCause object (defaults to zeros if the build predates E04a)
+      regenByCause: {
+        miss: stats?.byCause?.miss ?? 0,
+        zoom: stats?.byCause?.zoom ?? 0,
+        theme: stats?.byCause?.theme ?? 0,
+        boundText: stats?.byCause?.boundText ?? 0,
+        imageCrop: stats?.byCause?.imageCrop ?? 0,
+        frameOpacity: stats?.byCause?.frameOpacity ?? 0,
+        arrowAngle: stats?.byCause?.arrowAngle ?? 0,
+      },
+      replaceAll: window.__terraformReplaceAllElementsCount ?? 0,
+      heap: performance.memory?.usedJSHeapSize ?? null,
+    };
+  });
 
 // ---------------------------------------------------------------------------
 // Page helpers
@@ -850,6 +875,14 @@ const measureWorkload = async (page, workload, ctx) => {
     regenDelta: {
       total: after.regenTotal - before.regenTotal,
       zoom: after.regenZoom - before.regenZoom,
+      // first-failing-term breakdown of the total regens for this workload
+      byCause: Object.fromEntries(
+        REGEN_CAUSES.map((cause) => [
+          cause,
+          (after.regenByCause?.[cause] ?? 0) -
+            (before.regenByCause?.[cause] ?? 0),
+        ]),
+      ),
     },
     replaceAllDelta: after.replaceAll - before.replaceAll,
     heapDeltaBytes:
@@ -875,6 +908,11 @@ const AGG_FIELDS = [
   ["longtaskMaxMs", (m) => m.longtask.maxMs],
   ["regenTotal", (m) => m.regenDelta.total],
   ["regenZoom", (m) => m.regenDelta.zoom],
+  // per-cause regen breakdown (median across runs) — regenCauseMiss, etc.
+  ...REGEN_CAUSES.map((cause) => [
+    `regenCause${cause[0].toUpperCase()}${cause.slice(1)}`,
+    (m) => m.regenDelta.byCause?.[cause] ?? 0,
+  ]),
   ["replaceAllDelta", (m) => m.replaceAllDelta],
   ["heapDeltaBytes", (m) => m.heapDeltaBytes],
 ];
@@ -1035,6 +1073,15 @@ const printSummary = (configName, aggregate, spreadPct) => {
         spreadPct[name] == null ? "?" : spreadPct[name].toFixed(1)
       } |`,
     );
+  }
+  // Per-cause regen breakdown (which predicate term trips the regens).
+  console.log(`\n-- ${configName} — regen byCause (median across runs) --`);
+  for (const [name, m] of Object.entries(aggregate)) {
+    const parts = REGEN_CAUSES.map((cause) => {
+      const key = `regenCause${cause[0].toUpperCase()}${cause.slice(1)}`;
+      return `${cause}=${m[key] ?? 0}`;
+    });
+    console.log(`  ${name}: total=${m.regenTotal ?? "?"} | ${parts.join(" ")}`);
   }
 };
 
