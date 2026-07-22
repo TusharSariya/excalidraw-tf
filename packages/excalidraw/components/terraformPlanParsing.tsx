@@ -709,18 +709,90 @@ function buildTerraformPlanNodeKeyIndex(
   return { byBareKey, byGraphId, knownStackIds };
 }
 
+/**
+ * Incrementally fold a single newly-created `nodes` key `k` into an existing
+ * {@link TerraformPlanNodeKeyIndex}, mirroring the per-key body of
+ * {@link buildTerraformPlanNodeKeyIndex} exactly (same `__`/module-tree skip, same
+ * `byBareKey` / `byGraphId` append order, same `knownStackIds` first-seen dedupe).
+ *
+ * This exists so a {@link withTerraformPlanNodeKeyIndex} scope can stay valid across a
+ * key-*mutating* parse region (currently only {@link buildExistingEdges}, whose L1367
+ * `nodes[nodePath] ||= …` can add a key the index didn't see at build time). Appending
+ * to the tail of each bucket reproduces what a fresh rebuild would yield at that moment:
+ * a new key lands last in `Object.keys(nodes)` insertion order, and the un-indexed
+ * fallback scan iterates that same order — so a *later* resolve sees the new key in the
+ * identical position whether it rescans `Object.keys` or reads this incrementally-grown
+ * index. Register each key at most once (callers gate on genuine key creation), matching
+ * the once-per-key visit of the initial build.
+ */
+function registerTerraformPlanNodeKeyIntoIndex(
+  index: TerraformPlanNodeKeyIndex,
+  k: string,
+): void {
+  if (k === TERRAFORM_MODULE_TREE_KEY || k.startsWith("__")) {
+    return;
+  }
+
+  const bareKey = topologyBareAddressKey(k);
+  const bareGroup = index.byBareKey.get(bareKey);
+  if (bareGroup) {
+    bareGroup.push(k);
+  } else {
+    index.byBareKey.set(bareKey, [k]);
+  }
+
+  const graphId = stripTerraformAddressIndexes(k);
+  const graphGroup = index.byGraphId.get(graphId);
+  if (graphGroup) {
+    graphGroup.push(k);
+  } else {
+    index.byGraphId.set(graphId, [k]);
+  }
+
+  const parsed = parseStackAddress(k);
+  if (parsed && !index.knownStackIds.includes(parsed.stackId)) {
+    index.knownStackIds.push(parsed.stackId);
+  }
+}
+
 let activePlanNodeKeyIndex: {
   nodes: object;
   index: TerraformPlanNodeKeyIndex;
 } | null = null;
 
 /**
+ * Register a newly-created `nodePath` into the active {@link withTerraformPlanNodeKeyIndex}
+ * scope, if one is active and was built on this exact `nodes` reference. Same ref-equality
+ * guard as {@link resolveTerraformPlanNodeKey}: if no scope is active (or it belongs to a
+ * different `nodes` object) this is a no-op, because that resolver path rescans
+ * `Object.keys(nodes)` fresh anyway and would observe the new key without help.
+ *
+ * Callers MUST invoke this only for keys that genuinely did not exist in `nodes` before
+ * (i.e. `Object.keys(nodes)` actually grew), so each key is folded in exactly once.
+ */
+function registerActiveTerraformPlanNodeKey(
+  nodes: Record<string, TerraformPlanGraphNode>,
+  nodePath: string,
+): void {
+  if (
+    activePlanNodeKeyIndex === null ||
+    activePlanNodeKeyIndex.nodes !== (nodes as unknown as object)
+  ) {
+    return;
+  }
+  registerTerraformPlanNodeKeyIntoIndex(activePlanNodeKeyIndex.index, nodePath);
+}
+
+/**
  * W14 WP2 fallback-scan observability (dev/profiler-only). Counts how often
  * {@link resolveTerraformPlanNodeKey} still pays the original O(N) `Object.keys(nodes)`
  * scan path instead of the O(1) indexed path:
  *   - `scanWithoutScope`: no {@link withTerraformPlanNodeKeyIndex} scope was active
- *     (e.g. the deliberately-unwrapped, key-mutating parse regions
- *     `mergeRawTerraformStateIntoNodes` / `buildExistingEdges`).
+ *     (e.g. the deliberately-unwrapped, key-mutating parse region
+ *     `mergeRawTerraformStateIntoNodes`). NOTE: {@link buildExistingEdges} used to live
+ *     here too, but is now wrapped — its lone key-mutating site (`nodes[nodePath] ||= …`)
+ *     folds each newly-created key into the live scope via
+ *     {@link registerActiveTerraformPlanNodeKey}, so its ~O(N²) fallback scans are gone.
  *   - `scopeRefMismatch`: a scope WAS active but was built on a different `nodes`
  *     object reference than the one the resolver received (the ref-equality guard
  *     defends against silent misresolution and falls back to scan).
@@ -1331,7 +1403,7 @@ function ensureEdgeLists(nodes: Record<string, TerraformPlanGraphNode>) {
   return nodes;
 }
 
-function buildExistingEdges(
+export function buildExistingEdges(
   nodes: Record<string, TerraformPlanGraphNode>,
   plan: { prior_state: { values: { root_module: unknown } } },
 ) {
@@ -1340,69 +1412,88 @@ function buildExistingEdges(
     return nodes;
   }
 
-  const existingEdges: Record<string, Set<string>> = {};
-  const addEdge = (from: string, to: string) => {
-    if (!existingEdges[from]) {
-      existingEdges[from] = new Set();
-    }
-    existingEdges[from].add(to);
-  };
+  // W14 E07: buildExistingEdges resolves an address per prior-state resource plus once
+  // per edge source/target — historically ~O(N²) because it ran OUTSIDE any index scope
+  // and each resolveTerraformPlanNodeKey rescanned Object.keys(nodes). It was left
+  // unwrapped only because its `nodes[nodePath] ||= …` site can create keys the index
+  // didn't see at build time. We now wrap it AND register each genuinely-new key into
+  // the live scope (registerActiveTerraformPlanNodeKey), so every resolve takes the O(1)
+  // indexed path while staying byte-identical to the fresh-rescan behavior: a new key is
+  // appended to the buckets' tails, exactly where a later Object.keys scan would find it.
+  return withTerraformPlanNodeKeyIndex(nodes, () => {
+    const existingEdges: Record<string, Set<string>> = {};
+    const addEdge = (from: string, to: string) => {
+      if (!existingEdges[from]) {
+        existingEdges[from] = new Set();
+      }
+      existingEdges[from].add(to);
+    };
 
-  const stack: TerraformPriorStateModule[] = [
-    rootModule as TerraformPriorStateModule,
-  ];
-  while (stack.length) {
-    const currentModule = stack.pop();
-    if (currentModule == null) {
-      continue;
-    }
-
-    for (const resource of currentModule.resources || []) {
-      const address = resource.address;
-      if (!address) {
+    const stack: TerraformPriorStateModule[] = [
+      rootModule as TerraformPriorStateModule,
+    ];
+    while (stack.length) {
+      const currentModule = stack.pop();
+      if (currentModule == null) {
         continue;
       }
 
-      const nodePath = resolveTerraformPlanNodeKey(nodes, address) ?? address;
-      nodes[nodePath] ||= { resources: {} };
-
-      if (!nodes[nodePath].resources[address]) {
-        nodes[nodePath].resources[address] = {
-          ...resource,
-          change: { actions: ["existing"] },
-        };
-      }
-
-      for (const dependency of resource.depends_on || []) {
-        if (!dependency) {
+      for (const resource of currentModule.resources || []) {
+        const address = resource.address;
+        if (!address) {
           continue;
         }
-        addEdge(address, dependency);
+
+        const nodePath = resolveTerraformPlanNodeKey(nodes, address) ?? address;
+        // Fold a genuinely-new key into the active index BEFORE any later resolve can
+        // observe it — mirrors the fresh Object.keys scan the unwrapped path would run.
+        const isNewNodeKey = !Object.prototype.hasOwnProperty.call(
+          nodes,
+          nodePath,
+        );
+        nodes[nodePath] ||= { resources: {} };
+        if (isNewNodeKey) {
+          registerActiveTerraformPlanNodeKey(nodes, nodePath);
+        }
+
+        if (!nodes[nodePath].resources[address]) {
+          nodes[nodePath].resources[address] = {
+            ...resource,
+            change: { actions: ["existing"] },
+          };
+        }
+
+        for (const dependency of resource.depends_on || []) {
+          if (!dependency) {
+            continue;
+          }
+          addEdge(address, dependency);
+        }
+      }
+
+      for (const childModule of currentModule.child_modules || []) {
+        stack.push(childModule);
       }
     }
 
-    for (const childModule of currentModule.child_modules || []) {
-      stack.push(childModule);
-    }
-  }
-
-  for (const [rawSource, targets] of Object.entries(existingEdges)) {
-    const source = resolveTerraformPlanNodeKey(nodes, rawSource);
-    if (!source) {
-      continue;
-    }
-    nodes[source].edges_existing ||= [];
-
-    for (const rawTarget of targets) {
-      const target = resolveTerraformPlanNodeKey(nodes, rawTarget);
-      if (!target) {
+    for (const [rawSource, targets] of Object.entries(existingEdges)) {
+      const source = resolveTerraformPlanNodeKey(nodes, rawSource);
+      if (!source) {
         continue;
       }
-      if (!nodes[source].edges_existing.includes(target)) {
-        nodes[source].edges_existing.push(target);
+      nodes[source].edges_existing ||= [];
+
+      for (const rawTarget of targets) {
+        const target = resolveTerraformPlanNodeKey(nodes, rawTarget);
+        if (!target) {
+          continue;
+        }
+        if (!nodes[source].edges_existing.includes(target)) {
+          nodes[source].edges_existing.push(target);
+        }
       }
     }
-  }
 
-  return nodes;
+    return nodes;
+  });
 }

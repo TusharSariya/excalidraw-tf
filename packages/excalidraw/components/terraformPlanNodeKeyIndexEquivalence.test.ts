@@ -370,6 +370,215 @@ describe("resolveTerraformPlanNodeKey construction-time path (unaffected by the 
   });
 });
 
+// ---------------------------------------------------------------------------
+// E07 - buildExistingEdges wrapped in the plan-node-key index with incremental
+// registration of keys created mid-scope.
+//
+// buildExistingEdges now runs INSIDE its own withTerraformPlanNodeKeyIndex scope
+// (built from `nodes` at scope entry) and folds each genuinely-new key its
+// `nodes[nodePath] ||= …` site creates into the live index via
+// registerActiveTerraformPlanNodeKey. Semantics that must hold byte-identically:
+// a key created mid-traversal is appended to the tail of its byBareKey / byGraphId
+// bucket, exactly where the un-indexed fallback scan (fresh `Object.keys(nodes)`
+// every call) would find it on a LATER resolve. So a resolve issued BEFORE the key
+// exists must not see it, and a resolve issued AFTER must - including the case where
+// the new key lands in a bareKey bucket a previous resolve already queried,
+// flipping that bucket from a single-match resolution to an ambiguous → null one.
+//
+// The proof: an independent brute-force reconstruction of buildExistingEdges'
+// control flow that resolves via the from-scratch naiveResolveTerraformPlanNodeKey
+// (which rescans Object.keys(nodes) live on every call, so it inherently observes
+// mid-traversal key additions on later calls). The production (wrapped + incremental)
+// output must deep-equal the brute-force output for every crafted mid-scope-mutation
+// plan.
+// ---------------------------------------------------------------------------
+
+/** Brute-force twin of production buildExistingEdges: identical control flow, but
+ * every address resolution goes through naiveResolveTerraformPlanNodeKey (a fresh
+ * Object.keys(nodes) rescan, no index, no registration). This is the reference the
+ * wrapped+incremental production path must match. */
+function naiveBuildExistingEdges(
+  nodes: Record<string, TerraformPlanGraphNode>,
+  plan: { prior_state: { values: { root_module: unknown } } },
+): Record<string, TerraformPlanGraphNode> {
+  const rootModule = plan?.prior_state?.values?.root_module as
+    | {
+        resources?: {
+          address?: string;
+          depends_on?: (string | undefined)[];
+        }[];
+        child_modules?: unknown[];
+      }
+    | null
+    | undefined;
+  if (!rootModule) {
+    return nodes;
+  }
+
+  const existingEdges: Record<string, Set<string>> = {};
+  const addEdge = (from: string, to: string) => {
+    if (!existingEdges[from]) {
+      existingEdges[from] = new Set();
+    }
+    existingEdges[from].add(to);
+  };
+
+  const modStack = [rootModule] as typeof rootModule[];
+  while (modStack.length) {
+    const currentModule = modStack.pop();
+    if (currentModule == null) {
+      continue;
+    }
+    for (const resource of currentModule.resources || []) {
+      const address = resource.address;
+      if (!address) {
+        continue;
+      }
+      const nodePath =
+        naiveResolveTerraformPlanNodeKey(nodes, address) ?? address;
+      nodes[nodePath] ||= { resources: {} };
+      if (!nodes[nodePath].resources[address]) {
+        nodes[nodePath].resources[address] = {
+          ...resource,
+          change: { actions: ["existing"] },
+        };
+      }
+      for (const dependency of resource.depends_on || []) {
+        if (!dependency) {
+          continue;
+        }
+        addEdge(address, dependency);
+      }
+    }
+    for (const childModule of currentModule.child_modules || []) {
+      modStack.push(childModule as typeof rootModule);
+    }
+  }
+
+  for (const [rawSource, targets] of Object.entries(existingEdges)) {
+    const source = naiveResolveTerraformPlanNodeKey(nodes, rawSource);
+    if (!source) {
+      continue;
+    }
+    nodes[source].edges_existing ||= [];
+    for (const rawTarget of targets) {
+      const target = naiveResolveTerraformPlanNodeKey(nodes, rawTarget);
+      if (!target) {
+        continue;
+      }
+      if (!nodes[source].edges_existing.includes(target)) {
+        nodes[source].edges_existing.push(target);
+      }
+    }
+  }
+
+  return nodes;
+}
+
+type E07Plan = { prior_state: { values: { root_module: unknown } } };
+
+/** Run the production (wrapped+incremental-register) buildExistingEdges and the
+ * brute-force twin on independent deep clones of the same initial node map, and
+ * assert the resulting maps are byte-identical. */
+function expectBuildExistingEdgesMatchesBruteForce(
+  initialNodes: Record<string, TerraformPlanGraphNode>,
+  plan: E07Plan,
+) {
+  const clone = () =>
+    JSON.parse(JSON.stringify(initialNodes)) as Record<
+      string,
+      TerraformPlanGraphNode
+    >;
+  const prod = terraformPlanParsingModule.buildExistingEdges(clone(), plan);
+  const naive = naiveBuildExistingEdges(clone(), plan);
+  expect(prod).toEqual(naive);
+  return { prod, naive };
+}
+
+describe("E07 - buildExistingEdges wrapped index ≡ brute-force fresh-rescan (mid-scope key registration)", () => {
+  it("registers keys created mid-traversal so a LATER edge resolve sees them (starting from an empty map)", () => {
+    // nodes empty at scope entry: EVERY key buildExistingEdges touches is created at
+    // its `||=` site and must be registered, or the second-loop edge resolves (run
+    // after traversal) would miss them against the stale entry-time index.
+    const plan: E07Plan = {
+      prior_state: {
+        values: {
+          root_module: {
+            resources: [
+              { address: "aws_vpc.main", depends_on: [] },
+              // depends_on a key created earlier in the SAME traversal.
+              { address: "aws_subnet.a", depends_on: ["aws_vpc.main"] },
+            ],
+          },
+        },
+      },
+    };
+    const { prod } = expectBuildExistingEdgesMatchesBruteForce({}, plan);
+    // Sanity: the edge actually resolved (guards against a vacuous "both empty" pass).
+    expect(prod["aws_subnet.a"]?.edges_existing).toContain("aws_vpc.main");
+  });
+
+  it("resolves a depends_on against a key created mid-traversal by a resource visited LATER (child-module ordering)", () => {
+    // aws_subnet.a (root) depends_on aws_vpc.main, which is only introduced by a
+    // child module popped later. Both arms must add the edge (the target key exists
+    // by the time the post-traversal edge loop resolves it).
+    const plan: E07Plan = {
+      prior_state: {
+        values: {
+          root_module: {
+            resources: [
+              { address: "aws_subnet.a", depends_on: ["aws_vpc.main"] },
+            ],
+            child_modules: [
+              {
+                resources: [{ address: "aws_vpc.main", depends_on: [] }],
+              },
+            ],
+          },
+        },
+      },
+    };
+    const { prod } = expectBuildExistingEdgesMatchesBruteForce({}, plan);
+    expect(prod["aws_subnet.a"]?.edges_existing).toContain("aws_vpc.main");
+  });
+
+  it("bare-key collision: a key created mid-scope makes a previously single-match bareKey bucket ambiguous → null on a later resolve", () => {
+    // Entry-time index: byBareKey["aws_vpc.main"] = ["stack-a::aws_vpc.main"].
+    // The prior_state introduces stack-b::aws_vpc.main (a NEW key, same bare key),
+    // then an edge target of the BARE "aws_vpc.main". A stale index (missing stack-b)
+    // would resolve that bare address to the lone stack-a key and add an edge; the
+    // correct behavior — matching a fresh rescan that now sees BOTH stack-a and
+    // stack-b — is ambiguous → null, so NO edge is added. Deep-equality proves the
+    // incremental register updated the already-queried bucket.
+    const initial: Record<string, TerraformPlanGraphNode> = {
+      "stack-a::aws_vpc.main": { resources: {} },
+    };
+    const plan: E07Plan = {
+      prior_state: {
+        values: {
+          root_module: {
+            resources: [
+              { address: "stack-b::aws_vpc.main", depends_on: [] },
+              // Bare, unqualified target — ambiguous once stack-b exists.
+              {
+                address: "stack-b::aws_subnet.a",
+                depends_on: ["aws_vpc.main"],
+              },
+            ],
+          },
+        },
+      },
+    };
+    const { prod } = expectBuildExistingEdgesMatchesBruteForce(initial, plan);
+    // The new key was created...
+    expect(prod["stack-b::aws_vpc.main"]).toBeDefined();
+    // ...and the ambiguous bare edge was NOT added (matches fresh-rescan semantics).
+    expect(prod["stack-b::aws_subnet.a"]?.edges_existing ?? []).not.toContain(
+      "stack-a::aws_vpc.main",
+    );
+  });
+});
+
 describe("withTerraformPlanNodeKeyIndex nested-scope restoration", () => {
   it("restores the outer index after an inner scope with a different nodes ref exits", async () => {
     const { withTerraformPlanNodeKeyIndex, resolveTerraformPlanNodeKey } =
@@ -675,9 +884,9 @@ describe("W14 WP1 - preset node-map indexed path ≡ linear scan", () => {
 // `applyTfdOverlayToNodes` (terraformPlanParsing.tsx) - in
 // `withTerraformPlanNodeKeyIndex`, because it resolves declared-dataflow endpoints
 // against a frozen, ref-identical `nodes` map (the only key its writers add is the
-// `__`-prefixed DECLARED_DATAFLOW_ORDERED_KEY, which the index excludes). The
-// key-mutating regions (`mergeRawTerraformStateIntoNodes`, `buildExistingEdges`) are
-// deliberately NOT wrapped and remain the residual scan sources the counter measures.
+// `__`-prefixed DECLARED_DATAFLOW_ORDERED_KEY, which the index excludes). As of E07,
+// `buildExistingEdges` is ALSO wrapped (it registers keys it creates mid-scope), so
+// the sole residual key-mutating scan source is now `mergeRawTerraformStateIntoNodes`.
 // ---------------------------------------------------------------------------
 
 describe("W14 WP2 - fallback-scan counter semantics", () => {
@@ -780,8 +989,9 @@ describe("W14 WP2 - fallback-scan counter semantics", () => {
       // The wrap must never mis-resolve: a scope active over the wrong ref would
       // show up here. Zero is the invariant.
       expect(parseStats.scopeRefMismatch).toBe(0);
-      // Residual is expected (>0) - it is the deliberately-unwrapped
-      // mergeRawTerraformStateIntoNodes / buildExistingEdges key-mutating regions.
+      // Residual comes only from the still-unwrapped mergeRawTerraformStateIntoNodes
+      // (buildExistingEdges is wrapped as of E07). >=0, may be 0 if the preset merges
+      // no raw state.
       expect(parseStats.scanWithoutScope).toBeGreaterThanOrEqual(0);
       // eslint-disable-next-line no-console
       console.info(
