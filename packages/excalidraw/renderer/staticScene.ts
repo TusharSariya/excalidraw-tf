@@ -18,7 +18,7 @@ import {
   shouldApplyFrameClip,
 } from "@excalidraw/element";
 
-import { renderElement } from "@excalidraw/element";
+import { renderElement, setTerraformCanvasHints } from "@excalidraw/element";
 
 import { getElementAbsoluteCoords } from "@excalidraw/element";
 
@@ -279,6 +279,14 @@ const _renderStaticScene = ({
         )
       : undefined;
 
+  // E09 hint bundle: push the current toggles into the element-package canvas
+  // cache (zoom quantization / DPR cap) before rendering any element. Both
+  // default OFF, so this is inert unless an experiment enables them.
+  setTerraformCanvasHints({
+    zoomQuantize: terraformRuntimeSettings.terraformZoomQuantize,
+    dprCap: terraformRuntimeSettings.terraformDprCap,
+  });
+
   const [normalizedWidth, normalizedHeight] = getNormalizedCanvasDimensions(
     canvas,
     scale,
@@ -292,6 +300,9 @@ const _renderStaticScene = ({
     theme: appState.theme,
     isExporting,
     viewBackgroundColor: appState.viewBackgroundColor,
+    // E09.2: opaque static context (skips the alpha compositing pass) — only for
+    // the static layer, and internally re-guarded on an opaque background.
+    requestOpaque: terraformRuntimeSettings.terraformStaticCanvasOpaque,
   });
 
   // Apply zoom

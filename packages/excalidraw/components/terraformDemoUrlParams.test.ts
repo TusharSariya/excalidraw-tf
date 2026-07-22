@@ -1379,6 +1379,9 @@ describe("terraformDemoUrlParams", () => {
           suppressFrameClippingBelowZoom: false,
           skipBindingRepairDuringFocus: true,
           terraformFocusWashOverlay: true,
+          terraformZoomQuantize: true,
+          terraformStaticCanvasOpaque: false,
+          terraformDprCap: true,
           lowZoomThreshold: 0.2,
         },
       };
