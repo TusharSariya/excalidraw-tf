@@ -30,6 +30,7 @@ import {
 import {
   buildCompactPipelinePrimaryCluster,
   buildTopologyPrimaryClusterSkeletonForPipeline,
+  withTopologyLayoutMemoScope,
   type PipelinePrimaryClusterBuildResult,
 } from "./terraformTopologyLayout";
 import { resolveAlbCompanionParentLbAddressFromPlan } from "./terraformTopologyAlbLinks";
@@ -1624,57 +1625,66 @@ export function preparePipelineLayout(
   // synchronous (no await), and the earlier `withTerraformPlanNodeKeyIndex`
   // scope at the top of this function has already exited, so this is a
   // sequential — not nested — scope over the same `nodes`.
+  // Perf-loop E01 (always-on, byte-identical): activate the topology layout
+  // memo scope for the whole cluster-build map. Without it every one of the
+  // ~N cluster builds misses all of the footprint / margin / satellite-height
+  // / satellite-bundle / layout-config memos plus the per-(address, kind)
+  // satellite-cluster memo that the full-topology scene path already enjoys.
+  // All memoized computations are pure over their key inputs, so output is
+  // unchanged. Composes with the W14 plan-node-key index wrap below.
   const clusters: PipelineCluster[] = terraformImportProfilerMeasure(
     "pipeline.prep.materialize",
     () =>
       withTerraformPlanNodeKeyIndex(nodes, () =>
-        clusterIds.map((address) => {
-          const placement = placementByAddress.get(address) ?? {
-            providerFamily: providerFamilyForType(
-              resourceTypeFor(nodes, address),
-            ),
-            accountId: "unknown-account",
-            region: "unknown-region",
-            vpcId: null,
-          };
-          const clusterPlacement = {
-            accountId: placement.accountId,
-            region: placement.region,
-            vpcId: placement.vpcId,
-            subnetTier: placement.subnetTier,
-            subnetSignature: placement.subnetSignature,
-          };
-          clusterBuilderCalls += 1;
-          let build = compact
-            ? buildCompactPipelinePrimaryCluster(
-                address,
-                nodes,
-                plan,
-                clusterPlacement,
-              )
-            : buildTopologyPrimaryClusterSkeletonForPipeline(
-                address,
-                nodes,
-                plan,
-                clusterPlacement,
-              );
-          if (
-            build.skeleton.length === 0 ||
-            build.width <= 0 ||
-            build.height <= 0
-          ) {
+        withTopologyLayoutMemoScope(() =>
+          clusterIds.map((address) => {
+            const placement = placementByAddress.get(address) ?? {
+              providerFamily: providerFamilyForType(
+                resourceTypeFor(nodes, address),
+              ),
+              accountId: "unknown-account",
+              region: "unknown-region",
+              vpcId: null,
+            };
+            const clusterPlacement = {
+              accountId: placement.accountId,
+              region: placement.region,
+              vpcId: placement.vpcId,
+              subnetTier: placement.subnetTier,
+              subnetSignature: placement.subnetSignature,
+            };
             clusterBuilderCalls += 1;
-            build = buildFallbackCluster(address, nodes, plan, placement);
-          }
-          return {
-            id: address,
-            primaryAddress: address,
-            firstSequence: firstSequence.get(address) ?? 0,
-            depth: depthResult.depths.get(address) ?? 0,
-            placement,
-            build,
-          };
-        }),
+            let build = compact
+              ? buildCompactPipelinePrimaryCluster(
+                  address,
+                  nodes,
+                  plan,
+                  clusterPlacement,
+                )
+              : buildTopologyPrimaryClusterSkeletonForPipeline(
+                  address,
+                  nodes,
+                  plan,
+                  clusterPlacement,
+                );
+            if (
+              build.skeleton.length === 0 ||
+              build.width <= 0 ||
+              build.height <= 0
+            ) {
+              clusterBuilderCalls += 1;
+              build = buildFallbackCluster(address, nodes, plan, placement);
+            }
+            return {
+              id: address,
+              primaryAddress: address,
+              firstSequence: firstSequence.get(address) ?? 0,
+              depth: depthResult.depths.get(address) ?? 0,
+              placement,
+              build,
+            };
+          }),
+        ),
       ),
   );
 
