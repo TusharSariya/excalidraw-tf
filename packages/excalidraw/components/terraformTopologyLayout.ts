@@ -110,6 +110,7 @@ import {
   collectTopologySatelliteAddressesFromRegistry,
   filterAddressesExcludingRegistrySatellites,
 } from "./terraformTopologySatelliteRegistry";
+import { withSatelliteClusterMemoScope } from "./terraformTopologySatelliteEngine";
 
 import "./terraformTopologySatelliteRegistry";
 import {
@@ -192,6 +193,42 @@ type TopologyLayoutMemoCtx = {
 };
 
 let activeTopologyMemoCtx: TopologyLayoutMemoCtx | null = null;
+
+function createTopologyLayoutMemoCtx(): TopologyLayoutMemoCtx {
+  return {
+    primaryFootprintByAddr: new Map(),
+    primaryMarginsByAddr: new Map(),
+    satHeightCtxByAddr: new Map(),
+    satelliteBundlesByAddr: new Map(),
+    layoutConfigByResourceType: new Map(),
+    zoneOuterWidthByKey: new Map(),
+    zoneDerivedByKey: new Map(),
+  };
+}
+
+/**
+ * Perf-loop E01: run `fn` with the topology layout memo scope active
+ * (footprints, margins, satellite-height contexts, satellite bundles, layout
+ * configs by resource type) plus the per-(address, kind) satellite-cluster
+ * memo. Mirrors the scope `buildTerraformTopologyExcalidrawScene` installs
+ * for the full-topology path, so the pipeline/strata cluster-build path can
+ * share the same memoization. Re-entrant: if a memo ctx is already active
+ * (e.g. nested inside a topology scene build), `fn` runs in the existing
+ * scope. All memoized computations are pure over the inputs captured by
+ * their keys, so activating the scope is byte-identical to running without
+ * it.
+ */
+export function withTopologyLayoutMemoScope<T>(fn: () => T): T {
+  if (activeTopologyMemoCtx) {
+    return withSatelliteClusterMemoScope(fn);
+  }
+  activeTopologyMemoCtx = createTopologyLayoutMemoCtx();
+  try {
+    return withSatelliteClusterMemoScope(fn);
+  } finally {
+    activeTopologyMemoCtx = null;
+  }
+}
 
 function withPrimaryFootprintMemo(
   nodes: TerraformPlanNodesMap,
@@ -3412,15 +3449,7 @@ export async function buildTerraformTopologyExcalidrawScene(
   meta: TerraformTopologySceneMeta;
   files?: BinaryFiles;
 }> {
-  activeTopologyMemoCtx = {
-    primaryFootprintByAddr: new Map(),
-    primaryMarginsByAddr: new Map(),
-    satHeightCtxByAddr: new Map(),
-    satelliteBundlesByAddr: new Map(),
-    layoutConfigByResourceType: new Map(),
-    zoneOuterWidthByKey: new Map(),
-    zoneDerivedByKey: new Map(),
-  };
+  activeTopologyMemoCtx = createTopologyLayoutMemoCtx();
   try {
     const {
       counts,

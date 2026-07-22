@@ -308,7 +308,84 @@ function getPlugins(): Map<string, SatellitePluginFn> {
   return pluginRegistry;
 }
 
+/**
+ * Perf-loop E01: scoped per-(address, kind) memo for `buildSatelliteClusterForKind`.
+ *
+ * The build is a pure function of `(ctx.nodes, ctx.primaryAddress, kind,
+ * ctx.primaryType, ctx.plan, ctx.planChanges, ctx.nodesByType, arnIndex)`.
+ * Every input except `arnIndex` is guarded by reference on each hit;
+ * `arnIndex` is intentionally NOT guarded because every call site constructs
+ * it deterministically from the same `nodes` map (`buildArnIndexForTopology`),
+ * so its content is transitively pinned by the `nodes` reference guard.
+ * `planChanges` is ref-stable across contexts because all builders alias
+ * `plan.resource_changes` directly (no copies), so the guard does not defeat
+ * sharing. Results are returned by reference — all known consumers
+ * (stack-height counting, footprint sizing, satellite bundle assembly, edge
+ * spec emission) are read-only over `cluster`/`edges`.
+ *
+ * Null when no scope is active (default): byte-identical legacy behavior.
+ */
+type SatelliteClusterMemoEntry = {
+  nodes: TerraformPlanNodesMap;
+  plan: unknown;
+  planChanges: Array<{ address?: string; type?: string }> | undefined;
+  primaryType: string;
+  nodesByType: ReadonlyMap<string, readonly string[]> | undefined;
+  result: SatelliteClusterBuildResult;
+};
+
+let activeSatelliteClusterMemo: Map<string, SatelliteClusterMemoEntry> | null =
+  null;
+
+/**
+ * Run `fn` with the per-(address, kind) satellite-cluster memo active.
+ * Re-entrant: nested scopes reuse the already-active memo.
+ */
+export function withSatelliteClusterMemoScope<T>(fn: () => T): T {
+  if (activeSatelliteClusterMemo) {
+    return fn();
+  }
+  activeSatelliteClusterMemo = new Map();
+  try {
+    return fn();
+  } finally {
+    activeSatelliteClusterMemo = null;
+  }
+}
+
 export function buildSatelliteClusterForKind(
+  kind: TopologySatelliteKind,
+  ctx: SatelliteBuildContext,
+): SatelliteClusterBuildResult {
+  const memo = activeSatelliteClusterMemo;
+  if (!memo) {
+    return buildSatelliteClusterForKindUncached(kind, ctx);
+  }
+  const key = `${ctx.primaryAddress}\0${kind}`;
+  const hit = memo.get(key);
+  if (
+    hit &&
+    hit.nodes === ctx.nodes &&
+    hit.plan === ctx.plan &&
+    hit.planChanges === ctx.planChanges &&
+    hit.primaryType === ctx.primaryType &&
+    hit.nodesByType === ctx.nodesByType
+  ) {
+    return hit.result;
+  }
+  const result = buildSatelliteClusterForKindUncached(kind, ctx);
+  memo.set(key, {
+    nodes: ctx.nodes,
+    plan: ctx.plan,
+    planChanges: ctx.planChanges,
+    primaryType: ctx.primaryType,
+    nodesByType: ctx.nodesByType,
+    result,
+  });
+  return result;
+}
+
+function buildSatelliteClusterForKindUncached(
   kind: TopologySatelliteKind,
   ctx: SatelliteBuildContext,
 ): SatelliteClusterBuildResult {
