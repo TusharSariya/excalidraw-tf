@@ -261,4 +261,98 @@ describe("buildTerraformRuntimeFocusUpdate — E08 focus wash overlay", () => {
     });
     expect(off.focusInputsSig).not.toBe(on.focusInputsSig);
   });
+
+  // Regression test for the binding-repair-skipped-on-dim-only-focus bug:
+  // every OTHER wash test above hard-codes `skipBindingRepair: true`, which
+  // means none of them exercise `repairTerraformEdgeBindings` at all. This
+  // one deliberately does NOT set that crutch, and constructs a scene where
+  // the focus change is dim-only (every resource/edge is already revealed —
+  // `isDeleted: false` — with no preview flags, so nothing structurally
+  // changes and `didChange` from `applyTerraformRelationshipFocus` stays
+  // false). Before the fix, `shouldRepairBindings: didChange` was therefore
+  // `false` in overlay mode and `repairTerraformEdgeBindings` never ran.
+  it("still runs binding repair on a dim-only overlay focus change (no reveal, no skipBindingRepair crutch)", () => {
+    // A legacy `line` edge (with a stale binding) is the observable proof
+    // that `repairTerraformEdgeBindings` executed: repair unconditionally
+    // normalizes any bound `line` edge on a terraform edge layer to `arrow`,
+    // independent of the wash/dim levels. If repair is skipped, the element
+    // stays a `line`.
+    const staleLineEdge = baseElement(
+      "edge:a-b",
+      {
+        terraformEdgeLayer: "dependency",
+        relationship: { source: "a", target: "b" },
+      },
+      {
+        type: "line",
+        points: [
+          [0, 0],
+          [100, 40],
+        ] as any,
+        startBinding: { elementId: "node:a", focus: 0, gap: 4 } as any,
+      },
+    );
+    // `repairTerraformEdgeBindings` requires `points.length >= 2` on every
+    // bound edge it walks (see terraformVisibility.ts); the plain `edge()`
+    // helper used elsewhere in this file never needs `points` because those
+    // other tests all set `skipBindingRepair: true` and never reach repair.
+    const edgeWithPoints = (id: string, source: string, target: string) =>
+      baseElement(
+        id,
+        {
+          terraformEdgeLayer: "dependency",
+          relationship: { source, target },
+        },
+        {
+          type: "arrow",
+          points: [
+            [0, 0],
+            [100, 40],
+          ] as any,
+        },
+      );
+    const allElements = [
+      resource("a"),
+      resource("b"),
+      resource("c"),
+      resource("d"),
+      resource("e"),
+      staleLineEdge,
+      edgeWithPoints("edge:b-c", "b", "c"),
+      edgeWithPoints("edge:c-d", "c", "d"),
+      edgeWithPoints("edge:d-e", "d", "e"),
+    ] as readonly NonDeletedExcalidrawElement[];
+
+    // Sanity check the premise: `applyTerraformRelationshipFocus` itself
+    // reports no structural change (dim-only) but a non-empty wash — the
+    // exact condition the fix's `shouldRepairBindings` OR-clause covers.
+    const focusResult = applyTerraformRelationshipFocus(
+      allElements,
+      "a",
+      VIEW_BG,
+      undefined,
+      { clickCenter: { x: 5, y: 5 } },
+    );
+    expect(focusResult.didChange).toBe(false);
+    expect(focusResult.washLevelByElementId!.size).toBeGreaterThan(0);
+    expect(focusResult.shouldRepairBindings).toBe(true);
+
+    const update = buildTerraformRuntimeFocusUpdate({
+      allElements,
+      activeFocusNodePath: "a",
+      selectedElementIds: {},
+      pins: null,
+      viewBackgroundColor: VIEW_BG,
+      // Deliberately NOT `true` — this is the actual runtime default, and the
+      // whole point of the test is to observe repair running without it.
+      skipBindingRepair: false,
+      lastFocusInputsSig: null,
+      lastFocusSceneSig: null,
+      washOverlayMode: true,
+      clickCenter: { x: 5, y: 5 },
+    });
+
+    const repairedEdge = update.elements.find((el) => el.id === "edge:a-b");
+    expect(repairedEdge?.type).toBe("arrow");
+  });
 });

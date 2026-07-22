@@ -121,6 +121,39 @@ const persistSettings = (settings: TerraformRuntimePerformanceSettings) => {
   }
 };
 
+// Cross-tab sync: `loadPersistedSettings()` above only hydrates once at
+// module init, so toggling a setting in one tab left an already-open second
+// tab's snapshot stale until its next reload. `storage` events fire in every
+// OTHER same-origin tab (never the tab that wrote the key) whenever
+// `localStorage.setItem`/`removeItem` runs, so re-hydrating from `event.newValue`
+// here and pushing it through the existing `store.set` (which already
+// dedupes via `isShallowEqual` and notifies subscribers) keeps every open
+// tab's snapshot — and anything subscribed via `subscribeTerraformRuntimePerformance`
+// (e.g. `useTerraformRelationshipFocusEffect`'s `useSyncExternalStore`) — in
+// sync without polling.
+if (!isProdEnv() && typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY) {
+      return;
+    }
+    // `newValue` is `null` when the key was removed (e.g. `localStorage.clear()`
+    // or `removeItem`) — treat that the same as a reset to defaults.
+    let nextSettings: TerraformRuntimePerformanceSettings;
+    if (event.newValue == null) {
+      nextSettings = { ...TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS };
+    } else {
+      try {
+        nextSettings = parseTerraformRuntimePerformanceSettings(
+          JSON.parse(event.newValue),
+        );
+      } catch {
+        return;
+      }
+    }
+    store.set(nextSettings);
+  });
+}
+
 export const getTerraformRuntimePerformanceSnapshot = () => currentSnapshot;
 
 export const subscribeTerraformRuntimePerformance = (
