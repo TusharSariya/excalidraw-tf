@@ -1122,12 +1122,23 @@ export const renderElement = (
     !appState.selectedElementIds[element.id] &&
     !appState.hoveredElementIds[element.id];
 
+  // E08: fold the terraform focus wash overlay's per-element alpha multiplier
+  // (set by the static-scene renderer) into the blit opacity. Undefined on every
+  // other render path ⇒ 1 (no wash). Applied here so it multiplies the cached
+  // bitmap on draw without forcing any re-rasterization.
+  const terraformWashAlpha =
+    "elementWashAlpha" in renderConfig &&
+    typeof renderConfig.elementWashAlpha === "number"
+      ? renderConfig.elementWashAlpha
+      : 1;
+
   context.globalAlpha = getRenderOpacity(
     element,
     getContainingFrame(element, elementsMap),
     renderConfig.elementsPendingErasure,
     renderConfig.pendingFlowchartNodes,
-    reduceAlphaForSelection ? DEFAULT_REDUCED_GLOBAL_ALPHA : 1,
+    (reduceAlphaForSelection ? DEFAULT_REDUCED_GLOBAL_ALPHA : 1) *
+      terraformWashAlpha,
   );
 
   switch (element.type) {

@@ -52,6 +52,25 @@ const soakMinutes = Number(getArg("--soak-minutes", "0"));
 const reusePage = hasFlag("--reuse-page");
 const outDir = getArg("--out", DEFAULT_OUT);
 const matrixPath = getArg("--matrix", null);
+// Adversarial-validator fix (E08 finding #2): full navigate + re-import
+// between EACH workload within a run, instead of running all workloads
+// sequentially on one page load. Removes the sequential-state-contamination
+// confound (later workloads inheriting scene/selection/history state left by
+// earlier ones). Off by default — multiplies import cost by workload count.
+const isolateWorkloads = hasFlag("--isolate-workloads");
+// Adversarial-validator fix (E08 finding #5): serialize the full raw rAF
+// interval array per workload, not just the aggregated percentiles, so a
+// disputed p95/dropped% shift can be checked post-hoc against the actual
+// frame trace. Off by default — the arrays are large.
+const rawIntervals = hasFlag("--raw-intervals");
+// E08 A/B hook: force the `terraformFocusWashOverlay` runtime setting on/off via
+// an init-script localStorage write, so a clean A/B is not contaminated by a
+// prior run's persisted setting. `null` ⇒ leave whatever the app defaults to.
+const focusWashArg = getArg("--focus-wash", null);
+const focusWashOverlay =
+  focusWashArg == null ? null : focusWashArg === "1" || focusWashArg === "on";
+const TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY =
+  "tfdraw-terraform-canvas-runtime-performance";
 
 const [vpWidth, vpHeight] = viewportArg
   .split("x")
@@ -235,6 +254,21 @@ const instrumentPage = async (page) => {
     }
   });
 };
+
+// Adversarial-validator fix (E08 finding #1): read back the runtime-settings
+// object the app actually loaded from localStorage — the SAME key/shape
+// `terraformRuntimePerformance.ts` persists to and reads from — so the JSON
+// output can prove an ON run genuinely engaged the toggle (and wasn't a
+// silent no-op), rather than trusting the init-script write blind.
+const readEffectiveToggles = async (page) =>
+  page.evaluate((key) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY);
 
 const getSceneBounds = async (page) =>
   page.evaluate(() => {
@@ -454,9 +488,7 @@ const findLodThreshold = async (page, ctx) => {
   for (const zoom of zooms) {
     await setZoomCentered(page, zoom, 90);
     counts.push(
-      await page.evaluate(
-        () => window.h.app.visibleElements?.length ?? null,
-      ),
+      await page.evaluate(() => window.h.app.visibleElements?.length ?? null),
     );
   }
   let bestIndex = -1;
@@ -761,12 +793,7 @@ const WORKLOADS = [
           await page.waitForTimeout(15);
         }
         // 3 zoom steps
-        await ctrlWheelZoom(
-          page,
-          center,
-          cycle % 2 === 0 ? -100 : 100,
-          3,
-        );
+        await ctrlWheelZoom(page, center, cycle % 2 === 0 ? -100 : 100, 3);
       }
       // start a rect drag mid-pan momentum
       await page.mouse.wheel(200, 120);
@@ -775,6 +802,36 @@ const WORKLOADS = [
       await dragShape(page, from, { x: from.x + 140, y: from.y + 90 });
       await page.keyboard.press("Escape");
       await resetToSelectionTool(page);
+    },
+  },
+  {
+    name: "focus-toggle-storm",
+    tags: ["click", "focus"],
+    // E08: the direct exercise of the relationship-focus engage/clear path —
+    // the click-storm churn driver in its purest form. 12 cycles of (click a
+    // seeded dense-hull element → engage focus + radial sweep → click empty
+    // canvas → clear focus). Deterministic element pick via the seeded RNG.
+    run: async (page, ctx) => {
+      const centers = await elementScreenCenters(page);
+      // A bottom-left point below the toolbar that is very unlikely to sit on a
+      // card — clicking it deselects and clears focus.
+      const empty = {
+        x: ctx.box.x + 24,
+        y: ctx.box.y + ctx.viewport.height - 24,
+      };
+      // Seed a stable pick order so every run/config toggles the SAME elements.
+      const picks = Array.from({ length: 12 }, () =>
+        centers.length
+          ? centers[Math.floor(ctx.rand() * centers.length)]
+          : ctx.center,
+      );
+      for (const pick of picks) {
+        await page.mouse.click(pick.x, pick.y); // engage focus + sweep
+        await page.waitForTimeout(400); // focus engage + ~260ms sweep settle
+        await page.mouse.click(empty.x, empty.y); // clear focus
+        await page.waitForTimeout(400); // clear settle
+      }
+      await page.keyboard.press("Escape");
     },
   },
   {
@@ -787,10 +844,21 @@ const WORKLOADS = [
       let frameIndex = 0;
       const actions = [
         async () => {
-          await dragPan(page, ctx.center, (ctx.rand() - 0.5) * 16, (ctx.rand() - 0.5) * 16, 15);
+          await dragPan(
+            page,
+            ctx.center,
+            (ctx.rand() - 0.5) * 16,
+            (ctx.rand() - 0.5) * 16,
+            15,
+          );
         },
         async () => {
-          await ctrlWheelZoom(page, ctx.center, ctx.rand() < 0.5 ? -100 : 100, 4);
+          await ctrlWheelZoom(
+            page,
+            ctx.center,
+            ctx.rand() < 0.5 ? -100 : 100,
+            4,
+          );
         },
         async () => {
           const y = 140 + ctx.rand() * (ctx.viewport.height - 280);
@@ -808,12 +876,7 @@ const WORKLOADS = [
         },
         async () => {
           const from = randPoint(ctx, 120, 160, 180);
-          await dragShape(
-            page,
-            from,
-            { x: from.x + 300, y: from.y + 200 },
-            10,
-          );
+          await dragShape(page, from, { x: from.x + 300, y: from.y + 200 }, 10);
           await page.keyboard.press("Escape");
         },
       ];
@@ -907,6 +970,9 @@ const measureWorkload = async (page, workload, ctx) => {
       after.heap != null && before.heap != null
         ? after.heap - before.heap
         : null,
+    // E08 finding #5: full per-frame interval trace, gated behind
+    // --raw-intervals (off by default — the arrays are large).
+    ...(rawIntervals ? { rawIntervalsMs: intervals } : {}),
   };
 };
 
@@ -985,9 +1051,70 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
       viewport: { width: vpWidth, height: vpHeight },
       deviceScaleFactor: dpr,
     });
+    // Deterministically seed the focus-wash-overlay runtime setting BEFORE any
+    // app script runs, so the OFF and ON runs are a clean same-lineage A/B and
+    // never inherit each other's persisted localStorage value.
+    if (focusWashOverlay != null) {
+      await context.addInitScript(
+        ({ key, overlay }) => {
+          try {
+            const raw = window.localStorage.getItem(key);
+            const parsed = raw ? JSON.parse(raw) : {};
+            window.localStorage.setItem(
+              key,
+              JSON.stringify({
+                ...parsed,
+                terraformFocusWashOverlay: overlay,
+              }),
+            );
+          } catch {
+            /* storage unavailable — fall back to app defaults */
+          }
+        },
+        {
+          key: TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY,
+          overlay: focusWashOverlay,
+        },
+      );
+    }
     page = await context.newPage();
     page.on("pageerror", () => {});
     return page;
+  };
+
+  // Everything that has to happen right after a (re)navigate: wait for
+  // import to settle, install instrumentation, compute the reference
+  // viewport, and build a fresh ctxBase. Extracted so --isolate-workloads
+  // can re-run it after a mid-run reload (E08 finding #3), not just once
+  // per warmup/run.
+  const preparePage = async (tag) => {
+    const elementCount = await waitForImport(page);
+    console.log(
+      `[${config.name}] ${tag}: import done (${elementCount} elements)`,
+    );
+    await instrumentPage(page);
+
+    const refViewport = await computeFitViewport(page);
+    const canvas = page.locator(".excalidraw__canvas.interactive").first();
+    const box = await canvas.boundingBox();
+    if (!box) {
+      throw new Error("interactive canvas not found");
+    }
+    await setViewport(page, refViewport, 200);
+    await page.mouse.click(box.x + box.width - 30, box.y + box.height - 30);
+    await page.keyboard.press("Escape");
+
+    return {
+      ctxBase: {
+        viewport: { width: vpWidth, height: vpHeight },
+        center: { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+        box,
+        refViewport,
+        notes,
+        state: {},
+      },
+      effectiveToggles: await readEffectiveToggles(page),
+    };
   };
 
   const totalRuns = warmupCount + runsCount;
@@ -1009,33 +1136,29 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
         timeout: 120_000,
       });
     }
-    const elementCount = await waitForImport(page);
-    console.log(`[${config.name}] ${tag}: import done (${elementCount} elements)`);
-    await instrumentPage(page);
+    let { ctxBase, effectiveToggles } = await preparePage(tag);
 
-    const refViewport = await computeFitViewport(page);
-    const canvas = page.locator(".excalidraw__canvas.interactive").first();
-    const box = await canvas.boundingBox();
-    if (!box) {
-      throw new Error("interactive canvas not found");
-    }
-    // ensure keyboard focus on the editor (click a far-corner, likely-empty
-    // point, then clear any accidental selection)
-    await setViewport(page, refViewport, 200);
-    await page.mouse.click(box.x + box.width - 30, box.y + box.height - 30);
-    await page.keyboard.press("Escape");
-
-    const ctxBase = {
-      viewport: { width: vpWidth, height: vpHeight },
-      center: { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-      box,
-      refViewport,
-      notes,
-      state: {},
+    const runResult = {
+      workloads: {},
+      // E08 finding #1: the toggle value the app actually had loaded for
+      // this run, read back from localStorage post-navigate (not just the
+      // value we asked the init script to write).
+      effectiveToggles,
+      effectiveFocusWashEnabled:
+        effectiveToggles?.terraformFocusWashOverlay ?? null,
     };
-
-    const runResult = { workloads: {} };
-    for (const workload of selectedWorkloads) {
+    for (const [workloadIndex, workload] of selectedWorkloads.entries()) {
+      if (isolateWorkloads && workloadIndex > 0) {
+        // E08 finding #3: full navigate + re-import before each workload so
+        // later workloads (e.g. edit-churn) don't inherit scene/selection/
+        // history state left behind by earlier ones (click-storm,
+        // select-all-drag, ...).
+        console.log(
+          `[${config.name}] ${tag}: isolate-workloads reload before ${workload.name}`,
+        );
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+        ({ ctxBase, effectiveToggles } = await preparePage(tag));
+      }
       const ctx = {
         ...ctxBase,
         rand: mulberry32((seed ^ hashName(workload.name)) >>> 0),
@@ -1043,6 +1166,11 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
       process.stdout.write(`[${config.name}] ${tag}: ${workload.name} ... `);
       try {
         const metrics = await measureWorkload(page, workload, ctx);
+        if (isolateWorkloads) {
+          metrics.effectiveToggles = effectiveToggles;
+          metrics.effectiveFocusWashEnabled =
+            effectiveToggles?.terraformFocusWashOverlay ?? null;
+        }
         runResult.workloads[workload.name] = metrics;
         console.log(
           `p50=${metrics.p50.toFixed(1)}ms p95=${metrics.p95.toFixed(
@@ -1222,6 +1350,10 @@ const main = async () => {
       aggregate: result.aggregate,
       spreadPct: result.spreadPct,
       notes: result.notes,
+      // Convenience mirror of runs[0].effectiveFocusWashEnabled so the
+      // toggle claim can be eyeballed without digging into per-run data.
+      effectiveFocusWashEnabled:
+        result.runs[0]?.effectiveFocusWashEnabled ?? null,
     });
   }
   await browser.close();
@@ -1236,6 +1368,8 @@ const main = async () => {
     runsRequested: runsCount,
     warmup: warmupCount,
     workloads: selectedNames,
+    isolateWorkloads,
+    rawIntervals,
     soakMinutes: soakMinutes > 0 ? soakMinutes : undefined,
     os: {
       platform: os.platform(),
@@ -1253,6 +1387,7 @@ const main = async () => {
           aggregate: configResults[0].aggregate,
           spreadPct: configResults[0].spreadPct,
           notes: configResults[0].notes,
+          effectiveFocusWashEnabled: configResults[0].effectiveFocusWashEnabled,
         }
       : {}),
   };
@@ -1271,10 +1406,7 @@ const main = async () => {
 
   if (baselinePath) {
     const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
-    printBaselineDelta(
-      baseline,
-      configResults[0].aggregate,
-    );
+    printBaselineDelta(baseline, configResults[0].aggregate);
   }
 
   console.log(`\nWrote ${outPath}`);

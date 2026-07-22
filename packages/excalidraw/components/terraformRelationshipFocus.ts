@@ -463,11 +463,27 @@ export const getTerraformRelationshipFocus = (
   };
 };
 
+/**
+ * E08 focus wash overlay mode. When provided, dimming color mutations are
+ * SKIPPED — every element keeps its real colors and identity — while the
+ * reveal / hide-expired-preview / binding-repair structural changes still run
+ * (those are a small set and are what focus needs to stay correct). The dim
+ * levels the legacy path *would* have applied are captured into
+ * `washLevelByElementId` (only levels < 100) for the draw-time renderer, along
+ * with `maxRadius` (the farthest dimmed-element center from `clickCenter`) so
+ * the radial sweep can be normalized. `clickCenter` may be null for a static
+ * (non-swept) application such as the ambient overview wash on focus clear.
+ */
+export type TerraformFocusOverlay = {
+  clickCenter: { x: number; y: number } | null;
+};
+
 export const applyTerraformRelationshipFocus = (
   allElements: readonly ExcalidrawElement[],
   focusNodePath: string | null,
   viewBackgroundColor: string = DEFAULT_VIEW_BACKGROUND_COLOR,
   options?: TerraformFocusOptions,
+  overlay?: TerraformFocusOverlay,
 ) => {
   const {
     focusedNodePaths,
@@ -508,6 +524,11 @@ export const applyTerraformRelationshipFocus = (
   })();
   let didChange = false;
 
+  const overlayMode = overlay !== undefined;
+  const washLevelByElementId = overlayMode ? new Map<string, number>() : null;
+  const clickCenter = overlay?.clickCenter ?? null;
+  let maxRadius = 0;
+
   const trackChange = (
     element: ExcalidrawElement,
     updated: ExcalidrawElement | null,
@@ -519,6 +540,47 @@ export const applyTerraformRelationshipFocus = (
     return element;
   };
 
+  /**
+   * In overlay mode: record the target dim `level` (when < 100) for the
+   * draw-time wash, grow `maxRadius`, and build the element update with the
+   * dim FORCED to 100 (i.e. restore/undim — no color mutation). Otherwise this
+   * is a pass-through to the legacy color-mutation builder.
+   */
+  const applyFocusUpdate = (
+    element: ExcalidrawElement,
+    level: number,
+    nextIsDeleted: boolean,
+    previewAction: PreviewAction,
+  ): ExcalidrawElement | null => {
+    if (overlayMode && washLevelByElementId) {
+      if (level < 100) {
+        washLevelByElementId.set(element.id, level);
+        if (clickCenter) {
+          const cx = element.x + element.width / 2;
+          const cy = element.y + element.height / 2;
+          const distance = Math.hypot(cx - clickCenter.x, cy - clickCenter.y);
+          if (distance > maxRadius) {
+            maxRadius = distance;
+          }
+        }
+      }
+      return buildTerraformFocusUpdate(
+        element,
+        TERRAFORM_FOCUS_NODE_LEVEL,
+        nextIsDeleted,
+        previewAction,
+        viewBackgroundColor,
+      );
+    }
+    return buildTerraformFocusUpdate(
+      element,
+      level,
+      nextIsDeleted,
+      previewAction,
+      viewBackgroundColor,
+    );
+  };
+
   const nextElements = allElements.map((element) => {
     const isFocusActive = focusNodePath !== null;
     const isPreview = element.customData?.terraformFocusPreview === true;
@@ -527,13 +589,7 @@ export const applyTerraformRelationshipFocus = (
       if (isPreview) {
         return trackChange(
           element,
-          buildTerraformFocusUpdate(
-            element,
-            TERRAFORM_FOCUS_NODE_LEVEL,
-            true,
-            "clear",
-            viewBackgroundColor,
-          ),
+          applyFocusUpdate(element, TERRAFORM_FOCUS_NODE_LEVEL, true, "clear"),
         );
       }
 
@@ -544,12 +600,11 @@ export const applyTerraformRelationshipFocus = (
       if (!isTerraformSemanticOverviewScene(allElements)) {
         return trackChange(
           element,
-          buildTerraformFocusUpdate(
+          applyFocusUpdate(
             element,
             TERRAFORM_FOCUS_NODE_LEVEL,
             element.isDeleted,
             "clear",
-            viewBackgroundColor,
           ),
         );
       }
@@ -563,12 +618,11 @@ export const applyTerraformRelationshipFocus = (
       if (isTerraformLayerEdge(element)) {
         return trackChange(
           element,
-          buildTerraformFocusUpdate(
+          applyFocusUpdate(
             element,
             TERRAFORM_AMBIENT_EDGE_LEVEL,
             element.isDeleted,
             "clear",
-            viewBackgroundColor,
           ),
         );
       }
@@ -587,25 +641,18 @@ export const applyTerraformRelationshipFocus = (
           : TERRAFORM_AMBIENT_NON_PRIMARY_NODE_LEVEL;
         return trackChange(
           element,
-          buildTerraformFocusUpdate(
-            element,
-            nextLevel,
-            element.isDeleted,
-            "clear",
-            viewBackgroundColor,
-          ),
+          applyFocusUpdate(element, nextLevel, element.isDeleted, "clear"),
         );
       }
 
       if (isTerraformGroupElement(element)) {
         return trackChange(
           element,
-          buildTerraformFocusUpdate(
+          applyFocusUpdate(
             element,
             TERRAFORM_AMBIENT_GROUP_LEVEL,
             element.isDeleted,
             "clear",
-            viewBackgroundColor,
           ),
         );
       }
@@ -635,13 +682,7 @@ export const applyTerraformRelationshipFocus = (
 
       return trackChange(
         element,
-        buildTerraformFocusUpdate(
-          element,
-          nextLevel,
-          nextIsDeleted,
-          previewAction,
-          viewBackgroundColor,
-        ),
+        applyFocusUpdate(element, nextLevel, nextIsDeleted, previewAction),
       );
     }
 
@@ -709,13 +750,7 @@ export const applyTerraformRelationshipFocus = (
 
       return trackChange(
         element,
-        buildTerraformFocusUpdate(
-          element,
-          nextLevel,
-          nextIsDeleted,
-          previewAction,
-          viewBackgroundColor,
-        ),
+        applyFocusUpdate(element, nextLevel, nextIsDeleted, previewAction),
       );
     }
 
@@ -749,20 +784,44 @@ export const applyTerraformRelationshipFocus = (
 
       return trackChange(
         element,
-        buildTerraformFocusUpdate(
-          element,
-          nextLevel,
-          nextIsDeleted,
-          previewAction,
-          viewBackgroundColor,
-        ),
+        applyFocusUpdate(element, nextLevel, nextIsDeleted, previewAction),
       );
     }
 
     return element;
   });
 
-  return { elements: nextElements, didChange, shouldRepairBindings: didChange };
+  // In overlay mode `didChange` alone under-reports whether binding repair is
+  // needed: overlay mode never mutates element colors (levels are captured
+  // into `washLevelByElementId` instead, forcing every `buildTerraformFocusUpdate`
+  // call to a byte-identical "no dim" level), so a focus change that only
+  // re-levels already-visible dimmed elements — no reveal/hide, no preview
+  // change — leaves `didChange` false even though this recompute is a genuine
+  // focus change (the caller only reaches this function on a real
+  // focus/scene-signature change; see `buildTerraformRuntimeFocusUpdate`'s
+  // early-return dedup). The legacy (non-overlay) path always ran repair on
+  // every such change regardless of whether colors changed; overlay mode must
+  // match that, not silently skip it. `washLevelByElementId.size > 0` is the
+  // overlay-mode analog of "colors changed" — it's set whenever ANY element
+  // has an active (< 100) target dim level for this recompute — so OR it in
+  // for overlay mode only; the non-overlay path stays byte-identical.
+  const shouldRepairBindings = overlayMode
+    ? didChange || (washLevelByElementId?.size ?? 0) > 0
+    : didChange;
+
+  return {
+    elements: nextElements,
+    didChange,
+    shouldRepairBindings,
+    // Overlay mode only (null otherwise): per-element target dim levels (< 100)
+    // for the draw-time wash, plus the farthest dimmed-element center from the
+    // click origin for radial-sweep normalization.
+    washLevelByElementId: washLevelByElementId as ReadonlyMap<
+      string,
+      number
+    > | null,
+    washMaxRadius: maxRadius,
+  };
 };
 
 /** Clear transient focus wash / preview flags and rebind edges after reload. */
