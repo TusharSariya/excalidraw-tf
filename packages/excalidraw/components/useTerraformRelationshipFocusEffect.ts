@@ -33,6 +33,7 @@ import {
   getTerraformFocusWashDescriptor,
   isTerraformFocusWashAnimating,
   publishTerraformFocusWashDescriptor,
+  type TerraformFocusWashInstanceKey,
 } from "./terraformFocusWash";
 
 import type { AppClassProperties, AppState, UIAppState } from "../types";
@@ -69,6 +70,7 @@ const normalizeFocusMaxHops = (
  * Returns nothing; mutates the passed rAF ref.
  */
 const syncTerraformFocusWash = ({
+  instanceKey,
   wash,
   activeFocusNodePath,
   focusChanged,
@@ -76,6 +78,10 @@ const syncTerraformFocusWash = ({
   requestRender,
   washRafRef,
 }: {
+  /** E08 bugfix: which `<Excalidraw/>` instance's wash this update targets —
+   * always `app.canvas` — so two mounted instances never clobber each other's
+   * descriptor. */
+  instanceKey: TerraformFocusWashInstanceKey;
   wash: {
     levelByElementId: ReadonlyMap<string, number>;
     maxRadius: number;
@@ -89,14 +95,14 @@ const syncTerraformFocusWash = ({
 }) => {
   if (wash.levelByElementId.size === 0 && !activeFocusNodePath) {
     // Nothing dimmed and no focus (e.g. non-overview scene) — clear.
-    clearTerraformFocusWashDescriptor();
+    clearTerraformFocusWashDescriptor(instanceKey);
     return;
   }
-  const previous = getTerraformFocusWashDescriptor();
+  const previous = getTerraformFocusWashDescriptor(instanceKey);
   // Keep the existing clock unless this is a genuine focus change.
   const startTs =
     focusChanged || previous == null ? performance.now() : previous.startTs;
-  publishTerraformFocusWashDescriptor({
+  publishTerraformFocusWashDescriptor(instanceKey, {
     levelByElementId: wash.levelByElementId,
     clickCenter: wash.clickCenter,
     startTs,
@@ -115,7 +121,7 @@ const syncTerraformFocusWash = ({
     requestRender();
     if (
       isTerraformFocusWashAnimating(
-        getTerraformFocusWashDescriptor(),
+        getTerraformFocusWashDescriptor(instanceKey),
         performance.now(),
       )
     ) {
@@ -353,6 +359,7 @@ export function useTerraformRelationshipFocusEffect({
     if (washOverlayMode) {
       if (update.wash) {
         syncTerraformFocusWash({
+          instanceKey: app.canvas,
           wash: update.wash,
           activeFocusNodePath,
           focusChanged,
@@ -365,7 +372,7 @@ export function useTerraformRelationshipFocusEffect({
     } else if (lastPublishedWashFocusRef.current !== null) {
       // Toggle flipped OFF (or first run after being ON): drop any stale wash.
       lastPublishedWashFocusRef.current = null;
-      clearTerraformFocusWashDescriptor();
+      clearTerraformFocusWashDescriptor(app.canvas);
     }
   }, [
     allElements,
@@ -382,12 +389,24 @@ export function useTerraformRelationshipFocusEffect({
     washOverlayMode,
   ]);
 
+  // Mount/unmount-only cleanup (deps intentionally `[]`, matching the prior
+  // rAF-only cleanup): captured via ref so it always releases the LATEST
+  // instance's canvas without re-running mid-life if `app` happens to change
+  // reference across renders.
+  const appRef = React.useRef(app);
+  appRef.current = app;
   React.useEffect(
     () => () => {
       if (washRafRef.current) {
         cancelAnimationFrame(washRafRef.current);
         washRafRef.current = 0;
       }
+      // E08 bugfix: release THIS instance's wash descriptor on unmount so a
+      // second instance mounted afterwards (e.g. reusing the same canvas
+      // element via a pooled/recycled DOM node) never inherits a stale wash,
+      // and so an unmounted-but-still-referenced instance stops contributing
+      // to `getTerraformFocusWashDescriptor` reads entirely.
+      clearTerraformFocusWashDescriptor(appRef.current.canvas);
     },
     [],
   );

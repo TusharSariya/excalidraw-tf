@@ -791,10 +791,28 @@ export const applyTerraformRelationshipFocus = (
     return element;
   });
 
+  // In overlay mode `didChange` alone under-reports whether binding repair is
+  // needed: overlay mode never mutates element colors (levels are captured
+  // into `washLevelByElementId` instead, forcing every `buildTerraformFocusUpdate`
+  // call to a byte-identical "no dim" level), so a focus change that only
+  // re-levels already-visible dimmed elements — no reveal/hide, no preview
+  // change — leaves `didChange` false even though this recompute is a genuine
+  // focus change (the caller only reaches this function on a real
+  // focus/scene-signature change; see `buildTerraformRuntimeFocusUpdate`'s
+  // early-return dedup). The legacy (non-overlay) path always ran repair on
+  // every such change regardless of whether colors changed; overlay mode must
+  // match that, not silently skip it. `washLevelByElementId.size > 0` is the
+  // overlay-mode analog of "colors changed" — it's set whenever ANY element
+  // has an active (< 100) target dim level for this recompute — so OR it in
+  // for overlay mode only; the non-overlay path stays byte-identical.
+  const shouldRepairBindings = overlayMode
+    ? didChange || (washLevelByElementId?.size ?? 0) > 0
+    : didChange;
+
   return {
     elements: nextElements,
     didChange,
-    shouldRepairBindings: didChange,
+    shouldRepairBindings,
     // Overlay mode only (null otherwise): per-element target dim levels (< 100)
     // for the draw-time wash, plus the farthest dimmed-element center from the
     // click origin for radial-sweep normalization.

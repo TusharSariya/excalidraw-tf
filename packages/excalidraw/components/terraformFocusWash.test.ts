@@ -26,30 +26,35 @@ const makeDescriptor = (
   ...overrides,
 });
 
+/** A stand-in for `app.canvas` — any distinct object works as an instance key. */
+const makeInstanceKey = (): object => ({});
+
 describe("terraform focus wash descriptor store", () => {
+  const instanceKey = makeInstanceKey();
+
   afterEach(() => {
-    clearTerraformFocusWashDescriptor();
+    clearTerraformFocusWashDescriptor(instanceKey);
   });
 
   it("publishes, reads back, notifies subscribers, and clears", () => {
-    expect(getTerraformFocusWashDescriptor()).toBeNull();
+    expect(getTerraformFocusWashDescriptor(instanceKey)).toBeNull();
 
     let notifications = 0;
-    const unsubscribe = subscribeTerraformFocusWash(() => {
+    const unsubscribe = subscribeTerraformFocusWash(instanceKey, () => {
       notifications += 1;
     });
 
     const descriptor = makeDescriptor();
-    publishTerraformFocusWashDescriptor(descriptor);
-    expect(getTerraformFocusWashDescriptor()).toBe(descriptor);
+    publishTerraformFocusWashDescriptor(instanceKey, descriptor);
+    expect(getTerraformFocusWashDescriptor(instanceKey)).toBe(descriptor);
     expect(notifications).toBe(1);
 
-    clearTerraformFocusWashDescriptor();
-    expect(getTerraformFocusWashDescriptor()).toBeNull();
+    clearTerraformFocusWashDescriptor(instanceKey);
+    expect(getTerraformFocusWashDescriptor(instanceKey)).toBeNull();
     expect(notifications).toBe(2);
 
     // Clearing an already-clear store is a no-op (no extra notification).
-    clearTerraformFocusWashDescriptor();
+    clearTerraformFocusWashDescriptor(instanceKey);
     expect(notifications).toBe(2);
 
     unsubscribe();
@@ -78,6 +83,64 @@ describe("terraform focus wash descriptor store", () => {
         1000,
       ),
     ).toBe(false);
+  });
+
+  // Regression test for the un-namespaced module-singleton bug: two mounted
+  // `<Excalidraw/>` instances (a supported, tested configuration — see
+  // `withInternalFallback.test.tsx`) must not see or clobber each other's
+  // wash descriptor.
+  it("isolates the descriptor per instance key — engage/clear in one instance never touches another", () => {
+    const instanceA = makeInstanceKey();
+    const instanceB = makeInstanceKey();
+
+    expect(getTerraformFocusWashDescriptor(instanceA)).toBeNull();
+    expect(getTerraformFocusWashDescriptor(instanceB)).toBeNull();
+
+    let notificationsA = 0;
+    let notificationsB = 0;
+    const unsubscribeA = subscribeTerraformFocusWash(instanceA, () => {
+      notificationsA += 1;
+    });
+    const unsubscribeB = subscribeTerraformFocusWash(instanceB, () => {
+      notificationsB += 1;
+    });
+
+    // Engage focus in instance A only.
+    const descriptorA = makeDescriptor({
+      levelByElementId: new Map([["only-in-a", 10]]),
+    });
+    publishTerraformFocusWashDescriptor(instanceA, descriptorA);
+
+    expect(getTerraformFocusWashDescriptor(instanceA)).toBe(descriptorA);
+    // Instance B is completely unaffected: no descriptor, no notification.
+    expect(getTerraformFocusWashDescriptor(instanceB)).toBeNull();
+    expect(notificationsA).toBe(1);
+    expect(notificationsB).toBe(0);
+
+    // Engage a DIFFERENT focus in instance B; instance A's descriptor must be
+    // untouched by this — the historical bug (module-level singleton) would
+    // have had B's publish silently overwrite A's descriptor.
+    const descriptorB = makeDescriptor({
+      levelByElementId: new Map([["only-in-b", 40]]),
+      startTs: 2000,
+    });
+    publishTerraformFocusWashDescriptor(instanceB, descriptorB);
+
+    expect(getTerraformFocusWashDescriptor(instanceA)).toBe(descriptorA);
+    expect(getTerraformFocusWashDescriptor(instanceB)).toBe(descriptorB);
+    expect(notificationsA).toBe(1);
+    expect(notificationsB).toBe(1);
+
+    // Clearing (simulating instance A's unmount) must not affect instance B.
+    clearTerraformFocusWashDescriptor(instanceA);
+    expect(getTerraformFocusWashDescriptor(instanceA)).toBeNull();
+    expect(getTerraformFocusWashDescriptor(instanceB)).toBe(descriptorB);
+    expect(notificationsA).toBe(2);
+    expect(notificationsB).toBe(1);
+
+    unsubscribeA();
+    unsubscribeB();
+    clearTerraformFocusWashDescriptor(instanceB);
   });
 });
 
