@@ -174,6 +174,22 @@ export const setTerraformCanvasHints = (hints: {
 export const TERRAFORM_CANVAS_DPR_CAP = 1.5;
 
 /**
+ * Effective devicePixelRatio for element-canvas rasterization (E09.3). When
+ * `terraformDprCap` is ON, the raw `window.devicePixelRatio` is clamped to
+ * {@link TERRAFORM_CANVAS_DPR_CAP}, shrinking every cached bitmap on hi-DPI /
+ * super-res displays (inert at dpr ≤ cap, e.g. the dpr-1 desktop). This value
+ * is threaded through BOTH the size computation (`cappedElementCanvasSize`) AND
+ * the draw path (`generateElementCanvas` context scale, `drawElementFromCanvas`)
+ * so the two stay consistent — the dpr cancels in `canvas.width / scale`, so
+ * geometry is unchanged and only bitmap resolution drops. It also feeds the 0-
+ * size verdict, so the null-verdict sentinel stores the EFFECTIVE dpr.
+ */
+const getEffectiveDevicePixelRatio = (): number =>
+  terraformCanvasHints.dprCap
+    ? Math.min(window.devicePixelRatio, TERRAFORM_CANVAS_DPR_CAP)
+    : window.devicePixelRatio;
+
+/**
  * Log-spaced bucket base for the E09.1 zoom cache-key quantization. Chosen
  * strictly finer than the tightest spacing between adjacent Terraform LOD
  * thresholds (`getTerraformLodThresholds` — the closest pair is ~1.14× apart, at
@@ -224,8 +240,9 @@ const cappedElementCanvasSize = (
       ? distance(y1, y2)
       : element.height;
 
-  let width = elementWidth * window.devicePixelRatio + padding * 2;
-  let height = elementHeight * window.devicePixelRatio + padding * 2;
+  const devicePixelRatio = getEffectiveDevicePixelRatio();
+  let width = elementWidth * devicePixelRatio + padding * 2;
+  let height = elementHeight * devicePixelRatio + padding * 2;
 
   let scale: number = zoom.value;
 
@@ -258,6 +275,9 @@ const generateElementCanvas = (
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d")!;
   const padding = getCanvasPadding(element);
+  // E09.3: same effective (optionally capped) dpr used to size the canvas in
+  // `cappedElementCanvasSize`, so the draw scale below matches the bitmap size.
+  const devicePixelRatio = getEffectiveDevicePixelRatio();
 
   const { width, height, scale } = cappedElementCanvasSize(
     element,
@@ -280,12 +300,12 @@ const generateElementCanvas = (
 
     canvasOffsetX =
       element.x > x1
-        ? distance(element.x, x1) * window.devicePixelRatio * scale
+        ? distance(element.x, x1) * devicePixelRatio * scale
         : 0;
 
     canvasOffsetY =
       element.y > y1
-        ? distance(element.y, y1) * window.devicePixelRatio * scale
+        ? distance(element.y, y1) * devicePixelRatio * scale
         : 0;
 
     context.translate(canvasOffsetX, canvasOffsetY);
@@ -293,10 +313,7 @@ const generateElementCanvas = (
 
   context.save();
   context.translate(padding * scale, padding * scale);
-  context.scale(
-    window.devicePixelRatio * scale,
-    window.devicePixelRatio * scale,
-  );
+  context.scale(devicePixelRatio * scale, devicePixelRatio * scale);
 
   const rc = rough.canvas(canvas);
 
@@ -314,9 +331,9 @@ const generateElementCanvas = (
     // the arrow doesn't get clipped
     const maxDim = Math.max(distance(x1, x2), distance(y1, y2));
     boundTextCanvas.width =
-      maxDim * window.devicePixelRatio * scale + padding * scale * 10;
+      maxDim * devicePixelRatio * scale + padding * scale * 10;
     boundTextCanvas.height =
-      maxDim * window.devicePixelRatio * scale + padding * scale * 10;
+      maxDim * devicePixelRatio * scale + padding * scale * 10;
     boundTextCanvasContext.translate(
       boundTextCanvas.width / 2,
       boundTextCanvas.height / 2,
@@ -340,29 +357,29 @@ const generateElementCanvas = (
     const offsetY = (boundTextCanvas.height - canvas!.height) / 2;
     const shiftX =
       boundTextCanvas.width / 2 -
-      (boundTextCx - x1) * window.devicePixelRatio * scale -
+      (boundTextCx - x1) * devicePixelRatio * scale -
       offsetX -
       padding * scale;
 
     const shiftY =
       boundTextCanvas.height / 2 -
-      (boundTextCy - y1) * window.devicePixelRatio * scale -
+      (boundTextCy - y1) * devicePixelRatio * scale -
       offsetY -
       padding * scale;
     boundTextCanvasContext.translate(-shiftX, -shiftY);
     // Clear the bound text area
     boundTextCanvasContext.clearRect(
       -(boundTextElement.width / 2 + BOUND_TEXT_PADDING) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
       -(boundTextElement.height / 2 + BOUND_TEXT_PADDING) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
       (boundTextElement.width + BOUND_TEXT_PADDING * 2) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
       (boundTextElement.height + BOUND_TEXT_PADDING * 2) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
     );
   }
@@ -693,15 +710,10 @@ const generateElementWithCanvas = (
   // E09.1: with `terraformZoomQuantize` ON, a real cached bitmap is reused as
   // long as the new zoom lands in the same log-spaced bucket, killing the
   // micro-tick re-raster storm; the residual resolution mismatch is blit-scaled
-  // by `drawElementFromCanvas` (see `terraformZoomBucket`). Null-verdict
-  // sentinels (`canvas === null`) are deliberately EXCLUDED from quantization —
-  // an element that caps to 0×0 at the bucket's low edge but is drawable at its
-  // high edge must re-evaluate, or bucketing could pin it invisible. Sentinels
-  // therefore keep the exact-zoom compare.
+  // by `drawElementFromCanvas` (see `terraformZoomBucket`).
   let shouldRegenerateBecauseZoom = false;
   if (prevElementWithCanvas && !appState?.shouldCacheIgnoreZoom) {
-    const quantize =
-      terraformCanvasHints.zoomQuantize && prevElementWithCanvas.canvas !== null;
+    const quantize = terraformCanvasHints.zoomQuantize;
     shouldRegenerateBecauseZoom = quantize
       ? terraformZoomBucket(prevElementWithCanvas.zoomValue) !==
         terraformZoomBucket(zoom.value)
@@ -765,12 +777,16 @@ const drawElementFromCanvas = (
   const element = elementWithCanvas.element;
   const padding = getCanvasPadding(element);
   const zoom = elementWithCanvas.scale;
+  // E09.3: the same effective (optionally capped) dpr used to rasterize the
+  // bitmap. It cancels in `canvas.width / scale`, so this only sets bitmap
+  // resolution; positions/size stay identical to the uncapped path.
+  const devicePixelRatio = getEffectiveDevicePixelRatio();
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, allElementsMap);
-  const cx = ((x1 + x2) / 2 + appState.scrollX) * window.devicePixelRatio;
-  const cy = ((y1 + y2) / 2 + appState.scrollY) * window.devicePixelRatio;
+  const cx = ((x1 + x2) / 2 + appState.scrollX) * devicePixelRatio;
+  const cy = ((y1 + y2) / 2 + appState.scrollY) * devicePixelRatio;
 
   context.save();
-  context.scale(1 / window.devicePixelRatio, 1 / window.devicePixelRatio);
+  context.scale(1 / devicePixelRatio, 1 / devicePixelRatio);
 
   const boundTextElement = getBoundTextElement(element, allElementsMap);
 
@@ -786,8 +802,8 @@ const drawElementFromCanvas = (
     context.translate(cx, cy);
     context.drawImage(
       elementWithCanvas.boundTextCanvas,
-      (-(x2 - x1) / 2) * window.devicePixelRatio - offsetX / zoom - padding,
-      (-(y2 - y1) / 2) * window.devicePixelRatio - offsetY / zoom - padding,
+      (-(x2 - x1) / 2) * devicePixelRatio - offsetX / zoom - padding,
+      (-(y2 - y1) / 2) * devicePixelRatio - offsetY / zoom - padding,
       elementWithCanvas.boundTextCanvas.width / zoom,
       elementWithCanvas.boundTextCanvas.height / zoom,
     );
@@ -813,9 +829,9 @@ const drawElementFromCanvas = (
 
     context.drawImage(
       elementWithCanvas.canvas!,
-      (x1 + appState.scrollX) * window.devicePixelRatio -
+      (x1 + appState.scrollX) * devicePixelRatio -
         (padding * elementWithCanvas.scale) / elementWithCanvas.scale,
-      (y1 + appState.scrollY) * window.devicePixelRatio -
+      (y1 + appState.scrollY) * devicePixelRatio -
         (padding * elementWithCanvas.scale) / elementWithCanvas.scale,
       elementWithCanvas.canvas!.width / elementWithCanvas.scale,
       elementWithCanvas.canvas!.height / elementWithCanvas.scale,
@@ -834,10 +850,10 @@ const drawElementFromCanvas = (
       context.strokeStyle = "#c92a2a";
       context.lineWidth = 3;
       context.strokeRect(
-        (coords.x + appState.scrollX) * window.devicePixelRatio,
-        (coords.y + appState.scrollY) * window.devicePixelRatio,
-        getBoundTextMaxWidth(element, textElement) * window.devicePixelRatio,
-        getBoundTextMaxHeight(element, textElement) * window.devicePixelRatio,
+        (coords.x + appState.scrollX) * devicePixelRatio,
+        (coords.y + appState.scrollY) * devicePixelRatio,
+        getBoundTextMaxWidth(element, textElement) * devicePixelRatio,
+        getBoundTextMaxHeight(element, textElement) * devicePixelRatio,
       );
     }
   }

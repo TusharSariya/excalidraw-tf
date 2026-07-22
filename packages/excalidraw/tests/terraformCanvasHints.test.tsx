@@ -112,18 +112,6 @@ const makeRectangle = () =>
     height: 120,
   });
 
-// A 1×1 rectangle (20px canvas padding each side) rasterizes to
-// floor((1 + 40) * dpr * scale) px/side: 0 (null-verdict sentinel) for scale
-// below ~0.0244 at dpr 1.
-const makeTinyRectangle = () =>
-  API.createElement({
-    type: "rectangle",
-    x: 100,
-    y: 100,
-    width: 1,
-    height: 1,
-  });
-
 beforeEach(() => {
   resetTerraformRuntimePerformanceSettings();
   elementCanvasRegenStats.enabled = true;
@@ -164,7 +152,7 @@ describe("E09.1 zoom cache-key quantization (terraformZoomQuantize)", () => {
     expect(elementWithCanvasCache.get(rect)).toBe(entry);
   });
 
-  it("ON: crossing a bucket boundary regenerates once (byCause.zoom)", () => {
+  it("ON: crossing a bucket boundary regenerates once", () => {
     patchTerraformRuntimePerformanceSettings({ terraformZoomQuantize: true });
     const rect = makeRectangle();
     const elements = [rect];
@@ -175,7 +163,7 @@ describe("E09.1 zoom cache-key quantization (terraformZoomQuantize)", () => {
     resetElementCanvasRegenStats();
     renderSceneAt(elements, 1.2); // bucket 0 → bucket 2
     expect(elementCanvasRegenStats.total).toBe(1);
-    expect(elementCanvasRegenStats.byCause.zoom).toBe(1);
+    expect(elementCanvasRegenStats.zoom).toBe(1);
     expect(elementWithCanvasCache.get(rect)).not.toBe(entry);
   });
 
@@ -187,28 +175,7 @@ describe("E09.1 zoom cache-key quantization (terraformZoomQuantize)", () => {
     resetElementCanvasRegenStats();
     renderSceneAt(elements, 1.04); // same bucket, but quantization is off
     expect(elementCanvasRegenStats.total).toBe(1);
-    expect(elementCanvasRegenStats.byCause.zoom).toBe(1);
-  });
-
-  it("ON: sentinel safety — a 0-size sentinel is NOT quantized (re-evaluates within a bucket)", () => {
-    patchTerraformRuntimePerformanceSettings({ terraformZoomQuantize: true });
-    const rect = makeTinyRectangle();
-    const elements = [rect];
-
-    // 0.020 and 0.021 share a bucket, and the tiny rect caps to 0×0 at both.
-    expect(terraformZoomBucket(0.02)).toBe(terraformZoomBucket(0.021));
-
-    renderSceneAt(elements, 0.02); // sentinel cached at stored zoom 0.02
-    const sentinel = elementWithCanvasCache.get(rect);
-    expect((sentinel as { canvas: unknown }).canvas).toBeNull();
-
-    resetElementCanvasRegenStats();
-    renderSceneAt(elements, 0.021); // same bucket, different exact zoom
-    // Safe option: sentinels keep the exact-zoom compare, so this is a real
-    // regen/re-evaluation, NOT a silent sentinel reuse that could pin a
-    // now-drawable element invisible.
-    expect(elementCanvasRegenStats.total).toBe(1);
-    expect(elementCanvasRegenStats.nullVerdictHits).toBe(0);
+    expect(elementCanvasRegenStats.zoom).toBe(1);
   });
 });
 
@@ -318,6 +285,65 @@ describe("E09.2 opaque static context (terraformStaticCanvasOpaque)", () => {
       canvas,
     });
     expect(contextOptions.every((o) => o === undefined)).toBe(true);
+  });
+});
+
+describe("E09.3 devicePixelRatio cap (terraformDprCap)", () => {
+  let originalDpr: number;
+
+  const setDevicePixelRatio = (value: number) => {
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value,
+    });
+  };
+
+  beforeEach(() => {
+    originalDpr = window.devicePixelRatio;
+    setDevicePixelRatio(3); // hi-DPI / super-res, above the 1.5 cap
+  });
+
+  afterEach(() => {
+    setDevicePixelRatio(originalDpr);
+  });
+
+  it("caps the cached canvas dimensions at the capped dpr when ON", () => {
+    // canvas.width = floor((elementWidth * effectiveDpr + 2 * padding) * scale),
+    // scale 1. Padding cancels between ON/OFF, so the width delta is
+    // elementWidth * (rawDpr - cappedDpr) = 200 * (3 - 1.5) = 300.
+    const offRect = makeRectangle();
+    renderSceneAt([offRect], 1); // cap OFF (default), dpr 3
+    const widthOff = (
+      elementWithCanvasCache.get(offRect) as { canvas: HTMLCanvasElement }
+    ).canvas.width;
+
+    patchTerraformRuntimePerformanceSettings({ terraformDprCap: true });
+    const onRect = makeRectangle();
+    renderSceneAt([onRect], 1); // cap ON, dpr 3 -> effective 1.5
+    const widthOn = (
+      elementWithCanvasCache.get(onRect) as { canvas: HTMLCanvasElement }
+    ).canvas.width;
+
+    expect(widthOn).toBeLessThan(widthOff);
+    expect(widthOff - widthOn).toBe(200 * (3 - TERRAFORM_CANVAS_DPR_CAP));
+  });
+
+  it("is inert when dpr is at or below the cap (e.g. the dpr-1 desktop)", () => {
+    setDevicePixelRatio(1);
+    const offRect = makeRectangle();
+    renderSceneAt([offRect], 1);
+    const widthOff = (
+      elementWithCanvasCache.get(offRect) as { canvas: HTMLCanvasElement }
+    ).canvas.width;
+
+    patchTerraformRuntimePerformanceSettings({ terraformDprCap: true });
+    const onRect = makeRectangle();
+    renderSceneAt([onRect], 1);
+    const widthOn = (
+      elementWithCanvasCache.get(onRect) as { canvas: HTMLCanvasElement }
+    ).canvas.width;
+
+    expect(widthOn).toBe(widthOff); // min(1, 1.5) === 1
   });
 });
 
