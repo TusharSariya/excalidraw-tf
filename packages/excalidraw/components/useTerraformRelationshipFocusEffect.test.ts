@@ -181,3 +181,84 @@ describe("buildTerraformRuntimeFocusUpdate — W11 F4 AppState ingress normaliza
     expect(hop0B?.strokeColor).not.toBe(defaultB?.strokeColor);
   });
 });
+
+describe("buildTerraformRuntimeFocusUpdate — E08 focus wash overlay", () => {
+  it("returns no wash and leaves the legacy color path when overlay mode is OFF", () => {
+    const update = buildTerraformRuntimeFocusUpdate({
+      allElements: chainElements(),
+      activeFocusNodePath: "a",
+      selectedElementIds: {},
+      pins: null,
+      viewBackgroundColor: VIEW_BG,
+      skipBindingRepair: true,
+      lastFocusInputsSig: null,
+      lastFocusSceneSig: null,
+    });
+    expect(update.wash).toBeNull();
+  });
+
+  it("engage: returns per-element wash levels + sweep origin and makes no color mutations", () => {
+    const elements = chainElements();
+    const update = buildTerraformRuntimeFocusUpdate({
+      allElements: elements,
+      activeFocusNodePath: "a",
+      selectedElementIds: {},
+      pins: null,
+      viewBackgroundColor: VIEW_BG,
+      skipBindingRepair: true,
+      lastFocusInputsSig: null,
+      lastFocusSceneSig: null,
+      washOverlayMode: true,
+      clickCenter: { x: 5, y: 5 },
+    });
+
+    expect(update.wash).not.toBeNull();
+    expect(update.wash!.clickCenter).toEqual({ x: 5, y: 5 });
+    expect(update.wash!.levelByElementId.size).toBeGreaterThan(0);
+    expect(update.wash!.maxRadius).toBeGreaterThan(0);
+    // No color churn: every element keeps its original identity (nothing dimmed
+    // in the data model).
+    update.elements.forEach((element, index) => {
+      expect(element).toBe(elements[index]);
+    });
+  });
+
+  it("clear: overlay mode still emits a (possibly empty) wash so the renderer resets", () => {
+    const update = buildTerraformRuntimeFocusUpdate({
+      allElements: chainElements(),
+      activeFocusNodePath: null,
+      selectedElementIds: {},
+      pins: null,
+      viewBackgroundColor: VIEW_BG,
+      skipBindingRepair: true,
+      lastFocusInputsSig: null,
+      lastFocusSceneSig: null,
+      washOverlayMode: true,
+      clickCenter: null,
+    });
+    // Non-overview chain ⇒ nothing ambient-dimmed; the effect maps an empty
+    // wash + null focus to a descriptor clear.
+    expect(update.wash).not.toBeNull();
+    expect(update.wash!.clickCenter).toBeNull();
+  });
+
+  it("wash inputs signature separates overlay ON from OFF for the same focus", () => {
+    const common = {
+      allElements: chainElements(),
+      activeFocusNodePath: "a",
+      selectedElementIds: {},
+      pins: null,
+      viewBackgroundColor: VIEW_BG,
+      skipBindingRepair: true,
+      lastFocusInputsSig: null,
+      lastFocusSceneSig: null,
+    } as const;
+    const off = buildTerraformRuntimeFocusUpdate(common);
+    const on = buildTerraformRuntimeFocusUpdate({
+      ...common,
+      washOverlayMode: true,
+      clickCenter: { x: 0, y: 0 },
+    });
+    expect(off.focusInputsSig).not.toBe(on.focusInputsSig);
+  });
+});

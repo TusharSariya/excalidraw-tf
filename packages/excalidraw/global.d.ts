@@ -35,6 +35,10 @@ interface Window {
     };
     // generateElementCanvas calls that returned null (0-size cap; never cached).
     nullReturns: number;
+    // Cache hits on a persisted null-verdict (E05b): a re-clone/remiss that was
+    // resolved from the cached "this element rasterizes to nothing" verdict
+    // instead of re-running generateElementCanvas.
+    nullVerdictHits: number;
   };
   __resetElementCanvasRegenStats?: () => void;
   // Import-time benchmark hooks (scripts/terraform/benchmark-import-time.mjs).

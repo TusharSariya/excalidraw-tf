@@ -49,7 +49,8 @@ type TerraformPerfBooleanKey =
   | "suppressHoverFocusBelowZoom"
   | "debounceHoverFocus"
   | "suppressFrameClippingBelowZoom"
-  | "skipBindingRepairDuringFocus";
+  | "skipBindingRepairDuringFocus"
+  | "terraformFocusWashOverlay";
 
 /** Short codes for each boolean canvas-performance experiment in the `canvasPerf=` param. */
 const RUNTIME_PERF_CODES: ReadonlyArray<[TerraformPerfBooleanKey, string]> = [
@@ -58,6 +59,7 @@ const RUNTIME_PERF_CODES: ReadonlyArray<[TerraformPerfBooleanKey, string]> = [
   ["debounceHoverFocus", "debouncehover"],
   ["suppressFrameClippingBelowZoom", "noclip"],
   ["skipBindingRepairDuringFocus", "nobindrepair"],
+  ["terraformFocusWashOverlay", "focuswash"],
 ];
 
 const VALID_LOD_PRESETS = new Set<TerraformLodPreset>([

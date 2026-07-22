@@ -22,6 +22,14 @@ export type TerraformRuntimePerformanceSettings = {
   debounceHoverFocus: boolean;
   suppressFrameClippingBelowZoom: boolean;
   skipBindingRepairDuringFocus: boolean;
+  /**
+   * E08 — apply relationship-focus dimming as a draw-time radial wash overlay
+   * instead of re-cloning ~6.5k elements to blend their colors. Opt-in; default
+   * OFF keeps the legacy color-mutation path byte-identical. Not a below-zoom
+   * experiment, so deliberately excluded from the "enable all" group and the
+   * threshold radios.
+   */
+  terraformFocusWashOverlay: boolean;
   lowZoomThreshold: 0.2 | 0.3 | 0.4;
 };
 
@@ -32,6 +40,7 @@ export const TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS: TerraformRuntimePerformance
     debounceHoverFocus: false,
     suppressFrameClippingBelowZoom: false,
     skipBindingRepairDuringFocus: false,
+    terraformFocusWashOverlay: false,
     lowZoomThreshold: 0.3,
   };
 
@@ -61,6 +70,11 @@ export const parseTerraformRuntimePerformanceSettings = (
     if (typeof parsed[key] === "boolean") {
       settings[key] = parsed[key];
     }
+  }
+  // Parsed outside BOOLEAN_SETTING_KEYS so it stays out of the "enable all"
+  // experiments group (it is an alternate focus render path, not a perf gate).
+  if (typeof parsed.terraformFocusWashOverlay === "boolean") {
+    settings.terraformFocusWashOverlay = parsed.terraformFocusWashOverlay;
   }
   if (isLowZoomThreshold(parsed.lowZoomThreshold)) {
     settings.lowZoomThreshold = parsed.lowZoomThreshold;

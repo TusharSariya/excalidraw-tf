@@ -52,6 +52,14 @@ const soakMinutes = Number(getArg("--soak-minutes", "0"));
 const reusePage = hasFlag("--reuse-page");
 const outDir = getArg("--out", DEFAULT_OUT);
 const matrixPath = getArg("--matrix", null);
+// E08 A/B hook: force the `terraformFocusWashOverlay` runtime setting on/off via
+// an init-script localStorage write, so a clean A/B is not contaminated by a
+// prior run's persisted setting. `null` ⇒ leave whatever the app defaults to.
+const focusWashArg = getArg("--focus-wash", null);
+const focusWashOverlay =
+  focusWashArg == null ? null : focusWashArg === "1" || focusWashArg === "on";
+const TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY =
+  "tfdraw-terraform-canvas-runtime-performance";
 
 const [vpWidth, vpHeight] = viewportArg
   .split("x")
@@ -176,6 +184,9 @@ const snapshotCounters = async (page) =>
         sameObjectRemiss: stats?.missDetail?.sameObjectRemiss ?? 0,
       },
       regenNullReturns: stats?.nullReturns ?? 0,
+      // E05b cached null-verdict hits (a re-clone resolved from the cached
+      // "rasterizes to nothing" verdict instead of re-running generateElementCanvas).
+      regenNullVerdictHits: stats?.nullVerdictHits ?? 0,
       replaceAll: window.__terraformReplaceAllElementsCount ?? 0,
       heap: performance.memory?.usedJSHeapSize ?? null,
     };
@@ -454,9 +465,7 @@ const findLodThreshold = async (page, ctx) => {
   for (const zoom of zooms) {
     await setZoomCentered(page, zoom, 90);
     counts.push(
-      await page.evaluate(
-        () => window.h.app.visibleElements?.length ?? null,
-      ),
+      await page.evaluate(() => window.h.app.visibleElements?.length ?? null),
     );
   }
   let bestIndex = -1;
@@ -761,12 +770,7 @@ const WORKLOADS = [
           await page.waitForTimeout(15);
         }
         // 3 zoom steps
-        await ctrlWheelZoom(
-          page,
-          center,
-          cycle % 2 === 0 ? -100 : 100,
-          3,
-        );
+        await ctrlWheelZoom(page, center, cycle % 2 === 0 ? -100 : 100, 3);
       }
       // start a rect drag mid-pan momentum
       await page.mouse.wheel(200, 120);
@@ -775,6 +779,36 @@ const WORKLOADS = [
       await dragShape(page, from, { x: from.x + 140, y: from.y + 90 });
       await page.keyboard.press("Escape");
       await resetToSelectionTool(page);
+    },
+  },
+  {
+    name: "focus-toggle-storm",
+    tags: ["click", "focus"],
+    // E08: the direct exercise of the relationship-focus engage/clear path —
+    // the click-storm churn driver in its purest form. 12 cycles of (click a
+    // seeded dense-hull element → engage focus + radial sweep → click empty
+    // canvas → clear focus). Deterministic element pick via the seeded RNG.
+    run: async (page, ctx) => {
+      const centers = await elementScreenCenters(page);
+      // A bottom-left point below the toolbar that is very unlikely to sit on a
+      // card — clicking it deselects and clears focus.
+      const empty = {
+        x: ctx.box.x + 24,
+        y: ctx.box.y + ctx.viewport.height - 24,
+      };
+      // Seed a stable pick order so every run/config toggles the SAME elements.
+      const picks = Array.from({ length: 12 }, () =>
+        centers.length
+          ? centers[Math.floor(ctx.rand() * centers.length)]
+          : ctx.center,
+      );
+      for (const pick of picks) {
+        await page.mouse.click(pick.x, pick.y); // engage focus + sweep
+        await page.waitForTimeout(400); // focus engage + ~260ms sweep settle
+        await page.mouse.click(empty.x, empty.y); // clear focus
+        await page.waitForTimeout(400); // clear settle
+      }
+      await page.keyboard.press("Escape");
     },
   },
   {
@@ -787,10 +821,21 @@ const WORKLOADS = [
       let frameIndex = 0;
       const actions = [
         async () => {
-          await dragPan(page, ctx.center, (ctx.rand() - 0.5) * 16, (ctx.rand() - 0.5) * 16, 15);
+          await dragPan(
+            page,
+            ctx.center,
+            (ctx.rand() - 0.5) * 16,
+            (ctx.rand() - 0.5) * 16,
+            15,
+          );
         },
         async () => {
-          await ctrlWheelZoom(page, ctx.center, ctx.rand() < 0.5 ? -100 : 100, 4);
+          await ctrlWheelZoom(
+            page,
+            ctx.center,
+            ctx.rand() < 0.5 ? -100 : 100,
+            4,
+          );
         },
         async () => {
           const y = 140 + ctx.rand() * (ctx.viewport.height - 280);
@@ -808,12 +853,7 @@ const WORKLOADS = [
         },
         async () => {
           const from = randPoint(ctx, 120, 160, 180);
-          await dragShape(
-            page,
-            from,
-            { x: from.x + 300, y: from.y + 200 },
-            10,
-          );
+          await dragShape(page, from, { x: from.x + 300, y: from.y + 200 }, 10);
           await page.keyboard.press("Escape");
         },
       ];
@@ -900,7 +940,10 @@ const measureWorkload = async (page, workload, ctx) => {
             (before.regenMissDetail?.[kind] ?? 0),
         ]),
       ),
-      nullReturns: (after.regenNullReturns ?? 0) - (before.regenNullReturns ?? 0),
+      nullReturns:
+        (after.regenNullReturns ?? 0) - (before.regenNullReturns ?? 0),
+      nullVerdictHits:
+        (after.regenNullVerdictHits ?? 0) - (before.regenNullVerdictHits ?? 0),
     },
     replaceAllDelta: after.replaceAll - before.replaceAll,
     heapDeltaBytes:
@@ -937,6 +980,7 @@ const AGG_FIELDS = [
     (m) => m.regenDelta.missDetail?.[kind] ?? 0,
   ]),
   ["regenNullReturns", (m) => m.regenDelta.nullReturns ?? 0],
+  ["regenNullVerdictHits", (m) => m.regenDelta.nullVerdictHits ?? 0],
   ["replaceAllDelta", (m) => m.replaceAllDelta],
   ["heapDeltaBytes", (m) => m.heapDeltaBytes],
 ];
@@ -985,6 +1029,32 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
       viewport: { width: vpWidth, height: vpHeight },
       deviceScaleFactor: dpr,
     });
+    // Deterministically seed the focus-wash-overlay runtime setting BEFORE any
+    // app script runs, so the OFF and ON runs are a clean same-lineage A/B and
+    // never inherit each other's persisted localStorage value.
+    if (focusWashOverlay != null) {
+      await context.addInitScript(
+        ({ key, overlay }) => {
+          try {
+            const raw = window.localStorage.getItem(key);
+            const parsed = raw ? JSON.parse(raw) : {};
+            window.localStorage.setItem(
+              key,
+              JSON.stringify({
+                ...parsed,
+                terraformFocusWashOverlay: overlay,
+              }),
+            );
+          } catch {
+            /* storage unavailable — fall back to app defaults */
+          }
+        },
+        {
+          key: TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY,
+          overlay: focusWashOverlay,
+        },
+      );
+    }
     page = await context.newPage();
     page.on("pageerror", () => {});
     return page;
@@ -1010,7 +1080,9 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
       });
     }
     const elementCount = await waitForImport(page);
-    console.log(`[${config.name}] ${tag}: import done (${elementCount} elements)`);
+    console.log(
+      `[${config.name}] ${tag}: import done (${elementCount} elements)`,
+    );
     await instrumentPage(page);
 
     const refViewport = await computeFitViewport(page);
@@ -1113,7 +1185,7 @@ const printSummary = (configName, aggregate, spreadPct) => {
     console.log(
       `      miss-detail: ${missParts.join(" ")} | nullReturns=${
         m.regenNullReturns ?? 0
-      }`,
+      } | nullVerdictHits=${m.regenNullVerdictHits ?? 0}`,
     );
   }
 };
@@ -1271,10 +1343,7 @@ const main = async () => {
 
   if (baselinePath) {
     const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
-    printBaselineDelta(
-      baseline,
-      configResults[0].aggregate,
-    );
+    printBaselineDelta(baseline, configResults[0].aggregate);
   }
 
   console.log(`\nWrote ${outPath}`);
