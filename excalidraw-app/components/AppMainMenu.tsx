@@ -48,6 +48,7 @@ const TerraformRuntimePerformanceMenu = ({
       | "debounceHoverFocus"
       | "suppressFrameClippingBelowZoom"
       | "skipBindingRepairDuringFocus"
+      | "terraformFocusWashOverlay"
     >,
     testId: string,
     label: string,
@@ -110,6 +111,11 @@ const TerraformRuntimePerformanceMenu = ({
           "skipBindingRepairDuringFocus",
           "terraform-runtime-skip-binding-repair",
           "Skip binding repair during focus updates",
+        )}
+        {toggle(
+          "terraformFocusWashOverlay",
+          "terraform-runtime-focus-wash-overlay",
+          "Focus wash overlay (draw-time radial dim)",
         )}
         <MainMenu.Separator />
         {([0.2, 0.3, 0.4] as const).map((threshold) => (

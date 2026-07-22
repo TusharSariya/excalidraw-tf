@@ -1315,3 +1315,116 @@ describe("isValidTerraformFocusHopCount (W13 F3 — the shared hop-cap domain va
     );
   });
 });
+
+describe("applyTerraformRelationshipFocus — E08 focus wash overlay mode", () => {
+  const CLICK_CENTER = { x: 0, y: 0 };
+
+  it("makes NO identity or color changes for dim-only elements, but captures their target levels", () => {
+    const elements = [
+      resource("aws_instance.web"),
+      resource("aws_security_group.sg"),
+      resource("aws_vpc.main"),
+      group("group:focus", ["aws_instance.web", "aws_security_group.sg"]),
+      group("group:other", ["aws_vpc.main"]),
+      edge(
+        "edge:web-sg",
+        "dependency",
+        "aws_instance.web",
+        "aws_security_group.sg",
+      ),
+      edge("edge:other", "dataFlow", "aws_vpc.main", "aws_subnet.private"),
+    ];
+
+    const result = applyTerraformRelationshipFocus(
+      elements,
+      "aws_instance.web",
+      VIEW_BG,
+      undefined,
+      { clickCenter: CLICK_CENTER },
+    );
+
+    // Every element keeps its exact object identity (no re-clone / churn) and
+    // its original colors — the dimming lives only in the wash descriptor.
+    result.elements.forEach((element, index) => {
+      expect(element).toBe(elements[index]);
+    });
+    const byId = new Map(elements.map((element) => [element.id, element]));
+    expect(byId.get("node:aws_security_group.sg")?.strokeColor).toBe("#000000");
+    expect(byId.get("node:aws_vpc.main")?.strokeColor).toBe("#000000");
+    expect(byId.get("edge:other")?.strokeColor).toBe("#000000");
+    expect(result.didChange).toBe(false);
+
+    // Levels mirror the legacy color path (see the sibling color-mutation test),
+    // but only for elements that would be dimmed (< 100). The focus node itself
+    // (level 100) is absent.
+    const levels = result.washLevelByElementId!;
+    expect(levels.get("node:aws_instance.web")).toBeUndefined();
+    expect(levels.get("node:aws_security_group.sg")).toBe(85);
+    expect(levels.get("edge:web-sg")).toBe(85);
+    expect(levels.get("group:focus")).toBe(60);
+    expect(levels.get("node:aws_vpc.main")).toBe(25);
+    expect(levels.get("group:other")).toBe(25);
+    expect(levels.get("edge:other")).toBe(15);
+    expect(result.washMaxRadius).toBeGreaterThan(0);
+  });
+
+  it("still reveals soft-deleted 1-hop neighbors (structural) without washing their colors", () => {
+    const elements = [
+      resource("aws_instance.web"),
+      resource("aws_security_group.sg", { isDeleted: true }),
+      edge(
+        "edge:web-sg",
+        "dependency",
+        "aws_instance.web",
+        "aws_security_group.sg",
+        { isDeleted: true },
+      ),
+    ];
+
+    const result = applyTerraformRelationshipFocus(
+      elements,
+      "aws_instance.web",
+      VIEW_BG,
+      undefined,
+      { clickCenter: CLICK_CENTER },
+    );
+    const byId = new Map(
+      result.elements.map((element) => [element.id, element]),
+    );
+
+    // Reveal is structural and still happens (identity DOES change here) …
+    expect(byId.get("node:aws_security_group.sg")?.isDeleted).toBe(false);
+    expect(byId.get("edge:web-sg")?.isDeleted).toBe(false);
+    expect(result.didChange).toBe(true);
+    // … but the revealed neighbor keeps its real color (no dim mutation) …
+    expect(byId.get("node:aws_security_group.sg")?.strokeColor).toBe("#000000");
+    // … while still being recorded in the wash descriptor for draw-time dimming.
+    expect(result.washLevelByElementId!.get("node:aws_security_group.sg")).toBe(
+      85,
+    );
+  });
+
+  it("captures ambient overview levels statically (clickCenter null) when focus clears", () => {
+    const elements = [
+      resource("aws_instance.web", {}, { semantic: true, primary: false }),
+      edge("edge:web-sg", "dependency", "aws_instance.web", "x", {}),
+    ];
+
+    const result = applyTerraformRelationshipFocus(
+      elements,
+      null,
+      VIEW_BG,
+      undefined,
+      { clickCenter: null },
+    );
+
+    // No color mutations at all, but the ambient wash levels are exposed for the
+    // static (non-swept) draw-time application.
+    result.elements.forEach((element, index) => {
+      expect(element.strokeColor).toBe(elements[index].strokeColor);
+    });
+    expect(result.washLevelByElementId!.size).toBeGreaterThan(0);
+    // No sweep origin ⇒ maxRadius stays 0 (static application).
+    expect(result.washMaxRadius).toBe(0);
+  });
+});

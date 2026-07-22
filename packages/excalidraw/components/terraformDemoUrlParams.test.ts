@@ -1341,6 +1341,7 @@ describe("terraformDemoUrlParams", () => {
           debounceHoverFocus: true,
           suppressFrameClippingBelowZoom: false,
           skipBindingRepairDuringFocus: true,
+          terraformFocusWashOverlay: true,
           lowZoomThreshold: 0.2,
         },
       };

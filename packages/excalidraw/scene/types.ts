@@ -37,6 +37,14 @@ export type StaticCanvasRenderConfig = {
   elementsPendingErasure: ElementsPendingErasure;
   pendingFlowchartNodes: PendingExcalidrawElements | null;
   theme: AppState["theme"];
+  /**
+   * E08 focus wash overlay: a draw-time `globalAlpha` multiplier (0..1) applied
+   * to the current element's blit. The static-scene renderer sets this per
+   * element from the focus wash descriptor right before each `renderElement`
+   * call so dimming is applied when blitting the cached bitmap (no re-raster).
+   * Undefined ⇒ 1 (no wash); left unset on every non-terraform render path.
+   */
+  elementWashAlpha?: number;
 };
 
 export type SVGRenderConfig = {
