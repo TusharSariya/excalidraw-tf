@@ -497,6 +497,27 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.channelroute.off": {
+    title: "Route edges through inter-rank channels · Off",
+    body: "Cross-rank arrows keep their straight centre-to-centre chord — a diagonal that may cut across cards at a shallow angle. Byte-identical scenes (the channel-routing module never runs).",
+    dev: {
+      implements:
+        "strataChannelRoute=false: routeStrataChannelEdges never runs; TFD arrows keep their two-point chords (byte-identical).",
+    },
+  },
+  "strata.channelroute.on": {
+    title: "Route edges through inter-rank channels · On — P1",
+    body: "The owner's dummy-column idea. Each inter-rank arrow is re-drawn as Manhattan geometry: a perpendicular exit stub off the source card, one vertical run per traversed inter-column gap at an assigned track (tracks are interval-coloured and ordered by target-Y to reduce in-channel crossings), then a perpendicular entry stub into the target. All cross-axis displacement happens in the channels at 90°, so shallow near-flat diagonals across cards disappear. Zero-width channels in v1 — NO geometry moves. Endpoints never move; an edge whose channel path would pierce MORE cards than its chord keeps the chord (acceptance guard). Same-rank edges stay chords in v1. Runs first among the edge passes and owns the polyline topology.",
+    dev: {
+      implements:
+        "strataChannelRoute=true: routeStrataChannelEdges derives columns by X-interval merging leafBoxes, routes each inter-rank TFD arrow to exit-stub → per-channel vertical run at a track X (left-edge interval colouring + Sander mean-target-Y ordering, trackGap clamped to channel width, 2px stacking on overflow) → entry-stub, stamps terraformRoutedPolyline, guards on pierce (never emit worse); emits per-channel occupancy. Composes UNDER edgeStyle (softens channel corners with roundness, no double-route).",
+      refs: [
+        "Hashimoto & Stevens 1971 — Wire Routing by Optimizing Channel Assignment",
+        "Sander 1996 — Layout of Compound Directed Graphs",
+        "Raykov 2021 — Orthogonal Edge Routing for Layered Graphs",
+      ],
+    },
+  },
   "strata.edgestyle.straight": {
     title: "Edge style · Straight",
     body: "Un-routed arrows keep their straight centre-to-centre chord. The default — byte-identical scenes (the style module never runs).",

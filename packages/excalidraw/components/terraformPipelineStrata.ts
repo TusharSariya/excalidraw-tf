@@ -291,6 +291,16 @@ export type TerraformStrataSceneOptions = {
    */
   strataBorderRoute?: boolean;
   /**
+   * Probe P1 inter-rank channel routing (default off): a post-geometry pass
+   * (terraformPipelineStrataChannelRoute.ts) that rewrites each inter-rank TFD
+   * arrow to an orthogonal exit-stub → per-channel vertical run → entry-stub
+   * polyline (the owner's dummy-column idea, zero-width channels in the existing
+   * inter-rank gaps — NO geometry moves). Runs FIRST among the edge passes and
+   * owns the polyline topology; edgeRouting/borderRoute/edgeStyle skip its
+   * edges. Flag-off the module never runs (byte-identical).
+   */
+  strataChannelRoute?: boolean;
+  /**
    * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
    * a post-geometry pass (terraformPipelineStrataEdgeStyle.ts) that reshapes
    * un-routed TFD arrow chords with React-Flow smoothstep / bezier geometry.
@@ -452,6 +462,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // P3-pierce border-exit routing (scene-build), default off.
   const strataBorderRoute = options?.strataBorderRoute === true;
+  // Probe P1 inter-rank channel routing (scene-build), default off.
+  const strataChannelRoute = options?.strataChannelRoute === true;
   // Probe P2 edge render style (scene-build), default "straight" (byte-identical
   // off — the module never runs unless a non-"straight" style is requested).
   const strataEdgeStyle: StrataEdgeStyle =
@@ -518,6 +530,8 @@ export async function buildTerraformStrataExcalidrawScene(
       : {}),
     ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
     ...(strataBorderRoute ? { strataBorderRoute } : {}),
+    // Probe P1 channel-route echo — present only when on (byte-identity off).
+    ...(strataChannelRoute ? { strataChannelRoute } : {}),
     // Probe P2 edge style echo — present only for a non-"straight" style so the
     // default/off meta stays byte-identical.
     ...(strataEdgeStyle !== "straight" ? { strataEdgeStyle } : {}),
@@ -1112,6 +1126,8 @@ export async function buildTerraformStrataExcalidrawScene(
       // Package C spike (W9): the key rides only when the flag is on so the
       // flag-off input literal (and the scene build) stay byte-identical.
       ...(strataEdgeRouting ? { edgeRouting: true } : {}),
+      // Probe P1 channel routing: key rides only when on (byte-identity off).
+      ...(strataChannelRoute ? { channelRoute: true } : {}),
       // P3-pierce border-exit routing: key rides only when on (byte-identity).
       ...(strataBorderRoute ? { borderRoute: true } : {}),
       // Probe P2 edge style: key rides only for a non-"straight" style so the
@@ -1234,6 +1250,24 @@ export async function buildTerraformStrataExcalidrawScene(
                 scene.borderRoute.maxWaypointPerpDev,
               strataBorderRouteInteriorLenSavedL1:
                 scene.borderRoute.interiorLenSavedL1,
+            }
+          : {}),
+        // Probe P1 channel-route observability — present only when the pass ran.
+        // `routed` is inter-rank edges rewritten, `guardReverted` those the
+        // pierce guard kept as chords, `flat` same-rank chords left in v1;
+        // `maxTracksInChannel`/`overflowChannels` gate the P5 reserved-width call.
+        ...(scene.channelRoute
+          ? {
+              strataChannelRouteRouted: scene.channelRoute.routed,
+              strataChannelRouteGuardReverted: scene.channelRoute.guardReverted,
+              strataChannelRouteFlat: scene.channelRoute.flat,
+              strataChannelRouteSkipped: scene.channelRoute.skipped,
+              strataChannelRouteColumns: scene.channelRoute.columns,
+              strataChannelRouteRunsTotal: scene.channelRoute.runsTotal,
+              strataChannelRouteMaxTracksInChannel:
+                scene.channelRoute.maxTracksInChannel,
+              strataChannelRouteOverflowChannels:
+                scene.channelRoute.overflowChannels,
             }
           : {}),
         // Probe P2 edge-style observability — present only when a non-"straight"

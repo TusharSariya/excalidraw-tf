@@ -43,6 +43,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** P3-pierce clean container-exit routing — probe lever, default off /
    * byte-identical (NOT in the frozen measurement config). */
   strataBorderRoute: false,
+  /** Probe P1 inter-rank channel routing (owner's dummy-column idea): orthogonal
+   * per-channel track routing of inter-rank TFD arrows — probe lever, default
+   * off / byte-identical (the module never runs). */
+  strataChannelRoute: false,
   /** Probe P2 edge render style (React-Flow smoothstep/bezier transplant):
    * `"straight"` default is byte-identical (the style module never runs);
    * `"step"` | `"curve"` reshape un-routed TFD arrow chords. Plain string
@@ -120,6 +124,8 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedEps?: number;
   strataEdgeRouting?: boolean;
   strataBorderRoute?: boolean;
+  /** Probe P1 inter-rank channel routing (owner's dummy-column idea). */
+  strataChannelRoute?: boolean;
   /** Probe P2 edge render style. Plain string union (not `StrataEdgeStyle`) per
    * the no-layout-import rule above. */
   strataEdgeStyle?: "straight" | "step" | "curve";
@@ -204,6 +210,9 @@ export const resolveStrataDemoOptions = (params: {
     strataBorderRoute:
       params.strataBorderRoute ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute,
+    strataChannelRoute:
+      params.strataChannelRoute ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChannelRoute,
     // Forward the style RAW: omit at the default "straight" (never materialize a
     // default own key), matching the band-depth/de-band cuts above. Non-default
     // styles forward and reach the engine.

@@ -87,6 +87,8 @@ export type TerraformImportSession = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1: inter-rank channel routing. Default off. */
+  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;

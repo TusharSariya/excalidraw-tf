@@ -206,6 +206,9 @@ export type TerraformPlanParsingOptions = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1: inter-rank channel routing (owner's dummy-column idea).
+   * Default off. */
+  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style (`straight` default | `step` | `curve`).
    * Plain string union (not the engine's `StrataEdgeStyle`) to avoid the
    * planParsing→layout import cycle; mirrors that domain exactly. */

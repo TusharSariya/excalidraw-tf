@@ -43,6 +43,10 @@ import {
 } from "./terraformPipelineLayoutShared";
 import { spreadContextFrameColors } from "./terraformPrimaryVisibility";
 import {
+  routeStrataChannelEdges,
+  type StrataChannelRouteMeta,
+} from "./terraformPipelineStrataChannelRoute";
+import {
   routeStrataSkeletonEdges,
   type StrataEdgeRoutingMeta,
 } from "./terraformPipelineStrataEdgeRouting";
@@ -103,6 +107,15 @@ export type StrataSceneBuildInput = {
    * routing module never runs and the skeleton is byte-identical to today.
    */
   edgeRouting?: boolean;
+  /**
+   * Probe P1 inter-rank channel routing (terraformPipelineStrataChannelRoute.ts):
+   * when true, each inter-rank TFD arrow is rewritten to an orthogonal
+   * exit-stub → per-channel vertical run at an assigned track X → entry-stub
+   * polyline. Runs FIRST among the edge passes and owns the polyline topology
+   * (stamps `terraformRoutedPolyline`, so the routers/edgeStyle below skip its
+   * edges). Default off — absent, the module never runs (byte-identical).
+   */
+  channelRoute?: boolean;
   /**
    * P3-pierce border-exit routing (terraformPipelineStrataBorderRoute.ts): when
    * true, a TFD arrow that leaves its own ancestor container as a long interior
@@ -193,6 +206,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
+  /** Present only when `channelRoute` was requested (flag-OFF byte-identity). */
+  channelRoute?: StrataChannelRouteMeta;
   /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
   edgeRouting?: StrataEdgeRoutingMeta;
   /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
@@ -373,6 +388,23 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
   );
 
+  // ── Probe P1 channel routing (flag-gated). Runs FIRST among the edge passes
+  // and owns the polyline topology: each inter-rank TFD arrow becomes an
+  // orthogonal exit-stub → per-channel vertical run → entry-stub polyline. It
+  // stamps `terraformRoutedPolyline`, so edgeRouting/borderRoute/edgeStyle below
+  // (all first-stamper-wins) SKIP the edges it routed — no double-routing. When
+  // a non-"straight" edgeStyle is requested, its channel polylines are emitted
+  // with roundness so the renderer softens their corners (minimal integration).
+  // Absent the flag this never runs (byte-identical). ──
+  const channelRoute = input.channelRoute
+    ? routeStrataChannelEdges(
+        skeleton,
+        input.model,
+        input.placement,
+        input.edgeStyle !== undefined && input.edgeStyle !== "straight",
+      )
+    : undefined;
+
   // ── Package C spike (W9, flag-gated): detour TFD arrows whose straight
   // chord penetrates a foreign box. Runs on the just-emitted TFD arrows only
   // (the aggregated frame connectors below are relationship.aggregated and
@@ -420,6 +452,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     skeleton,
     layoutBoxes,
     frameEdgeCount,
+    ...(channelRoute ? { channelRoute } : {}),
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
     ...(edgeStyle ? { edgeStyle } : {}),
@@ -441,6 +474,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
+  /** Present only when `channelRoute` was requested (flag-OFF byte-identity). */
+  channelRoute?: StrataChannelRouteMeta;
   /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
   edgeRouting?: StrataEdgeRoutingMeta;
   /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
@@ -460,8 +495,14 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   };
 
   const tSkeleton = spanNow();
-  const { skeleton, frameEdgeCount, edgeRouting, borderRoute, edgeStyle } =
-    assembleStrataSceneSkeleton(input);
+  const {
+    skeleton,
+    frameEdgeCount,
+    channelRoute,
+    edgeRouting,
+    borderRoute,
+    edgeStyle,
+  } = assembleStrataSceneSkeleton(input);
   spanRecord("strata.sceneBuild.skeleton", tSkeleton);
   const tConvert = spanNow();
   const converted = await convertPipelineSkeletonToElements(skeleton);
@@ -474,6 +515,7 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   return {
     elements,
     frameEdgeCount,
+    ...(channelRoute ? { channelRoute } : {}),
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
     ...(edgeStyle ? { edgeStyle } : {}),

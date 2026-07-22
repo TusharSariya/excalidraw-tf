@@ -39,6 +39,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataPackedScoringEpsilon",
   "strataEdgeRouting",
   "strataBorderRoute",
+  "strataChannelRoute",
   "strataEdgeStyle",
   "strataBandCompact",
   "strataBandDepth",
@@ -220,6 +221,17 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
   // guard has these pairs on record.
   ["strataEdgeStyle", "strataEdgeRouting"],
   ["strataEdgeStyle", "strataBorderRoute"],
+  // Probe P1 channel routing composes with the other edge passes via the
+  // first-stamper-wins protocol: channelRoute runs FIRST and stamps
+  // terraformRoutedPolyline, so edgeRouting/borderRoute/edgeStyle each SKIP the
+  // edges it routed (they only touch chords it left). No conflict — declared
+  // independent (the seam ORDERING is enforced in code: channelRoute is invoked
+  // before the other three in terraformPipelineStrataSceneBuild.ts). channelRoute
+  // × edgeStyle is the composition the task calls out: edgeStyle only softens
+  // the channel polylines' corners (roundness), it never re-routes them.
+  ["strataChannelRoute", "strataEdgeRouting"],
+  ["strataChannelRoute", "strataBorderRoute"],
+  ["strataChannelRoute", "strataEdgeStyle"],
   // NOTE: bandDepth × deBandLevel is NOT independent — it is a declared
   // value-conflict (STRATA_VALUE_CONFLICTS), so it is deliberately absent here.
 ];

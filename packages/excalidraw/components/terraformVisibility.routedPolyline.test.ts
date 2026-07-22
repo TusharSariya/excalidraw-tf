@@ -263,6 +263,59 @@ describe("repairTerraformEdgeBindings — routed polyline validate-before-trust"
     expect(out.endBinding?.elementId).toBe("r-b");
   });
 
+  it("preserves a probe-P1 channel-route orthogonal polyline whose endpoints still match (round-trip)", () => {
+    const rectA = resourceRect("r-a", A, 0, 0);
+    const rectB = resourceRect("r-b", B, 400, 300);
+    // Derive the exact repaired chord endpoints, then build the orthogonal
+    // channel polyline routeStrataChannelEdges emits between the SAME absolute
+    // endpoints: exit stub → vertical run at a mid-channel track X → entry stub.
+    const straight = repairEdge(
+      [rectA, rectB, depEdge("routed", A, B)],
+      "routed",
+    );
+    const pts = (straight as unknown as { points: [number, number][] }).points;
+    const sRel = pts[0]!;
+    const eRel = pts[pts.length - 1]!;
+    const start: readonly [number, number] = [
+      straight.x + sRel[0],
+      straight.y + sRel[1],
+    ];
+    const end: readonly [number, number] = [
+      straight.x + eRel[0],
+      straight.y + eRel[1],
+    ];
+    const trackX = (start[0] + end[0]) / 2;
+    const channelPoly: Array<readonly [number, number]> = [
+      start,
+      [trackX, start[1]],
+      [trackX, end[1]],
+      end,
+    ];
+    const relPoints = channelPoly.map(
+      ([px, py]) => [px - straight.x, py - straight.y] as [number, number],
+    );
+    const xs = relPoints.map((p) => p[0]);
+    const ys = relPoints.map((p) => p[1]);
+    const routed = depEdge("routed", A, B, {
+      x: straight.x,
+      y: straight.y,
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys),
+      points: relPoints,
+      customData: {
+        terraformEdgeLayer: "dependency",
+        relationship: { source: A, target: B },
+        terraformRoutedPolyline: true,
+      },
+    } as unknown as Partial<ExcalidrawElement>);
+
+    const out = repairEdge([rectA, rectB, routed], "routed");
+    expect(out.points.length).toBe(channelPoly.length); // channel geometry kept
+    expect(out.customData?.terraformRoutedPolyline).toBe(true);
+    expect(out.startBinding?.elementId).toBe("r-a");
+    expect(out.endBinding?.elementId).toBe("r-b");
+  });
+
   it("flattens + strips a foreign arrow carrying the flag with garbage points", () => {
     const rectA = resourceRect("r-a", A, 0, 0);
     const rectB = resourceRect("r-b", B, 400, 300);

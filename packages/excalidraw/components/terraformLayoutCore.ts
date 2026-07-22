@@ -489,6 +489,9 @@ type LayoutSceneContext = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1: inter-rank channel routing (owner's dummy-column idea).
+   * Default off. */
+  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: StrataEdgeStyle;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
@@ -661,9 +664,11 @@ async function buildPipelineLayoutSceneBody(
         strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
         strataEdgeRouting: ctx.strataEdgeRouting,
         strataBorderRoute: ctx.strataBorderRoute,
+        strataChannelRoute: ctx.strataChannelRoute,
         // Raw forward — omit at default ("straight")/absent so builderOptions
         // never carries a default style into the engine. Non-default forwards.
-        ...(ctx.strataEdgeStyle !== undefined && ctx.strataEdgeStyle !== "straight"
+        ...(ctx.strataEdgeStyle !== undefined &&
+        ctx.strataEdgeStyle !== "straight"
           ? { strataEdgeStyle: ctx.strataEdgeStyle }
           : {}),
         strataSweeps: ctx.strataSweeps,
@@ -1290,6 +1295,7 @@ export async function layoutTerraformFromSources(
     strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
     strataEdgeRouting: options?.strataEdgeRouting === true,
     strataBorderRoute: options?.strataBorderRoute === true,
+    strataChannelRoute: options?.strataChannelRoute === true,
     // Raw forward — omit at default ("straight")/absent so the sceneContext
     // never materializes a default style key. Non-default forwards.
     ...(options?.strataEdgeStyle !== undefined &&

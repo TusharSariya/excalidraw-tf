@@ -124,6 +124,8 @@ export type RunTerraformImportFromSourcesArgs = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1: inter-rank channel routing. Default off. */
+  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
@@ -196,6 +198,7 @@ export const runTerraformImportWithView = async ({
   strataDeBandLevel,
   strataEdgeRouting,
   strataBorderRoute,
+  strataChannelRoute,
   strataEdgeStyle,
   strataBandCompact,
   strataBandDepth,
@@ -283,6 +286,7 @@ export const runTerraformImportWithView = async ({
           strataDeBandLevel,
           strataEdgeRouting,
           strataBorderRoute,
+          strataChannelRoute,
           strataEdgeStyle,
           strataBandCompact,
           strataBandDepth,
@@ -361,6 +365,8 @@ export type RunTerraformPresetImportOptions = {
   strataEdgeRouting?: boolean;
   /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1: inter-rank channel routing. Default off. */
+  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
@@ -456,6 +462,7 @@ export const runTerraformPresetImport = async (
     strataDeBandLevel: options.strataDeBandLevel,
     strataEdgeRouting: options.strataEdgeRouting,
     strataBorderRoute: options.strataBorderRoute,
+    strataChannelRoute: options.strataChannelRoute,
     strataEdgeStyle: options.strataEdgeStyle,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,

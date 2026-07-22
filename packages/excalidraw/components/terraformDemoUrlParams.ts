@@ -136,6 +136,9 @@ export type TerraformDemoUrlParams = {
   /** Strata P3-pierce clean container-exit routing (`strataBorderRoute=1/0`).
    * Default off. */
   strataBorderRoute?: boolean;
+  /** Strata probe P1 inter-rank channel routing (`strataChannelRoute=1/0`,
+   * the owner's dummy-column idea). Default off. */
+  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style
    * (`strataEdgeStyle=straight|step|curve`). Default `"straight"`. */
   strataEdgeStyle?: "straight" | "step" | "curve";
@@ -484,6 +487,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataBorderRoute === null) {
     return null;
   }
+  const strataChannelRoute = parseBooleanParam("strataChannelRoute");
+  if (strataChannelRoute === null) {
+    return null;
+  }
   // Probe P2 edge style enum. Hard-fail on an invalid value (same contract as
   // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
   // default downstream. Case-insensitive, matching the band-depth parse.
@@ -775,6 +782,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
     ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
+    ...(strataChannelRoute != null ? { strataChannelRoute } : {}),
     ...(strataEdgeStyle != null ? { strataEdgeStyle } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
@@ -861,6 +869,7 @@ export const buildTerraformDemoUrl = (
   setNum("strataPackedEps", params.strataPackedEps);
   setBool("strataEdgeRouting", params.strataEdgeRouting);
   setBool("strataBorderRoute", params.strataBorderRoute);
+  setBool("strataChannelRoute", params.strataChannelRoute);
   setEnum("strataEdgeStyle", params.strataEdgeStyle);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
@@ -976,6 +985,9 @@ export type TerraformDemoSettingsSnapshot = {
   strataPackedScoringEpsilon: number;
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
+  /** Probe P1 inter-rank channel routing. Optional (like `strataEdgeStyle`) so a
+   * snapshot literal predating this field still type-checks; absent ⇒ false. */
+  strataChannelRoute?: boolean;
   /** Probe P2 edge render style. Optional (like `strataBandDepth`) so a
    * snapshot literal predating this field still type-checks; absent ⇒
    * "straight". */
@@ -1121,6 +1133,8 @@ export const collectTerraformDemoParams = (
       // Package C spike (W9): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
       ...(snapshot.strataBorderRoute ? { strataBorderRoute: true } : {}),
+      // Probe P1 channel routing: default-off — truthy-only, like border route.
+      ...(snapshot.strataChannelRoute ? { strataChannelRoute: true } : {}),
       // Probe P2 edge style: default "straight" omitted (non-default only),
       // like the band-depth cut.
       ...((snapshot.strataEdgeStyle ?? "straight") !== "straight"

@@ -176,6 +176,16 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "M2 'Route edges'; composes with edgeRouting; owner-decisions.md 2026-07-17 declutter: SHIPPED into the same collapsed 'Advanced: edge routing' <details> disclosure as edgeRouting; parses independently forever",
   },
   {
+    urlParam: "strataChannelRoute",
+    optionKey: "strataChannelRoute",
+    kind: "boolean",
+    default: false,
+    surface: "advanced",
+    emitClass: "C2",
+    decidedNow: false,
+    note: "probe P1 (edge-routing-research 2026-07-22, owner's dummy-column idea): inter-rank channel/track orthogonal routing of TFD arrows; runs FIRST among the edge passes and owns the polyline topology (edgeRouting/borderRoute/edgeStyle skip its edges); default off byte-identical (module never runs), truthy-only emit; scored on angle/pierce metrics + eyeball A/B; SHIPPED into the collapsed 'Advanced: edge routing' <details> disclosure",
+  },
+  {
     urlParam: "strataEdgeStyle",
     optionKey: "strataEdgeStyle",
     kind: "enum",

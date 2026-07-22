@@ -409,6 +409,64 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataChannelRoute end-to-end (both silent-drop literals -> scene build -> meta echo + routed counts; default-off byte-identical)",
+    async () => {
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default off: no channel-route meta keys emitted (byte-identical off).
+      expect(off.meta.strataChannelRoute).toBeUndefined();
+      expect(off.meta.strataChannelRouteRouted).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataChannelRoute: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH silent-drop literals (sceneContext + builderOptions) →
+      // engine echo, and the pass actually rewrote inter-rank edges.
+      expect(on.meta.strataChannelRoute).toBe(true);
+      expect(typeof on.meta.strataChannelRouteRouted).toBe("number");
+      expect(on.meta.strataChannelRouteRouted as number).toBeGreaterThan(0);
+      expect(typeof on.meta.strataChannelRouteColumns).toBe("number");
+      expect(on.meta.strataChannelRouteColumns as number).toBeGreaterThan(1);
+      // Routed arrows carry a multi-point stamped polyline in the final scene.
+      const routedArrows = on.elements.filter((el) => {
+        if (el.type !== "arrow") {
+          return false;
+        }
+        const cd = el.customData as Record<string, unknown> | undefined;
+        const rel = cd?.relationship as Record<string, unknown> | undefined;
+        return (
+          typeof rel?.source === "string" &&
+          rel?.aggregated !== true &&
+          cd?.terraformRoutedPolyline === true &&
+          ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
+        );
+      });
+      expect(routedArrows.length).toBeGreaterThan(0);
+
+      // Explicit false is byte-identical to the flag-off scene (the module never
+      // runs), checked at bbox AND polyline level.
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataChannelRoute: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
     "threads strataBandCompact through the sceneContext literal (WP2 — threading-only; engine consumption + meta echo is WP1's parallel build)",
     async () => {
       // Both literals in terraformLayoutCore.ts (LayoutSceneContext +
