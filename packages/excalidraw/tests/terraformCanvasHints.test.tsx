@@ -328,6 +328,66 @@ describe("E09.3 devicePixelRatio cap (terraformDprCap)", () => {
     expect(widthOff - widthOn).toBe(200 * (3 - TERRAFORM_CANVAS_DPR_CAP));
   });
 
+  it("0-size band: a tiny element that draws at raw dpr still rasterizes under the cap (no per-frame regen, no vanish)", () => {
+    // 5×5 world rect, padding 20, zoom 0.02:
+    //   raw dpr 2:      floor((5*2   + 40) * 0.02) = floor(1.0)  = 1  (drawn)
+    //   capped dpr 1.5: floor((5*1.5 + 40) * 0.02) = floor(0.95) = 0  (would vanish)
+    // The floor-to-≥1 clamp keeps the capped bitmap at ≥1px because the element
+    // is ≥1px at raw dpr, so it is cached ONCE and never re-enters the per-frame
+    // regen loop that an uncached null verdict would cause.
+    setDevicePixelRatio(2);
+    patchTerraformRuntimePerformanceSettings({ terraformDprCap: true });
+    const rect = API.createElement({
+      type: "rectangle",
+      x: 0,
+      y: 0,
+      width: 5,
+      height: 5,
+    });
+
+    renderSceneAt([rect], 0.02);
+    const entry = elementWithCanvasCache.get(rect) as {
+      canvas: HTMLCanvasElement;
+    };
+    expect(entry).toBeDefined();
+    expect(entry.canvas.width).toBeGreaterThanOrEqual(1);
+    expect(entry.canvas.height).toBeGreaterThanOrEqual(1);
+    expect(elementCanvasRegenStats.total).toBe(1);
+
+    // Subsequent frames cache-hit — no per-frame re-raster storm, same bitmap.
+    renderSceneAt([rect], 0.02);
+    renderSceneAt([rect], 0.02);
+    expect(elementCanvasRegenStats.total).toBe(1);
+    expect(elementWithCanvasCache.get(rect)).toBe(entry);
+  });
+
+  it("mid-session cap toggle invalidates the stale bitmap and re-bakes at the new effective dpr", () => {
+    setDevicePixelRatio(3);
+    const rect = makeRectangle();
+
+    renderSceneAt([rect], 1); // cap OFF: bitmap baked at dpr 3
+    const entryOff = elementWithCanvasCache.get(rect) as {
+      canvas: HTMLCanvasElement;
+    };
+    const widthAtDpr3 = entryOff.canvas.width; // 200*3 + 2*padding
+
+    resetElementCanvasRegenStats();
+    patchTerraformRuntimePerformanceSettings({ terraformDprCap: true });
+    renderSceneAt([rect], 1); // cap ON: effective dpr now 1.5
+
+    // The effective dpr changed with no other key changing → a regen must fire,
+    // and the new bitmap must be baked at the capped dpr 1.5 (width shrinks by
+    // elementWidth * (3 - 1.5)), not serve the stale dpr-3 bitmap.
+    expect(elementCanvasRegenStats.total).toBe(1);
+    const entryOn = elementWithCanvasCache.get(rect) as {
+      canvas: HTMLCanvasElement;
+    };
+    expect(entryOn).not.toBe(entryOff);
+    expect(widthAtDpr3 - entryOn.canvas.width).toBe(
+      200 * (3 - TERRAFORM_CANVAS_DPR_CAP),
+    );
+  });
+
   it("is inert when dpr is at or below the cap (e.g. the dpr-1 desktop)", () => {
     setDevicePixelRatio(1);
     const offRect = makeRectangle();

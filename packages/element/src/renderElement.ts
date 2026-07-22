@@ -144,6 +144,13 @@ export interface ExcalidrawElementWithCanvas {
   imageCrop: ExcalidrawImageElement["crop"] | null;
   containingFrameOpacity: number;
   boundTextCanvas: HTMLCanvasElement;
+  /**
+   * E09.3: the effective (optionally dpr-capped) devicePixelRatio actually used
+   * to rasterize `canvas`. Part of the cache key (a mid-session dprCap toggle or
+   * a monitor dpr change must invalidate a stale bitmap) and the divisor the draw
+   * path scales by, so the blit matches the bitmap it was baked at.
+   */
+  devicePixelRatio: number;
 }
 
 /**
@@ -181,8 +188,9 @@ export const TERRAFORM_CANVAS_DPR_CAP = 1.5;
  * is threaded through BOTH the size computation (`cappedElementCanvasSize`) AND
  * the draw path (`generateElementCanvas` context scale, `drawElementFromCanvas`)
  * so the two stay consistent — the dpr cancels in `canvas.width / scale`, so
- * geometry is unchanged and only bitmap resolution drops. It also feeds the 0-
- * size verdict, so the null-verdict sentinel stores the EFFECTIVE dpr.
+ * geometry is unchanged and only bitmap resolution drops. It is also recorded on
+ * each cached {@link ExcalidrawElementWithCanvas} (`devicePixelRatio`) so the
+ * cache key and the draw path both key off the dpr the bitmap was baked at.
  */
 const getEffectiveDevicePixelRatio = (): number =>
   terraformCanvasHints.dprCap
@@ -261,6 +269,25 @@ const cappedElementCanvasSize = (
 
   width = Math.floor(width * scale);
   height = Math.floor(height * scale);
+
+  // E09.3: when the dpr cap is ACTIVE, capping the effective dpr must never flip
+  // an element that rasterizes at raw dpr into a 0-size canvas — that would make
+  // `generateElementCanvas` return null every frame (uncached), re-entering the
+  // per-frame regen loop AND vanishing an element that drew a ≥1px bitmap at raw
+  // dpr. Clamp each floored dimension to ≥1, but ONLY when that dimension is
+  // ≥1 at the raw (uncapped) dpr — elements that are already 0-size at raw dpr
+  // keep today's null behavior and are not resurrected.
+  if (terraformCanvasHints.dprCap) {
+    const rawDpr = window.devicePixelRatio;
+    const rawWidth = Math.floor((elementWidth * rawDpr + padding * 2) * scale);
+    const rawHeight = Math.floor((elementHeight * rawDpr + padding * 2) * scale);
+    if (rawWidth >= 1) {
+      width = Math.max(1, width);
+    }
+    if (rawHeight >= 1) {
+      height = Math.max(1, height);
+    }
+  }
 
   return { width, height, scale };
 };
@@ -399,6 +426,8 @@ const generateElementCanvas = (
     boundTextCanvas,
     angle: element.angle,
     imageCrop: isImageElement(element) ? element.crop : null,
+    // E09.3: record the effective dpr this bitmap was baked at (see interface).
+    devicePixelRatio,
   };
 };
 
@@ -733,6 +762,12 @@ const generateElementWithCanvas = (
     prevElementWithCanvas.boundTextElementVersion !== boundTextElementVersion ||
     prevElementWithCanvas.imageCrop !== imageCrop ||
     prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity ||
+    // E09.3: the effective dpr the bitmap was baked at is part of the cache key.
+    // A mid-session `terraformDprCap` toggle (or the window moving to a monitor
+    // with a different dpr) changes `getEffectiveDevicePixelRatio()` without any
+    // other key changing — regenerate so the draw path never divides a stale
+    // dpr-N bitmap by a different effective dpr.
+    prevElementWithCanvas.devicePixelRatio !== getEffectiveDevicePixelRatio() ||
     // since we rotate the canvas when copying from cached canvas, we don't
     // regenerate the cached canvas. But we need to in case of labels which are
     // cached alongside the arrow, and we want the labels to remain unrotated
@@ -777,10 +812,13 @@ const drawElementFromCanvas = (
   const element = elementWithCanvas.element;
   const padding = getCanvasPadding(element);
   const zoom = elementWithCanvas.scale;
-  // E09.3: the same effective (optionally capped) dpr used to rasterize the
-  // bitmap. It cancels in `canvas.width / scale`, so this only sets bitmap
-  // resolution; positions/size stay identical to the uncapped path.
-  const devicePixelRatio = getEffectiveDevicePixelRatio();
+  // E09.3: divide by the STORED effective dpr the bitmap was actually baked at,
+  // not the current one. It cancels in `canvas.width / scale`, so this only sets
+  // bitmap resolution; positions/size stay identical to the uncapped path. Using
+  // the stored value keeps the blit consistent even if the effective dpr changed
+  // since raster time (the regen predicate invalidates on that change, but a
+  // caller could still draw a just-fetched entry from a prior effective dpr).
+  const devicePixelRatio = elementWithCanvas.devicePixelRatio;
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, allElementsMap);
   const cx = ((x1 + x2) / 2 + appState.scrollX) * devicePixelRatio;
   const cy = ((y1 + y2) / 2 + appState.scrollY) * devicePixelRatio;
