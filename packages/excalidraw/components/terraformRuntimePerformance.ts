@@ -30,6 +30,8 @@ export type TerraformRuntimePerformanceSettings = {
    * threshold radios.
    */
   terraformFocusWashOverlay: boolean;
+  /** E09.1: bucket the per-element canvas zoom cache key (default OFF). */
+  terraformZoomQuantize: boolean;
   lowZoomThreshold: 0.2 | 0.3 | 0.4;
 };
 
@@ -41,6 +43,7 @@ export const TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS: TerraformRuntimePerformance
     suppressFrameClippingBelowZoom: false,
     skipBindingRepairDuringFocus: false,
     terraformFocusWashOverlay: false,
+    terraformZoomQuantize: false,
     lowZoomThreshold: 0.3,
   };
 
@@ -50,6 +53,7 @@ const BOOLEAN_SETTING_KEYS = [
   "debounceHoverFocus",
   "suppressFrameClippingBelowZoom",
   "skipBindingRepairDuringFocus",
+  "terraformZoomQuantize",
 ] as const;
 
 const isLowZoomThreshold = (
