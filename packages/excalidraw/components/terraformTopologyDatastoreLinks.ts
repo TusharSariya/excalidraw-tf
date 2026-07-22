@@ -15,6 +15,7 @@ import {
   type TopologyModuleScope,
 } from "./terraformTopologyApiGatewayLinks";
 import { stripStackPrefixForModuleParsing } from "./terraformStackAddress";
+import { recordNodesByTypeFallbackScan } from "./terraformSatelliteFallbackCounter";
 
 import type {
   TerraformPlanGraphNode,
@@ -22,6 +23,25 @@ import type {
 } from "./terraformPlanParsing";
 
 const stripIndexes = (address: string) => address.replace(/\[[^\]]+\]/g, "");
+
+/** Candidate paths for a union of types — indexed lookup if available, else the full scan. */
+function candidatesForTypes(
+  nodesByType: ReadonlyMap<string, readonly string[]> | undefined,
+  types: ReadonlySet<string>,
+  nodes: TerraformPlanNodesMap,
+): readonly string[] {
+  if (!nodesByType) {
+    recordNodesByTypeFallbackScan();
+    return Object.keys(nodes);
+  }
+  const out: string[] = [];
+  for (const t of types) {
+    out.push(...(nodesByType.get(t) ?? []));
+  }
+  return out;
+}
+
+const DATASTORE_PRIMARY_TYPES = new Set(["aws_rds_cluster", "aws_db_instance"]);
 
 export const DATASTORE_TOPOLOGY_SATELLITE_TYPES = new Set([
   "aws_rds_cluster_instance",
@@ -508,14 +528,17 @@ export function collectAddressesFromDatastorePrimaries(
 export function isDatastoreCompanionConsumedAsSatellite(
   nodes: TerraformPlanNodesMap,
   address: string,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): boolean {
-  const primaries = Object.keys(nodes).filter((p) => {
-    if (p === TERRAFORM_MODULE_TREE_KEY || p.startsWith("__")) {
-      return false;
-    }
-    const t = getResourceType(p, nodes[p] as TerraformPlanGraphNode);
-    return t === "aws_rds_cluster" || t === "aws_db_instance";
-  });
+  // Perf-loop E06: `collectAddressesFromDatastorePrimaries` re-checks `getResourceType`
+  // per address and only acts on `aws_rds_cluster` / `aws_db_instance`, building an
+  // order-independent Set. Passing the threaded union bucket therefore yields the identical
+  // set as the legacy `Object.keys` filter (fallback path) — byte-identical either way.
+  const primaries = candidatesForTypes(
+    nodesByType,
+    DATASTORE_PRIMARY_TYPES,
+    nodes,
+  );
   return collectAddressesFromDatastorePrimaries(nodes, primaries).has(address);
 }
 

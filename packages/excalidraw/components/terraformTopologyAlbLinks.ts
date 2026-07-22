@@ -849,9 +849,14 @@ export function isAlbCompanionConsumedAsSatellite(
   nodes: TerraformPlanNodesMap,
   arnIndex: Map<string, string>,
   address: string,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): boolean {
   const targetBare = topologyBareAddressKey(address);
-  for (const path of Object.keys(nodes)) {
+  // Perf-loop E06: iterate only the `aws_lb` bucket when the type index is threaded in
+  // (driver `appendTopologyResourceRectangles`), else the exact legacy full `Object.keys`
+  // scan. The bucket holds exactly the paths whose primary type is `aws_lb`, in the same
+  // `Object.keys` order, so the guard below is a no-op on the indexed path — byte-identical.
+  for (const path of candidatesForType(nodesByType, "aws_lb", nodes)) {
     if (path === TERRAFORM_MODULE_TREE_KEY || path.startsWith("__")) {
       continue;
     }

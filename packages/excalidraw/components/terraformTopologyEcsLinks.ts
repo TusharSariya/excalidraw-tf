@@ -1326,13 +1326,16 @@ export function isEcsCompanionConsumedAsSatellite(
   arnIndex: Map<string, string>,
   address: string,
   plan?: unknown,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): boolean {
+  // Perf-loop E06: `collectAddressesFromEcsClusters` only acts on `aws_ecs_service`
+  // addresses (it skips every other type), so passing the threaded service bucket yields
+  // the identical `consumed` set as passing every node path. Fallback = the exact legacy
+  // full path list. Result is an order-independent Set → byte-identical either way.
   const consumed = collectAddressesFromEcsClusters(
     nodes,
     arnIndex,
-    Object.keys(nodes).filter(
-      (p) => p !== TERRAFORM_MODULE_TREE_KEY && !p.startsWith("__"),
-    ),
+    candidatesForType(nodesByType, "aws_ecs_service", nodes),
     plan,
   );
   return consumed.has(address);

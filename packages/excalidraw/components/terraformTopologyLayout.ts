@@ -110,7 +110,10 @@ import {
   collectTopologySatelliteAddressesFromRegistry,
   filterAddressesExcludingRegistrySatellites,
 } from "./terraformTopologySatelliteRegistry";
-import { withSatelliteClusterMemoScope } from "./terraformTopologySatelliteEngine";
+import {
+  getMemoizedNodesByTypeIndex,
+  withSatelliteClusterMemoScope,
+} from "./terraformTopologySatelliteEngine";
 
 import "./terraformTopologySatelliteRegistry";
 import {
@@ -2931,6 +2934,10 @@ function appendTopologyResourceRectanglesImpl(
   plan?: unknown,
 ): string[] {
   const clusterFrameIds: string[] = [];
+  // Perf-loop E06: fetch the memoized type index once and thread it into the four
+  // companion-consumed predicates so each resolves its driver-type candidates by bucket
+  // instead of an O(all-nodes) `Object.keys` walk per address (O(N²) across all clusters).
+  const nodesByTypeIndex = getMemoizedNodesByTypeIndex(nodes);
   const sorted = [...addrs]
     .filter((addr) => {
       const node = nodes[addr] as TerraformPlanGraphNode | undefined;
@@ -2944,13 +2951,32 @@ function appendTopologyResourceRectanglesImpl(
       /** Orphan fallback when LB cluster resolution fails (e.g. stack-qualified refs). */
       return (
         (isAlbTopologySatelliteResourceType(resourceType) &&
-          !isAlbCompanionConsumedAsSatellite(nodes, arnIndex, addr)) ||
+          !isAlbCompanionConsumedAsSatellite(
+            nodes,
+            arnIndex,
+            addr,
+            nodesByTypeIndex,
+          )) ||
         (isApiGatewayTopologySatelliteResourceType(resourceType) &&
-          !isApiGatewayCompanionConsumedAsSatellite(nodes, addr)) ||
+          !isApiGatewayCompanionConsumedAsSatellite(
+            nodes,
+            addr,
+            nodesByTypeIndex,
+          )) ||
         (isEcsTopologySatelliteResourceType(resourceType) &&
-          !isEcsCompanionConsumedAsSatellite(nodes, arnIndex, addr, plan)) ||
+          !isEcsCompanionConsumedAsSatellite(
+            nodes,
+            arnIndex,
+            addr,
+            plan,
+            nodesByTypeIndex,
+          )) ||
         (isDatastoreTopologySatelliteResourceType(resourceType) &&
-          !isDatastoreCompanionConsumedAsSatellite(nodes, addr))
+          !isDatastoreCompanionConsumedAsSatellite(
+            nodes,
+            addr,
+            nodesByTypeIndex,
+          ))
       );
     })
     .sort();

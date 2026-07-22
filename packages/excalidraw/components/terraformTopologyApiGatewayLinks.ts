@@ -986,9 +986,18 @@ export function filterTopologyAddressesExcludingApiGatewaySatellites(
 export function isApiGatewayCompanionConsumedAsSatellite(
   nodes: TerraformPlanNodesMap,
   address: string,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): boolean {
   const targetBare = topologyBareAddressKey(address);
-  for (const path of Object.keys(nodes)) {
+  // Perf-loop E06: the OUTER rest-api walk uses the threaded `aws_api_gateway_rest_api`
+  // bucket when available (the inner cluster build was already indexed in E02), else the
+  // exact legacy full `Object.keys` scan. Bucket == the rest-api paths in `Object.keys`
+  // order, so the type guard below is a no-op on the indexed path — byte-identical.
+  for (const path of candidatesForType(
+    nodesByType,
+    "aws_api_gateway_rest_api",
+    nodes,
+  )) {
     if (path === TERRAFORM_MODULE_TREE_KEY || path.startsWith("__")) {
       continue;
     }
