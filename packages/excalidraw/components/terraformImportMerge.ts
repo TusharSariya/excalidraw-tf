@@ -79,6 +79,111 @@ function sourceLabel(label: string | undefined, index: number): string {
   return label?.trim() || `import ${index + 1}`;
 }
 
+/**
+ * E11: fast line-scan edge extractor for `terraform graph` DOT exports.
+ *
+ * `mergeDotAdjacency` only ever reads the edge (v,w) pairs of the parsed DOT —
+ * it never touches node attributes, subgraphs, labels, or ranks. But
+ * `graphlibDot.read()` parses the ENTIRE 5MB DOT (11.9k nodes, 28k edges) into a
+ * full graphlib `Graph` with every node attribute, which measured ~514ms — ~75%
+ * of the whole prep.cache span. A `terraform graph` export writes exactly one
+ * edge statement per line in the strict shape `"<src>" -> "<dst>"` (verified: no
+ * multi-hop chains, no edge attributes, no semicolons across the import presets),
+ * so the (v,w) set can be recovered by a single linear pass over the lines.
+ *
+ * Byte-identical guarantee: every consumer of an extracted id passes it straight
+ * to {@link sanitizeDotNodeId}, which strips ALL `"` and `\` characters and then
+ * takes the space-delimited token. graphlib unescapes `\"`→`"` / `\\`→`\` before
+ * we sanitize; the fast path leaves the escapes in place and lets `sanitize`
+ * strip them instead — the stripped result is identical because sanitize removes
+ * exactly those characters, and escapes never introduce/remove spaces (so token
+ * splitting is unaffected). Edge insertion order equals DOT textual order in both
+ * paths (graphlib `edges()` yields setEdge order = statement order), so the
+ * resulting adjacency arrays match element-for-element.
+ *
+ * Correctness fallback: any line that contains `->` but does NOT match the strict
+ * single-edge shape (edge attributes, unquoted ids, multiple edges per line,
+ * a label containing `->`, a wrapped statement) makes the fast path return `null`
+ * for that whole DOT text, and the caller re-parses it with graphlib. A `/*`
+ * anywhere in the text also bails the whole DOT (adversarial review 2026-07-22:
+ * an edge-shaped line inside a block comment would otherwise be extracted as a
+ * phantom edge — line scanning has no comment-lexer state).
+ *
+ * Known, intentional leniency (recorded by the same review): DOT that graphlib
+ * would REJECT with a parse error on a non-edge line (e.g. a malformed label
+ * without `->`) is skipped by the line scan, so such inputs extract successfully
+ * where the graphlib path used to throw. This divergence is only reachable for
+ * hand-corrupted DOT — `terraform graph` output never produces it — and trades a
+ * hard import failure for a successful import; accepted rather than paying full
+ * grammar validation on the hot path.
+ */
+const DOT_EDGE_LINE_RE =
+  /^[ \t]*"((?:[^"\\]|\\.)*)"[ \t]*->[ \t]*"((?:[^"\\]|\\.)*)"[ \t]*$/;
+
+// DEV-gated observability (E02 pattern): how often the fast path served a DOT
+// text vs. bailed to graphlib. Tests read these to prove the fast path engages.
+let dotAdjacencyFastPathHits = 0;
+let dotAdjacencyFastPathBails = 0;
+let dotAdjacencyFastPathDisabled = false;
+
+/** Tests: force the graphlib path (kill-switch) to compare against the fast path. */
+export function setDotAdjacencyFastPathDisabledForTest(value: boolean): void {
+  dotAdjacencyFastPathDisabled = value;
+}
+
+export function resetDotAdjacencyFastPathStats(): void {
+  dotAdjacencyFastPathHits = 0;
+  dotAdjacencyFastPathBails = 0;
+}
+
+export function getDotAdjacencyFastPathStats(): {
+  hits: number;
+  bails: number;
+} {
+  return {
+    hits: dotAdjacencyFastPathHits,
+    bails: dotAdjacencyFastPathBails,
+  };
+}
+
+/**
+ * Recover the ordered edge (v,w) pairs from a `terraform graph` DOT text without
+ * building a full graphlib graph. Returns `null` (bail) on any deviation from the
+ * strict one-edge-per-line shape, signalling the caller to fall back to graphlib.
+ */
+function extractDotEdgePairsFast(
+  dotText: string,
+): Array<readonly [string, string]> | null {
+  // Block comments defeat line-by-line scanning (an edge-shaped line inside
+  // `/* ... */` must NOT become an edge). terraform graph never emits them, so
+  // bailing on the mere substring is free on real inputs and sound on all.
+  if (dotText.includes("/*")) {
+    return null;
+  }
+  const edges: Array<readonly [string, string]> = [];
+  let start = 0;
+  const len = dotText.length;
+  while (start <= len) {
+    let end = dotText.indexOf("\n", start);
+    if (end === -1) {
+      end = len;
+    }
+    // Only lines carrying "->" can be edge statements; skip the rest (node
+    // statements, subgraph braces, graph attributes — none create edges).
+    const line = dotText.slice(start, end);
+    start = end + 1;
+    if (line.indexOf("->") === -1) {
+      continue;
+    }
+    const m = DOT_EDGE_LINE_RE.exec(line);
+    if (!m) {
+      return null;
+    }
+    edges.push([m[1]!, m[2]!] as const);
+  }
+  return edges;
+}
+
 /** Union dependency-graph adjacency from multiple `terraform graph` DOT exports. */
 export function mergeDotAdjacency(
   dotTexts: string[],
@@ -86,25 +191,40 @@ export function mergeDotAdjacency(
 ): Record<string, string[]> {
   const targetSets = new Map<string, Set<string>>();
 
+  const addEdge = (rawV: string, rawW: string, stackId: string | undefined) => {
+    const rawSource = sanitizeDotNodeId(rawV);
+    const rawTarget = sanitizeDotNodeId(rawW);
+    const source = stackId ? prefixStackAddress(stackId, rawSource) : rawSource;
+    const target = stackId ? prefixStackAddress(stackId, rawTarget) : rawTarget;
+    let set = targetSets.get(source);
+    if (!set) {
+      set = new Set();
+      targetSets.set(source, set);
+    }
+    set.add(target);
+  };
+
   for (let i = 0; i < dotTexts.length; i++) {
     const dotText = dotTexts[i]!;
     const stackId = stackIds?.[i]?.trim();
-    const graph = graphlibDot.read(dotText);
-    for (const { v, w } of graph.edges()) {
-      const rawSource = sanitizeDotNodeId(v);
-      const rawTarget = sanitizeDotNodeId(w);
-      const source = stackId
-        ? prefixStackAddress(stackId, rawSource)
-        : rawSource;
-      const target = stackId
-        ? prefixStackAddress(stackId, rawTarget)
-        : rawTarget;
-      let set = targetSets.get(source);
-      if (!set) {
-        set = new Set();
-        targetSets.set(source, set);
+    const fastPairs = dotAdjacencyFastPathDisabled
+      ? null
+      : extractDotEdgePairsFast(dotText);
+    if (fastPairs) {
+      if (import.meta.env.DEV) {
+        dotAdjacencyFastPathHits += 1;
       }
-      set.add(target);
+      for (const [v, w] of fastPairs) {
+        addEdge(v, w, stackId);
+      }
+    } else {
+      if (import.meta.env.DEV && !dotAdjacencyFastPathDisabled) {
+        dotAdjacencyFastPathBails += 1;
+      }
+      const graph = graphlibDot.read(dotText);
+      for (const { v, w } of graph.edges()) {
+        addEdge(v, w, stackId);
+      }
     }
   }
 

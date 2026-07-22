@@ -13,6 +13,8 @@ import {
   type TerraformPlanParsingSources,
 } from "./terraformPlanParsing";
 
+import { terraformImportProfilerMeasure } from "./terraformImportProfiler";
+
 import type { EnrichedTopologyPlacements } from "./terraformTopologyPlacementBuild";
 import type { TerraformLayoutOptions } from "./terraformLayoutCore";
 import type { TerraformPlanNodesMap } from "./terraformPlanParsing";
@@ -106,33 +108,43 @@ export function buildTerraformImportPrepCache(
   let stackIds: string[] = [];
   let addressToStack: Record<string, string> = {};
   if (bundles.length > 1) {
-    const namespaced = namespacePlanDotBundles(bundles);
+    const namespaced = terraformImportProfilerMeasure("prep.namespace", () =>
+      namespacePlanDotBundles(bundles),
+    );
     bundles = namespaced.bundles;
     stackIds = namespaced.stackIds;
     addressToStack = namespaced.addressToStack;
   }
 
-  const merged = mergePlanJsons(
-    bundles.map((b) => b.plan),
-    bundles.map((b) => b.label),
+  const merged = terraformImportProfilerMeasure("prep.merge.json", () =>
+    mergePlanJsons(
+      bundles.map((b) => b.plan),
+      bundles.map((b) => b.label),
+    ),
   );
-  const adjacency = mergeDotAdjacency(
-    bundles.map((b) => b.dotText),
-    stackIds.length > 0 ? stackIds : undefined,
+  const adjacency = terraformImportProfilerMeasure("prep.merge.dot", () =>
+    mergeDotAdjacency(
+      bundles.map((b) => b.dotText),
+      stackIds.length > 0 ? stackIds : undefined,
+    ),
   );
 
   const graph = graphlibDot.read("digraph G {}\n");
-  const nodes = buildTerraformLocalImportNodesMap(merged.plan, graph, [], {
-    adjacency,
-    priorStatePlans: merged.sourcePlans,
-    stackIds,
-  });
+  const nodes = terraformImportProfilerMeasure("prep.nodes", () =>
+    buildTerraformLocalImportNodesMap(merged.plan, graph, [], {
+      adjacency,
+      priorStatePlans: merged.sourcePlans,
+      stackIds,
+    }),
+  );
 
-  applyTfdOverlayToNodes(
-    nodes,
-    sources.tfdTexts,
-    sources.tfdLabels,
-    options?.dataflowLinks,
+  terraformImportProfilerMeasure("prep.tfd.overlay", () =>
+    applyTfdOverlayToNodes(
+      nodes,
+      sources.tfdTexts,
+      sources.tfdLabels,
+      options?.dataflowLinks,
+    ),
   );
 
   // Prep only computes what is shared across views (merged plan, dependency

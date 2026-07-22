@@ -21,6 +21,7 @@ import {
   topologyBareAddressKey,
 } from "./terraformStackAddress";
 import { dedupeTerraformPlanNodesByBareAddress } from "./terraformTopologyAddress";
+import { terraformImportProfilerMeasure } from "./terraformImportProfiler";
 
 import type { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 
@@ -456,7 +457,9 @@ export function buildTerraformLocalImportNodesMap(
     resource_changes: { address: string }[];
     prior_state?: { values: { root_module: unknown } };
   };
-  let nodes = loadPlan(planTyped);
+  let nodes = terraformImportProfilerMeasure("prep.nodes.loadPlan", () =>
+    loadPlan(planTyped),
+  );
   const stackIds = options?.stackIds ?? [];
   const stateList = normalizeTfstateList(tfstate);
   for (let si = 0; si < stateList.length; si++) {
@@ -469,26 +472,36 @@ export function buildTerraformLocalImportNodesMap(
   }
   nodes = dedupeTerraformPlanNodesByBareAddress(nodes);
   const nodes2 = sanitizeTerraformPlanNodes(ensureEdgeLists(nodes));
-  const nodes3 = buildNewEdges(nodes2, adjacency);
+  const nodes3 = terraformImportProfilerMeasure("prep.nodes.newEdges", () =>
+    buildNewEdges(nodes2, adjacency),
+  );
   let nodes4 = nodes3;
   const priorPlans = options?.priorStatePlans?.length
     ? options.priorStatePlans
     : [planTyped];
-  for (const priorPlan of priorPlans) {
-    const root = (
-      priorPlan as { prior_state?: { values?: { root_module?: unknown } } }
-    )?.prior_state?.values?.root_module;
-    if (root) {
-      nodes4 = buildExistingEdges(
-        nodes4,
-        priorPlan as { prior_state: { values: { root_module: unknown } } },
-      );
+  terraformImportProfilerMeasure("prep.nodes.existingEdges", () => {
+    for (const priorPlan of priorPlans) {
+      const root = (
+        priorPlan as { prior_state?: { values?: { root_module?: unknown } } }
+      )?.prior_state?.values?.root_module;
+      if (root) {
+        nodes4 = buildExistingEdges(
+          nodes4,
+          priorPlan as { prior_state: { values: { root_module: unknown } } },
+        );
+      }
     }
-  }
+  });
   const sanitizedNodes = sanitizeTerraformPlanNodes(nodes4);
-  const withTree = attachModuleTree(sanitizedNodes);
-  buildDataFlowEdges(withTree as PlanNodesMap);
-  buildNetworkingEdges(withTree as PlanNodesMap);
+  const withTree = terraformImportProfilerMeasure("prep.nodes.moduleTree", () =>
+    attachModuleTree(sanitizedNodes),
+  );
+  terraformImportProfilerMeasure("prep.nodes.dataflow", () =>
+    buildDataFlowEdges(withTree as PlanNodesMap),
+  );
+  terraformImportProfilerMeasure("prep.nodes.networking", () =>
+    buildNetworkingEdges(withTree as PlanNodesMap),
+  );
   return withTree;
 }
 
