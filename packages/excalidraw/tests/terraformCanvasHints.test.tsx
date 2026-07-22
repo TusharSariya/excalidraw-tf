@@ -16,6 +16,7 @@ import type {
 } from "@excalidraw/element/types";
 
 import { renderStaticScene } from "../renderer/staticScene";
+import { bootstrapCanvas } from "../renderer/helpers";
 import { getDefaultAppState } from "../appState";
 import {
   patchTerraformRuntimePerformanceSettings,
@@ -208,6 +209,115 @@ describe("E09.1 zoom cache-key quantization (terraformZoomQuantize)", () => {
     // now-drawable element invisible.
     expect(elementCanvasRegenStats.total).toBe(1);
     expect(elementCanvasRegenStats.nullVerdictHits).toBe(0);
+  });
+});
+
+/**
+ * A canvas whose `getContext` records the options object it was called with, so
+ * we can assert whether `{ alpha: false }` was requested. (vitest-canvas-mock
+ * does not implement `getContextAttributes`, and its bitmap pixels are not real,
+ * so the request options are the deterministic observable for the opaque-context
+ * decision — this stands in for the gate's `getContextAttributes`/pixel probe.)
+ */
+const makeContextSpyCanvas = () => {
+  const canvas = document.createElement("canvas");
+  const contextOptions: Array<CanvasRenderingContext2DSettings | undefined> =
+    [];
+  const original = canvas.getContext.bind(canvas) as (
+    type: string,
+    options?: CanvasRenderingContext2DSettings,
+  ) => CanvasRenderingContext2D | null;
+  canvas.getContext = ((
+    type: string,
+    options?: CanvasRenderingContext2DSettings,
+  ) => {
+    contextOptions.push(options);
+    return original(type, options);
+  }) as HTMLCanvasElement["getContext"];
+  return { canvas, contextOptions };
+};
+
+describe("E09.2 opaque static context (terraformStaticCanvasOpaque)", () => {
+  it("requests alpha:false only for requestOpaque + an opaque background", () => {
+    const { canvas, contextOptions } = makeContextSpyCanvas();
+    const context = bootstrapCanvas({
+      canvas,
+      scale: 1,
+      normalizedWidth: 400,
+      normalizedHeight: 400,
+      theme: "light",
+      isExporting: false,
+      viewBackgroundColor: "#ffffff",
+      requestOpaque: true,
+    });
+    expect(contextOptions[0]).toEqual({ alpha: false });
+    // Background paint still happens (opaque fill covering the canvas).
+    const fillSpy = vi.spyOn(context, "fillRect");
+    bootstrapCanvas({
+      canvas,
+      scale: 1,
+      normalizedWidth: 400,
+      normalizedHeight: 400,
+      theme: "light",
+      isExporting: false,
+      viewBackgroundColor: "#ffffff",
+      requestOpaque: true,
+    });
+    expect(fillSpy).toHaveBeenCalledWith(0, 0, 400, 400);
+    fillSpy.mockRestore();
+  });
+
+  it("does NOT request alpha:false for a transparent background (export-safe)", () => {
+    for (const bg of ["transparent", "#ffffff00", "rgba(0,0,0,0)"]) {
+      const { canvas, contextOptions } = makeContextSpyCanvas();
+      bootstrapCanvas({
+        canvas,
+        scale: 1,
+        normalizedWidth: 400,
+        normalizedHeight: 400,
+        theme: "light",
+        isExporting: true,
+        viewBackgroundColor: bg,
+        requestOpaque: true,
+      });
+      expect(contextOptions[0]).toBeUndefined();
+    }
+  });
+
+  it("does NOT request alpha:false when requestOpaque is false (interactive/new-element layers)", () => {
+    const { canvas, contextOptions } = makeContextSpyCanvas();
+    bootstrapCanvas({
+      canvas,
+      scale: 1,
+      normalizedWidth: 400,
+      normalizedHeight: 400,
+      theme: "light",
+      isExporting: false,
+      viewBackgroundColor: "#ffffff",
+      // requestOpaque omitted → default false
+    });
+    expect(contextOptions[0]).toBeUndefined();
+  });
+
+  it("static scene requests an opaque context when the toggle is ON and bg is opaque", () => {
+    patchTerraformRuntimePerformanceSettings({
+      terraformStaticCanvasOpaque: true,
+    });
+    const { canvas, contextOptions } = makeContextSpyCanvas();
+    renderSceneAt([makeRectangle()], 1, {
+      appStateOverrides: { viewBackgroundColor: "#ffffff" },
+      canvas,
+    });
+    expect(contextOptions).toContainEqual({ alpha: false });
+  });
+
+  it("static scene stays transparent when the toggle is OFF (default)", () => {
+    const { canvas, contextOptions } = makeContextSpyCanvas();
+    renderSceneAt([makeRectangle()], 1, {
+      appStateOverrides: { viewBackgroundColor: "#ffffff" },
+      canvas,
+    });
+    expect(contextOptions.every((o) => o === undefined)).toBe(true);
   });
 });
 

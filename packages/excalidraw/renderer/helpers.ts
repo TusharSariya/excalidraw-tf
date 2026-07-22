@@ -37,6 +37,7 @@ export const bootstrapCanvas = ({
   theme,
   isExporting,
   viewBackgroundColor,
+  requestOpaque = false,
 }: {
   canvas: HTMLCanvasElement;
   scale: number;
@@ -45,19 +46,42 @@ export const bootstrapCanvas = ({
   theme?: AppState["theme"];
   isExporting?: StaticCanvasRenderConfig["isExporting"];
   viewBackgroundColor?: StaticCanvasAppState["viewBackgroundColor"];
+  /**
+   * E09.2: request an opaque (`alpha: false`) 2D context. This is granted ONLY
+   * when the resolved background is itself opaque — a `viewBackgroundColor`
+   * string that is not transparent/translucent. On a transparent background an
+   * opaque context would composite the cleared canvas as solid black, so the
+   * guard falls back to the default alpha context. Callers pass this only for
+   * the STATIC scene layer; the interactive / new-element layers MUST stay
+   * transparent so they composite over the static layer beneath.
+   *
+   * NOTE: 2D context attributes are fixed at the first `getContext` call for a
+   * given canvas and ignored thereafter, so a long-lived canvas keeps whatever
+   * alpha it was first created with. In practice the static canvas is created
+   * with a stable (opaque) Terraform background before its first paint.
+   */
+  requestOpaque?: boolean;
 }): CanvasRenderingContext2D => {
-  const context = canvas.getContext("2d")!;
+  const hasTransparence =
+    typeof viewBackgroundColor === "string"
+      ? viewBackgroundColor === "transparent" ||
+        viewBackgroundColor.length === 5 || // #RGBA
+        viewBackgroundColor.length === 9 || // #RRGGBBA
+        /(hsla|rgba)\(/.test(viewBackgroundColor)
+      : true;
+  const opaque =
+    requestOpaque && typeof viewBackgroundColor === "string" && !hasTransparence;
+
+  const context = canvas.getContext(
+    "2d",
+    opaque ? { alpha: false } : undefined,
+  )!;
 
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.scale(scale, scale);
 
   // Paint background
   if (typeof viewBackgroundColor === "string") {
-    const hasTransparence =
-      viewBackgroundColor === "transparent" ||
-      viewBackgroundColor.length === 5 || // #RGBA
-      viewBackgroundColor.length === 9 || // #RRGGBBA
-      /(hsla|rgba)\(/.test(viewBackgroundColor);
     if (hasTransparence) {
       context.clearRect(0, 0, normalizedWidth, normalizedHeight);
     }

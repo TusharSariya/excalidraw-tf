@@ -921,6 +921,21 @@ class App extends React.Component<AppProps, AppState> {
     this.scene = new Scene();
 
     this.canvas = document.createElement("canvas");
+    // E09.2: 2D context attributes are fixed at the FIRST getContext call and
+    // ignored thereafter. `rough.canvas` below creates the static canvas's 2D
+    // context (with default alpha), so the opaque request threaded into
+    // `bootstrapCanvas` would be a no-op on this long-lived canvas. When the
+    // `terraformStaticCanvasOpaque` toggle is ON we therefore pre-create the
+    // context as opaque (`alpha: false`) here, before rough — skipping the
+    // per-frame alpha-compositing pass on the static layer. This canvas is
+    // exclusively the static layer (the interactive/new-element canvases are
+    // separate elements and stay transparent). Read once at construction; a
+    // runtime toggle change takes effect on the next reload.
+    if (
+      getTerraformRuntimePerformanceSnapshot().value.terraformStaticCanvasOpaque
+    ) {
+      this.canvas.getContext("2d", { alpha: false });
+    }
     this.rc = rough.canvas(this.canvas);
     this.renderer = new Renderer(this.scene);
     this.visibleElements = [];
