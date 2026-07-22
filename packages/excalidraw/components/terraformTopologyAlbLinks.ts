@@ -779,8 +779,14 @@ export function albSatelliteStackHeightPx(
   tier1SatelliteH: number,
   tier2SatelliteH: number,
   satelliteGap: number,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
-  const { cluster } = buildAlbListenerTargetCluster(nodes, lbAddress, arnIndex);
+  const { cluster } = buildAlbListenerTargetCluster(
+    nodes,
+    lbAddress,
+    arnIndex,
+    nodesByType,
+  );
   if (!cluster || cluster.stack.length === 0) {
     return 0;
   }

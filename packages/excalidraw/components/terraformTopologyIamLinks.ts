@@ -882,8 +882,15 @@ export function iamSatelliteStackHeightPx(
   tier2SatelliteH: number,
   satelliteGap: number,
   plan?: unknown,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
-  const { cluster } = buildPrimaryIamCluster(nodes, address, arnIndex, plan);
+  const { cluster } = buildPrimaryIamCluster(
+    nodes,
+    address,
+    arnIndex,
+    plan,
+    nodesByType,
+  );
   if (!cluster || cluster.stack.length === 0) {
     return 0;
   }

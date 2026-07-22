@@ -1088,8 +1088,15 @@ export function sgSatelliteStackHeightPx(
   ruleTileH: number,
   gap: number,
   plan?: unknown,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
-  const { cluster } = buildPrimarySgCluster(nodes, address, arnIndex, plan);
+  const { cluster } = buildPrimarySgCluster(
+    nodes,
+    address,
+    arnIndex,
+    plan,
+    nodesByType,
+  );
   if (!cluster || cluster.groups.length === 0) {
     return 0;
   }

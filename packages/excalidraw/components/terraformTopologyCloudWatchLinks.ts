@@ -527,8 +527,13 @@ export function cloudWatchSatelliteStackHeightPx(
   address: string,
   satelliteH: number,
   satelliteGap: number,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
-  const { cluster } = buildResourceCloudWatchCluster(nodes, address);
+  const { cluster } = buildResourceCloudWatchCluster(
+    nodes,
+    address,
+    nodesByType,
+  );
   if (!cluster) {
     return 0;
   }
