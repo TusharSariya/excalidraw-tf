@@ -52,6 +52,17 @@ const soakMinutes = Number(getArg("--soak-minutes", "0"));
 const reusePage = hasFlag("--reuse-page");
 const outDir = getArg("--out", DEFAULT_OUT);
 const matrixPath = getArg("--matrix", null);
+// Adversarial-validator fix (E08 finding #2): full navigate + re-import
+// between EACH workload within a run, instead of running all workloads
+// sequentially on one page load. Removes the sequential-state-contamination
+// confound (later workloads inheriting scene/selection/history state left by
+// earlier ones). Off by default — multiplies import cost by workload count.
+const isolateWorkloads = hasFlag("--isolate-workloads");
+// Adversarial-validator fix (E08 finding #5): serialize the full raw rAF
+// interval array per workload, not just the aggregated percentiles, so a
+// disputed p95/dropped% shift can be checked post-hoc against the actual
+// frame trace. Off by default — the arrays are large.
+const rawIntervals = hasFlag("--raw-intervals");
 // E08 A/B hook: force the `terraformFocusWashOverlay` runtime setting on/off via
 // an init-script localStorage write, so a clean A/B is not contaminated by a
 // prior run's persisted setting. `null` ⇒ leave whatever the app defaults to.
@@ -246,6 +257,21 @@ const instrumentPage = async (page) => {
     }
   });
 };
+
+// Adversarial-validator fix (E08 finding #1): read back the runtime-settings
+// object the app actually loaded from localStorage — the SAME key/shape
+// `terraformRuntimePerformance.ts` persists to and reads from — so the JSON
+// output can prove an ON run genuinely engaged the toggle (and wasn't a
+// silent no-op), rather than trusting the init-script write blind.
+const readEffectiveToggles = async (page) =>
+  page.evaluate((key) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY);
 
 const getSceneBounds = async (page) =>
   page.evaluate(() => {
@@ -950,6 +976,9 @@ const measureWorkload = async (page, workload, ctx) => {
       after.heap != null && before.heap != null
         ? after.heap - before.heap
         : null,
+    // E08 finding #5: full per-frame interval trace, gated behind
+    // --raw-intervals (off by default — the arrays are large).
+    ...(rawIntervals ? { rawIntervalsMs: intervals } : {}),
   };
 };
 
@@ -1060,6 +1089,41 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
     return page;
   };
 
+  // Everything that has to happen right after a (re)navigate: wait for
+  // import to settle, install instrumentation, compute the reference
+  // viewport, and build a fresh ctxBase. Extracted so --isolate-workloads
+  // can re-run it after a mid-run reload (E08 finding #3), not just once
+  // per warmup/run.
+  const preparePage = async (tag) => {
+    const elementCount = await waitForImport(page);
+    console.log(
+      `[${config.name}] ${tag}: import done (${elementCount} elements)`,
+    );
+    await instrumentPage(page);
+
+    const refViewport = await computeFitViewport(page);
+    const canvas = page.locator(".excalidraw__canvas.interactive").first();
+    const box = await canvas.boundingBox();
+    if (!box) {
+      throw new Error("interactive canvas not found");
+    }
+    await setViewport(page, refViewport, 200);
+    await page.mouse.click(box.x + box.width - 30, box.y + box.height - 30);
+    await page.keyboard.press("Escape");
+
+    return {
+      ctxBase: {
+        viewport: { width: vpWidth, height: vpHeight },
+        center: { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+        box,
+        refViewport,
+        notes,
+        state: {},
+      },
+      effectiveToggles: await readEffectiveToggles(page),
+    };
+  };
+
   const totalRuns = warmupCount + runsCount;
   for (let runIndex = 0; runIndex < totalRuns; runIndex++) {
     const isWarmup = runIndex < warmupCount;
@@ -1079,35 +1143,29 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
         timeout: 120_000,
       });
     }
-    const elementCount = await waitForImport(page);
-    console.log(
-      `[${config.name}] ${tag}: import done (${elementCount} elements)`,
-    );
-    await instrumentPage(page);
+    let { ctxBase, effectiveToggles } = await preparePage(tag);
 
-    const refViewport = await computeFitViewport(page);
-    const canvas = page.locator(".excalidraw__canvas.interactive").first();
-    const box = await canvas.boundingBox();
-    if (!box) {
-      throw new Error("interactive canvas not found");
-    }
-    // ensure keyboard focus on the editor (click a far-corner, likely-empty
-    // point, then clear any accidental selection)
-    await setViewport(page, refViewport, 200);
-    await page.mouse.click(box.x + box.width - 30, box.y + box.height - 30);
-    await page.keyboard.press("Escape");
-
-    const ctxBase = {
-      viewport: { width: vpWidth, height: vpHeight },
-      center: { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-      box,
-      refViewport,
-      notes,
-      state: {},
+    const runResult = {
+      workloads: {},
+      // E08 finding #1: the toggle value the app actually had loaded for
+      // this run, read back from localStorage post-navigate (not just the
+      // value we asked the init script to write).
+      effectiveToggles,
+      effectiveFocusWashEnabled:
+        effectiveToggles?.terraformFocusWashOverlay ?? null,
     };
-
-    const runResult = { workloads: {} };
-    for (const workload of selectedWorkloads) {
+    for (const [workloadIndex, workload] of selectedWorkloads.entries()) {
+      if (isolateWorkloads && workloadIndex > 0) {
+        // E08 finding #3: full navigate + re-import before each workload so
+        // later workloads (e.g. edit-churn) don't inherit scene/selection/
+        // history state left behind by earlier ones (click-storm,
+        // select-all-drag, ...).
+        console.log(
+          `[${config.name}] ${tag}: isolate-workloads reload before ${workload.name}`,
+        );
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+        ({ ctxBase, effectiveToggles } = await preparePage(tag));
+      }
       const ctx = {
         ...ctxBase,
         rand: mulberry32((seed ^ hashName(workload.name)) >>> 0),
@@ -1115,6 +1173,11 @@ const runSuiteForConfig = async (browser, config, selectedWorkloads) => {
       process.stdout.write(`[${config.name}] ${tag}: ${workload.name} ... `);
       try {
         const metrics = await measureWorkload(page, workload, ctx);
+        if (isolateWorkloads) {
+          metrics.effectiveToggles = effectiveToggles;
+          metrics.effectiveFocusWashEnabled =
+            effectiveToggles?.terraformFocusWashOverlay ?? null;
+        }
         runResult.workloads[workload.name] = metrics;
         console.log(
           `p50=${metrics.p50.toFixed(1)}ms p95=${metrics.p95.toFixed(
@@ -1294,6 +1357,10 @@ const main = async () => {
       aggregate: result.aggregate,
       spreadPct: result.spreadPct,
       notes: result.notes,
+      // Convenience mirror of runs[0].effectiveFocusWashEnabled so the
+      // toggle claim can be eyeballed without digging into per-run data.
+      effectiveFocusWashEnabled:
+        result.runs[0]?.effectiveFocusWashEnabled ?? null,
     });
   }
   await browser.close();
@@ -1308,6 +1375,8 @@ const main = async () => {
     runsRequested: runsCount,
     warmup: warmupCount,
     workloads: selectedNames,
+    isolateWorkloads,
+    rawIntervals,
     soakMinutes: soakMinutes > 0 ? soakMinutes : undefined,
     os: {
       platform: os.platform(),
@@ -1325,6 +1394,7 @@ const main = async () => {
           aggregate: configResults[0].aggregate,
           spreadPct: configResults[0].spreadPct,
           notes: configResults[0].notes,
+          effectiveFocusWashEnabled: configResults[0].effectiveFocusWashEnabled,
         }
       : {}),
   };
