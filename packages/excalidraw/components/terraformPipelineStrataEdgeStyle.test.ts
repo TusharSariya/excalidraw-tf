@@ -11,6 +11,8 @@ import {
   applyStrataEdgeStyle,
   bezierPolyline,
   calculateControlOffset,
+  clampOwnCardReentry,
+  removeOneLens,
   smoothStepPolyline,
 } from "./terraformPipelineStrataEdgeStyle";
 import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
@@ -204,6 +206,17 @@ describe("applyStrataEdgeStyle", () => {
     expect(slices).toBe(false);
   });
 
+  // Stage C: refinement passes leave a clean single-edge scene untouched but
+  // report their new meta counters. FAILS pre-change (meta had no lensSwaps /
+  // reentryClamped fields — `toBe(0)` sees `undefined`).
+  it("Stage-C: single un-crossed curve edge is a no-op (lensSwaps=0, reentryClamped=0)", () => {
+    const skeleton = [tfdArrow(0, 0, [200, 40])];
+    const meta = applyStrataEdgeStyle(skeleton, model, placement, "curve");
+    expect(meta.styled).toBe(1);
+    expect(meta.lensSwaps).toBe(0);
+    expect(meta.reentryClamped).toBe(0);
+  });
+
   it("ignores non-TFD arrows (no relationship)", () => {
     const plain = {
       type: "arrow",
@@ -220,5 +233,109 @@ describe("applyStrataEdgeStyle", () => {
     const meta = applyStrataEdgeStyle(skeleton, model, placement, "step");
     expect(meta.styled).toBe(0);
     expect(JSON.stringify(skeleton[0])).toBe(before);
+  });
+});
+
+// Local proper-crossing check for the lens tests (mirrors the module's private
+// guard kernel; interior-interior only, shared endpoints excluded).
+const properCross = (
+  a: readonly [number, number],
+  b: readonly [number, number],
+  c: readonly [number, number],
+  d: readonly [number, number],
+): boolean => {
+  const o = (
+    p: readonly [number, number],
+    q: readonly [number, number],
+    r: readonly [number, number],
+  ) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const E = 1e-9;
+  const d1 = o(c, d, a);
+  const d2 = o(c, d, b);
+  const d3 = o(a, b, c);
+  const d4 = o(a, b, d);
+  return (
+    ((d1 > E && d2 < -E) || (d1 < -E && d2 > E)) &&
+    ((d3 > E && d4 < -E) || (d3 < -E && d4 > E))
+  );
+};
+const countCrossings = (
+  p: ReadonlyArray<readonly [number, number]>,
+  q: ReadonlyArray<readonly [number, number]>,
+): number => {
+  let n = 0;
+  for (let i = 0; i + 1 < p.length; i++) {
+    for (let j = 0; j + 1 < q.length; j++) {
+      if (properCross(p[i]!, p[i + 1]!, q[j]!, q[j + 1]!)) {
+        n += 1;
+      }
+    }
+  }
+  return n;
+};
+
+// W3-4 (spec SECTION 3): same-pair lens/bigon removal. FAILS pre-change
+// (removeOneLens did not exist).
+describe("removeOneLens (W3-4 empty-bigon swap)", () => {
+  it("swaps the sub-arcs of an empty bigon, removing exactly 2 crossings", () => {
+    const P: Array<[number, number]> = [
+      [0, 0],
+      [4, 4],
+      [8, 0],
+    ];
+    const Q: Array<[number, number]> = [
+      [0, 4],
+      [4, 0],
+      [8, 4],
+    ];
+    // Pre: they cross twice (at (2,2) and (6,2)).
+    expect(countCrossings(P, Q)).toBe(2);
+    const out = removeOneLens(P, Q);
+    expect(out).not.toBeNull();
+    const { p, q } = out!;
+    // Endpoints preserved.
+    expect(p[0]).toEqual([0, 0]);
+    expect(p[p.length - 1]).toEqual([8, 0]);
+    expect(q[0]).toEqual([0, 4]);
+    expect(q[q.length - 1]).toEqual([8, 4]);
+    // The arcs were swapped: P now carries Q's midpoint (4,0), Q carries (4,4).
+    expect(p).toContainEqual([4, 0]);
+    expect(q).toContainEqual([4, 4]);
+    // Post: the bigon is gone — zero proper crossings between the two.
+    expect(countCrossings(p, q)).toBe(0);
+  });
+
+  it("returns null when the pair crosses at most once (no bigon)", () => {
+    const P: Array<[number, number]> = [
+      [0, 0],
+      [8, 0],
+    ];
+    const Q: Array<[number, number]> = [
+      [4, -4],
+      [4, 4],
+    ];
+    expect(countCrossings(P, Q)).toBe(1);
+    expect(removeOneLens(P, Q)).toBeNull();
+  });
+});
+
+// W3-2 (spec SECTION 3): own-card re-entry clamp. FAILS pre-change
+// (clampOwnCardReentry did not exist).
+describe("clampOwnCardReentry (W3-2 own-card re-entry clamp)", () => {
+  it("returns null for a clean forward curve (no own-card re-entry)", () => {
+    const far: StrataBox = { x: -500, y: -500, width: 10, height: 10 };
+    expect(
+      clampOwnCardReentry([0, 0], [200, 20], far, null),
+    ).toBeNull();
+  });
+
+  it("returns null when the re-entry is irreducible (anchor embedded > one stub inside its own card — the straight chord re-enters too)", () => {
+    // Start 30px inside the source card's right border; a forward chord to the
+    // right necessarily stays in the card past the 20px stub-skip. No control-arm
+    // shortening can clear it, so the clamp declines (placement artifact).
+    const srcBox: StrataBox = { x: 0, y: 0, width: 100, height: 100 };
+    expect(
+      clampOwnCardReentry([70, 50], [400, 50], srcBox, null),
+    ).toBeNull();
   });
 });

@@ -140,6 +140,15 @@ const badRow = (arm: string, els: ExcalidrawElement[]) => {
   };
 };
 
+const edgeStyleMetaOf = (arm: string, meta: Record<string, unknown>) => ({
+  arm,
+  styled: meta.strataEdgeStyleStyled ?? "—",
+  orbited: meta.strataEdgeStyleOrbited ?? "—",
+  orbitReverted: meta.strataEdgeStyleOrbitReverted ?? "—",
+  reentryClamped: meta.strataEdgeStyleReentryClamped ?? "—",
+  lensSwaps: meta.strataEdgeStyleLensSwaps ?? "—",
+});
+
 const occupancyOf = (arm: string, meta: Record<string, unknown>) => ({
   arm,
   columns: meta.strataChannelRouteColumns ?? "—",
@@ -173,6 +182,16 @@ describe("badPatterns validation probe — 5 arms, owner-theory decision rule", 
       console.log("\n=== badPatterns ROW (M1-M4 + edgeLengthPx) ===");
       // eslint-disable-next-line no-console
       console.table(badRows);
+      // eslint-disable-next-line no-console
+      console.log(
+        "\n=== edgeStyle pass counts (W3-1 orbit + Stage-C W3-2/W3-4 touched edges) ===",
+      );
+      // eslint-disable-next-line no-console
+      console.table(
+        ARMS.filter((a) => a !== "straight" && a !== "channel").map((a) =>
+          edgeStyleMetaOf(a, built.get(a)!.meta),
+        ),
+      );
       // eslint-disable-next-line no-console
       console.log("\n=== channel occupancy (channel arms) ===");
       // eslint-disable-next-line no-console

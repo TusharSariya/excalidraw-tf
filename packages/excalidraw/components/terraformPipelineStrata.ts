@@ -1278,6 +1278,11 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeStyleStyled: scene.edgeStyle.styled,
               strataEdgeStyleSkipped: scene.edgeStyle.skipped,
               strataEdgeStylePoints: scene.edgeStyle.pointsTotal,
+              // W3-1 orbit + Stage-C refinement touched-edge counts.
+              strataEdgeStyleOrbited: scene.edgeStyle.orbited,
+              strataEdgeStyleOrbitReverted: scene.edgeStyle.orbitReverted,
+              strataEdgeStyleReentryClamped: scene.edgeStyle.reentryClamped,
+              strataEdgeStyleLensSwaps: scene.edgeStyle.lensSwaps,
             }
           : {}),
         // R2 evidence (all-zero on the success path).

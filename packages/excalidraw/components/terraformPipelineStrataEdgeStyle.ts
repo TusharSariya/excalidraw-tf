@@ -80,6 +80,11 @@ export type StrataEdgeStyleMeta = {
   /** Back-edges whose orbit pierced MORE foreign cards than the chord, so the
    * chord was kept (guard revert). */
   orbitReverted: number;
+  /** W3-2: curve edges whose own-card re-entry the control-arm clamp cleared
+   * (guard-accepted). NO-OP on clean edges and on placement-artifact re-entries. */
+  reentryClamped: number;
+  /** W3-4: lens (empty-bigon) swaps applied — each removes exactly 2 crossings. */
+  lensSwaps: number;
 };
 
 type Pt = readonly [number, number];
@@ -204,45 +209,57 @@ export function smoothStepPolyline(
  * A backward major axis (target on the wrong side) is left monotone-but-straight
  * here; `applyStrataEdgeStyle` upgrades those to the orbit class.
  */
-export function bezierPolyline(
+/**
+ * The two axis-aligned cubic control points for the styled bezier of a chord
+ * (extracted from `bezierPolyline` so the W3-2 own-card re-entry clamp can
+ * shorten one control arm and re-sample the SAME curve family). `axis` names the
+ * major axis; `forward` is true when the chord advances along +axis (the
+ * monotone-clamped, byte-identical case).
+ */
+export function bezierControlPoints(
   start: Pt,
   end: Pt,
-  curvature: number = STRATA_EDGE_STYLE_CURVATURE,
-  samples: number = STRATA_EDGE_STYLE_CURVE_SAMPLES,
-): Pt[] {
+): { c1: Pt; c2: Pt; axis: "h" | "v"; forward: boolean } {
   const [sx, sy] = start;
   const [ex, ey] = end;
   const dx = ex - sx;
   const dy = ey - sy;
-  let c1: Pt;
-  let c2: Pt;
   if (Math.abs(dx) >= Math.abs(dy)) {
     // Horizontal-major: control arms travel toward the target (chord sign).
     const dir = dx >= 0 ? 1 : -1;
     const mag = 0.5 * Math.abs(dx);
     let c1x = sx + dir * mag;
     let c2x = ex - dir * mag;
-    if (ex >= sx) {
+    const forward = ex >= sx;
+    if (forward) {
       // Forward: clamp interior control x into [sx,ex] ⇒ x'(t)≥0 (monotone).
       c1x = Math.max(sx, Math.min(c1x, ex));
       c2x = Math.max(c1x, Math.min(c2x, ex));
     }
-    c1 = [c1x, sy];
-    c2 = [c2x, ey];
-  } else {
-    // Vertical-major: control arms travel toward the target (chord sign).
-    const dir = dy >= 0 ? 1 : -1;
-    const mag = 0.5 * Math.abs(dy);
-    let c1y = sy + dir * mag;
-    let c2y = ey - dir * mag;
-    if (ey >= sy) {
-      // Forward (top→bottom): clamp interior control y into [sy,ey] ⇒ monotone.
-      c1y = Math.max(sy, Math.min(c1y, ey));
-      c2y = Math.max(c1y, Math.min(c2y, ey));
-    }
-    c1 = [sx, c1y];
-    c2 = [ex, c2y];
+    return { c1: [c1x, sy], c2: [c2x, ey], axis: "h", forward };
   }
+  // Vertical-major: control arms travel toward the target (chord sign).
+  const dir = dy >= 0 ? 1 : -1;
+  const mag = 0.5 * Math.abs(dy);
+  let c1y = sy + dir * mag;
+  let c2y = ey - dir * mag;
+  const forward = ey >= sy;
+  if (forward) {
+    // Forward (top→bottom): clamp interior control y into [sy,ey] ⇒ monotone.
+    c1y = Math.max(sy, Math.min(c1y, ey));
+    c2y = Math.max(c1y, Math.min(c2y, ey));
+  }
+  return { c1: [sx, c1y], c2: [ex, c2y], axis: "v", forward };
+}
+
+/** Sample a cubic bezier P0,c1,c2,P3 to a `samples`+1 point polyline. */
+function sampleCubic(
+  start: Pt,
+  c1: Pt,
+  c2: Pt,
+  end: Pt,
+  samples: number,
+): Pt[] {
   const out: Pt[] = [];
   const n = Math.max(2, samples);
   for (let i = 0; i <= n; i++) {
@@ -253,11 +270,21 @@ export function bezierPolyline(
     const c = 3 * mt * t * t;
     const d = t * t * t;
     out.push([
-      a * sx + b * c1[0] + c * c2[0] + d * ex,
-      a * sy + b * c1[1] + c * c2[1] + d * ey,
+      a * start[0] + b * c1[0] + c * c2[0] + d * end[0],
+      a * start[1] + b * c1[1] + c * c2[1] + d * end[1],
     ]);
   }
   return out;
+}
+
+export function bezierPolyline(
+  start: Pt,
+  end: Pt,
+  _curvature: number = STRATA_EDGE_STYLE_CURVATURE,
+  samples: number = STRATA_EDGE_STYLE_CURVE_SAMPLES,
+): Pt[] {
+  const { c1, c2 } = bezierControlPoints(start, end);
+  return sampleCubic(start, c1, c2, end, samples);
 }
 
 /** Number of `foreign` boxes whose interior the polyline pierces. */
@@ -303,6 +330,282 @@ function orbitPolyline(start: Pt, end: Pt, orbitY: number): Pt[] {
   ]);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Wave-3 STAGE C refinement passes (spec SECTION 3). All operate on the sampled
+// curve polylines AFTER styling, are a per-edge NO-OP on clean edges, preserve
+// endpoints, and are individually guard-gated (never-worse on scene crossings +
+// foreign-card pierce, plus the stage-specific gate). Constants re-declared here
+// with their donor named, matching the file's SDEC-34 self-containment rule.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Own-card re-entry arc-length skip = the perpendicular exit stub (donor:
+ * STRATA_EDGE_STYLE_STUB_PX). A segment inside the source/target rect within one
+ * stub of the anchor is the legitimate exit; beyond it is a re-entry. */
+const STAGE_C_STUB_SKIP_PX = STRATA_EDGE_STYLE_STUB_PX;
+/** Lens-removal fixpoint cap (spec W3-4 "small cap"). */
+const STAGE_C_LENS_MAX_PASSES = 3;
+
+/** Does `poly` pierce `box`'s interior beyond `skipPx` arc length from its
+ * start? Arc-length walk splitting the segment straddling the skip point, then
+ * the strata interior test (donor: terraformPipelineStrataPierceMetrics normative
+ * semantics, via the packed-scoring interior kernel). Mirror of the diagnostics
+ * leaf's `polylineReentersRect`; call with reversed points for the target end. */
+function polyReentersBox(
+  poly: readonly Pt[],
+  box: StrataBox,
+  skipPx: number,
+): boolean {
+  const x0 = box.x;
+  const y0 = box.y;
+  const x1 = box.x + box.width;
+  const y1 = box.y + box.height;
+  let acc = 0;
+  for (let i = 0; i + 1 < poly.length; i++) {
+    const a = poly[i]!;
+    const b = poly[i + 1]!;
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (acc + L <= skipPx) {
+      acc += L;
+      continue;
+    }
+    let start: Pt = a;
+    if (acc < skipPx && L > 0) {
+      const tt = (skipPx - acc) / L;
+      start = [a[0] + tt * (b[0] - a[0]), a[1] + tt * (b[1] - a[1])];
+    }
+    if (segmentIntersectsStrataBoxInterior(start[0], start[1], b[0], b[1], x0, y0, x1, y1)) {
+      return true;
+    }
+    acc += L;
+  }
+  return false;
+}
+
+/**
+ * W3-2 own-card re-entry clamp. A forward monotone bezier can still graze its
+ * OWN source/target card past the exit stub (control arm long enough that the
+ * curve bulges back across the rect it just left). Shorten the offending control
+ * arm — move the control point toward its endpoint (scale s∈[0,1], s=1 original,
+ * s→0 straight chord) — binary-searching the largest s that clears the rect, then
+ * re-sample. Returns the clamped polyline, or null when the edge is clean OR the
+ * re-entry is irreducible by arm-shortening (the straight chord itself re-enters,
+ * i.e. the anchor sits >1 stub inside its own card — a placement artifact this
+ * pass leaves untouched rather than distorting the curve to chase).
+ *
+ * Only meaningful for FORWARD bezier edges (the monotone-clamped family); step /
+ * orbit / back-edge polylines are handled by their own construction.
+ */
+export function clampOwnCardReentry(
+  start: Pt,
+  end: Pt,
+  srcBox: StrataBox | null,
+  tgtBox: StrataBox | null,
+  samples: number = STRATA_EDGE_STYLE_CURVE_SAMPLES,
+  iters: number = 5,
+): Pt[] | null {
+  const base = bezierControlPoints(start, end);
+  let { c1, c2 } = base;
+  let changed = false;
+
+  // Shorten one control arm (toward its endpoint) until `poly` clears `box`,
+  // testing the arc beyond one stub from `fromStart` end. Returns the new
+  // control point, or null if even the straight chord (s=0) still re-enters.
+  const clampArm = (
+    anchor: Pt,
+    control: Pt,
+    box: StrataBox,
+    fromStart: boolean,
+  ): Pt | null => {
+    const reenters = (ctrlA: Pt, ctrlB: Pt): boolean => {
+      const poly = sampleCubic(start, ctrlA, ctrlB, end, samples);
+      const walk = fromStart ? poly : [...poly].reverse();
+      return polyReentersBox(walk, box, STAGE_C_STUB_SKIP_PX);
+    };
+    const armAt = (s: number): Pt => [
+      anchor[0] + s * (control[0] - anchor[0]),
+      anchor[1] + s * (control[1] - anchor[1]),
+    ];
+    // s=1 is the incumbent; if it doesn't re-enter, nothing to do.
+    if (!reenters(fromStart ? control : c1, fromStart ? c2 : control)) {
+      // caller-side no-op signalled by returning the incumbent unchanged
+      return null;
+    }
+    // s=0 straight chord still re-enters ⇒ placement artifact, irreducible.
+    const straight = armAt(0);
+    if (
+      fromStart ? reenters(straight, c2) : reenters(c1, straight)
+    ) {
+      return null;
+    }
+    let lo = 0; // known-clear
+    let hi = 1; // known-reenter
+    for (let k = 0; k < iters; k++) {
+      const mid = (lo + hi) / 2;
+      const cand = armAt(mid);
+      const bad = fromStart ? reenters(cand, c2) : reenters(c1, cand);
+      if (bad) {
+        hi = mid;
+      } else {
+        lo = mid;
+      }
+    }
+    return armAt(lo);
+  };
+
+  if (srcBox) {
+    const nc1 = clampArm(start, c1, srcBox, true);
+    if (nc1) {
+      c1 = nc1;
+      changed = true;
+    }
+  }
+  if (tgtBox) {
+    const nc2 = clampArm(end, c2, tgtBox, false);
+    if (nc2) {
+      c2 = nc2;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return null;
+  }
+  return sampleCubic(start, c1, c2, end, samples);
+}
+
+/** Proper crossing of two segments (interior-interior; shared endpoints and
+ * collinear touches excluded), used only by the Stage-C scene guards — a local
+ * self-check, deliberately NOT the diagnostics kernel (no cross-leaf import). */
+function segsProperlyCross(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
+  const o = (p: Pt, q: Pt, r: Pt) =>
+    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const EPS = 1e-9;
+  const d1 = o(c, d, a);
+  const d2 = o(c, d, b);
+  const d3 = o(a, b, c);
+  const d4 = o(a, b, d);
+  return (
+    ((d1 > EPS && d2 < -EPS) || (d1 < -EPS && d2 > EPS)) &&
+    ((d3 > EPS && d4 < -EPS) || (d3 < -EPS && d4 > EPS))
+  );
+}
+
+/** Number of segment pairs where polyline `p` properly crosses polyline `q`. */
+function polyCrossCount(p: readonly Pt[], q: readonly Pt[]): number {
+  let n = 0;
+  for (let i = 0; i + 1 < p.length; i++) {
+    for (let j = 0; j + 1 < q.length; j++) {
+      if (segsProperlyCross(p[i]!, p[i + 1]!, q[j]!, q[j + 1]!)) {
+        n += 1;
+      }
+    }
+  }
+  return n;
+}
+
+type CrossXY = { segP: number; tP: number; segQ: number; pt: Pt };
+
+/** All proper crossings between polylines p and q, with the intersection point
+ * and each polyline's (segment index, parameter t along P). */
+function polyCrossings(p: readonly Pt[], q: readonly Pt[]): CrossXY[] {
+  const out: CrossXY[] = [];
+  for (let i = 0; i + 1 < p.length; i++) {
+    const a = p[i]!;
+    const b = p[i + 1]!;
+    const rx = b[0] - a[0];
+    const ry = b[1] - a[1];
+    for (let j = 0; j + 1 < q.length; j++) {
+      const c = q[j]!;
+      const dd = q[j + 1]!;
+      if (!segsProperlyCross(a, b, c, dd)) {
+        continue;
+      }
+      const ux = dd[0] - c[0];
+      const uy = dd[1] - c[1];
+      const D = rx * uy - ry * ux;
+      if (Math.abs(D) < 1e-9) {
+        continue;
+      }
+      const t = ((c[0] - a[0]) * uy - (c[1] - a[1]) * ux) / D;
+      out.push({ segP: i, tP: t, segQ: j, pt: [a[0] + t * rx, a[1] + t * ry] });
+    }
+  }
+  return out;
+}
+
+/**
+ * W3-4 same-pair lens (empty-bigon) removal. For a pair of polylines with ≥2
+ * proper crossings, find two crossings CONSECUTIVE along BOTH curves (an empty
+ * bigon — Reidemeister-II) and swap the sub-arcs between them: the two curves
+ * occupy the same union of points afterward, so no third edge gains a crossing,
+ * and exactly the 2 bigon crossings vanish. Endpoints are preserved. Returns the
+ * two rebuilt polylines, or null when no bigon exists.
+ */
+export function removeOneLens(
+  pPts: readonly Pt[],
+  qPts: readonly Pt[],
+): { p: Pt[]; q: Pt[] } | null {
+  const crossings = polyCrossings(pPts, qPts);
+  if (crossings.length < 2) {
+    return null;
+  }
+  // Order along P (segP, tP). Adjacent-along-P candidates are consecutive here.
+  const alongP = [...crossings].sort(
+    (a, b) => a.segP - b.segP || a.tP - b.tP,
+  );
+  // Rank of each crossing along Q (segQ, then point order along that segment).
+  const alongQ = [...crossings].sort(
+    (a, b) =>
+      a.segQ - b.segQ ||
+      (a.pt[0] - qPts[a.segQ]![0]) ** 2 +
+        (a.pt[1] - qPts[a.segQ]![1]) ** 2 -
+        ((b.pt[0] - qPts[b.segQ]![0]) ** 2 +
+          (b.pt[1] - qPts[b.segQ]![1]) ** 2),
+  );
+  const qRank = new Map<CrossXY, number>();
+  alongQ.forEach((c, i) => qRank.set(c, i));
+
+  for (let k = 0; k + 1 < alongP.length; k++) {
+    const p1 = alongP[k]!;
+    const p2 = alongP[k + 1]!;
+    // Consecutive along P by construction; require consecutive along Q too.
+    if (Math.abs(qRank.get(p1)! - qRank.get(p2)!) !== 1) {
+      continue;
+    }
+    // Interior vertices of P strictly between the two crossings (segP..).
+    const pInterior = pPts.slice(p1.segP + 1, p2.segP + 1);
+    // Interior vertices of Q between the two crossings, oriented p1 → p2.
+    const qFirst = qRank.get(p1)! < qRank.get(p2)! ? p1 : p2;
+    const qSecond = qFirst === p1 ? p2 : p1;
+    const qInterior = qPts.slice(qFirst.segQ + 1, qSecond.segQ + 1);
+    // arc along Q oriented from p1 to p2:
+    let arcQ: Pt[];
+    if (qFirst === p1) {
+      arcQ = [p1.pt, ...qInterior, p2.pt];
+    } else {
+      arcQ = [p1.pt, ...[...qInterior].reverse(), p2.pt];
+    }
+    const arcP: Pt[] = [p1.pt, ...pInterior, p2.pt];
+    // Rebuild: P takes Q's arc between p1,p2; Q takes P's arc.
+    const newP = [
+      ...pPts.slice(0, p1.segP + 1),
+      ...arcQ,
+      ...pPts.slice(p2.segP + 1),
+    ];
+    // For Q, splice between the earlier and later crossing ALONG Q.
+    const loQ = qFirst.segQ;
+    const hiQ = qSecond.segQ;
+    const arcPForQ =
+      qFirst === p1 ? arcP : [...arcP].reverse();
+    const newQ = [
+      ...qPts.slice(0, loQ + 1),
+      ...arcPForQ,
+      ...qPts.slice(hiQ + 1),
+    ];
+    return { p: simplifyPolyline(newP), q: simplifyPolyline(newQ) };
+  }
+  return null;
+}
+
 /**
  * Scene-level pass: reshape, IN PLACE in the skeleton array, every un-routed
  * TFD arrow to the requested render style. Endpoints are preserved; only
@@ -329,6 +632,8 @@ export function applyStrataEdgeStyle(
     pointsTotal: 0,
     orbited: 0,
     orbitReverted: 0,
+    reentryClamped: 0,
+    lensSwaps: 0,
   };
   const stub = Math.min(STRATA_EDGE_STYLE_STUB_PX, PIPELINE_FRAME_PAD);
   // Card catalogue for the orbit pierce guard (curve style only). Null-safe:
@@ -337,6 +642,25 @@ export function applyStrataEdgeStyle(
     placement && placement.leafBoxes instanceof Map
       ? placement.leafBoxes
       : null;
+
+  // ── PHASE 1: build the styled polyline for every eligible arrow, deferring the
+  // skeleton write-back so the cross-edge Stage-C passes (W3-2/W3-4) can operate
+  // over the whole styled set. Byte-identical geometry to the pre-Stage-C loop.
+  type Rec = {
+    i: number;
+    el: ArrowSkeleton;
+    sx: number;
+    sy: number;
+    start: Pt;
+    end: Pt;
+    poly: Pt[];
+    orbit: boolean;
+    /** curve bezier (non-orbit) — eligible for W3-2 clamp / W3-4 lens removal. */
+    bezier: boolean;
+    srcBox: StrataBox | null;
+    tgtBox: StrataBox | null;
+  };
+  const records: Rec[] = [];
 
   for (let i = 0; i < skeleton.length; i++) {
     const el = skeleton[i] as ArrowSkeleton;
@@ -425,7 +749,132 @@ export function applyStrataEdgeStyle(
       meta.skipped += 1;
       continue;
     }
+    records.push({
+      i,
+      el,
+      sx,
+      sy,
+      start,
+      end,
+      poly,
+      orbit: orbitPoly != null,
+      bezier: style === "curve" && orbitPoly == null,
+      srcBox: leafBoxes?.get(rel.source) ?? null,
+      tgtBox: leafBoxes?.get(rel.target) ?? null,
+    });
+  }
 
+  // ── PHASE 2: Stage-C refinement (curve style only). Each pass is a per-edge
+  // no-op on clean edges and never-worse-gated on scene crossings + foreign
+  // pierce. Foreign-card set for the pierce guard = all leaf boxes minus the
+  // edge's own source/target.
+  if (style === "curve" && leafBoxes) {
+    const foreignBoxesFor = (r: Rec): StrataBox[] => {
+      const out: StrataBox[] = [];
+      for (const [id, b] of leafBoxes) {
+        if (b === r.srcBox || b === r.tgtBox || id === "") {
+          continue;
+        }
+        out.push(b);
+      }
+      return out;
+    };
+    // Scene crossings of a candidate polyline for `self` against all OTHER
+    // records' current polylines.
+    const crossingsAgainstOthers = (selfIdx: number, poly: readonly Pt[]) => {
+      let n = 0;
+      for (let k = 0; k < records.length; k++) {
+        if (k === selfIdx) {
+          continue;
+        }
+        n += polyCrossCount(poly, records[k]!.poly);
+      }
+      return n;
+    };
+
+    // W3-2 own-card re-entry clamp (forward bezier edges only).
+    for (let idx = 0; idx < records.length; idx++) {
+      const r = records[idx]!;
+      if (!r.bezier) {
+        continue;
+      }
+      const clamped = clampOwnCardReentry(
+        r.start,
+        r.end,
+        r.srcBox,
+        r.tgtBox,
+      );
+      if (!clamped) {
+        continue; // clean, or placement-artifact re-entry (irreducible)
+      }
+      const foreign = foreignBoxesFor(r);
+      const beforeCross = crossingsAgainstOthers(idx, r.poly);
+      const afterCross = crossingsAgainstOthers(idx, clamped);
+      const beforePierce = piercedCardCount(r.poly, foreign);
+      const afterPierce = piercedCardCount(clamped, foreign);
+      if (afterCross <= beforeCross && afterPierce <= beforePierce) {
+        r.poly = clamped;
+        meta.reentryClamped += 1;
+      }
+    }
+
+    // W3-4 same-pair lens removal — iterate to fixpoint (cap). Each accepted
+    // swap removes exactly 2 crossings and touches only its two edges' interiors.
+    for (let pass = 0; pass < STAGE_C_LENS_MAX_PASSES; pass++) {
+      let applied = 0;
+      for (let a = 0; a < records.length; a++) {
+        for (let b = a + 1; b < records.length; b++) {
+          const ra = records[a]!;
+          const rb = records[b]!;
+          const swapped = removeOneLens(ra.poly, rb.poly);
+          if (!swapped) {
+            continue;
+          }
+          // Guard: strict total-crossings decrease for this pair against the
+          // WHOLE scene + no new foreign pierce on either edge.
+          const beforeA = crossingsAgainstOthers(a, ra.poly);
+          const beforeB = crossingsAgainstOthers(b, rb.poly);
+          const between = polyCrossCount(ra.poly, rb.poly);
+          // beforeA/beforeB double-count the a-b crossing; subtract once.
+          const before = beforeA + beforeB - between;
+          const afterBetween = polyCrossCount(swapped.p, swapped.q);
+          // Temporarily measure the swapped pair against others.
+          const savedA = ra.poly;
+          const savedB = rb.poly;
+          ra.poly = swapped.p;
+          rb.poly = swapped.q;
+          const afterA = crossingsAgainstOthers(a, swapped.p);
+          const afterB = crossingsAgainstOthers(b, swapped.q);
+          const after = afterA + afterB - afterBetween;
+          const foreignA = foreignBoxesFor(ra);
+          const foreignB = foreignBoxesFor(rb);
+          const pierceOk =
+            piercedCardCount(swapped.p, foreignA) <=
+              piercedCardCount(savedA, foreignA) &&
+            piercedCardCount(swapped.q, foreignB) <=
+              piercedCardCount(savedB, foreignB);
+          if (after < before && pierceOk) {
+            meta.lensSwaps += 1;
+            applied += 1;
+          } else {
+            ra.poly = savedA; // revert
+            rb.poly = savedB;
+          }
+        }
+      }
+      if (applied === 0) {
+        break;
+      }
+    }
+  }
+
+  // ── PHASE 3: write the (possibly refined) polylines back into the skeleton.
+  for (const r of records) {
+    const poly = r.poly;
+    if (poly.length < 2) {
+      meta.skipped += 1;
+      continue;
+    }
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -436,17 +885,17 @@ export function applyStrataEdgeStyle(
       maxX = Math.max(maxX, px);
       maxY = Math.max(maxY, py);
     }
-    skeleton[i] = {
-      ...el,
-      points: poly.map(([px, py]) => pointFrom<LocalPoint>(px - sx, py - sy)),
+    skeleton[r.i] = {
+      ...r.el,
+      points: poly.map(([px, py]) => pointFrom<LocalPoint>(px - r.sx, py - r.sy)),
       width: maxX - minX,
       height: maxY - minY,
       // Step: round the orthogonal corners in the renderer (React Flow
       // smoothstep look) while the polyline stays clean 2-bend geometry for the
       // bend metric. Curve is already smooth — leave its roundness untouched.
-      ...(style === "step" || orbitPoly ? { roundness: { type: 2 } } : {}),
+      ...(style === "step" || r.orbit ? { roundness: { type: 2 } } : {}),
       customData: {
-        ...(el.customData ?? {}),
+        ...(r.el.customData ?? {}),
         terraformRoutedPolyline: true,
       },
     } as ExcalidrawElementSkeleton;
