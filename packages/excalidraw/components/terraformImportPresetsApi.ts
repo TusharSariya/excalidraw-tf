@@ -1,7 +1,29 @@
+import {
+  isTerraformImportProfilerEnabled,
+  terraformImportProfilerRecord,
+} from "./terraformImportProfiler";
+
 import type { TerraformImportPreset } from "./terraformImportPresetsTypes";
 import type { TerraformImportPresetSources } from "./terraformImportPresetsTypes";
 
 const API_BASE = "/api/terraform-import-presets";
+
+/**
+ * Perf-loop E06b: measurement-only attribution for the profiler-blind ~3.9s
+ * nav→planParsed preload window. Records into the import profiler aggregate
+ * (`window.__terraformImportProfilerSummary`) AND emits a nav-relative
+ * `[terraform:…]` console marker (captured by benchmark-import-time.mjs) so the
+ * preset-sources download and the ~24MB `response.json()` parse are attributable
+ * on the client timeline. Fully gated behind `isTerraformImportProfilerEnabled()`
+ * — zero cost (a single cached boolean read) when the profiler is off, so it
+ * never runs on a prod hot path.
+ */
+function recordPreloadSpan(name: string, durationMs: number): void {
+  terraformImportProfilerRecord(name, durationMs);
+  const rounded = Math.round(durationMs * 100) / 100;
+  // eslint-disable-next-line no-console -- profiler-gated dev import-timing marker
+  console.log(`[terraform:${name}]`, `${rounded}ms`);
+}
 
 async function readApiError(response: Response): Promise<string> {
   try {
@@ -71,15 +93,24 @@ export async function deleteTerraformImportPresetViaApi(
 export async function fetchTerraformImportPresetSourcesFromApi(
   presetId: string,
 ): Promise<TerraformImportPresetSources> {
+  const profile = isTerraformImportProfilerEnabled();
+  const fetchStart = profile ? performance.now() : 0;
   const response = await fetch(
     `${API_BASE}/${encodeURIComponent(presetId)}/sources`,
   );
+  if (profile) {
+    recordPreloadSpan("preload.fetch.sources", performance.now() - fetchStart);
+  }
   if (!response.ok) {
     throw new Error(await readApiError(response));
   }
+  const parseStart = profile ? performance.now() : 0;
   const body = (await response.json()) as {
     sources?: TerraformImportPresetSources;
   };
+  if (profile) {
+    recordPreloadSpan("preload.parse.json", performance.now() - parseStart);
+  }
   if (!body.sources) {
     throw new Error("Preset sources response was empty.");
   }
