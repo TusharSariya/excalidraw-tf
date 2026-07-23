@@ -293,3 +293,17 @@ Screenshots delivered (sqs-consumer crop + 100% + 30% overview). Adversarial bat
 - **Wave-next items logged**: E1.3 hygiene-unroutables vs budget-unroutables telemetry split (owner-visibility of kept card-pierces); orbit corner ~22px render bulge beyond vertical legs (same class E1.1 fixed, bounded, unguarded); base vitest.config.mts bare canvas-mock specifier still breaks nested-worktree unit runs (probe config fixed; base config untouched).
 
 Loop 1 CLOSED. Tip after fixes: `2f6ecc324`.
+
+## Aesthetic-edges Loop 2 — container clip + LR port discipline (2026-07-23)
+
+New opt-in `strataEdgeClip` ("Flow" routing preset in the UI). Commits: E2.1+E2.2 `d63917ab2` (clip pass + typed gate extension), E2 UI `4e1816c76` (full URL/UI threading + Flow segment + clip diagnostics; also repaired 3 pre-existing stale fixture pins), E2.3+E2.4 `ad0a32078` (gutter nudging + over-the-top lanes).
+
+**Design**: declared net-forward cross-cluster edges clip to leaf-cluster frame borders — egress R-face / ingress L-face ONLY, barycenter-ordered ports (≥12px sep, 20px inset, feasibility clamp), horizontal tangent stubs, intermediate hulls crossed via R/L port chains, cross-band + backward edges via over-the-top lanes (unionTop − 24 − 16·i; below-lane variant; deterministic allocation). Typed repair-gate extension: `terraformRoutedBy:"clip"` + per-end `terraformClipAnchor:{frameKey,side}`; gate validates ±2px on the declared face of the LIVE frame (keyed by `terraformPrimaryAddress`, the only key serialized in both modes), frameKey must equal the relationship endpoint's cluster; fail-closed flatten+strip. Bindings stay on leaf cards.
+
+**owner-clip arm trajectory** (owner config + strataEdgeClip): baseline-equivalent owner-full {cardOverlap 299, wrongFace 38, pierce 17, crossings 130} → E2.1 {67, 10, 12, 194; backwardXPx 48475 on 5 cross-band Z-detours} → E2.3/E2.4 final **{cardOverlap 27, wrongFace 0, pierce 8, crossings 239; backwardXPx 48475 all in 8 sanctioned lanes (7 above/1 below), non-lane 0; detourP95 2.558; keptBy.clip 145/145, flattened {}}**.
+
+**The honest trade**: face discipline + clean interiors cost edge-to-edge crossings (130→239). E2.3/E2.4 agent measured the miss as structural (8 full-span lanes share hull pads; each lane ~4-7 pair-crossings vs its Z-equivalent; wrongFace-0 and crossings<194 jointly unsatisfiable with this lane geometry on this preset). Also refuted my nudging premise: naive 25/75 gutter waypoints in hull-interior gutters were actively harmful; the win came from corridor-chosen dirty-gutter columns. Owner's screenshot-1 Lambda cluster verified visually CLEAN (screenshots delivered).
+
+**Known render wart (deferred to loop 3 by design)**: clip polylines keep roundness {type:2} → Catmull-Rom bulge renders rectilinear runs as wavy S-curves and lanes as giant arcs. Loop 3 GLEE corner rounding + roundness discipline owns this.
+
+Adversarial batch dispatched; verdicts below.
