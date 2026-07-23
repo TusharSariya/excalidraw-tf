@@ -109,21 +109,25 @@ const chebyshevDistanceOutsideRect = (
 ): number => Math.max(0, rx - px, px - (rx + rw), ry - py, py - (ry + rh));
 
 /** Drop a stale `terraformRoutedPolyline` marker AND its `terraformRoutedBy`
- * provenance (written by whichever pass stamped the polyline), preserving all
- * other customData. */
+ * provenance (written by whichever pass stamped the polyline) AND any
+ * `terraformClipAnchor` the clip pass stamped alongside — a flattened edge
+ * must fully self-heal, or the stale anchors could revalidate a later
+ * re-stamp against the wrong frame. All other customData is preserved. */
 const stripRoutedPolylineMarker = (
   customData: ExcalidrawElement["customData"],
 ): ExcalidrawElement["customData"] => {
   if (
     !customData ||
     (customData.terraformRoutedPolyline === undefined &&
-      customData.terraformRoutedBy === undefined)
+      customData.terraformRoutedBy === undefined &&
+      customData.terraformClipAnchor === undefined)
   ) {
     return customData;
   }
   const {
     terraformRoutedPolyline: _drop,
     terraformRoutedBy: _dropBy,
+    terraformClipAnchor: _dropClip,
     ...rest
   } = customData;
   return rest;
@@ -959,10 +963,103 @@ const arrowGeometryEqual = (
   return true;
 };
 
-/** Provenance of a stamped routed polyline, mirrored from the four edge
- * stampers' `customData.terraformRoutedBy`: the style pass ("style") + the three
- * router passes ("channel"/"route"/"border"). */
-export type TerraformRoutedBy = "style" | "channel" | "route" | "border";
+/** Provenance of a stamped routed polyline, mirrored from the five edge
+ * stampers' `customData.terraformRoutedBy`: the style pass ("style"), the three
+ * router passes ("channel"/"route"/"border"), and the loop-2 container-clip
+ * pass ("clip" — terraformPipelineStrataEdgeClip.ts, whose endpoints sit on
+ * FRAME borders and are validated through the typed clip gate below rather
+ * than the endpoint-on-card check). */
+export type TerraformRoutedBy =
+  | "style"
+  | "channel"
+  | "route"
+  | "border"
+  | "clip";
+
+/** One end of a clip-routed polyline's serialized anchor
+ * (`customData.terraformClipAnchor.start` / `.end`), stamped by
+ * `routeStrataEdgeClip`: `frameKey` is the endpoint's CLUSTER ADDRESS (===
+ * `relationship.source`/`.target` === the leaf cluster frame's
+ * `terraformPrimaryAddress`), `side` the declared clip face. */
+export type TerraformClipAnchorEnd = {
+  frameKey: string;
+  side: "left" | "right";
+};
+
+type TerraformClipAnchor = {
+  start: TerraformClipAnchorEnd;
+  end: TerraformClipAnchorEnd;
+};
+
+/** Max px a clip endpoint may sit off its declared frame face (perpendicular
+ * axis) or outside the face's Y-extent before repair flattens it. Clip
+ * endpoints are stamped EXACTLY on the face at skeleton time and the frame is
+ * emitted at the identical box, so 2px is pure float slack — any real frame
+ * move lands far outside it (the stale-route threat, see
+ * `ROUTED_ANCHOR_TOLERANCE`'s header). */
+const TERRAFORM_CLIP_FACE_TOLERANCE = 2;
+
+const parseClipAnchorEnd = (v: unknown): TerraformClipAnchorEnd | null => {
+  const o = v as { frameKey?: unknown; side?: unknown } | null | undefined;
+  if (
+    o &&
+    typeof o.frameKey === "string" &&
+    (o.side === "left" || o.side === "right")
+  ) {
+    return { frameKey: o.frameKey, side: o.side };
+  }
+  return null;
+};
+
+const parseClipAnchor = (v: unknown): TerraformClipAnchor | null => {
+  const o = v as { start?: unknown; end?: unknown } | null | undefined;
+  const start = o ? parseClipAnchorEnd(o.start) : null;
+  const end = o ? parseClipAnchorEnd(o.end) : null;
+  return start && end ? { start, end } : null;
+};
+
+/**
+ * LEAF CLUSTER frame rects by cluster address, for the clip repair gate: every
+ * non-deleted `type:"frame"` element whose customData carries
+ * `terraformTopologyRole:"primaryCluster"` and a string
+ * `terraformPrimaryAddress`, keyed by that address (last-wins, mirroring
+ * `collectTerraformResourceRects`' duplicate policy). BOTH cluster builders
+ * stamp the pair (compact: terraformTopologyLayout.ts
+ * `buildCompactPipelinePrimaryCluster`; full: the RCLL-M5 gate-fix in
+ * `buildTopologyPrimaryClusterSkeletonForPipeline`; fallback:
+ * `buildFallbackCluster`), and customData survives conversion + the strata
+ * finalize's id rewrite — so the address is the ONLY frame key that is stable
+ * at element time across both modes (frame element ids are NOT: the finalize
+ * re-derives them).
+ */
+export const collectTerraformClusterFrameRectsByAddress = (
+  elements: readonly ExcalidrawElement[],
+): Map<string, { x: number; y: number; width: number; height: number }> => {
+  const rects = new Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >();
+  for (const el of elements) {
+    if (el.isDeleted || el.type !== "frame") {
+      continue;
+    }
+    const cd = getCustomData(el);
+    if (cd.terraformTopologyRole !== "primaryCluster") {
+      continue;
+    }
+    const address = cd.terraformPrimaryAddress;
+    if (typeof address !== "string") {
+      continue;
+    }
+    rects.set(address, {
+      x: el.x,
+      y: el.y,
+      width: el.width,
+      height: el.height,
+    });
+  }
+  return rects;
+};
 
 /**
  * M3 curve-flatten telemetry (opt-in). `repairTerraformEdgeBindings` accepts an
@@ -1028,6 +1125,17 @@ export const repairTerraformEdgeBindings = (
   const resourceRects = collectTerraformResourceRects(normalizedElements);
   const structuralDependencyPairKeys =
     collectTerraformStructuralDependencyPairKeys(normalizedElements);
+
+  // Clip repair gate (loop-2 E2.2): leaf-cluster frame rects by address,
+  // built LAZILY on the first "clip"-provenance polyline encountered — a
+  // scene with no clip edges (every scene with the flag off) never pays the
+  // collection pass and repair is byte-identical to before.
+  let clusterFrameRects: ReturnType<
+    typeof collectTerraformClusterFrameRectsByAddress
+  > | null = null;
+  const getClusterFrameRects = () =>
+    (clusterFrameRects ??=
+      collectTerraformClusterFrameRectsByAddress(normalizedElements));
 
   const boundEdgeIdsByRect = new Map<string, Set<string>>();
 
@@ -1141,7 +1249,81 @@ export const repairTerraformEdgeBindings = (
     const hasRoutedMarker = hasRoutedFlag && element.points.length > 2;
     const firstPoint = element.points[0]!;
     const lastPoint = element.points[element.points.length - 1]!;
+    // ── Typed CLIP gate (loop-2 E2.2). A "clip"-provenance polyline
+    // (terraformPipelineStrataEdgeClip.ts) terminates ON the leaf-cluster
+    // FRAME borders — typically far beyond ROUTED_ANCHOR_TOLERANCE from the
+    // card body rects — so the endpoint-on-card check below would flatten
+    // every one of them. Instead, when the arrow carries valid
+    // `terraformClipAnchor` data, each endpoint is validated against the LIVE
+    // frame rect resolved from the anchor's frameKey:
+    //   • frameKey must EQUAL the relationship endpoint's cluster address —
+    //     the strongest ancestry check serialized data affords: it pins the
+    //     frame as the endpoint's IMMEDIATE containment box (the leaf cluster
+    //     frame carries `terraformPrimaryAddress` === that address in both
+    //     compact and full modes), so a pasted/foreign anchor naming any other
+    //     frame fails closed;
+    //   • the endpoint must sit ON the declared face of that live rect
+    //     (perpendicular axis within TERRAFORM_CLIP_FACE_TOLERANCE, Y inside
+    //     the face's extent) — a frame that moved since stamping (the
+    //     stale-route threat above) misses by far more than 2px;
+    //   • the declared sides must be the pass's LR discipline (start "right",
+    //     end "left") — any other stamp is not ours.
+    // On ANY failure — missing/malformed anchors, unresolved frame, moved
+    // frame — the arrow is flattened to the standard chord and the marker AND
+    // anchors are stripped (fail-closed, self-healing), exactly like a stale
+    // card-anchored route.
+    //
+    // BINDINGS are deliberately UNCHANGED for clip polylines: start/end
+    // bindings stay on the leaf CARDS with fixedPoints derived from the
+    // freshly recomputed chord anchors above — which lie on the card rects
+    // regardless of where the polyline endpoints sit — and
+    // `fixedPointForAbsolutePoint` clamps to [0,1], so an endpoint off the
+    // card can never produce an out-of-range fixedPoint. The clip endpoints
+    // living on the frame borders is purely a `points` geometry fact.
+    const isClipProvenance =
+      hasRoutedFlag && getCustomData(element).terraformRoutedBy === "clip";
+    const clipAnchor = isClipProvenance
+      ? parseClipAnchor(getCustomData(element).terraformClipAnchor)
+      : null;
+    const clipEndpointOnDeclaredFace = (
+      px: number,
+      py: number,
+      anchor: TerraformClipAnchorEnd,
+      expectedKey: string,
+    ): boolean => {
+      if (anchor.frameKey !== expectedKey) {
+        return false;
+      }
+      const rect = getClusterFrameRects().get(anchor.frameKey);
+      if (!rect) {
+        return false;
+      }
+      const faceX = anchor.side === "left" ? rect.x : rect.x + rect.width;
+      return (
+        Math.abs(px - faceX) <= TERRAFORM_CLIP_FACE_TOLERANCE &&
+        py >= rect.y - TERRAFORM_CLIP_FACE_TOLERANCE &&
+        py <= rect.y + rect.height + TERRAFORM_CLIP_FACE_TOLERANCE
+      );
+    };
+    const clipEndpointsOnFrames =
+      hasRoutedMarker &&
+      clipAnchor !== null &&
+      clipAnchor.start.side === "right" &&
+      clipAnchor.end.side === "left" &&
+      clipEndpointOnDeclaredFace(
+        element.x + firstPoint[0],
+        element.y + firstPoint[1],
+        clipAnchor.start,
+        relationship.source,
+      ) &&
+      clipEndpointOnDeclaredFace(
+        element.x + lastPoint[0],
+        element.y + lastPoint[1],
+        clipAnchor.end,
+        relationship.target,
+      );
     const routedEndpointsOnCards =
+      !isClipProvenance &&
       hasRoutedMarker &&
       chebyshevDistanceOutsideRect(
         element.x + firstPoint[0],
@@ -1159,11 +1341,12 @@ export const repairTerraformEdgeBindings = (
         wB,
         hB,
       ) <= ROUTED_ANCHOR_TOLERANCE;
-    const isRoutedPolyline = hasRoutedMarker && routedEndpointsOnCards;
+    const isRoutedPolyline =
+      hasRoutedMarker &&
+      (isClipProvenance ? clipEndpointsOnFrames : routedEndpointsOnCards);
     // Strip the flag from any arrow we flatten — including a marked 2-point
     // arrow (no route to preserve), else the stale flag could resurrect later.
-    const stripStaleMarker =
-      hasRoutedFlag && !(hasRoutedMarker && routedEndpointsOnCards);
+    const stripStaleMarker = hasRoutedFlag && !isRoutedPolyline;
 
     // M3 curve-flatten telemetry (opt-in): observe repair's keep/flatten/strip
     // verdict on every stamped routed polyline so the styled-vs-survived gap can

@@ -295,11 +295,26 @@ export type TerraformStrataSceneOptions = {
    * (terraformPipelineStrataChannelRoute.ts) that rewrites each inter-rank TFD
    * arrow to an orthogonal exit-stub → per-channel vertical run → entry-stub
    * polyline (the owner's dummy-column idea, zero-width channels in the existing
-   * inter-rank gaps — NO geometry moves). Runs FIRST among the edge passes and
-   * owns the polyline topology; edgeRouting/borderRoute/edgeStyle skip its
-   * edges. Flag-off the module never runs (byte-identical).
+   * inter-rank gaps — NO geometry moves). Runs FIRST among the ROUTER passes
+   * (after `strataEdgeClip` when both are on) and owns the polyline topology;
+   * edgeRouting/borderRoute/edgeStyle skip its edges. Flag-off the module
+   * never runs (byte-identical).
    */
   strataChannelRoute?: boolean;
+  /**
+   * Loop-2 E2.1+E2.2 container-boundary CLIP pass (default off): a
+   * post-geometry pass (terraformPipelineStrataEdgeClip.ts) that rewrites each
+   * eligible net-forward cross-cluster TFD arrow to a Graphviz-lhead/ltail
+   * clip polyline — endpoints ON the source/target leaf-cluster frame borders
+   * (egress R face / ingress L face, never top/bottom), perpendicular hull
+   * port-crossing waypoints between the two clusters, barycenter-ordered port
+   * assignment per face. Runs FIRST among ALL edge passes and owns eligible
+   * edges (first-stamper-wins; net-backward / same-column edges are left for
+   * the style-pass orbit / E2.4 lanes). Survives repair through the typed
+   * "clip" gate (terraformVisibility.ts). Flag-off the module never runs
+   * (byte-identical).
+   */
+  strataEdgeClip?: boolean;
   /**
    * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
    * a post-geometry pass (terraformPipelineStrataEdgeStyle.ts) that reshapes
@@ -464,6 +479,8 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataBorderRoute = options?.strataBorderRoute === true;
   // Probe P1 inter-rank channel routing (scene-build), default off.
   const strataChannelRoute = options?.strataChannelRoute === true;
+  // Loop-2 container-boundary clip pass (scene-build), default off.
+  const strataEdgeClip = options?.strataEdgeClip === true;
   // Probe P2 edge render style (scene-build), default "straight" (byte-identical
   // off — the module never runs unless a non-"straight" style is requested).
   const strataEdgeStyle: StrataEdgeStyle =
@@ -532,6 +549,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataBorderRoute ? { strataBorderRoute } : {}),
     // Probe P1 channel-route echo — present only when on (byte-identity off).
     ...(strataChannelRoute ? { strataChannelRoute } : {}),
+    // Loop-2 clip-pass echo — present only when on (byte-identity off).
+    ...(strataEdgeClip ? { strataEdgeClip } : {}),
     // Probe P2 edge style echo — present only for a non-"straight" style so the
     // default/off meta stays byte-identical.
     ...(strataEdgeStyle !== "straight" ? { strataEdgeStyle } : {}),
@@ -1126,6 +1145,9 @@ export async function buildTerraformStrataExcalidrawScene(
       // Package C spike (W9): the key rides only when the flag is on so the
       // flag-off input literal (and the scene build) stay byte-identical.
       ...(strataEdgeRouting ? { edgeRouting: true } : {}),
+      // Loop-2 container-clip pass: key rides only when on (byte-identity
+      // off). Runs FIRST among the edge passes inside the scene build.
+      ...(strataEdgeClip ? { edgeClip: true } : {}),
       // Probe P1 channel routing: key rides only when on (byte-identity off).
       ...(strataChannelRoute ? { channelRoute: true } : {}),
       // P3-pierce border-exit routing: key rides only when on (byte-identity).
@@ -1255,6 +1277,24 @@ export async function buildTerraformStrataExcalidrawScene(
                 scene.borderRoute.maxWaypointPerpDev,
               strataBorderRouteInteriorLenSavedL1:
                 scene.borderRoute.interiorLenSavedL1,
+            }
+          : {}),
+        // Loop-2 clip-pass observability — present only when the pass ran.
+        // `clipped` is eligible net-forward cross-cluster edges the pass owns;
+        // `skippedBackward`/`skippedSameColumn` are the edges deliberately
+        // left for the style-pass orbit / E2.4 lanes; `portFaces` is the
+        // distinct (frame|hull, side) faces that received ports.
+        ...(scene.edgeClip
+          ? {
+              strataEdgeClipClipped: scene.edgeClip.clipped,
+              strataEdgeClipSkippedBackward: scene.edgeClip.skippedBackward,
+              strataEdgeClipSkippedSameColumn: scene.edgeClip.skippedSameColumn,
+              strataEdgeClipSkippedOffGrid: scene.edgeClip.skippedOffGrid,
+              strataEdgeClipSkippedAlreadyRouted:
+                scene.edgeClip.skippedAlreadyRouted,
+              strataEdgeClipPortFaces: scene.edgeClip.portFaces,
+              strataEdgeClipMaxPortsOnFace: scene.edgeClip.maxPortsOnFace,
+              strataEdgeClipWaypoints: scene.edgeClip.waypointsTotal,
             }
           : {}),
         // Probe P1 channel-route observability — present only when the pass ran.

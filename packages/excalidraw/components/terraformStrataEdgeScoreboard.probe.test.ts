@@ -185,12 +185,21 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       const ownerChannel = armMetrics(
         await buildArm(false, { strataChannelRoute: true }),
       );
+      // Fifth arm (loop-2 E2.1+E2.2): owner config + the container-boundary
+      // CLIP pass — endpoints ON the leaf frame borders with LR port
+      // discipline, so clipped edges contribute ≈0 wrong-face crossings and
+      // survive repair via the typed clip gate (flattenedBy must not contain
+      // "clip").
+      const ownerClip = armMetrics(
+        await buildArm(false, { strataEdgeClip: true }),
+      );
 
       for (const [arm, m] of [
         ["owner-full", ownerFull],
         ["compact", compact],
         ["owner-routing", ownerRouting],
         ["owner-channel", ownerChannel],
+        ["owner-clip", ownerClip],
       ] as const) {
         // eslint-disable-next-line no-console
         console.log(
@@ -210,12 +219,20 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       assertScoreboardSane(compact);
       assertScoreboardSane(ownerRouting);
       assertScoreboardSane(ownerChannel);
+      assertScoreboardSane(ownerClip);
       expect(ownerRouting.scoreboard.edgeCount).toBe(
         ownerFull.scoreboard.edgeCount,
       );
       expect(ownerChannel.scoreboard.edgeCount).toBe(
         ownerFull.scoreboard.edgeCount,
       );
+      expect(ownerClip.scoreboard.edgeCount).toBe(
+        ownerFull.scoreboard.edgeCount,
+      );
+      // Loop-2 clip gate contract: repair must never flatten a clip-stamped
+      // polyline on the unmoved import geometry — the typed frame-face gate
+      // validates them by construction.
+      expect(ownerClip.repairMeta.flattenedBy.clip ?? 0).toBe(0);
 
       // The declared-dataflow edge set is non-empty and its geometry is measured.
       expect(ownerFull.scoreboard.edgeCount).toBeGreaterThan(0);

@@ -237,6 +237,9 @@ export type RunTerraformImportFromSourcesOptions = {
   strataBorderRoute?: boolean;
   /** Strata probe P1: inter-rank channel routing. Default off. */
   strataChannelRoute?: boolean;
+  /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail).
+   * Default off. */
+  strataEdgeClip?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: import("./terraformPipelineStrataEdgeStyle").StrataEdgeStyle;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
@@ -339,6 +342,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataEdgeRouting"
   | "strataBorderRoute"
   | "strataChannelRoute"
+  | "strataEdgeClip"
   | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
@@ -393,6 +397,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataEdgeRouting: session.strataEdgeRouting === true,
   strataBorderRoute: session.strataBorderRoute === true,
   strataChannelRoute: session.strataChannelRoute === true,
+  strataEdgeClip: session.strataEdgeClip === true,
   // Raw forward — omit at default ("straight")/absent so a replayed session
   // never re-materializes a default style key. Non-default styles forward.
   ...(session.strataEdgeStyle !== undefined &&
@@ -494,6 +499,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataEdgeRouting"
   | "strataBorderRoute"
   | "strataChannelRoute"
+  | "strataEdgeClip"
   | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
@@ -559,6 +565,7 @@ function buildPipelineFamilyLayoutOptions(
     strataEdgeRouting: options.strataEdgeRouting === true,
     strataBorderRoute: options.strataBorderRoute === true,
     strataChannelRoute: options.strataChannelRoute === true,
+    strataEdgeClip: options.strataEdgeClip === true,
     // Raw forward — omit at default ("straight")/absent so neither the engine
     // request nor the persisted session snapshot carries a default style key.
     ...(options.strataEdgeStyle !== undefined &&

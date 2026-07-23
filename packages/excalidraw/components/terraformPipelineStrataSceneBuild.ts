@@ -47,6 +47,10 @@ import {
   type StrataChannelRouteMeta,
 } from "./terraformPipelineStrataChannelRoute";
 import {
+  routeStrataEdgeClip,
+  type StrataEdgeClipMeta,
+} from "./terraformPipelineStrataEdgeClip";
+import {
   routeStrataSkeletonEdges,
   type StrataEdgeRoutingMeta,
 } from "./terraformPipelineStrataEdgeRouting";
@@ -116,11 +120,26 @@ export type StrataSceneBuildInput = {
    */
   edgeRouting?: boolean;
   /**
+   * Loop-2 E2.1+E2.2 container-boundary CLIP pass
+   * (terraformPipelineStrataEdgeClip.ts): when true, each eligible net-forward
+   * cross-cluster TFD arrow is rewritten to a Graphviz-lhead/ltail-style clip
+   * polyline whose endpoints sit ON the source/target leaf-cluster frame
+   * borders (egress R face, ingress L face), with perpendicular hull
+   * port-crossing waypoints in between. Runs FIRST among ALL edge passes and
+   * owns the eligible edges (stamps `terraformRoutedPolyline` +
+   * `terraformRoutedBy:"clip"` + `terraformClipAnchor`, so channelRoute /
+   * routers / edgeStyle below skip them). Net-backward and same-column edges
+   * are left unstamped for the style-pass orbit / E2.4 lanes. Default off —
+   * absent, the module never runs (byte-identical).
+   */
+  edgeClip?: boolean;
+  /**
    * Probe P1 inter-rank channel routing (terraformPipelineStrataChannelRoute.ts):
    * when true, each inter-rank TFD arrow is rewritten to an orthogonal
    * exit-stub → per-channel vertical run at an assigned track X → entry-stub
-   * polyline. Runs FIRST among the edge passes and owns the polyline topology
-   * (stamps `terraformRoutedPolyline`, so the routers/edgeStyle below skip its
+   * polyline. Runs FIRST among the ROUTER passes (after the clip pass above
+   * when both are on) and owns the polyline topology (stamps
+   * `terraformRoutedPolyline`, so the routers/edgeStyle below skip its
    * edges). Default off — absent, the module never runs (byte-identical).
    */
   channelRoute?: boolean;
@@ -249,6 +268,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
+  /** Present only when `edgeClip` was requested (flag-OFF byte-identity). */
+  edgeClip?: StrataEdgeClipMeta;
   /** Present only when `channelRoute` was requested (flag-OFF byte-identity). */
   channelRoute?: StrataChannelRouteMeta;
   /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
@@ -451,7 +472,22 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     ? buildStrataEdgeStyleAnchors(skeleton)
     : undefined;
 
-  // ── Probe P1 channel routing (flag-gated). Runs FIRST among the edge passes
+  // ── Loop-2 E2.1+E2.2 container-boundary CLIP pass (flag-gated). Runs FIRST
+  // among ALL the edge passes — when ON it owns every eligible net-forward
+  // cross-cluster declared edge (endpoints clipped ON the leaf-cluster frame
+  // borders, LR port discipline, hull port chains) and stamps
+  // `terraformRoutedPolyline` + `terraformRoutedBy:"clip"` +
+  // `terraformClipAnchor`, so the channel/route/border/style passes below
+  // (all first-stamper-wins) skip its edges; net-backward / same-column edges
+  // are left unstamped for them. It does NOT consume `edgeStyleAnchors` — its
+  // endpoints are frame-border ports, not card-body anchors; repair validates
+  // them through the typed "clip" gate instead (terraformVisibility.ts).
+  // Absent the flag this never runs (byte-identical). ──
+  const edgeClip = input.edgeClip
+    ? routeStrataEdgeClip(skeleton, input.model, input.placement)
+    : undefined;
+
+  // ── Probe P1 channel routing (flag-gated). Runs FIRST among the router passes
   // and owns the polyline topology: each inter-rank TFD arrow becomes an
   // orthogonal exit-stub → per-channel vertical run → entry-stub polyline. It
   // stamps `terraformRoutedPolyline`, so edgeRouting/borderRoute/edgeStyle below
@@ -548,6 +584,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     skeleton,
     layoutBoxes,
     frameEdgeCount,
+    ...(edgeClip ? { edgeClip } : {}),
     ...(channelRoute ? { channelRoute } : {}),
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
@@ -570,6 +607,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
+  /** Present only when `edgeClip` was requested (flag-OFF byte-identity). */
+  edgeClip?: StrataEdgeClipMeta;
   /** Present only when `channelRoute` was requested (flag-OFF byte-identity). */
   channelRoute?: StrataChannelRouteMeta;
   /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
@@ -598,6 +637,7 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   const {
     skeleton,
     frameEdgeCount,
+    edgeClip,
     channelRoute,
     edgeRouting,
     borderRoute,
@@ -621,6 +661,7 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
     elements,
     frameEdgeCount,
     repair,
+    ...(edgeClip ? { edgeClip } : {}),
     ...(channelRoute ? { channelRoute } : {}),
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
