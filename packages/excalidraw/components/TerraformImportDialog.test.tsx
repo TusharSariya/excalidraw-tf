@@ -53,6 +53,9 @@ vi.mock("./App", () => ({
     state: { viewBackgroundColor: "#ffffff" },
   }),
   useExcalidrawSetAppState: () => hoisted.setAppState,
+  // TerraformStrataSettings reads the live scene for its edge diagnostic
+  // (M5). No scene in these dialog tests → the pre-import placeholder.
+  useExcalidrawElements: () => [],
 }));
 
 function textFileLike(contents: string, name = "file"): File {

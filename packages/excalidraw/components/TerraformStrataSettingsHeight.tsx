@@ -136,6 +136,13 @@ export const TerraformStrataSettingsHeight = ({
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
 }) => {
   const currentDepthIndex = STRATA_BAND_DEPTH_ORDER.indexOf(strataBandDepth);
+  // Which side of the rankSeparate × packedScoring hard exclusion last auto-
+  // disabled the other, so the CLICKED control can explain what just happened
+  // (the flip was previously silent). Set in the On handlers; cleared whenever an
+  // Off handler makes the note moot.
+  const [lastExclusion, setLastExclusion] = React.useState<
+    "compactDisabledPacked" | "packedDisabledCompact" | null
+  >(null);
   // Mirror of the engine's own gate (same predicate, imported — not re-derived)
   // so the panel tells the user the level will be dropped BEFORE they import and
   // wonder why nothing changed. The engine suppresses regardless; this is the
@@ -162,20 +169,38 @@ export const TerraformStrataSettingsHeight = ({
           <span>separate sibling stacks to shorten the canvas</span>
         </span>
         <div className="TerraformImportModal__segmentedControl">
-          {option("Off", !strataRankSeparate, "strata.rankseparate.off", () =>
-            setStrataRankSeparate(false),
-          )}
+          {option("Off", !strataRankSeparate, "strata.rankseparate.off", () => {
+            setLastExclusion(null);
+            setStrataRankSeparate(false);
+          })}
           {/* Hard mutual exclusion (owner-decisions.md 2026-07-17 line 12):
               rankSeparate × packedScoring — enabling either auto-disables the
               other, so the UI can never emit the on/on state the engine would
               silently resolve (packedScoring wins). Without this cross-disable
               the default-ON packedScoring makes Compact height a silent no-op
-              (rankSeparate suppressed at layout). */}
+              (rankSeparate suppressed at layout). M5: surface the flip with a
+              coupling hint at the clicked control instead of doing it silently. */}
           {option("On", strataRankSeparate, "strata.rankseparate.on", () => {
+            setLastExclusion(
+              strataPackedScoring ? "compactDisabledPacked" : null,
+            );
             setStrataRankSeparate(true);
             setStrataPackedScoring(false);
           })}
         </div>
+        {lastExclusion === "compactDisabledPacked" && (
+          <div
+            className="TerraformImportModal__couplingHint"
+            role="status"
+            aria-live="polite"
+          >
+            <span aria-hidden="true">ⓘ</span>
+            <span>
+              Turned off <strong>Packed edge scoring</strong> — the two can't
+              run together, so switching on Compact height disabled it.
+            </span>
+          </div>
+        )}
       </div>
       {/* Advanced (owner-decisions.md 2026-07-17 declutter): the height gate is
           inert groundwork with a single consumer (block clamp), so it lives
@@ -376,19 +401,42 @@ export const TerraformStrataSettingsHeight = ({
           <span>score region and VPC sibling order on real edge geometry</span>
         </span>
         <div className="TerraformImportModal__segmentedControl">
-          {option("Off", !strataPackedScoring, "strata.packedscoring.off", () =>
-            setStrataPackedScoring(false),
+          {option(
+            "Off",
+            !strataPackedScoring,
+            "strata.packedscoring.off",
+            () => {
+              setLastExclusion(null);
+              setStrataPackedScoring(false);
+            },
           )}
           {/* Other direction of the same hard exclusion (see Compact height
               above): enabling packed edge scoring auto-disables Compact height
               (rankSeparate). packedScoring is the engine's tiebreaker winner, so
               this is also the state the app default sits in (packedScoring ON,
-              rankSeparate OFF). */}
+              rankSeparate OFF). M5: surface the flip with a coupling hint at the
+              clicked control instead of doing it silently. */}
           {option("On", strataPackedScoring, "strata.packedscoring.on", () => {
+            setLastExclusion(
+              strataRankSeparate ? "packedDisabledCompact" : null,
+            );
             setStrataPackedScoring(true);
             setStrataRankSeparate(false);
           })}
         </div>
+        {lastExclusion === "packedDisabledCompact" && (
+          <div
+            className="TerraformImportModal__couplingHint"
+            role="status"
+            aria-live="polite"
+          >
+            <span aria-hidden="true">ⓘ</span>
+            <span>
+              Turned off <strong>Compact height</strong> — the two can't run
+              together, so switching on Packed edge scoring disabled it.
+            </span>
+          </div>
+        )}
       </div>
       {strataPackedScoring && (
         <div role="group" aria-label="Strata packed crossing budget">

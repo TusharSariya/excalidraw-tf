@@ -1,11 +1,12 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { TerraformStrataSettings } from "./TerraformStrataSettings";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 /**
  * DOM-identity harness for the TerraformStrataSettings panel.
@@ -156,19 +157,20 @@ describe("TerraformStrataSettings DOM identity", () => {
     ).toBeNull();
   });
 
-  it("keeps edge routing off the always-visible Standard surface (advanced disclosure)", () => {
-    // owner-decisions.md 2026-07-17: 'Route edges around boxes' (strataEdgeRouting)
-    // is advanced-only. It still renders (inside a collapsed <details>) so its URL
-    // param round-trips, but it must sit within an advanced disclosure, not the
-    // Standard flow.
+  it("keeps the raw router toggles in the DEV composition drawer, off the standard surface", () => {
+    // M5 redesign: the three raw router toggles (Route edges / Exit containers /
+    // channels) moved into a DEV-only "Developer: routing passes" drawer. The
+    // always-visible surface exposes them via the one-hot Routing segmented
+    // control instead, so their URL params still round-trip. (import.meta.env.DEV
+    // is true under vitest, so the drawer renders here.)
     renderPanel();
     const edgeGroup = screen.getByRole("group", {
       name: "Strata edge routing",
     });
-    expect(edgeGroup.closest("details")).not.toBeNull();
     const disclosure = edgeGroup.closest("details");
+    expect(disclosure).not.toBeNull();
     expect(
-      within(disclosure as HTMLElement).getByText(/Advanced: edge routing/i),
+      within(disclosure as HTMLElement).getByText(/Developer: routing passes/i),
     ).toBeTruthy();
   });
 
@@ -326,5 +328,277 @@ describe("TerraformStrataSettings hover help", () => {
     expect(screen.getByLabelText("Option explanation").textContent).toContain(
       "Band depth",
     );
+  });
+});
+
+// A stateful harness so keyboard/one-hot interactions can be observed through the
+// component's OWN re-render (controlled setters actually update the value), not
+// just the mock call log.
+const StatefulPanel = (initial: Partial<Props> = {}) => {
+  const Harness = () => {
+    const [edgeStyle, setEdgeStyle] = React.useState<StrataEdgeStyle>(
+      (initial.strataEdgeStyle as StrataEdgeStyle) ?? "straight",
+    );
+    const [edgeRouting, setEdgeRouting] = React.useState<boolean>(
+      initial.strataEdgeRouting ?? false,
+    );
+    const [channelRoute, setChannelRoute] = React.useState<boolean>(
+      initial.strataChannelRoute ?? false,
+    );
+    const [borderRoute, setBorderRoute] = React.useState<boolean>(
+      initial.strataBorderRoute ?? false,
+    );
+    return (
+      <TerraformStrataSettings
+        {...baseProps()}
+        {...initial}
+        strataEdgeStyle={edgeStyle}
+        strataEdgeRouting={edgeRouting}
+        strataChannelRoute={channelRoute}
+        strataBorderRoute={borderRoute}
+        setStrataEdgeStyle={setEdgeStyle}
+        setStrataEdgeRouting={setEdgeRouting}
+        setStrataChannelRoute={setChannelRoute}
+        setStrataBorderRoute={setBorderRoute}
+      />
+    );
+  };
+  return render(<Harness />);
+};
+
+describe("TerraformStrataSettings — M5 edge routing & style", () => {
+  // (a) Mutual-exclusion click surfaces the hint at the CLICKED control.
+  it("surfaces a coupling hint when Compact height auto-disables Packed edge scoring", () => {
+    const setPacked = vi.fn();
+    renderPanel({
+      strataPackedScoring: true,
+      setStrataPackedScoring: setPacked,
+    });
+    const compact = screen.getByRole("group", {
+      name: "Strata compact height",
+    });
+    // No hint before the click.
+    expect(within(compact).queryByRole("status")).toBeNull();
+
+    fireEvent.click(within(compact).getByRole("button", { name: "On" }));
+
+    expect(setPacked).toHaveBeenCalledWith(false); // the silent flip, now explained
+    expect(within(compact).getByRole("status").textContent).toMatch(
+      /Packed edge scoring/i,
+    );
+  });
+
+  it("surfaces a coupling hint when Packed edge scoring auto-disables Compact height", () => {
+    const setRank = vi.fn();
+    renderPanel({ strataRankSeparate: true, setStrataRankSeparate: setRank });
+    const packed = screen.getByRole("group", {
+      name: "Strata packed edge scoring",
+    });
+    expect(within(packed).queryByRole("status")).toBeNull();
+
+    fireEvent.click(within(packed).getByRole("button", { name: "On" }));
+
+    expect(setRank).toHaveBeenCalledWith(false);
+    expect(within(packed).getByRole("status").textContent).toMatch(
+      /Compact height/i,
+    );
+  });
+
+  // (b) Radiogroup keyboard nav — arrow keys move aria-checked AND focus.
+  it("moves radiogroup selection and aria-checked with Arrow keys", () => {
+    StatefulPanel({ strataEdgeStyle: "straight" });
+    const styleGroup = screen.getByRole("radiogroup", {
+      name: "Strata edge style",
+    });
+    const straight = within(styleGroup).getByRole("radio", {
+      name: "Straight",
+    });
+    const step = within(styleGroup).getByRole("radio", { name: "Step" });
+    const curve = within(styleGroup).getByRole("radio", { name: "Curve" });
+    expect(straight.getAttribute("aria-checked")).toBe("true");
+    expect(step.getAttribute("aria-checked")).toBe("false");
+
+    // Focus + arrow move both selection and focus; the programmatic focus()
+    // inside the handler drives an onFocus state update, so wrap in act().
+    act(() => straight.focus());
+    act(() => {
+      fireEvent.keyDown(straight, { key: "ArrowRight" });
+    });
+    expect(step.getAttribute("aria-checked")).toBe("true");
+    expect(straight.getAttribute("aria-checked")).toBe("false");
+    expect(document.activeElement).toBe(
+      within(styleGroup).getByRole("radio", { name: "Step" }),
+    );
+
+    act(() => {
+      fireEvent.keyDown(step, { key: "ArrowLeft" });
+    });
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Straight" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    // Wraps: ArrowLeft from the first radio selects the last (Curve).
+    act(() => {
+      fireEvent.keyDown(
+        within(styleGroup).getByRole("radio", { name: "Straight" }),
+        { key: "ArrowLeft" },
+      );
+    });
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Curve" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(curve).toBeTruthy();
+  });
+
+  it("uses roving tabindex so only the checked radio is tab-reachable", () => {
+    renderPanel({ strataEdgeStyle: "step" });
+    const styleGroup = screen.getByRole("radiogroup", {
+      name: "Strata edge style",
+    });
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Step" })
+        .getAttribute("tabindex"),
+    ).toBe("0");
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Straight" })
+        .getAttribute("tabindex"),
+    ).toBe("-1");
+  });
+
+  // (c) One-hot mapping: exactly one router boolean true per preset.
+  it("writes exactly one router boolean true per Routing preset (one-hot)", () => {
+    const setEdge = vi.fn();
+    const setChannel = vi.fn();
+    const setBorder = vi.fn();
+    renderPanel({
+      setStrataEdgeRouting: setEdge,
+      setStrataChannelRoute: setChannel,
+      setStrataBorderRoute: setBorder,
+    });
+    const routing = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+
+    const expectOneHot = (edge: boolean, channel: boolean, border: boolean) => {
+      expect(setEdge).toHaveBeenLastCalledWith(edge);
+      expect(setChannel).toHaveBeenLastCalledWith(channel);
+      expect(setBorder).toHaveBeenLastCalledWith(border);
+    };
+
+    fireEvent.click(
+      within(routing).getByRole("radio", { name: "Around boxes" }),
+    );
+    expectOneHot(true, false, false);
+
+    fireEvent.click(
+      within(routing).getByRole("radio", { name: "Through channels" }),
+    );
+    expectOneHot(false, true, false);
+
+    fireEvent.click(
+      within(routing).getByRole("radio", { name: "Border exits" }),
+    );
+    expectOneHot(false, false, true);
+
+    fireEvent.click(within(routing).getByRole("radio", { name: "Off" }));
+    expectOneHot(false, false, false);
+  });
+
+  it("shows the transient Custom segment only for a composed (2+) router state", () => {
+    // A single router is a plain one-hot preset — no Custom, no banner.
+    const single = renderPanel({ strataEdgeRouting: true });
+    const routingSingle = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    expect(
+      within(routingSingle).queryByRole("radio", { name: "Custom" }),
+    ).toBeNull();
+    expect(
+      within(routingSingle)
+        .getByRole("radio", { name: "Around boxes" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(screen.queryByText(/custom routing combination/i)).toBeNull();
+    single.unmount();
+
+    // 2+ routers (only reachable from a URL) → transient Custom segment + banner.
+    renderPanel({ strataEdgeRouting: true, strataChannelRoute: true });
+    const routingCustom = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    expect(
+      within(routingCustom)
+        .getByRole("radio", { name: "Custom" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(screen.getByText(/custom routing combination/i)).toBeTruthy();
+  });
+
+  it("replaces a composed router state with a one-hot write when picking a preset", () => {
+    // From Custom, StatefulPanel lets the pick actually flip the booleans so the
+    // Custom segment disappears (not just a mock call).
+    StatefulPanel({ strataEdgeRouting: true, strataChannelRoute: true });
+    const routing = () =>
+      screen.getByRole("radiogroup", { name: "Strata edge routing preset" });
+    expect(
+      within(routing()).getByRole("radio", { name: "Custom" }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      within(routing()).getByRole("radio", { name: "Through channels" }),
+    );
+
+    // Custom gone; Through channels now the sole active preset (one-hot).
+    expect(
+      within(routing()).queryByRole("radio", { name: "Custom" }),
+    ).toBeNull();
+    expect(
+      within(routing())
+        .getByRole("radio", { name: "Through channels" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("resets a composed router state to Off from the banner (one-hot all-false)", () => {
+    const setEdge = vi.fn();
+    const setChannel = vi.fn();
+    const setBorder = vi.fn();
+    renderPanel({
+      strataEdgeRouting: true,
+      strataChannelRoute: true,
+      setStrataEdgeRouting: setEdge,
+      setStrataChannelRoute: setChannel,
+      setStrataBorderRoute: setBorder,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Reset to Off" }));
+    expect(setEdge).toHaveBeenCalledWith(false);
+    expect(setChannel).toHaveBeenCalledWith(false);
+    expect(setBorder).toHaveBeenCalledWith(false);
+  });
+
+  it("dismisses the custom banner on Keep it while leaving the combination intact", () => {
+    renderPanel({ strataEdgeRouting: true, strataChannelRoute: true });
+    expect(screen.getByText(/custom routing combination/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+
+    expect(screen.queryByText(/custom routing combination/i)).toBeNull();
+    // The Custom segment stays — Keep dismisses the banner, not the combination.
+    const routing = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    expect(within(routing).getByRole("radio", { name: "Custom" })).toBeTruthy();
+  });
+
+  it("shows the pre-import diagnostic placeholder with no scene elements", () => {
+    // In isolation the ExcalidrawElementsContext default is [] → declared 0.
+    renderPanel();
+    expect(screen.getByText("Edge stats appear after import")).toBeTruthy();
   });
 });

@@ -6,6 +6,7 @@ import {
 } from "./TerraformImportPipelineSettings";
 
 import { TerraformStrataSettingsHeight } from "./TerraformStrataSettingsHeight";
+import { TerraformStrataSettingsEdges } from "./TerraformStrataSettingsEdges";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
@@ -640,142 +641,26 @@ export const TerraformStrataSettings = ({
             setStrataPackedScoring={setStrataPackedScoring}
             setStrataPackedScoringEpsilon={setStrataPackedScoringEpsilon}
           />
-          <div className="TerraformImportModal__settingsSection">
-            <div className="TerraformImportModal__settingsSectionHeader">
-              Edges
-            </div>
-            {/* Advanced (owner-decisions.md 2026-07-17): edge routing is a niche
-                +192cr/−140pierce trade (SDEC-61 closed-adverse), so both edge
-                passes live behind a collapsed disclosure — off the always-visible
-                Standard surface. */}
-            <details className="TerraformImportModal__advancedDisclosure">
-              <summary
-                className="TerraformImportModal__advancedSummary"
-                aria-label="Advanced edge routing"
-              >
-                Advanced: edge routing
-              </summary>
-              <div role="group" aria-label="Strata edge routing">
-                <span className="TerraformImportModal__controlLabel">
-                  Route edges around boxes{" "}
-                  <span>
-                    detour arrows that would tunnel through unrelated boxes
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataEdgeRouting,
-                    "strata.edgerouting.off",
-                    () => setStrataEdgeRouting(false),
-                  )}
-                  {option(
-                    "On",
-                    strataEdgeRouting,
-                    "strata.edgerouting.on",
-                    () => setStrataEdgeRouting(true),
-                  )}
-                </div>
-              </div>
-              <div role="group" aria-label="Strata container-exit routing">
-                <span className="TerraformImportModal__controlLabel">
-                  Exit containers through the nearest side{" "}
-                  <span>
-                    route an edge leaving its own container out the facing side
-                    instead of slashing diagonally across the interior
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataBorderRoute,
-                    "strata.borderroute.off",
-                    () => setStrataBorderRoute(false),
-                  )}
-                  {option(
-                    "On",
-                    strataBorderRoute,
-                    "strata.borderroute.on",
-                    () => setStrataBorderRoute(true),
-                  )}
-                </div>
-                {strataBorderRoute && strataEdgeRouting && (
-                  <div className="TerraformImportModal__couplingHint">
-                    <span aria-hidden="true">ⓘ</span>
-                    <span>
-                      Composes with <strong>Route edges around boxes</strong> —
-                      they rewrite disjoint edge sets (own-container exits vs
-                      detours around unrelated boxes) and run in sequence.
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div role="group" aria-label="Strata channel routing">
-                <span className="TerraformImportModal__controlLabel">
-                  Route edges through inter-rank channels{" "}
-                  <span>
-                    the owner's dummy-column idea: send each cross-rank arrow
-                    out a perpendicular stub, down a vertical track in the gap
-                    between columns, then into its target — Manhattan geometry
-                    instead of shallow diagonals
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataChannelRoute,
-                    "strata.channelroute.off",
-                    () => setStrataChannelRoute(false),
-                  )}
-                  {option(
-                    "On",
-                    strataChannelRoute,
-                    "strata.channelroute.on",
-                    () => setStrataChannelRoute(true),
-                  )}
-                </div>
-                {strataChannelRoute &&
-                  (strataEdgeRouting || strataBorderRoute) && (
-                    <div className="TerraformImportModal__couplingHint">
-                      <span aria-hidden="true">ⓘ</span>
-                      <span>
-                        Runs first and owns the polyline topology — the other
-                        routers only touch edges it left as chords.
-                      </span>
-                    </div>
-                  )}
-              </div>
-              <div role="group" aria-label="Strata edge style">
-                <span className="TerraformImportModal__controlLabel">
-                  Edge style{" "}
-                  <span>
-                    reshape un-routed arrows: straight chords, orthogonal step
-                    (React-Flow smoothstep), or a soft curve
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Straight",
-                    strataEdgeStyle === "straight",
-                    "strata.edgestyle.straight",
-                    () => setStrataEdgeStyle("straight"),
-                  )}
-                  {option(
-                    "Step",
-                    strataEdgeStyle === "step",
-                    "strata.edgestyle.step",
-                    () => setStrataEdgeStyle("step"),
-                  )}
-                  {option(
-                    "Curve",
-                    strataEdgeStyle === "curve",
-                    "strata.edgestyle.curve",
-                    () => setStrataEdgeStyle("curve"),
-                  )}
-                </div>
-              </div>
-            </details>
-          </div>
+          {/* Edge routing & style (M5 presentation redesign): a VISIBLE titled
+              section, no longer a collapsed <details>. Style first, then a
+              Routing segmented control that maps ONE-HOT onto the three raw
+              router booleans, a live scene diagnostic, and a DEV-only drawer that
+              still exposes the raw router toggles for composition. Extracted to a
+              sibling component (mirroring "Height & packing") to keep this file
+              under the max-lines cap; URL params and option semantics unchanged. */}
+          <TerraformStrataSettingsEdges
+            option={option}
+            setHoverKey={setHoverKey}
+            setStickyKey={setStickyKey}
+            strataEdgeRouting={strataEdgeRouting}
+            strataBorderRoute={strataBorderRoute}
+            strataChannelRoute={strataChannelRoute}
+            strataEdgeStyle={strataEdgeStyle}
+            setStrataEdgeRouting={setStrataEdgeRouting}
+            setStrataBorderRoute={setStrataBorderRoute}
+            setStrataChannelRoute={setStrataChannelRoute}
+            setStrataEdgeStyle={setStrataEdgeStyle}
+          />
           {/* Private API placement is no longer a control. owner-decisions.md
               2026-07-17 (Q9): private REST APIs are ALWAYS regional in strata —
               the engine clamps `pipelinePrivateApiRegional` true at the
@@ -796,19 +681,25 @@ export const TerraformStrataSettings = ({
           <p className="TerraformImportModal__layoutHelpBody">
             {activeHelp.body}
           </p>
-          <div className="TerraformImportModal__layoutHelpDev">
-            <span className="TerraformImportModal__layoutHelpDevLabel">
-              Implements
-            </span>
-            <span className="TerraformImportModal__layoutHelpDevText">
-              {activeHelp.dev.implements}
-            </span>
-            {activeHelp.dev.refs && activeHelp.dev.refs.length > 0 && (
-              <span className="TerraformImportModal__layoutHelpDevRefs">
-                {activeHelp.dev.refs.join(" · ")}
+          {/* DEV-only: the technical "Implements"/refs jargon (algorithm names,
+              paper citations). User-facing help is the plain title + body above;
+              the dev attribution is developer-menu detail, gated like the raw
+              router toggles. */}
+          {import.meta.env.DEV && (
+            <div className="TerraformImportModal__layoutHelpDev">
+              <span className="TerraformImportModal__layoutHelpDevLabel">
+                Implements
               </span>
-            )}
-          </div>
+              <span className="TerraformImportModal__layoutHelpDevText">
+                {activeHelp.dev.implements}
+              </span>
+              {activeHelp.dev.refs && activeHelp.dev.refs.length > 0 && (
+                <span className="TerraformImportModal__layoutHelpDevRefs">
+                  {activeHelp.dev.refs.join(" · ")}
+                </span>
+              )}
+            </div>
+          )}
         </aside>
       </div>
     </div>

@@ -520,15 +520,15 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
   },
   "strata.edgestyle.straight": {
     title: "Edge style · Straight",
-    body: "Un-routed arrows keep their straight centre-to-centre chord. The default — byte-identical scenes (the style module never runs).",
+    body: "No reshaping — edges are direct lines (default).",
     dev: {
       implements:
         'strataEdgeStyle="straight" (default): the terraformPipelineStrataEdgeStyle module never runs; TFD arrows keep their two-point chords (byte-identical).',
     },
   },
   "strata.edgestyle.step": {
-    title: "Edge style · Step (smoothstep)",
-    body: "Un-routed arrows are re-drawn as orthogonal Z-paths: a perpendicular escape stub off each card, a single mid-path bend, rounded corners (React Flow's smoothstep look). Endpoints never move; routed arrows (Route edges / Exit containers) keep their obstacle-aware geometry. Pure aesthetics — crossing/pierce topology is essentially unchanged.",
+    title: "Edge style · Step",
+    body: "Right-angle connectors with rounded corners.",
     dev: {
       implements:
         'strataEdgeStyle="step": applyStrataEdgeStyle rewrites each un-routed TFD chord to a smoothstep polyline (20px stubs clamped to PIPELINE_FRAME_PAD, Z-bend at stepPosition 0.5, roundness type 2), stamping terraformRoutedPolyline; skips arrows already stamped by edgeRouting/borderRoute.',
@@ -536,12 +536,59 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     },
   },
   "strata.edgestyle.curve": {
-    title: "Edge style · Curve (bezier)",
-    body: "Un-routed arrows are re-drawn as a soft cubic bezier with axis-aligned control points (React Flow's default edge look), sampled to a polyline. Endpoints never move; routed arrows keep their geometry. Pure aesthetics.",
+    title: "Edge style · Curve",
+    body: "Draws each data-flow edge as a smooth curve that keeps its direction easy to follow. Edges that would cut through a card stay straight.",
     dev: {
       implements:
         'strataEdgeStyle="curve": applyStrataEdgeStyle samples a cubic bezier (control offset 0.5·distance forward / 0.25·25·√|distance| backward) to a 14-point polyline per un-routed TFD chord, stamping terraformRoutedPolyline; skips already-routed arrows.',
       refs: ["React Flow (xyflow) — getBezierPath (MIT)"],
+    },
+  },
+  // Routing PRESETS — the user-facing segmented control's four one-hot choices
+  // (Off / Around boxes / Through channels / Border exits) plus the transient
+  // "Custom" segment. Each preset maps ONE-HOT onto the three raw router
+  // booleans (strataEdgeRouting / strataChannelRoute / strataBorderRoute) whose
+  // own per-toggle jargon lives in strata.edgerouting.* / strata.channelroute.*
+  // / strata.borderroute.* above (surfaced only in the DEV composition drawer).
+  // Bodies are deliberately plain — the technical detail stays in `dev`.
+  "strata.routing.off": {
+    title: "Routing · Off",
+    body: "Edges connect directly.",
+    dev: {
+      implements:
+        "All three routers off (strataEdgeRouting = strataChannelRoute = strataBorderRoute = false): straight chords, byte-identical scenes.",
+    },
+  },
+  "strata.routing.around": {
+    title: "Routing · Around boxes",
+    body: "Edges detour around cards in their path.",
+    dev: {
+      implements:
+        "One-hot: strataEdgeRouting=true only (routeStrataSkeletonEdges detours penetrating arrows around foreign boxes).",
+    },
+  },
+  "strata.routing.channels": {
+    title: "Routing · Through channels",
+    body: "Edges travel in shared lanes between columns.",
+    dev: {
+      implements:
+        "One-hot: strataChannelRoute=true only (routeStrataChannelEdges — Manhattan geometry through inter-rank channels).",
+    },
+  },
+  "strata.routing.border": {
+    title: "Routing · Border exits",
+    body: "Edges leave containers through the nearest side.",
+    dev: {
+      implements:
+        "One-hot: strataBorderRoute=true only (routeStrataBorderExits — inner→outer facing-side boundary waypoint per exited hull).",
+    },
+  },
+  "strata.routing.custom": {
+    title: "Routing · Custom",
+    body: "Two or more routing passes are combined (set by this link). Pick any preset to replace it, or keep it as-is.",
+    dev: {
+      implements:
+        "A composed router combination (2+ of strataEdgeRouting / strataChannelRoute / strataBorderRoute true) that no single preset represents. Reachable only from a URL; picking any preset writes the one-hot booleans.",
     },
   },
   "strata.banddepth": {
