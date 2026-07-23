@@ -927,9 +927,11 @@ describe("curve + router combos — provenance + first-stamper-wins + repair kee
       flag: "strataBorderRoute",
       by: "border",
       routedMetaKey: "strataBorderRouteRouted",
-      // E1.4 added symmetric entry-side chains: +7 edges now routed on this
-      // preset (40 exit-only → 47 with ingress; measured 2026-07-23).
-      preRepairStamps: 47,
+      // E1.4 added symmetric entry-side chains (40 exit-only → 47 with
+      // ingress); E1.5's body-rect chords then shifted the exit/entry waypoint
+      // geometry so a few edges fall to the noGain/guard paths (47 → 38,
+      // measured 2026-07-23). Every emitted stamp survives repair.
+      preRepairStamps: 38,
       selfFlatten: 0,
     },
   ] as const;
