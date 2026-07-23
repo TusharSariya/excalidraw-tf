@@ -37,7 +37,7 @@ const arrow = (
     isDeleted: false,
     points,
     customData: { relationship: { source, target } },
-  }) as unknown as ExcalidrawElement;
+  } as unknown as ExcalidrawElement);
 
 const card = (
   address: string,
@@ -58,7 +58,7 @@ const card = (
       terraformTopologyRole: "primaryCluster",
       terraformPrimaryAddress: address,
     },
-  }) as unknown as ExcalidrawElement;
+  } as unknown as ExcalidrawElement);
 
 describe("edgeAngleSummaryOf — bends", () => {
   it("counts orthogonal Z corners as 2 bends; a straight chord as 0", () => {
@@ -191,14 +191,26 @@ describe("edgeAngleSummaryOf — endpoint angular resolution", () => {
     // Gap = 40.70°; one side with ≥2 departures.
     const els = [
       card("A", 0, 0, 100, 100),
-      arrow(100, 50, [
-        [0, 0],
-        [100, -10],
-      ], "A", "B"),
-      arrow(100, 50, [
-        [0, 0],
-        [100, 70],
-      ], "A", "C"),
+      arrow(
+        100,
+        50,
+        [
+          [0, 0],
+          [100, -10],
+        ],
+        "A",
+        "B",
+      ),
+      arrow(
+        100,
+        50,
+        [
+          [0, 0],
+          [100, 70],
+        ],
+        "A",
+        "C",
+      ),
     ];
     const m = diagnosePipelineScene(els).edgeAngles;
     expect(m.endpointSidesConsidered).toBe(1);

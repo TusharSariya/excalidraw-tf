@@ -117,7 +117,12 @@ function getScaffold(compact = false): Scaffold {
       return cluster ? clusterFrameLocalRect(cluster).width : 0;
     },
   } as unknown as Parameters<typeof rankStrataClusters>[2]);
-  let placement = placeStrataHulls(model, repair.edgesPrime, rank, engineOptions);
+  let placement = placeStrataHulls(
+    model,
+    repair.edgesPrime,
+    rank,
+    engineOptions,
+  );
   placement = refineStrataCoordinates(placement, model, repair.edgesPrime, {
     cascade: false,
   });
@@ -279,9 +284,11 @@ describe("strataBoxEndpoints — skeleton/element frame-collector parity", () =>
     );
     // eslint-disable-next-line no-console
     console.log(
-      `compact:${compact} parity: skeletonSide=${skeletonSide.size} elementSide=${
-        elementSide.size
-      } falsy-trap extras=${extras.length} stamped=${stamped} keptBy=${JSON.stringify(
+      `compact:${compact} parity: skeletonSide=${
+        skeletonSide.size
+      } elementSide=${elementSide.size} falsy-trap extras=${
+        extras.length
+      } stamped=${stamped} keptBy=${JSON.stringify(
         stats.keptBy,
       )} flattenedBy=${JSON.stringify(stats.flattenedBy)}`,
     );

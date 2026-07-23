@@ -103,9 +103,9 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** E3.3 row-gap scale factor. Default off ⇒ 1 (byte-identical); the resolver
    * omits it at the default (raw-forward). */
   strataRowGap: 1,
-  /** M5 box-endpoint anchoring (strata-only, opt-in): edge endpoints terminate on
+  /** Box-endpoint anchoring (strata-only, opt-in): edge endpoints terminate on
    * the labeled leaf-cluster frame border instead of the resource card. Default
-   * OFF (byte-identical — no consumer yet; M6 lands the geometry). */
+   * OFF (byte-identical). Consumed by the scene build's edge-style pass (M6). */
   strataBoxEndpoints: false,
 } as const;
 
@@ -251,9 +251,8 @@ export const resolveStrataDemoOptions = (params: {
     strataLeafShift:
       params.strataLeafShift ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataLeafShift,
-    // M5 box-endpoint anchoring: emit unconditionally like the other strata
-    // booleans (strataTranspose above). Default false; inert until M6 wires a
-    // consumer, so the resolved value never moves geometry today.
+    // Box-endpoint anchoring: emit unconditionally like the other strata
+    // booleans (strataTranspose above). Default false.
     strataBoxEndpoints:
       params.strataBoxEndpoints ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBoxEndpoints,

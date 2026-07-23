@@ -341,7 +341,9 @@ const cappedElementCanvasSize = (
   if (terraformCanvasHints.dprCap) {
     const rawDpr = window.devicePixelRatio;
     const rawWidth = Math.floor((elementWidth * rawDpr + padding * 2) * scale);
-    const rawHeight = Math.floor((elementHeight * rawDpr + padding * 2) * scale);
+    const rawHeight = Math.floor(
+      (elementHeight * rawDpr + padding * 2) * scale,
+    );
     if (rawWidth >= 1) {
       width = Math.max(1, width);
     }
@@ -394,14 +396,10 @@ const generateElementCanvas = (
     const [x1, y1] = getElementAbsoluteCoords(element, elementsMap);
 
     canvasOffsetX =
-      element.x > x1
-        ? distance(element.x, x1) * devicePixelRatio * scale
-        : 0;
+      element.x > x1 ? distance(element.x, x1) * devicePixelRatio * scale : 0;
 
     canvasOffsetY =
-      element.y > y1
-        ? distance(element.y, y1) * devicePixelRatio * scale
-        : 0;
+      element.y > y1 ? distance(element.y, y1) * devicePixelRatio * scale : 0;
 
     context.translate(canvasOffsetX, canvasOffsetY);
   }

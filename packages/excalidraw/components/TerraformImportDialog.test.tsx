@@ -178,7 +178,7 @@ describe("TerraformImportModal", () => {
       strataBlockClamp: false,
       strataTranspose: true,
       // M5 box-endpoint anchoring threads for every view (default off); inert
-      // downstream (the pipeline/strata engine ignores it until M6).
+      // downstream (consumed by the strata scene build's edge-style pass).
       strataBoxEndpoints: false,
       strataChainRelocate: false,
       strataCoordCascade: false,
@@ -244,7 +244,7 @@ describe("TerraformImportModal", () => {
       strataBlockClamp: false,
       strataTranspose: true,
       // M5 box-endpoint anchoring threads for every view (default off); inert
-      // downstream (the pipeline/strata engine ignores it until M6).
+      // downstream (consumed by the strata scene build's edge-style pass).
       strataBoxEndpoints: false,
       strataChainRelocate: false,
       strataCoordCascade: false,

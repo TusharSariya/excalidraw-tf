@@ -32,7 +32,10 @@ describe("terraformSceneApply option threading", () => {
   };
 
   /** A value guaranteed to differ from the registered default, per type. */
-  const nonDefaultFor = (key: string, def: unknown): boolean | number | string => {
+  const nonDefaultFor = (
+    key: string,
+    def: unknown,
+  ): boolean | number | string => {
     if (typeof def === "boolean") {
       return !def;
     }

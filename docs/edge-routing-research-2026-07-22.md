@@ -2,14 +2,13 @@
 
 Owner ask: React-Flow-quality edge routing options for the strata view; fewer hull/resource crossings; aesthetic angles; dummy routing columns idea; each option exposed in the UI. 3 Fable-med research agents + 1 synthesis. Raw agent outputs below.
 
-
 ---
 
 # reactflow-ecosystem
 
 ## Summary
 
-Deep-dive on edge routing in modern JS diagram libraries. Key takeaways: (1) React Flow's "feel" is pure endpoint-local path math — cubic bezier with axis-aligned control points scaled by a curvature param, or orthogonal "smoothstep" with a 20px escape offset and quadratic-arc rounded corners (borderRadius) — with NO obstacle avoidance; both formulas are trivially transplantable to a canvas renderer and are the cheapest possible win for the owner's "angle aesthetics" goal. (2) ELK layered offers ORTHOGONAL/POLYLINE/SPLINES routing integrated with layout (incl. compound graphs), but requires adopting its whole layered pipeline. (3) libavoid (via libavoid-js WASM) is the gold standard for post-hoc obstacle-avoiding orthogonal routing: orthogonal visibility graph + A* + segment nudging + hyperedge routing, incremental, but at 7k obstacles the visibility graph is the scaling risk and the JS port is beta. (4) Best transplant targets for strata: React Flow's smoothstep corner-rounding math (immediate), libavoid-style nudging/centering of parallel orthogonal segments in the existing inter-rank channels (the "dummy routing column" idea maps exactly to reserved channel space, which is how yFiles/ELK effectively do it), and dagre-style dummy-node spline points which strata's rank structure already almost provides.
+Deep-dive on edge routing in modern JS diagram libraries. Key takeaways: (1) React Flow's "feel" is pure endpoint-local path math — cubic bezier with axis-aligned control points scaled by a curvature param, or orthogonal "smoothstep" with a 20px escape offset and quadratic-arc rounded corners (borderRadius) — with NO obstacle avoidance; both formulas are trivially transplantable to a canvas renderer and are the cheapest possible win for the owner's "angle aesthetics" goal. (2) ELK layered offers ORTHOGONAL/POLYLINE/SPLINES routing integrated with layout (incl. compound graphs), but requires adopting its whole layered pipeline. (3) libavoid (via libavoid-js WASM) is the gold standard for post-hoc obstacle-avoiding orthogonal routing: orthogonal visibility graph + A\* + segment nudging + hyperedge routing, incremental, but at 7k obstacles the visibility graph is the scaling risk and the JS port is beta. (4) Best transplant targets for strata: React Flow's smoothstep corner-rounding math (immediate), libavoid-style nudging/centering of parallel orthogonal segments in the existing inter-rank channels (the "dummy routing column" idea maps exactly to reserved channel space, which is how yFiles/ELK effectively do it), and dagre-style dummy-node spline points which strata's rank structure already almost provides.
 
 ## Findings
 
@@ -22,10 +21,13 @@ Context: strata view, ~7k elements, ~1–2k edges, layered LR layout with nested
 ## 1. React Flow (xyflow) — the anchor
 
 ### 1.1 Edge types
+
 Five built-ins: `default` (bezier), `smoothstep`, `step` (smoothstep with `borderRadius: 0`), `straight`, `simplebezier`. All are **pure functions of the two endpoints + their `Position` (Left/Right/Top/Bottom)** — no knowledge of any other node or edge exists in the path math.
 
 ### 1.2 getBezierPath — exact math (source: `packages/system/src/utils/edges/bezier-edge.ts`)
+
 Cubic bezier `M sx,sy C c1 c2 tx,ty` with one control point per endpoint, placed **axis-aligned with the handle's Position**:
+
 - Left/Right handle → control point at `[x ± calculateControlOffset(dx, curvature), y]`
 - Top/Bottom handle → `[x, y ± calculateControlOffset(dy, curvature)]`
 
@@ -34,10 +36,13 @@ calculateControlOffset(distance, curvature):
   if distance >= 0: return 0.5 * distance        // "forward" case: offset = half the gap, curvature ignored
   else:             return curvature * 25 * sqrt(|distance|)   // "backward" case (target behind source)
 ```
+
 `curvature` default **0.25**. So for a normal LR edge the control points sit at the horizontal midpoint — this is why default React Flow edges look calm and symmetric. The curvature parameter only matters when the edge has to double back; the `25*sqrt(|d|)` term makes backward loops bulge proportionally to sqrt of the overshoot instead of linearly, which is a large part of the "feels good" behavior on reversed edges. `simplebezier` is the same but control offset is always the midpoint (no curvature/backward special-case).
 
 ### 1.3 getSmoothStepPath — exact math (source: `packages/system/src/utils/edges/smoothstep-edge.ts`; API docs)
+
 Orthogonal polyline with rounded corners:
+
 1. **Direction vectors** from Position: Left=(-1,0), Right=(1,0), Top=(0,-1), Bottom=(0,1).
 2. **Escape offset** (default **20px**): source/target are first moved `offset` px along their direction vector (`sourceGapped = source + dir*offset`). This guarantees the edge always exits the node perpendicular before turning — a major aesthetics contributor (never a flat-angle exit).
 3. **Point generation** between the gapped points:
@@ -48,11 +53,13 @@ Orthogonal polyline with rounded corners:
 **Verdict on the "feel":** three ingredients — (a) perpendicular exit stub via offset, (b) monotone axis-aligned segments with a single parameterized bend position, (c) clamped-radius rounded corners. All ~150 lines of endpoint-local math, MIT-licensed, dependency-free.
 
 ### 1.4 Connection-side selection
+
 React Flow does **not** choose sides: handles are declared per node (`sourcePosition`/`targetPosition` props, default Bottom→Top), and the layout examples set them (LR layouts set Right→Left). Dynamic side-picking exists only in the **Floating Edges example** pattern: compute the closest sides/intersection of the two node rects per render — userland, not core.
 
 ### 1.5 What React Flow does NOT do, and what plugins add
+
 - **No obstacle avoidance, no crossing minimization, no edge–edge spacing** in core (confirmed: [discussion #2806](https://github.com/xyflow/xyflow/discussions/2806)).
-- [`react-flow-smart-edge` / Jalez fork](https://github.com/Jalez/react-flow-smart-edge): A* pathfinding on a rasterized grid around node rects, then draws bezier/step through the found path. Known to be slow at scale (grid rebuild per drag; fine at tens of nodes, not thousands).
+- [`react-flow-smart-edge` / Jalez fork](https://github.com/Jalez/react-flow-smart-edge): A\* pathfinding on a rasterized grid around node rects, then draws bezier/step through the found path. Known to be slow at scale (grid rebuild per drag; fine at tens of nodes, not thousands).
 - **elkjs integration** ([elkjs example](https://reactflow.dev/examples/layout/elkjs), [multiple-handles example](https://reactflow.dev/examples/layout/elkjs-multiple-handles)): ELK computes node positions + port assignments; React Flow still draws its own endpoint-local edges (or you consume ELK's bendPoints yourself). ELK ports = handles mapped to reduce crossings.
 - A libavoid-WASM-in-WebWorker pattern also circulates for React Flow (clean orthogonal + nudging), which is the strongest of the plugin approaches.
 
@@ -65,7 +72,7 @@ React Flow does **not** choose sides: handles are declared per node (`sourcePosi
 Sources: [edgeRouting option](https://eclipse.dev/elk/reference/options/org-eclipse-elk-edgeRouting.html), [ELK Layered reference](https://eclipse.dev/elk/reference/algorithms/org-eclipse-elk-layered.html).
 
 - **Mechanics:** `org.eclipse.elk.edgeRouting` ∈ {UNDEFINED, POLYLINE, ORTHOGONAL (layered default), SPLINES}. Routing is a phase of the layered pipeline: edges travel through dummy nodes per crossed layer; ORTHOGONAL assigns edges to horizontal tracks in the inter-layer channel (hyperedge-aware segment assignment); SPLINES emits bendPoints to be interpreted as **piecewise cubic spline control points**, with `SplineRoutingMode` SLOPPY (default, plus a layer-spacing factor 0.2) vs CONSERVATIVE. Dedicated self-loop distribution/ordering strategies.
-- **Obstacle handling:** implicit — routing happens in channels the layout itself reserves, so edges avoid nodes *of the same layered layout*, including **compound graphs with cross-hierarchy edges** (`hierarchyHandling: INCLUDE_CHILDREN`). It does not route around arbitrary foreign rectangles.
+- **Obstacle handling:** implicit — routing happens in channels the layout itself reserves, so edges avoid nodes _of the same layered layout_, including **compound graphs with cross-hierarchy edges** (`hierarchyHandling: INCLUDE_CHILDREN`). It does not route around arbitrary foreign rectangles.
 - **Angle aesthetics:** ORTHOGONAL is 90°-only (no built-in corner rounding — renderer's job, e.g. Mermaid rounds them); SPLINES gives smooth monotone curves; edge–edge spacing options (default 10px) prevent the near-flat overlapping-segment look.
 - **Cost:** whole-pipeline cost; elkjs is GWT-transpiled JS, typically run in a worker. At ~thousands of nodes ELK layered runs seconds-scale; `thoroughness` (default 7) trades quality/runtime. The routing phase itself is cheap relative to crossing minimization.
 - **Verdict:** NOT transplantable as a routing module — the routing is inseparable from ELK's layering/dummy-node structure. But strata **is** a layered layout, so the ideas transplant: reserve inter-rank channel width, assign each edge's vertical segment to a track in the channel (that IS the owner's "dummy routing column" idea, formalized), round corners at render time.
@@ -76,39 +83,49 @@ Sources: [edgeRouting option](https://eclipse.dev/elk/reference/options/org-ecli
 
 Sources: [libavoid overview](https://www.adaptagrams.org/documentation/libavoid.html), Wybrow/Marriott/Stuckey ["Orthogonal Connector Routing"](https://link.springer.com/chapter/10.1007/978-3-642-11805-0_22) (GD 2009), ["Orthogonal Hyperedge Routing"](https://users.monash.edu/~mwybrow/papers/wybrow-diagrams-2012.pdf) (2012), [libavoid-js](https://github.com/Aksem/libavoid-js).
 
-- **Mechanics (3 phases):** (1) build an **orthogonal visibility graph** from the interesting X/Y coordinates of obstacle rectangles and connector endpoints; (2) **A*/shortest-path** per connector minimizing a monotone function of length + bend count (configurable segment/bend/crossing penalties); (3) **centering + nudging**: shared/overlapping collinear segments are separated and centered within their free channel — this final ordering pass is what makes dense orthogonal bundles legible (minimizes unnecessary crossings among parallel segments). Incremental: moving a shape invalidates only affected routes (this is the "interactive editor" design point). Hyperedge routing merges connectors with shared endpoints into tree-shaped orthogonal hyperedges.
+- **Mechanics (3 phases):** (1) build an **orthogonal visibility graph** from the interesting X/Y coordinates of obstacle rectangles and connector endpoints; (2) **A\*/shortest-path** per connector minimizing a monotone function of length + bend count (configurable segment/bend/crossing penalties); (3) **centering + nudging**: shared/overlapping collinear segments are separated and centered within their free channel — this final ordering pass is what makes dense orthogonal bundles legible (minimizes unnecessary crossings among parallel segments). Incremental: moving a shape invalidates only affected routes (this is the "interactive editor" design point). Hyperedge routing merges connectors with shared endpoints into tree-shaped orthogonal hyperedges.
 - **Obstacle handling:** full — arbitrary rectangles/polygons, checkpoint constraints, per-shape connection pins. No native hierarchy notion (hulls are just more obstacles; cross-hull edges need pins/checkpoints on hull borders to emulate hierarchical routing).
 - **Angle aesthetics:** orthogonal (or polyline) only; no rounded corners (renderer's job); nudging gives even spacing — the cleanest orthogonal look available anywhere.
 - **Cost at 7k obstacles / 1–2k edges:** the orthogonal visibility graph is worst-case O(n²) segments; papers demo hundreds of shapes interactively. 7k obstacle rects + 2k connectors is beyond its comfort zone for full rebuilds (expect multi-second), though incremental reroute after small moves would be fine. Practical mitigation: only feed it top-level hulls + cards near edges (coarsen obstacles).
 - **JS status:** [`libavoid-js`](https://www.npmjs.com/package/libavoid-js) — Emscripten/WebIDL WASM port from a TU Wien thesis; v0.4.5 (Apr 2025, adaptagrams 1.0.4), 0.5.0-beta on npm; ~43 stars, beta, WebIDL bindings brittle (no callbacks), used in production-ish by [sprotty-routing-libavoid](https://github.com/Aksem/sprotty-routing-libavoid). Run in a Web Worker.
-- **Verdict:** the algorithm (visibility graph + A* + nudging) is transplantable **as an idea** and worth reimplementing scoped-down (route within inter-rank channels only); the WASM port is usable for an experiment toggle but is beta and scaling-risky at strata's obstacle count.
+- **Verdict:** the algorithm (visibility graph + A\* + nudging) is transplantable **as an idea** and worth reimplementing scoped-down (route within inter-rank channels only); the WASM port is usable for an experiment toggle but is beta and scaling-risky at strata's obstacle count.
 
 ---
 
 ## 4. Others worth stealing from
 
 ### yFiles EdgeRouter (commercial)
+
 Source: [yFiles polyline/EdgeRouter guide](https://docs.yworks.com/yfiles-html/dguide/layout/polyline_router.html).
+
 - Post-layout router, nodes fixed. **Cost-based search** (configurable penalties for crossings, node overlaps) over routing channels; styles: orthogonal, **octilinear (45° segments)**, and **curved (cubic bezier)**; **monotonic path restriction** (edges only progress toward target — directly relevant to the owner's "no extreme angles / no backtracking" wish); **edge grouping & bus routing** (shared trunk segments); incremental scopes (PATH / PATH_AS_NEEDED / SEGMENTS_AS_NEEDED / IGNORE). Handles group nodes/hierarchy. Scales to thousands of edges (it's their flagship router) but closed-source.
-- **Verdict:** can't transplant code; steal the *feature list* — octilinear as a middle ground between orthogonal and bezier, monotone restriction, penalty-tunable crossings-vs-bends, incremental scoping.
+- **Verdict:** can't transplant code; steal the _feature list_ — octilinear as a middle ground between orthogonal and bezier, monotone restriction, penalty-tunable crossings-vs-bends, incremental scoping.
 
 ### mxGraph / draw.io OrthConnector
+
 Sources: [mxEdgeStyle API](https://jgraph.github.io/mxgraph/docs/js-api/files/view/mxEdgeStyle-js.html), [orthogonal example](https://github.com/jgraph/mxgraph/blob/master/javascript/examples/orthogonal.html).
+
 - `mxEdgeStyle.OrthConnector` is a **local** router: only considers the two terminal rects (+ port/perimeter constraints, exitX/exitY). Enumerates a small pattern table of orthogonal routes by relative quadrant of the terminals, picks minimal bends; no global obstacle avoidance (draw.io edges happily cross unrelated nodes). Extremely fast (O(1) per edge).
-- **Verdict:** a good reference for a robust *pattern-table* elbow router (all the same-side/opposite-side/quadrant cases enumerated), i.e., a hardened version of what Excalidraw's elbow arrows and React Flow smoothstep do. Cheap to port; Apache-2.0.
+- **Verdict:** a good reference for a robust _pattern-table_ elbow router (all the same-side/opposite-side/quadrant cases enumerated), i.e., a hardened version of what Excalidraw's elbow arrows and React Flow smoothstep do. Cheap to port; Apache-2.0.
 
 ### dagre
+
 Source: [dagre wiki/npm](https://www.npmjs.com/package/dagre) (based on Gansner et al., "A Technique for Drawing Directed Graphs").
+
 - Long edges are split by **dummy nodes, one per crossed rank**; crossing minimization orders dummies like real nodes; final edge = the chain of dummy-node coordinates emitted as `points[]`, typically rendered as an interpolated spline (d3-shape curveBasis in dagre-d3). Obstacle avoidance is purely structural — edges avoid nodes because dummies occupy slots in each rank.
 - **Verdict:** strata already has ranks; adding **dummy edge-slots per crossed rank** (the owner's routing-column idea) plus a spline through them is the dagre/ELK-native answer to obstacle avoidance and gets crossing-minimized routes "for free" if dummies participate in ordering. This is the structurally-correct long-term option.
 
 ### tldraw elbow arrows
+
 Sources: [ElbowArrowInfo docs](https://tldraw.dev/reference/tldraw/ElbowArrowInfo), [issue #1738](https://github.com/tldraw/tldraw/issues/1738), [issue #6664](https://github.com/tldraw/tldraw/issues/6664).
+
 - Two-terminal local router (shipped 2025): computes the combined bounding box, the gaps/mid-lines between the two shape edges, picks entry/exit sides ("magnets": N/S/E/W, auto or user-pinned), routes an elbow through the gap midlines; no third-party obstacle avoidance, no user waypoints (open feature request #6664). "Routes reasonably ~90% of the time" per maintainers. Freehand-style arrows use a perfect-arc/bezier with binding offsets.
 - **Verdict:** same class as mxGraph OrthConnector; its interesting stealable bit is the **magnet/side-picking heuristic** (auto side selection from relative geometry with user override) — relevant if strata edges ever bind to hull borders.
 
 ### Mermaid flowchart-elk
+
 Sources: [Mermaid layouts doc](https://mermaid.ai/open-source/config/layouts.html), [drawio ELK blog](https://www.drawio.com/blog/mermaid-elk-layout/).
+
 - Just ELK layered (elkjs) swapped in for dagre; Mermaid then renders ELK's orthogonal bendPoints with rounded corners. Community consensus: markedly better on large/complex graphs, at higher layout cost; falls back to dagre if not registered. Confirms the "ELK orthogonal + render-time corner rounding" recipe is production-proven.
 
 ---
@@ -149,18 +166,21 @@ Strata edges are straight 2-point center-clipped chords built by appendPipelineE
 ## 2. Existing routing options
 
 ### strataEdgeRouting (`packages/excalidraw/components/terraformPipelineStrataEdgeRouting.ts`, 495 lines)
+
 - "Penetrating-only" obstacle-avoidance (Wybrow/Marriott incremental connector routing): AFTER final geometry, each TFD arrow whose straight chord passes through the interior of a FOREIGN box (hull that is an ancestor of neither endpoint, or unrelated card) is replaced by a polyline detour. Recursive corner-detour search (`routeSegment` :202), max 6 interior waypoints (`STRATA_EDGE_ROUTING_MAX_WAYPOINTS` :62), clearance `PIPELINE_FRAME_PAD/2 = 14px` (:65), greedy waypoint shortcutting (:249), min-L1 tie-break, fully deterministic. Endpoint x/y never move; only interior waypoints added; stamps `terraformRoutedPolyline` (:487). "Never emit worse" acceptance check :434-464. Scene entry: `routeStrataSkeletonEdges` :346. **Sub-options: none** (waypoint cap and clearance are exported consts, not toggles). Measured closed-adverse: **+192 crossings / −140 pierce** (registry note) — why it was demoted to advanced-only.
 - Ancestor hulls are deliberately PERMEABLE (a legit exit is not an obstacle).
 
 ### strataBorderRoute (`packages/excalidraw/components/terraformPipelineStrataBorderRoute.ts`, 464 lines)
+
 - Sander-1996 border-node routing as a post-geometry pass: an edge leaving its own ancestor container as a long interior diagonal gets rewritten to `[start, W…, end]` with one border waypoint per exited hull on the facing side (`routeStrataBorderExits` :228, `facingSide` :114, `borderWaypoint` :135). By design it CANNOT move crossings/pierce/length (all accounting systems treat own-ancestor exits as legitimate, header :14-26); payoff is the un-scored `interiorLenSavedL1`/`maxWaypointPerpDev` meta. Measured −5 crossings on preset. **Disjointness contract:** skips any arrow already stamped `terraformRoutedPolyline` by edgeRouting (:290) — each edge is owned by whichever pass fires first. **Sub-options: none.**
 - Both hooks: `terraformPipelineStrataSceneBuild.ts:366-378` (edgeRouting first, borderRoute second, each flag-gated with flag-off byte-identity).
 
 ### Full routing-adjacent toggle inventory
+
 Declarative catalog: **`packages/excalidraw/components/terraformStrataOptionRegistry.ts:96-352`** (one row per option: urlParam, optionKey, default, surface, emit class). Routing-adjacent rows:
 
 | Option | Default | UI surface | What it changes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `strataEdgeRouting` (registry :159-167) | OFF | collapsed "Advanced: edge routing" `<details>` in `TerraformStrataSettings.tsx:647-690` | foreign-box polyline detours |
 | `strataBorderRoute` (:169-177) | OFF | same disclosure | ancestor-hull clean side exits |
 | `strataPackedScoring` (:139-147) | ON | advanced | ε-gated (crossings, penetrations, lengthL1) placement scoring |
@@ -178,6 +198,7 @@ Declarative catalog: **`packages/excalidraw/components/terraformStrataOptionRegi
 URL parse/emit: `terraformDemoUrlParams.ts` — parse :476-481, emit :842-843 (`setBool`), snapshot type :956-957, collect :1097-1098. Conflict rules: `terraformStrataOptionRules.ts` (e.g. packedScoring ⊻ rankSeparate). Defaults: `terraformStrataDefaults.ts` (`TERRAFORM_STRATA_LAYOUT_DEFAULTS`).
 
 ### Why it's "a mess" (concrete)
+
 1. **Overlapping/entangled semantics:** two separate routing passes with a hidden precedence protocol (first-stamper-wins via `terraformRoutedPolyline`), documented only in comments (`terraformPipelineStrataSceneBuild.ts:370-375`, borderRoute :283-291). Neither has intensity/sub-options — binary all-or-nothing.
 2. **Weights with no consumer:** `strataPenW`/`strataCrossW` are exposed but "inert without a consumer" (registry's own words) — dead knobs in the advanced UI surface.
 3. **Inherited/aliased defaults:** `strataEdgeCap` has NO default — absence inherits ε, and explicit `0` ≠ omission (registry :250-256 documents an emitter-erasure hazard). `strataBandCompact` is an alias for `strataBandDepth='root'` yet still emitted separately (:184-190).
@@ -196,13 +217,14 @@ URL parse/emit: `terraformDemoUrlParams.ts` — parse :476-481, emit :842-843 (`
 ## 4. Seam for a NEW routing option
 
 **Routing hook:** `terraformPipelineStrataSceneBuild.ts` immediately after `appendPipelineEdgeSkeletons` (:354) and alongside the existing two passes (:366-378) — i.e. AFTER coordinate assignment/A7/packed-scoring guard, at scene-skeleton assembly, BEFORE `convertPipelineSkeletonToElements`. Data available at that point:
+
 - `skeleton` (mutable array; TFD arrows identifiable via `customData.terraformEdgeLayer === "declaredDataFlow"` + `relationship{source,target}`),
 - `input.model: StrataModel` (hull tree `hullRoot` w/ `leafClusterIds`/`children`/`path`, `clusters` map — rank/column structure),
 - `input.placement: StrataPlacementResult` (`boxedHulls: Map<hullId,{box}>` hull rects, `leafBoxes: Map<clusterId, StrataBox>` card rects),
-- `layoutBoxes` (id → rect for every emitted frame/card).
-Contract for the new pass: mutate arrows in place, keep endpoints/bindings, set `customData.terraformRoutedPolyline: true` (else `repairTerraformEdgeBindings` flattens it), respect the first-stamper-wins protocol with the two existing passes, and provide flag-off byte-identity. Dummy/routing-column ideas that MOVE geometry (owner priority 3) would instead have to hook pre-placement (rank/coordinate stages) — that is a different, heavier seam; a pure routing pass fits here.
+- `layoutBoxes` (id → rect for every emitted frame/card). Contract for the new pass: mutate arrows in place, keep endpoints/bindings, set `customData.terraformRoutedPolyline: true` (else `repairTerraformEdgeBindings` flattens it), respect the first-stamper-wins protocol with the two existing passes, and provide flag-off byte-identity. Dummy/routing-column ideas that MOVE geometry (owner priority 3) would instead have to hook pre-placement (rank/coordinate stages) — that is a different, heavier seam; a pure routing pass fits here.
 
 **Option threading — every file a new `strataMyRouter` toggle must touch** (silent-drop seams bolded):
+
 1. `terraformPlanParsing.tsx` — `TerraformPlanParsingOptions` field.
 2. `terraformLayoutCore.ts` — option type :488-491 area; **the `sceneContext` literal :1197 (add at ~:1283-1284)** — comments :1292/:1323 state outright that an option absent from this literal is silently dropped; and the `builderOptions` forward :659-660.
 3. `terraformPipelineStrata.ts` — options type :281-291, resolve :443-445, forward into scene build :506-507 → :1098-1100, meta echo :1198-1216.
@@ -218,6 +240,7 @@ Contract for the new pass: mutate arrows in place, keep endpoints/bindings, set 
 ## 5. Element counts on the pinned preset (router cost budget)
 
 No single canonical constant in-repo; converging measurements:
+
 - **TFD arrows: ~322** — the W9 battery measured the routed-anchor tolerance "over 322 edges" (`terraformVisibility.ts:1117` comment).
 - **Pierce edge population: 115** (borderRoute A/B, `docs/strata-overnight-results-2026-07-16.md:82`); rendered dataflow crossings baseline **~116-173** depending on default stack (173→132 with transpose; 116→94 with chain-relocate+cascade per memory).
 - edgeRouting/borderRoute pass volumes: borderRoute routes **40 edges** solo, 19 when composed (same doc :82); edgeRouting −5 crossings composition numbers there too.
@@ -245,25 +268,29 @@ Scope: routing only (layout is done); target = ~7k-element strata canvas, ~1–2
 ## 1. Routing in the Sugiyama pipeline: dummy-vertex chains → splines
 
 **GKNV / dot (`gansner-tse93`, "A method for drawing directed graphs"; `graphviz-dotguide`)**
-- Mechanics: long edges are split into chains of dummy vertices, one per crossed rank. After coordinate assignment, each chain defines a polygonal *region* (a corridor between the boxes adjacent to the dummy nodes); a piecewise-Bezier spline is fitted inside that region. Flat (same-rank) edges are routed through the spaces between nodes of that rank. Adjacent-node edges become single splines; multi-edges get displaced control polygons.
+
+- Mechanics: long edges are split into chains of dummy vertices, one per crossed rank. After coordinate assignment, each chain defines a polygonal _region_ (a corridor between the boxes adjacent to the dummy nodes); a piecewise-Bezier spline is fitted inside that region. Flat (same-rank) edges are routed through the spaces between nodes of that rank. Adjacent-node edges become single splines; multi-edges get displaced control polygons.
 - Key insight for us: **the dummy-vertex chain IS the routing corridor**. dot never routes "freely" — the spline is constrained to the polygon that crossing-minimization already made crossing-optimal. So crossings are decided at the ordering phase; routing only affects angles/bends/smoothness.
 - Tradeoff: splines look organic and give good angular behavior at endpoints, but near-vertical entry into ranks (near-horizontal in LR orientation) still happens when the dummy chain has large X-drift between ranks. dot mitigates by adding `ranksep`/edge slack — which is exactly the knob the dummy-column idea generalizes.
 - Cost: spline fitting is linear in chain length; the whole routing pass in dot is a small fraction of layout time. Fine at 1–2k edges.
 - **Applicability: HIGH.** Strata already has rank structure; a "corridor spline" pass needs only per-edge rank-interval corridors, no global search.
 
 **Spline fitting machinery (`graphviz-edge-router`, Dobkin/Gansner/Koutsofios/North DGKN97 "Implementing a General-Purpose Edge Router"; `graphviz-overview-short` EGKNW03)**
+
 - Mechanics: general obstacle-avoiding router used when node positions are fixed (neato, dynadag, editors): (1) triangulate free space / compute a polygonal channel, (2) find shortest polyline path (funnel algorithm), (3) fit a piecewise Bezier to the path, subdividing where the spline exits the feasible polygon. Explicitly framed as VLSI/robotics path planning applied to graph drawing.
 - Cost: path planning dominates; per-edge cost is near-linear in obstacles along the corridor once a visibility/triangulation structure exists. Shipped as a C library; practical for interactive editors. At 1–2k edges over ~hundreds of rectangle obstacles per region this is tens of ms–low seconds in JS if the obstacle set is pruned per hull.
 - **Applicability: HIGH as the geometry engine** for any smooth-curve option; the funnel-then-fit recipe is the standard way to turn a corridor into a good-looking curve. See also `arxiv-2605-17498v1` (sleeve routing in the browser, 2026): splits routing into triangle-sequence choice + funnel-shortest-path — a modern, browser-native confirmation the same recipe scales in JS.
 
 **Sander border nodes / Manhattan (`doi-10-1007-bfb0021828`, "A fast heuristic for hierarchical Manhattan layout", Sander 1995)**
-- Mechanics: orthogonal (Manhattan) layered routing. Edges between adjacent layers become vertical–horizontal–vertical Z-shapes; the horizontal middle segments live in a **channel between the layers** and are assigned to *tracks* (rows in the channel) to avoid overlaps and reduce crossings; segments are then snapped to a grid raster (paper describes traversing segments left-to-right by `spos` and snapping to raster `d`). Border nodes handle edges entering/leaving clusters at cluster boundaries (the mechanism behind our existing `strataBorderRoute`).
-- Tradeoff: crossings between two layers become *segment-order* crossings in the channel — countable and locally optimizable (track permutation). All angles are 0°/90° by construction, so "extreme angle" disappears as a category; the cost is bends (2 per inter-layer hop) and channel height (number of tracks ≈ max cut of overlapping horizontal spans, computable by interval-graph coloring / left-edge algorithm).
+
+- Mechanics: orthogonal (Manhattan) layered routing. Edges between adjacent layers become vertical–horizontal–vertical Z-shapes; the horizontal middle segments live in a **channel between the layers** and are assigned to _tracks_ (rows in the channel) to avoid overlaps and reduce crossings; segments are then snapped to a grid raster (paper describes traversing segments left-to-right by `spos` and snapping to raster `d`). Border nodes handle edges entering/leaving clusters at cluster boundaries (the mechanism behind our existing `strataBorderRoute`).
+- Tradeoff: crossings between two layers become _segment-order_ crossings in the channel — countable and locally optimizable (track permutation). All angles are 0°/90° by construction, so "extreme angle" disappears as a category; the cost is bends (2 per inter-layer hop) and channel height (number of tracks ≈ max cut of overlapping horizontal spans, computable by interval-graph coloring / left-edge algorithm).
 - Cost: near-linear; Sander's whole point is "fast heuristic". Trivial at our scale.
 - **Applicability: VERY HIGH — this is the closest published system to the strata view** (layered + compound + Manhattan + border nodes).
 
 **Port assignment (`elk-10-1007-978-3-642-11805-0-14` "Port Constraints in Hierarchical Layout of Data Flow Diagrams"; `elk-10-1016-j-comgeo-2022-101886` generalized port constraints; `arxiv-2309-01671v2` simple orthogonal pipeline)**
-- Mechanics: edges attach at ports on the node boundary; ELK/KIELER routes **between layers using vertical line segments** (Fig. 4 of the port-constraints paper — LR-rotated, these are vertical segments in an inter-layer channel) and routes *around* vertices when prescribed ports force it. Port order on a side is chosen to minimize crossings (a per-node permutation / barycenter subproblem). The 2022 port-constraints paper inserts dummy vertices per port group.
+
+- Mechanics: edges attach at ports on the node boundary; ELK/KIELER routes **between layers using vertical line segments** (Fig. 4 of the port-constraints paper — LR-rotated, these are vertical segments in an inter-layer channel) and routes _around_ vertices when prescribed ports force it. Port order on a side is chosen to minimize crossings (a per-node permutation / barycenter subproblem). The 2022 port-constraints paper inserts dummy vertices per port group.
 - Why it matters for angles: **endpoint angle is a port problem, not a path problem.** Spreading edge endpoints along the card side (instead of a single anchor) is the cheapest single intervention against near-flat incident angles, and it's a pure post-pass.
 - **Applicability: HIGH, and orthogonal to path shape** — works under current elbow/orbit binding.
 
@@ -272,38 +299,39 @@ Scope: routing only (layout is done); target = ~7k-element strata canvas, ~1–2
 The idea (reserved routing columns between ranks so long edges travel in corridors instead of cutting across at extreme angles) is **channel routing**, imported from VLSI:
 
 - **VLSI origin**: `doi-10-1145-800158-805069` (Hashimoto & Stevens 1971, "Wire routing by optimizing channel assignment within large apertures", cited×680) — the original channel/track assignment formulation: horizontal runs assigned to tracks inside a reserved channel, vias at the ends. Track count = clique number of the span-overlap interval graph; left-edge algorithm is optimal for the no-vertical-conflict case.
-- **Layered-drawing form**: Sander 1995 (above) — the channel between consecutive layers *is* the dummy column; every inter-rank edge takes its cross-axis displacement inside the channel. `s2-10-2991-icacsei-2013-27` ("hierarchical orderly layout based on channel points") does the same with explicit channel-point geometry (BOX_W/BIT_W bookkeeping) — the exact "reserve width for routing bits next to boxes" arithmetic.
+- **Layered-drawing form**: Sander 1995 (above) — the channel between consecutive layers _is_ the dummy column; every inter-rank edge takes its cross-axis displacement inside the channel. `s2-10-2991-icacsei-2013-27` ("hierarchical orderly layout based on channel points") does the same with explicit channel-point geometry (BOX_W/BIT_W bookkeeping) — the exact "reserve width for routing bits next to boxes" arithmetic.
 - **Modern restatement**: `forward-10-5121-csit-2021-111821` (Raykov 2021, "Method for Orthogonal Edge Routing of Directed Layered Graphs with Edge Crossings Reduction") — automated orthogonal routing over a directed layered graph with a dedicated "routing the edges" phase in inter-layer channels plus crossing reduction on the channel segments. Directly a spec for a `strataChannelRoute` toggle.
-- **Sugiyama connection**: dummy *ranks* in Sugiyama serve the same function implicitly — every extra rank an edge crosses gives it a place to bend gently. The dummy-column idea makes this explicit and *reserved* (nodes never occupy the corridor), which is what guarantees the corridor stays empty.
+- **Sugiyama connection**: dummy _ranks_ in Sugiyama serve the same function implicitly — every extra rank an edge crosses gives it a place to bend gently. The dummy-column idea makes this explicit and _reserved_ (nodes never occupy the corridor), which is what guarantees the corridor stays empty.
 
 **Known tradeoffs (crossings vs angles):**
-- Channels don't change the crossing *count* between two ranks (fixed by the vertex/port order — Forster `openalex-w1530155803` shows cluster-level crossings reduce to level-graph orderings), but they **relocate crossings into the corridor** where crossing angles are 90° (orthogonal) or controllable (spline), and away from card faces. Empirically this is the win the perceptual literature predicts (see §3): same crossings, much better angles and cleaner card silhouettes.
+
+- Channels don't change the crossing _count_ between two ranks (fixed by the vertex/port order — Forster `openalex-w1530155803` shows cluster-level crossings reduce to level-graph orderings), but they **relocate crossings into the corridor** where crossing angles are 90° (orthogonal) or controllable (spline), and away from card faces. Empirically this is the win the perceptual literature predicts (see §3): same crossings, much better angles and cleaner card silhouettes.
 - Cost of the corridor is **width** (LR: horizontal growth = tracks × trackGap per inter-rank channel) and **bends** (+2 per channel traversed). `doi-10-1007-978-3-319-50106-2-17` (Compact Layered Drawings) documents the aspect-ratio price of naive layered conventions — worth watching since strata already fights width.
-- Bundling variant: `crossref-10-1007-978-3-642-18469-7-30` ("Improving Layered Graph Layouts with Edge Bundling") bundles the proper-edge chains through shared virtual nodes — i.e., shared corridors — trading edge *ambiguity* for clutter reduction; `doi-10-1109-tvcg-2021-3114795` (Edge-Path Bundling) and `doi-10-1109-tvcg-2016-2598958` (confluent-drawing user study) warn that aggressive bundling creates false adjacency ambiguity. For infra diagrams where individual dependency traceability matters, keep corridors *shared but not merged* (parallel tracks, no bundling), or bundle only same-(source-hull,target-hull) edge groups.
+- Bundling variant: `crossref-10-1007-978-3-642-18469-7-30` ("Improving Layered Graph Layouts with Edge Bundling") bundles the proper-edge chains through shared virtual nodes — i.e., shared corridors — trading edge _ambiguity_ for clutter reduction; `doi-10-1109-tvcg-2021-3114795` (Edge-Path Bundling) and `doi-10-1109-tvcg-2016-2598958` (confluent-drawing user study) warn that aggressive bundling creates false adjacency ambiguity. For infra diagrams where individual dependency traceability matters, keep corridors _shared but not merged_ (parallel tracks, no bundling), or bundle only same-(source-hull,target-hull) edge groups.
 
 ## 3. Angle aesthetics, formally
 
 - **Crossing angle matters, nearly as much as crossing count**: `doi-10-1145-1865841-1865854` (Huang & Huang 2010, "Exploring the relative importance of crossing number and crossing angle") — both independently affect task performance; angle effects persist after controlling for count. `doi-10-1109-apvis-2007-329282` + `forward-10-48550-arxiv-0810-4431` / `s2-e1691683eafdcaffeca40b903250f18cb39be830` (Huang eye-tracking 2007/2008): small-angle crossings cause back-and-forth saccades and path-tracing errors; large-angle crossings barely slow reading. The established empirical threshold (Huang, Eades, Hong): performance degrades sharply once crossing angles drop below **~70°**; above that, near-flat cost. RAC literature (`jgaa-2700`, RAC perspectives; `jgaa-2273`, RAC-drawability ∃ℝ-complete) confirms: "large angles improve readability, but they do not have to be right angles" — so target ≥70°, don't pay for exact 90° (exact RAC is intractable anyway).
-- **Angular resolution at vertices**: `doi-10-1093-comjnl-bxs088` (Maximizing Total Resolution) — total resolution = min over vertex angles AND crossing angles; adjacent edges leaving a card too close together are their own readability defect (motivates port spreading, §1). `crossref-10-7155-jgaa-00575` (stub resolution) for the crossing-vicinity variant. `crossref-10-1007-978-3-030-04414-5-19` / `arxiv-1808-10519v1`: heuristics that maximize crossing resolution tend to *increase* crossing count slightly — the tradeoff is real but mild.
+- **Angular resolution at vertices**: `doi-10-1093-comjnl-bxs088` (Maximizing Total Resolution) — total resolution = min over vertex angles AND crossing angles; adjacent edges leaving a card too close together are their own readability defect (motivates port spreading, §1). `crossref-10-7155-jgaa-00575` (stub resolution) for the crossing-vicinity variant. `crossref-10-1007-978-3-030-04414-5-19` / `arxiv-1808-10519v1`: heuristics that maximize crossing resolution tend to _increase_ crossing count slightly — the tradeoff is real but mild.
 - **Cheap metrics to add to the strata scorer** (all O(#crossings + #bends), computable from segment geometry we already have):
   1. **min / p5 crossing angle** (report share of crossings <70°) — directly the perceptual quantity;
   2. **bend count + min bend angle** (orthogonal routing fixes bend angle at 90° by construction);
   3. **endpoint angular resolution** per card side (min gap between consecutive incident edge directions);
   4. **near-flat edge share**: fraction of segments with |slope| below a threshold relative to the rank axis (the owner's "extreme angle" complaint operationalized).
-- Context from `s2-10-1109-access-2020-3047616` (empirical-evaluation survey) and Purchase (`s2-10-1007-bfb0021827` validating aesthetics, `openalex-10-1006-jvlc-2002-0232` metrics, `s2-527ca0518fca9efdbea27c8a3289a4c8d67e22f6` UML study): crossings are the dominant validated aesthetic; bends matter less than crossings; user *preference* studies (UML) sometimes diverge from performance — supports A/B-by-eyeball as the owner plans, with metrics as guardrails.
+- Context from `s2-10-1109-access-2020-3047616` (empirical-evaluation survey) and Purchase (`s2-10-1007-bfb0021827` validating aesthetics, `openalex-10-1006-jvlc-2002-0232` metrics, `s2-527ca0518fca9efdbea27c8a3289a4c8d67e22f6` UML study): crossings are the dominant validated aesthetic; bends matter less than crossings; user _preference_ studies (UML) sometimes diverge from performance — supports A/B-by-eyeball as the owner plans, with metrics as guardrails.
 
 ## 4. Obstacle-avoiding routing with FIXED positions (our exact regime)
 
-- **libavoid family** — `doi-10-1007-11618058-40` + `wybrow-marriott-stuckey-incremental-routing-2008` (Incremental Connector Routing): build a (reduced) visibility graph over rectangle obstacles, A*/Dijkstra shortest poly-line per connector, incremental repair when shapes move. `wybrow-marriott-stuckey-orthogonal-connectors-2010` (Orthogonal Connector Routing, GD'09): orthogonal variant — generate an *orthogonal visibility graph* from interesting x/y coordinates (obstacle edges ± padding), search with a cost = length + bend penalty + crossing penalty, then a **nudging** post-step separates overlapping collinear segments into parallel tracks. `doi-10-1007-978-3-642-31223-6-10` (Orthogonal Hyperedge Routing, 2012) extends to hyperedges/junctions. `openalex-10-1007-978-3-030-86062-2-2` shows the same machinery in interactive schematic editors.
+- **libavoid family** — `doi-10-1007-11618058-40` + `wybrow-marriott-stuckey-incremental-routing-2008` (Incremental Connector Routing): build a (reduced) visibility graph over rectangle obstacles, A*/Dijkstra shortest poly-line per connector, incremental repair when shapes move. `wybrow-marriott-stuckey-orthogonal-connectors-2010` (Orthogonal Connector Routing, GD'09): orthogonal variant — generate an *orthogonal visibility graph\* from interesting x/y coordinates (obstacle edges ± padding), search with a cost = length + bend penalty + crossing penalty, then a **nudging** post-step separates overlapping collinear segments into parallel tracks. `doi-10-1007-978-3-642-31223-6-10` (Orthogonal Hyperedge Routing, 2012) extends to hyperedges/junctions. `openalex-10-1007-978-3-030-86062-2-2` shows the same machinery in interactive schematic editors.
   - Cost: visibility-graph construction O(n²)-ish in obstacle corners (orthogonal VG is sparser); per-connector search fast; libavoid is used interactively in Dunnart/Inkscape at hundreds of shapes. At ~7k elements / 1–2k edges a **full** orthogonal VG is heavy for a hot path but fine for a one-shot import post-pass, especially pruned per-hull.
-  - Caveat: libavoid is layout-agnostic — it doesn't know ranks, so it won't preserve the layered reading direction, and its crossing penalty is greedy/sequential (route order matters). In a layered drawing it is *strictly more machinery than needed*: Sander/Raykov channel routing gets the same orthogonal cleanliness using structure we already have.
+  - Caveat: libavoid is layout-agnostic — it doesn't know ranks, so it won't preserve the layered reading direction, and its crossing penalty is greedy/sequential (route order matters). In a layered drawing it is _strictly more machinery than needed_: Sander/Raykov channel routing gets the same orthogonal cleanliness using structure we already have.
 - **Spline over fixed obstacles**: DGKN97 (§1) is the canonical answer; sleeve routing (`arxiv-2605-17498v1`) is the 2026 browser-scale version (triangulate once, funnel per edge).
 - **Clustered edge routing** (`forward-10-1109-pacificvis-2015-7156356`, Bouts & Speckmann 2015): routes edges through a sparsified well-separated corridor network with dilation bound t≈1.8 — literature proof that constraining edges to corridors costs bounded extra length while drastically cleaning the picture; the closest "corridor network" formalization to the dummy-column idea outside VLSI.
 
 ## 5. Verdicts for a post-layout routing pass over fixed rectangles in columns
 
 | Option | Mechanics source | Crossings | Angles | Cost @1–2k edges | Verdict |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **A. Inter-rank channel/track orthogonal routing** (owner's dummy columns) | Sander `doi-10-1007-bfb0021828`, Raykov `forward-10-5121-csit-2021-111821`, Hashimoto-Stevens `doi-10-1145-800158-805069` | unchanged count, relocated to 90° corridor crossings; track permutation can locally reduce | all 90°; near-flat segments eliminated by construction | interval-graph track assignment, ~linear; trivial | **BUILD FIRST** — best literature support, cheapest, matches existing strata structure and `strataBorderRoute` |
 | **B. Corridor splines** (dot-style: dummy-chain region → funnel → Bezier) | `gansner-tse93`, DGKN97 `graphviz-edge-router`, `arxiv-2605-17498v1` | unchanged | smooth, endpoint tangents controllable; softer look than A | funnel+fit per edge, fast | **BUILD SECOND** as the aesthetic alternative for A/B — same corridors as A, different rendering |
 | **C. Port spreading / side-anchor ordering** | `elk-10-1007-978-3-642-11805-0-14`, `arxiv-2309-01671v2`, `doi-10-1093-comjnl-bxs088` | small local reductions (port-order barycenter) | fixes endpoint angular resolution — biggest per-cost angle win | per-node sort; negligible | **DO REGARDLESS**, composes with A/B and with current elbow binding |
@@ -312,7 +340,7 @@ The idea (reserved routing columns between ranks so long edges travel in corrido
 
 **Metrics to wire into the scorer** (all cheap): share of crossings <70°, near-flat segment share, bend count, per-side endpoint angular resolution. The 70° threshold (Huang et al.) is the one number the perceptual literature actually gives us.
 
-**One structural note**: crossings are fixed by ordering, not routing (Forster `openalex-w1530155803`; GKNV). A routing pass should therefore be sold to the scorer on *angle/piercing* metrics, not crossing count — expecting crossing wins from routing alone will read as a null result.
+**One structural note**: crossings are fixed by ordering, not routing (Forster `openalex-w1530155803`; GKNV). A routing pass should therefore be sold to the scorer on _angle/piercing_ metrics, not crossing count — expecting crossing wins from routing alone will read as a null result.
 
 ## Sources
 
@@ -333,6 +361,7 @@ Probe plan: 4 probes + 1 stretch, ordered by EV. P1 strataChannelRoute (owner's 
 All three reports converge: crossings are fixed by ordering, not routing (Forster, GKNV) — so these probes are sold on **angles, bends, piercings, and card-silhouette cleanliness**, not crossing count. Expecting crossing wins from routing alone will read as a null result; the measurement plan below is built around that.
 
 **Shared contract for every post-geometry probe** (from repo audit):
+
 - Hook: `terraformPipelineStrataSceneBuild.ts:366-378`, after `appendPipelineEdgeSkeletons` (:354), alongside `strataEdgeRouting`/`strataBorderRoute`. Inputs available: mutable `skeleton` (TFD arrows via `customData.terraformEdgeLayer === "declaredDataFlow"`), `input.model` (hull tree + rank structure), `input.placement` (`boxedHulls`, `leafBoxes`), `layoutBoxes`.
 - MUST stamp `customData.terraformRoutedPolyline: true` or `repairTerraformEdgeBindings` (`terraformVisibility.ts:1007`, flatten at :1162-1171) erases the geometry on the next repair pass. Respect first-stamper-wins with the existing two passes; flag-off byte-identity.
 - Threading: all ~11 sites in the audit's §4 list, especially the two silent-drop literals — `terraformLayoutCore.ts` sceneContext (~:1283) and BOTH `terraformSceneApply.ts` literals (~:387, ~:544). Add default to `terraformStrataDefaults.ts` so `terraformLayoutCoreStrataThreading.test.ts` covers the drop seams automatically. Registry row in `terraformStrataOptionRegistry.ts` + rule in `terraformStrataOptionRules.ts`.
@@ -347,6 +376,7 @@ All three reports converge: crossings are fixed by ordering, not routing (Forste
 **This IS the owner's dummy-column idea**, grounded exactly where the literature agent found it: VLSI channel routing (Hashimoto & Stevens 1971, `doi-10-1145-800158-805069`), Sander's hierarchical Manhattan layout (`doi-10-1007-bfb0021828` — the closest published system to strata: layered + compound + Manhattan + border nodes), Raykov 2021 (`forward-10-5121-csit-2021-111821` — practically a spec for this toggle), and ELK/KIELER vertical-segment routing. Key literature framing: channels don't change crossing COUNT (fixed by ordering) but **relocate crossings into the corridor at 90°** and away from card faces — exactly what the perceptual literature (Huang: <70° crossings degrade reading) says to buy.
 
 **Algorithm sketch** (v1 uses existing inter-rank gaps as zero-width channels; no geometry moves):
+
 1. From `input.model` + `input.placement.leafBoxes`, compute per-rank X extents; the gap between rank i and i+1 is channel Cᵢ.
 2. For each TFD edge spanning ranks [r, s]: replace the chord with an orthogonal polyline — horizontal exit stub from source card (perpendicular exit, ~20px, React Flow's escape-offset trick), one vertical run per traversed channel, horizontal entry stub into target. Long edges (s > r+1) get a vertical run in EACH traversed channel at a track X, hugging the corridor (this is where dummy columns manifest without moving nodes).
 3. Track assignment per channel: collect all vertical runs' Y-spans, sort by span, assign tracks left-edge-algorithm style (interval-graph coloring — optimal, linear-ish after sort); track X = channel left + trackIndex × trackGap (clamp trackGap to fit channel width; overflow → stack at minimum 2px separation). Order tracks to minimize channel-internal crossings (sort by target-Y — the classic Sander heuristic).
@@ -407,17 +437,18 @@ If P1's channels prove too cramped (track overflow on the preset), the literatur
 ## Metrics to add (one small PR, before or with P1)
 
 `diagnosePipelineScene` already has polyline-aware crossings and a `CrossingAngleSummary`, but its sharp threshold is 30° (`SHARP_CROSSING_MAX_DEG`, `terraformPipelineCollisionDiagnostics.ts:88`) — the perceptual literature's number is **70°** (Huang/Eades/Hong). Add to the diagnostics struct (all O(crossings + segments), from geometry already in hand):
+
 1. **crossing-angle share <70°** (keep 30° too, report both);
 2. **bend count** per edge (total + p95) and min bend angle;
 3. **near-flat segment share** — fraction of segments with |angle to rank axis| below ~15° AND length above a floor (the owner's "extreme angle" complaint, operationalized);
-4. **endpoint angular resolution** — per card side, min gap between consecutive incident edge directions (P3's metric).
-Wire all four into the arm-eval harness rows. Reminder from the audit: the placement scorer is chord-based and blind to routing — all probe acceptance runs on rendered-scene diagnostics only.
+4. **endpoint angular resolution** — per card side, min gap between consecutive incident edge directions (P3's metric). Wire all four into the arm-eval harness rows. Reminder from the audit: the placement scorer is chord-based and blind to routing — all probe acceptance runs on rendered-scene diagnostics only.
 
 ---
 
 ## Cleaning up the existing mess — recommendation
 
 **Consolidate to two orthogonal enums** (routing MODE × render STYLE), replacing the pile of booleans:
+
 - `strataEdgeMode: off | border | avoid | channel` — `border` = current borderRoute; `avoid` = current edgeRouting; `channel` = P1 (with borderRoute's ancestor-exit behavior folded in, since Sander's border nodes and channels are one system in the source paper). This kills the undocumented first-stamper-wins precedence protocol: one mode, one owner per edge.
 - `strataEdgeStyle: straight | step | curve | spline` — P2/P4; `spline` gated on `mode=channel` via `terraformStrataOptionRules.ts`.
 - Keep old URL params as parse-only aliases mapping into the enums (the registry already supports urlParam≠optionKey aliasing) so share URLs keep working; emit only the new enums.
@@ -429,6 +460,7 @@ Wire all four into the arm-eval harness rows. Reminder from the audit: the place
 **Owner's dummy-column idea:** yes — it is Probe 1, the top-ranked probe, in its cheap post-hoc form (zero-width channels in existing gaps), with the true reserved-width version staged as Probe 5 behind a data-driven gate.
 
 ## Build order
+
 1. Metrics PR (§Metrics) — everything else is unmeasurable without it.
 2. P2 + P3 in parallel (small, independent) → immediate eyeball A/B for the owner.
 3. P1 channelRoute → the headline.

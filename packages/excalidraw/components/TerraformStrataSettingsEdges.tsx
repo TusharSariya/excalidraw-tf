@@ -99,7 +99,7 @@ export const TerraformStrataSettingsEdges = ({
   setStickyKey: (key: OptionHelpKey) => void;
   strataEdgeStyle: StrataEdgeStyle;
   /** M5 box-endpoint anchoring: OFF ⇒ endpoints on the resource card, ON ⇒ on
-   * the labeled leaf-cluster frame border. Inert until M6. */
+   * the labeled leaf-cluster frame border. */
   strataBoxEndpoints: boolean;
   /** E3.3 inter-column gutter override (px). `undefined` ⇒ default (150). */
   strataColumnGap: number | undefined;

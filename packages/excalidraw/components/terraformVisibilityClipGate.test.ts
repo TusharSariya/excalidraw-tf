@@ -215,7 +215,10 @@ const repairClip = (elements: readonly ExcalidrawElement[]) => {
   return { out, stats };
 };
 
-const expectKept = (out: RepairedArrow, stats: ReturnType<typeof createTerraformEdgeRepairStats>) => {
+const expectKept = (
+  out: RepairedArrow,
+  stats: ReturnType<typeof createTerraformEdgeRepairStats>,
+) => {
   expect(out.points.length).toBe(3); // detour geometry preserved
   expect(out.customData?.terraformRoutedPolyline).toBe(true);
   expect(out.customData?.terraformRoutedBy).toBe("clip");
@@ -226,7 +229,10 @@ const expectKept = (out: RepairedArrow, stats: ReturnType<typeof createTerraform
   expect(stats.flattenedBy.clip).toBeUndefined();
 };
 
-const expectFlattened = (out: RepairedArrow, stats: ReturnType<typeof createTerraformEdgeRepairStats>) => {
+const expectFlattened = (
+  out: RepairedArrow,
+  stats: ReturnType<typeof createTerraformEdgeRepairStats>,
+) => {
   expect(out.points.length).toBe(2); // flattened to the straight chord
   expect(out.customData?.terraformRoutedPolyline).toBeUndefined();
   expect(out.customData?.terraformRoutedBy).toBeUndefined();
@@ -303,7 +309,7 @@ describe("repairTerraformEdgeBindings — typed clip gate (4 faces + card fallba
     expectFlattened(out, stats);
   });
 
-  it("keeps a mixed edge: frame-face start + \"card\" end within 48px of its card", () => {
+  it('keeps a mixed edge: frame-face start + "card" end within 48px of its card', () => {
     // End declared "card": validates against card B (400,300,40,20) with the
     // generic 48px chebyshev rule — here 10px off the card's right edge.
     const edge = clipEdge(FA_FACE.right!, [450, 310], {
@@ -320,7 +326,7 @@ describe("repairTerraformEdgeBindings — typed clip gate (4 faces + card fallba
     expectKept(out, stats);
   });
 
-  it("flattens + strips a \"card\" end 60px away from its card", () => {
+  it('flattens + strips a "card" end 60px away from its card', () => {
     // (500,310) is 60px (chebyshev) off card B's right edge — beyond the 48px
     // tolerance. It also happens to lie EXACTLY on frame FB's right face,
     // proving the "card" side validates against the CARD rule, never the
@@ -371,5 +377,57 @@ describe("repairTerraformEdgeBindings — typed clip gate (4 faces + card fallba
       edge,
     ]);
     expectFlattened(out, stats);
+  });
+
+  it("flattens + strips a start on the left face's rigid axis but beyond its extent", () => {
+    // Rigid axis passes (px === FA's left face x = −20) but the FREE axis (Y) is
+    // out of the face extent. FA is (−20,−20,120,100), so the extent ceiling is
+    // rect.y + rect.height + TOLERANCE = 82; py = rect.y + rect.height + 10 = 90
+    // > 82. The end stays a valid left-face anchor so the failure is attributable
+    // to the start's parallel-extent violation, not the end.
+    const edge = clipEdge([-20, 90], FB_FACE.left!, {
+      start: { frameKey: A, side: "left" },
+      end: { frameKey: B, side: "left" },
+    });
+    const { out, stats } = repairClip([
+      frameA(),
+      frameB(),
+      cardA(),
+      cardB(),
+      edge,
+    ]);
+    expectFlattened(out, stats);
+  });
+
+  it("flattens + strips when the anchor frame address resolves to no primaryCluster frame", () => {
+    // start.frameKey === relationship.source (A) so the ancestry check passes,
+    // but NO primaryCluster frame carries terraformPrimaryAddress A in the scene
+    // (frameA is OMITTED) → getClusterFrameRects().get(A) is undefined and the
+    // !rect branch fails closed even though the endpoint sits on A's stale face.
+    const edge = clipEdge(FA_FACE.left!, FB_FACE.left!, {
+      start: { frameKey: A, side: "left" },
+      end: { frameKey: B, side: "left" },
+    });
+    const { out, stats } = repairClip([frameB(), cardA(), cardB(), edge]);
+    expectFlattened(out, stats);
+  });
+
+  it('keeps an edge whose BOTH ends are "card" within 48px of their bound cards', () => {
+    // Both ends take the per-end card fallback: start 30px above card A
+    // (0,0,40,20) and end 20px below card B (400,300,40,20) — both within the
+    // 48px (ROUTED_ANCHOR_TOLERANCE) chebyshev rule — with frameKeys equal to
+    // the relationship endpoint addresses.
+    const edge = clipEdge([20, -30], [420, 340], {
+      start: { frameKey: A, side: "card" },
+      end: { frameKey: B, side: "card" },
+    });
+    const { out, stats } = repairClip([
+      frameA(),
+      frameB(),
+      cardA(),
+      cardB(),
+      edge,
+    ]);
+    expectKept(out, stats);
   });
 });

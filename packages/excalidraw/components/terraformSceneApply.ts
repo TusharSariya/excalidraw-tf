@@ -261,9 +261,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
-  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
-   * leaf-cluster frame border instead of the resource card. Default off; inert
-   * until M6. */
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
   strataBoxEndpoints?: boolean;
   /** Exclusive-downstream chain relocate: post-A7 rigid Y co-translation of a
    * unit with its incoming-dominated downstream group. Default off. */
@@ -462,20 +462,7 @@ export const terraformPipelineReplayOptionsFromSession = (
     : {}),
 });
 
-/**
- * Pipeline/RCLL/Strata option-forwarding literal shared by the engine-layout
- * request (`layoutTerraformSceneFromSources`) and the session-snapshot
- * request (`runTerraformImportFromSources`, on `updateSession`). Both call
- * sites must forward byte-identical option sets — this is the single source
- * of truth. Returns `{}` outside the pipeline family; every field here is
- * optional on `RunTerraformImportFromSourcesOptions`, so `{}` is a valid
- * value of the return type.
- */
-function buildPipelineFamilyLayoutOptions(
-  layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode,
-  options: RunTerraformImportFromSourcesOptions,
-): Pick<
-  RunTerraformImportFromSourcesOptions,
+type PipelineForwardOptionKeys =
   | "pipelineCompact"
   | "pipelineLayoutVariant"
   | "pipelinePacked"
@@ -493,7 +480,9 @@ function buildPipelineFamilyLayoutOptions(
   | "pipelineDeDensify"
   | "pipelineColumnPacking"
   | "pipelineLayoutProfile"
-  | "pipelineStaircaseBandOverlap"
+  | "pipelineStaircaseBandOverlap";
+
+type StrataForwardOptionKeys =
   | "strataNetworkSimplexRank"
   | "strataSweeps"
   | "strataCoordinateRefine"
@@ -522,43 +511,18 @@ function buildPipelineFamilyLayoutOptions(
   | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
   | "strataColumnGap"
-  | "strataRowGap"
-> {
-  if (
-    layoutMode !== "pipeline" &&
-    layoutMode !== "rcll" &&
-    layoutMode !== "strata"
-  ) {
-    return {};
-  }
+  | "strataRowGap";
+
+/**
+ * Strata-only forward subset of {@link buildPipelineFamilyLayoutOptions},
+ * split out so each builder stays under the sonarjs cognitive-complexity
+ * budget. Field order and omit-at-default semantics are verbatim from the
+ * previous single literal — the combined spread output is byte-identical.
+ */
+function buildStrataForwardOptions(
+  options: RunTerraformImportFromSourcesOptions,
+): Pick<RunTerraformImportFromSourcesOptions, StrataForwardOptionKeys> {
   return {
-    pipelineCompact: options.pipelineCompact !== false,
-    pipelineLayoutVariant:
-      layoutMode === "rcll"
-        ? "rcll"
-        : layoutMode === "strata"
-        ? "strata"
-        : options.pipelineLayoutVariant ?? "classic",
-    pipelinePacked: options.pipelinePacked === true,
-    pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
-    pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
-    pipelinePrivateApiRegional: options.pipelinePrivateApiRegional === true,
-    pipelineSemanticPlacement: options.pipelineSemanticPlacement === true,
-    pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
-    pipelineReorder: options.pipelineReorder === true,
-    pipelineCrossingMin: options.pipelineCrossingMin === true,
-    pipelineDeBandLevel:
-      options.pipelineDeBandLevel ??
-      (options.pipelineSubnetDeBand ? "subnet" : "none"),
-    pipelineRankSeparate: options.pipelineRankSeparate === true,
-    pipelineStraighten: options.pipelineStraighten === true,
-    pipelineCoordRepack: options.pipelineCoordRepack === true,
-    pipelineDeDensify: options.pipelineDeDensify === true,
-    pipelineColumnPacking: options.pipelineColumnPacking,
-    pipelineLayoutProfile: options.pipelineLayoutProfile,
-    // Default-on: undefined ⇒ engine default (true). Only an explicit
-    // false (Stacked) flows through.
-    pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
     strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
     strataSweeps: options.strataSweeps ?? 0,
     strataCoordinateRefine: options.strataCoordinateRefine === true,
@@ -632,6 +596,62 @@ function buildPipelineFamilyLayoutOptions(
     options.strataDeBandLevel !== "none"
       ? { strataDeBandLevel: options.strataDeBandLevel }
       : {}),
+  };
+}
+
+/**
+ * Pipeline/RCLL/Strata option-forwarding literal shared by the engine-layout
+ * request (`layoutTerraformSceneFromSources`) and the session-snapshot
+ * request (`runTerraformImportFromSources`, on `updateSession`). Both call
+ * sites must forward byte-identical option sets — this is the single source
+ * of truth. Returns `{}` outside the pipeline family; every field here is
+ * optional on `RunTerraformImportFromSourcesOptions`, so `{}` is a valid
+ * value of the return type. The strata-side forwards live in
+ * {@link buildStrataForwardOptions} (spread at the end, preserving key order).
+ */
+function buildPipelineFamilyLayoutOptions(
+  layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode,
+  options: RunTerraformImportFromSourcesOptions,
+): Pick<
+  RunTerraformImportFromSourcesOptions,
+  PipelineForwardOptionKeys | StrataForwardOptionKeys
+> {
+  if (
+    layoutMode !== "pipeline" &&
+    layoutMode !== "rcll" &&
+    layoutMode !== "strata"
+  ) {
+    return {};
+  }
+  return {
+    pipelineCompact: options.pipelineCompact !== false,
+    pipelineLayoutVariant:
+      layoutMode === "rcll"
+        ? "rcll"
+        : layoutMode === "strata"
+        ? "strata"
+        : options.pipelineLayoutVariant ?? "classic",
+    pipelinePacked: options.pipelinePacked === true,
+    pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
+    pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
+    pipelinePrivateApiRegional: options.pipelinePrivateApiRegional === true,
+    pipelineSemanticPlacement: options.pipelineSemanticPlacement === true,
+    pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
+    pipelineReorder: options.pipelineReorder === true,
+    pipelineCrossingMin: options.pipelineCrossingMin === true,
+    pipelineDeBandLevel:
+      options.pipelineDeBandLevel ??
+      (options.pipelineSubnetDeBand ? "subnet" : "none"),
+    pipelineRankSeparate: options.pipelineRankSeparate === true,
+    pipelineStraighten: options.pipelineStraighten === true,
+    pipelineCoordRepack: options.pipelineCoordRepack === true,
+    pipelineDeDensify: options.pipelineDeDensify === true,
+    pipelineColumnPacking: options.pipelineColumnPacking,
+    pipelineLayoutProfile: options.pipelineLayoutProfile,
+    // Default-on: undefined ⇒ engine default (true). Only an explicit
+    // false (Stacked) flows through.
+    pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
+    ...buildStrataForwardOptions(options),
   };
 }
 

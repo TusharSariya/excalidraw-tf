@@ -37,5 +37,4 @@ export const SLOW_TEST_PATTERNS = [
   "**/terraformPipelineStrataJointNsProbe.test.ts",
   "**/terraformPipelineStrataChurnTriple.test.ts",
   "**/terraformPipelineStrataHighlightSpike.test.ts",
-  "**/terraformPipelineStrataRoutingSpike.test.ts",
 ] as const;

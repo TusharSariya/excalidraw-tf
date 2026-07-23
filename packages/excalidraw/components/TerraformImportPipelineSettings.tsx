@@ -479,7 +479,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     body: "Edges start and end at the resource cards themselves (default). This is how the diagram looks today.",
     dev: {
       implements:
-        "strataBoxEndpoints=false (default): edge endpoints anchor to the resource card, unchanged from today (byte-identical — no consumer reads the flag yet).",
+        "strataBoxEndpoints=false (default): edge endpoints anchor to the resource card, unchanged from today (byte-identical).",
     },
   },
   "strata.endpoints.box": {
@@ -487,7 +487,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     body: "Edges start and end at the labeled box around a resource (its leaf-cluster frame) instead of the card. Note: dragging a card re-anchors that edge back to the card until the next re-import or repair.",
     dev: {
       implements:
-        "strataBoxEndpoints=true: threaded through every seam and echoed in flagMeta, but INERT until M6 — M6 lands the endpoint re-anchor pass (terminate on the labeled leaf-cluster frame border).",
+        "strataBoxEndpoints=true: declared-dataflow edge endpoints terminate on the labeled leaf-cluster frame border (chord clip at the box, validated by the typed repair gate); dragging a card re-anchors that edge to the card until the next repair.",
     },
   },
   "strata.spacing.columngap.default": {

@@ -184,6 +184,36 @@ function extractDotEdgePairsFast(
   return edges;
 }
 
+/** Ingest one DOT export's edges — the E11 line-scan fast path when it
+ * applies, otherwise the graphlib parse. Extracted from
+ * {@link mergeDotAdjacency} verbatim (cognitive-complexity budget); behavior
+ * and DEV counters are unchanged. */
+function ingestDotEdges(
+  dotText: string,
+  stackId: string | undefined,
+  addEdge: (rawV: string, rawW: string, stackId: string | undefined) => void,
+): void {
+  const fastPairs = dotAdjacencyFastPathDisabled
+    ? null
+    : extractDotEdgePairsFast(dotText);
+  if (fastPairs) {
+    if (import.meta.env.DEV) {
+      dotAdjacencyFastPathHits += 1;
+    }
+    for (const [v, w] of fastPairs) {
+      addEdge(v, w, stackId);
+    }
+    return;
+  }
+  if (import.meta.env.DEV && !dotAdjacencyFastPathDisabled) {
+    dotAdjacencyFastPathBails += 1;
+  }
+  const graph = graphlibDot.read(dotText);
+  for (const { v, w } of graph.edges()) {
+    addEdge(v, w, stackId);
+  }
+}
+
 /** Union dependency-graph adjacency from multiple `terraform graph` DOT exports. */
 export function mergeDotAdjacency(
   dotTexts: string[],
@@ -205,27 +235,7 @@ export function mergeDotAdjacency(
   };
 
   for (let i = 0; i < dotTexts.length; i++) {
-    const dotText = dotTexts[i]!;
-    const stackId = stackIds?.[i]?.trim();
-    const fastPairs = dotAdjacencyFastPathDisabled
-      ? null
-      : extractDotEdgePairsFast(dotText);
-    if (fastPairs) {
-      if (import.meta.env.DEV) {
-        dotAdjacencyFastPathHits += 1;
-      }
-      for (const [v, w] of fastPairs) {
-        addEdge(v, w, stackId);
-      }
-    } else {
-      if (import.meta.env.DEV && !dotAdjacencyFastPathDisabled) {
-        dotAdjacencyFastPathBails += 1;
-      }
-      const graph = graphlibDot.read(dotText);
-      for (const { v, w } of graph.edges()) {
-        addEdge(v, w, stackId);
-      }
-    }
+    ingestDotEdges(dotTexts[i]!, stackIds?.[i]?.trim(), addEdge);
   }
 
   const adjacency: Record<string, string[]> = {};

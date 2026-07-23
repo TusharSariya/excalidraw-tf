@@ -70,7 +70,9 @@ export const bootstrapCanvas = ({
         /(hsla|rgba)\(/.test(viewBackgroundColor)
       : true;
   const opaque =
-    requestOpaque && typeof viewBackgroundColor === "string" && !hasTransparence;
+    requestOpaque &&
+    typeof viewBackgroundColor === "string" &&
+    !hasTransparence;
 
   const context = canvas.getContext(
     "2d",

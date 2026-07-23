@@ -178,10 +178,7 @@ const assertScoreboardSane = (arm: ReturnType<typeof armMetrics>): void => {
   expect(s.wrongFaceCrossings).toBeLessThanOrEqual(s.hullBoundaryCrossings);
 };
 
-const logScoreboard = (
-  arm: string,
-  m: ReturnType<typeof armMetrics>,
-): void => {
+const logScoreboard = (arm: string, m: ReturnType<typeof armMetrics>): void => {
   // eslint-disable-next-line no-console
   console.log(
     `SCOREBOARD ${arm} ${JSON.stringify({
@@ -234,6 +231,28 @@ describe("strata edge-quality scoreboard — owner-config baseline + box endpoin
       expect(ownerBox.scoreboard.cardOverlapCount).toBeLessThanOrEqual(
         ownerBaseline.scoreboard.cardOverlapCount,
       );
+
+      // ── PERMANENT ANTI-VACUOUS ASSERTS. The card-overlap gate above compares
+      // two counts that could BOTH collapse (e.g. every clip edge flattened, or
+      // an empty edge set) and pass trivially. Pin the comparison to a stable,
+      // non-empty, clip-KEEPING population so it can never pass vacuously.
+      //
+      // (1) Box endpoints must not change the SCORED-EDGE population: both arms
+      // must see the identical declared-edge count AND the identical routed-
+      // polyline count. If the box arm silently dropped or failed to route
+      // edges, the overlap counts would no longer be comparable.
+      expect(ownerBox.scoreboard.edgeCount).toBe(
+        ownerBaseline.scoreboard.edgeCount,
+      );
+      expect(ownerBox.scoreboard.routedCount).toBe(
+        ownerBaseline.scoreboard.routedCount,
+      );
+      // (2) The box arm's clip provenance must be a NET KEEP: repair kept clip
+      // endpoints (keptBy.clip > 0) and flattened NONE of them (flattenedBy.clip
+      // is absent from the raw stat map → coalesces to 0). Without this, the gate
+      // could pass with every clip endpoint flattened back to a straight chord.
+      expect(ownerBox.repairMeta.flattenedBy.clip ?? 0).toBe(0);
+      expect(ownerBox.repairMeta.keptBy.clip ?? 0).toBeGreaterThan(0);
     },
     TIMEOUT,
   );

@@ -175,7 +175,7 @@ export const useTerraformImportDialog = ({
   );
   // M5 box-endpoint anchoring (strata-only): edge endpoints terminate on the
   // labeled leaf-cluster frame border instead of the resource card. Default OFF
-  // (byte-identical — inert until M6 wires the geometry).
+  // (byte-identical when off).
   const [strataBoxEndpoints, setStrataBoxEndpoints] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBoxEndpoints as boolean,
   );
@@ -187,12 +187,8 @@ export const useTerraformImportDialog = ({
   );
   // Strata probe P2 (strata-only): edge render style (straight | curve).
   // Default "straight" / byte-identical (the style module never runs).
-  const [strataEdgeStyle, setStrataEdgeStyle] = useState<
-    "straight" | "curve"
-  >(
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle as
-      | "straight"
-      | "curve",
+  const [strataEdgeStyle, setStrataEdgeStyle] = useState<"straight" | "curve">(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle as "straight" | "curve",
   );
   // Strata band-depth slider (v3.2, strata-only): the deepest role still
   // banded — deeper roles pack X-disjoint siblings into shared rows. Default

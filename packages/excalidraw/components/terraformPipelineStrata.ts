@@ -26,7 +26,7 @@ import { refineStrataChainRelocate } from "./terraformPipelineStrataChainRelocat
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { refineStrataLeafShift } from "./terraformPipelineStrataLeafShift";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
-import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
+
 import {
   buildAncillaryStrips,
   countAncillaryCards,
@@ -42,6 +42,8 @@ import {
   isTerraformImportProfilerEnabled,
   terraformImportProfilerRecord,
 } from "./terraformImportProfiler";
+
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
@@ -207,10 +209,10 @@ export type TerraformStrataSceneOptions = {
    */
   strataTranspose?: boolean;
   /**
-   * M5 box-endpoint anchoring (default off, opt-in): edge endpoints terminate on
+   * Box-endpoint anchoring (default off, opt-in): edge endpoints terminate on
    * the labeled leaf-cluster frame border instead of the resource card. Threaded
-   * through every seam and echoed truthy-only in `flagMeta`, but INERT today — no
-   * builder consumes it yet; M6 lands the endpoint geometry.
+   * through every seam, echoed truthy-only in `flagMeta`, and consumed by the
+   * scene build's edge-style pass (M6 geometry).
    */
   strataBoxEndpoints?: boolean;
   /**
@@ -540,8 +542,8 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
     // P2 transpose echo — present only when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
-    // M5 box-endpoint echo — present only when on (byte-identity); boolean-only
-    // (no weights/cap), inert until M6.
+    // Box-endpoint echo — present only when on (byte-identity); boolean-only
+    // (no weights/cap).
     ...(strataBoxEndpoints ? { strataBoxEndpoints: true } : {}),
     // Chain-relocate echo — present only when on (byte-identity).
     ...(strataChainRelocate ? { strataChainRelocate: true } : {}),
@@ -1272,8 +1274,9 @@ export async function buildTerraformStrataExcalidrawScene(
                 : {}),
             }
           : {}),
-        // Probe P2 edge-style observability — present only when a non-"straight"
-        // style ran. Topology (crossings/pierce) is essentially invariant;
+        // Probe P2 edge-style observability — present when a non-"straight"
+        // style ran OR box endpoints clip-stamped under "straight".
+        // Topology (crossings/pierce) is essentially invariant;
         // `styled` is how many chords the pass reshaped.
         ...(scene.edgeStyle
           ? {

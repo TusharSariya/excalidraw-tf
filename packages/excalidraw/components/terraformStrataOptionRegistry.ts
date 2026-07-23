@@ -174,7 +174,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "basic",
     emitClass: "C2",
     decidedNow: false,
-    note: "'Box endpoints' — edge endpoints terminate on the labeled resource box border instead of the resource card. M5 box-endpoint anchoring: opt-in boolean threaded through every seam, default off (byte-identical — no consumer yet). M6 lands the geometry (endpoints re-anchor to the labeled leaf-cluster frame border). Emitted truthy-only (C2)",
+    note: "'Box endpoints' — edge endpoints terminate on the labeled resource box border instead of the resource card. M5 box-endpoint anchoring: opt-in boolean threaded through every seam, default off (byte-identical). Geometry shipped (M6): endpoints re-anchor to the labeled leaf-cluster frame border. Emitted truthy-only (C2)",
   },
   {
     urlParam: "strataBandCompact",

@@ -1251,8 +1251,9 @@ export const repairTerraformEdgeBindings = (
     addBoundEdge(rectA.id, element.id);
     addBoundEdge(rectB.id, element.id);
 
-    // Strata Package C (W9): an obstacle-routed polyline (stamped by
-    // terraformPipelineStrataEdgeRouting.ts) keeps its detour geometry — its
+    // Strata Package C (W9): a marked routed polyline (stamped by the
+    // edge-style pass; legacy scenes may carry the deleted router passes'
+    // stamps) keeps its detour geometry — its
     // endpoints attach to the source/target cards, so only the bindings are
     // (re)anchored and the straight-chord flatten below is skipped. Unmarked
     // arrows (every scene today with the flag off) are unaffected.

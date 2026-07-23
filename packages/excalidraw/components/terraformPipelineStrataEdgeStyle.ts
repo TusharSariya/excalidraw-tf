@@ -258,7 +258,11 @@ function simplifyPolyline(pts: Pt[]): Pt[] {
   const dedup: Pt[] = [];
   for (const p of pts) {
     const last = dedup[dedup.length - 1];
-    if (!last || Math.abs(last[0] - p[0]) > EPS || Math.abs(last[1] - p[1]) > EPS) {
+    if (
+      !last ||
+      Math.abs(last[0] - p[0]) > EPS ||
+      Math.abs(last[1] - p[1]) > EPS
+    ) {
       dedup.push(p);
     }
   }
@@ -408,7 +412,10 @@ export function bezierPolyline(
 }
 
 /** Number of `foreign` boxes whose interior the polyline pierces. */
-function piercedCardCount(poly: readonly Pt[], foreign: readonly StrataBox[]): number {
+function piercedCardCount(
+  poly: readonly Pt[],
+  foreign: readonly StrataBox[],
+): number {
   let n = 0;
   for (const b of foreign) {
     let hit = false;
@@ -442,12 +449,7 @@ function piercedCardCount(poly: readonly Pt[], foreign: readonly StrataBox[]): n
  * idiom rendered directly on fixed endpoints.
  */
 function orbitPolyline(start: Pt, end: Pt, orbitY: number): Pt[] {
-  return simplifyPolyline([
-    start,
-    [start[0], orbitY],
-    [end[0], orbitY],
-    end,
-  ]);
+  return simplifyPolyline([start, [start[0], orbitY], [end[0], orbitY], end]);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -493,7 +495,18 @@ function polyReentersBox(
       const tt = (skipPx - acc) / L;
       start = [a[0] + tt * (b[0] - a[0]), a[1] + tt * (b[1] - a[1])];
     }
-    if (segmentIntersectsStrataBoxInterior(start[0], start[1], b[0], b[1], x0, y0, x1, y1)) {
+    if (
+      segmentIntersectsStrataBoxInterior(
+        start[0],
+        start[1],
+        b[0],
+        b[1],
+        x0,
+        y0,
+        x1,
+        y1,
+      )
+    ) {
       return true;
     }
     acc += L;
@@ -552,9 +565,7 @@ export function clampOwnCardReentry(
     }
     // s=0 straight chord still re-enters ⇒ placement artifact, irreducible.
     const straight = armAt(0);
-    if (
-      fromStart ? reenters(straight, c2) : reenters(c1, straight)
-    ) {
+    if (fromStart ? reenters(straight, c2) : reenters(c1, straight)) {
       return null;
     }
     let lo = 0; // known-clear
@@ -669,17 +680,14 @@ export function removeOneLens(
     return null;
   }
   // Order along P (segP, tP). Adjacent-along-P candidates are consecutive here.
-  const alongP = [...crossings].sort(
-    (a, b) => a.segP - b.segP || a.tP - b.tP,
-  );
+  const alongP = [...crossings].sort((a, b) => a.segP - b.segP || a.tP - b.tP);
   // Rank of each crossing along Q (segQ, then point order along that segment).
   const alongQ = [...crossings].sort(
     (a, b) =>
       a.segQ - b.segQ ||
       (a.pt[0] - qPts[a.segQ]![0]) ** 2 +
         (a.pt[1] - qPts[a.segQ]![1]) ** 2 -
-        ((b.pt[0] - qPts[b.segQ]![0]) ** 2 +
-          (b.pt[1] - qPts[b.segQ]![1]) ** 2),
+        ((b.pt[0] - qPts[b.segQ]![0]) ** 2 + (b.pt[1] - qPts[b.segQ]![1]) ** 2),
   );
   const qRank = new Map<CrossXY, number>();
   alongQ.forEach((c, i) => qRank.set(c, i));
@@ -714,8 +722,7 @@ export function removeOneLens(
     // For Q, splice between the earlier and later crossing ALONG Q.
     const loQ = qFirst.segQ;
     const hiQ = qSecond.segQ;
-    const arcPForQ =
-      qFirst === p1 ? arcP : [...arcP].reverse();
+    const arcPForQ = qFirst === p1 ? arcP : [...arcP].reverse();
     const newQ = [
       ...qPts.slice(0, loQ + 1),
       ...arcPForQ,
@@ -931,11 +938,7 @@ export function applyStrataEdgeStyle(
         el,
         start,
         end,
-        poly: [
-          start,
-          [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2],
-          end,
-        ],
+        poly: [start, [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2], end],
         orbit: false,
         bezier: false,
         srcBox: leafBoxes?.get(rel.source) ?? null,
@@ -1047,12 +1050,7 @@ export function applyStrataEdgeStyle(
       if (!r.bezier) {
         continue;
       }
-      const clamped = clampOwnCardReentry(
-        r.start,
-        r.end,
-        r.srcBox,
-        r.tgtBox,
-      );
+      const clamped = clampOwnCardReentry(r.start, r.end, r.srcBox, r.tgtBox);
       if (!clamped) {
         continue; // clean, or placement-artifact re-entry (irreducible)
       }

@@ -2,9 +2,10 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+
 import { TerraformStrataSettings } from "./TerraformStrataSettings";
 
-import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
@@ -621,7 +622,9 @@ describe("TerraformStrataSettings — E3.3 spacing controls", () => {
     ).toBeTruthy();
     // Help copy is wired: hovering a segment drives the shared help panel.
     const rowGroup = screen.getByRole("radiogroup", { name: "Strata row gap" });
-    fireEvent.mouseEnter(within(rowGroup).getByRole("radio", { name: "1.25×" }));
+    fireEvent.mouseEnter(
+      within(rowGroup).getByRole("radio", { name: "1.25×" }),
+    );
     expect(screen.getByLabelText("Option explanation").textContent).toContain(
       "vertical space",
     );

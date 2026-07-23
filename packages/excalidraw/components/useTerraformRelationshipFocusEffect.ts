@@ -405,8 +405,14 @@ export function useTerraformRelationshipFocusEffect({
       // second instance mounted afterwards (e.g. reusing the same canvas
       // element via a pooled/recycled DOM node) never inherits a stale wash,
       // and so an unmounted-but-still-referenced instance stops contributing
-      // to `getTerraformFocusWashDescriptor` reads entirely.
-      clearTerraformFocusWashDescriptor(appRef.current.canvas);
+      // to `getTerraformFocusWashDescriptor` reads entirely. The app ref can
+      // already be null during teardown (jsdom unmounts clear it before the
+      // passive cleanup runs); the descriptor WeakMap is keyed by the canvas,
+      // so a vanished app needs no explicit clear.
+      const canvas = appRef.current?.canvas;
+      if (canvas) {
+        clearTerraformFocusWashDescriptor(canvas);
+      }
     },
     [],
   );

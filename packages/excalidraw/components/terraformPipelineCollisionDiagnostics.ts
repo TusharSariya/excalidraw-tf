@@ -1332,8 +1332,7 @@ function polylineReentersRect(
   // exitAcc === null here ⇒ the polyline never left the interior (degenerate
   // always-inside). Use the stub lower bound so the remainder test still flags
   // it; otherwise skip the whole egress run (>= the stub lower bound).
-  const effectiveSkip =
-    exitAcc === null ? skipPx : Math.max(skipPx, exitAcc);
+  const effectiveSkip = exitAcc === null ? skipPx : Math.max(skipPx, exitAcc);
 
   let acc = 0;
   for (let i = 0; i + 1 < points.length; i++) {

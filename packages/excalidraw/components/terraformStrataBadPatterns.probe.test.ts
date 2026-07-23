@@ -41,8 +41,6 @@ import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/d
 
 import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraformPresetFixtures";
 
-import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
-
 import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
 import { layoutTerraformFromSources } from "./terraformLayoutCore";
 import {
@@ -51,6 +49,8 @@ import {
   type PipelineSceneDiagnostics,
 } from "./terraformPipelineCollisionDiagnostics";
 import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
+
+import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
 
 const PRESET = "staging-extended-localstack-v2";
 
@@ -275,7 +275,9 @@ describe("badPatterns validation probe — 2 arms, owner-theory decision rule", 
       claim(
         "1 near-perpendicular",
         curvePerpBest,
-        `curve sharp70=${sharp70.get("curve")} vs straight sharp70=${sharp70.get(
+        `curve sharp70=${sharp70.get(
+          "curve",
+        )} vs straight sharp70=${sharp70.get(
           "straight",
         )} — if curve worse, perpendicularity is NOT the eyeball driver`,
       );

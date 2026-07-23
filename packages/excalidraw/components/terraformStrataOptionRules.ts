@@ -53,7 +53,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataLeafShift",
   "strataJointNsRank",
   // M5 box-endpoint anchoring — no conflict/implication/inertness relations
-  // (opt-in, inert until M6); listed here only to keep the key domain in sync
+  // (opt-in); listed here only to keep the key domain in sync
   // with the resolver + registry (the anti-drift guard asserts referenced keys
   // exist).
   "strataBoxEndpoints",

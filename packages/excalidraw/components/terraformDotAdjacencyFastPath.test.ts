@@ -131,8 +131,7 @@ describe("mergeDotAdjacency fast path", () => {
   // presence of "/*" bails the whole DOT to graphlib, which parses the comment
   // away — so the commented edge must be absent from the merged adjacency.
   it("bails on block comments so commented-out edges never become phantom edges", () => {
-    const dot =
-      'digraph {\n/*\n"ghost" -> "target"\n*/\n"real" -> "sink"\n}';
+    const dot = 'digraph {\n/*\n"ghost" -> "target"\n*/\n"real" -> "sink"\n}';
     resetDotAdjacencyFastPathStats();
     setDotAdjacencyFastPathDisabledForTest(false);
     const fast = mergeDotAdjacency([dot]);

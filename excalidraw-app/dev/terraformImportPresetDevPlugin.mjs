@@ -123,9 +123,8 @@ export const LAYOUT_BOOLEAN_PARAMS = [
   ["strataChainRelocate", "strataChainRelocate"],
   ["strataCoordCascade", "strataCoordCascade"],
   ["strataLeafShift", "strataLeafShift"],
-  // M5 box-endpoint anchoring — the /demo URL API parses `strataBoxEndpoints`;
-  // forward it so the proof-API arm is not silently no-op'd. Default OFF, inert
-  // until M6 lands the geometry.
+  // Box-endpoint anchoring — the /demo URL API parses `strataBoxEndpoints`;
+  // forward it so the proof-API arm is not silently no-op'd. Default OFF.
   ["strataBoxEndpoints", "strataBoxEndpoints"],
 ];
 
@@ -298,7 +297,7 @@ const LAYOUT_PARAM_CATALOG = {
     strataLeafShift:
       "A01 leaf X-shift — pull degree-1 pure-sink leaves left toward their source (carries the right-edge column guard). layoutMode=strata.",
     strataBoxEndpoints:
-      "M5 box-endpoint anchoring — edge endpoints terminate on the labeled leaf-cluster frame border instead of the resource card. Default off, inert until M6 lands the geometry. layoutMode=strata.",
+      "Box-endpoint anchoring — edge endpoints terminate on the labeled leaf-cluster frame border instead of the resource card. Default off. layoutMode=strata.",
   },
   ints: {
     strataSweeps:

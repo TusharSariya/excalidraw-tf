@@ -53,8 +53,7 @@ import {
   collectTerraformStructuralDependencyPairKeysFromItems,
   createTerraformEdgeRepairStats,
 } from "./terraformVisibility";
-import type { TerraformEdgeRepairStats } from "./terraformVisibility";
-import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
+
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import {
   isTerraformImportProfilerEnabled,
@@ -68,6 +67,9 @@ import {
   type TopologyFrameRole,
 } from "./terraformPipelineTopologyFrames";
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
+
+import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
+import type { TerraformEdgeRepairStats } from "./terraformVisibility";
 
 import type { TerraformDependencyLayoutBox } from "./terraformElkLayout";
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";

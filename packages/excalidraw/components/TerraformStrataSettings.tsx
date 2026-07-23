@@ -99,7 +99,7 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon: number;
   strataBlockClamp: boolean;
   strataTranspose: boolean;
-  /** M5 box-endpoint anchoring (strata-only, default off). Inert until M6. */
+  /** Box-endpoint anchoring (strata-only, default off). */
   strataBoxEndpoints: boolean;
   strataHeightGate: boolean;
   strataEdgeStyle: StrataEdgeStyle;

@@ -529,9 +529,9 @@ type LayoutSceneContext = {
    * column between source and current rank, Y-redrop, grow ancestor chain. Default
    * off. Carries the mandatory right-edge column guard. */
   strataLeafShift?: boolean;
-  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
-   * leaf-cluster frame border instead of the resource card. Default off; inert
-   * until M6 wires a consumer (threaded through every seam meanwhile). */
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
   strataBoxEndpoints?: boolean;
   /** A01 slack height gate absolute px budget (default 150). */
   strataLeafShiftHeightBudgetPx?: number;
@@ -680,7 +680,7 @@ async function buildPipelineLayoutSceneBody(
         strataHeightGate: ctx.strataHeightGate,
         strataLeafShift: ctx.strataLeafShift,
         // M5 box-endpoint anchoring — SEAM 2 (builderOptions fan-in). Forwarded
-        // as a plain boolean; inert until M6 reads it in the strata builder.
+        // as a plain boolean; the strata scene build's edge-style pass consumes it.
         strataBoxEndpoints: ctx.strataBoxEndpoints,
         // A01 leaf-shift budget knobs: optional-only forward (no default
         // materialized — absent ⇒ engine defaults 150/0.01/8/300).
@@ -1329,7 +1329,7 @@ export async function layoutTerraformFromSources(
     strataLeafShift: options?.strataLeafShift === true,
     // M5 box-endpoint anchoring — SEAM 1 (sceneContext literal). MUST be listed
     // here or it is silently dropped on the real app path (RCLL threading
-    // boundary), however correctly it is threaded everywhere else. Inert until M6.
+    // boundary), however correctly it is threaded everywhere else.
     strataBoxEndpoints: options?.strataBoxEndpoints === true,
     ...(options?.strataLeafShiftHeightBudgetPx !== undefined
       ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }

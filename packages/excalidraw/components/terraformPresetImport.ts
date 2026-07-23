@@ -103,9 +103,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs.
    * Default off. */
   strataTranspose?: boolean;
-  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
-   * leaf-cluster frame border instead of the resource card. Default off; inert
-   * until M6. */
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
   strataBoxEndpoints?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;

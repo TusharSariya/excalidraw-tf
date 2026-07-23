@@ -51,7 +51,7 @@ const tfdArrow = (
       relationship: { source: "A", target: "B" },
       ...extra,
     },
-  }) as unknown as ExcalidrawElementSkeleton;
+  } as unknown as ExcalidrawElementSkeleton);
 
 describe("calculateControlOffset (React Flow getBezierPath)", () => {
   it("pushes half the distance forward", () => {
@@ -439,7 +439,7 @@ describe("applyStrataEdgeStyle — strataBoxEndpoints (M6 clip stamps)", () => {
     expect(end[1]).toBeCloseTo(expected.endPoint.y, 6);
   });
 
-  it("mixed end: frame face on the resolving end + side:\"card\" fallback on the missing end", () => {
+  it('mixed end: frame face on the resolving end + side:"card" fallback on the missing end', () => {
     const skeleton = [tfdArrow(50, 70, [600, 0])];
     const meta = applyStrataEdgeStyle(
       skeleton,
@@ -558,9 +558,7 @@ describe("removeOneLens (W3-4 empty-bigon swap)", () => {
 describe("clampOwnCardReentry (W3-2 own-card re-entry clamp)", () => {
   it("returns null for a clean forward curve (no own-card re-entry)", () => {
     const far: StrataBox = { x: -500, y: -500, width: 10, height: 10 };
-    expect(
-      clampOwnCardReentry([0, 0], [200, 20], far, null),
-    ).toBeNull();
+    expect(clampOwnCardReentry([0, 0], [200, 20], far, null)).toBeNull();
   });
 
   it("returns null when the re-entry is irreducible (anchor embedded > one stub inside its own card — the straight chord re-enters too)", () => {
@@ -568,8 +566,6 @@ describe("clampOwnCardReentry (W3-2 own-card re-entry clamp)", () => {
     // right necessarily stays in the card past the 20px stub-skip. No control-arm
     // shortening can clear it, so the clamp declines (placement artifact).
     const srcBox: StrataBox = { x: 0, y: 0, width: 100, height: 100 };
-    expect(
-      clampOwnCardReentry([70, 50], [400, 50], srcBox, null),
-    ).toBeNull();
+    expect(clampOwnCardReentry([70, 50], [400, 50], srcBox, null)).toBeNull();
   });
 });

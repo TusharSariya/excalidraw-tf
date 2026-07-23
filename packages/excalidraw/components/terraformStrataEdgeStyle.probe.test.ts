@@ -16,8 +16,6 @@ import { getTerraformImportPresetSourcesFromDb } from "../../../excalidraw-app/d
 
 import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraformPresetFixtures";
 
-import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
-
 import { clearTerraformImportPrepCache } from "./terraformImportPrepCache";
 import { layoutTerraformFromSources } from "./terraformLayoutCore";
 import {
@@ -25,6 +23,8 @@ import {
   type PipelineSceneDiagnostics,
 } from "./terraformPipelineCollisionDiagnostics";
 import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
+
+import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
 
 const PRESET = "staging-extended-localstack-v2";
 
@@ -39,13 +39,12 @@ const buildScene = async (
     throw new Error(`preset ${PRESET} not found`);
   }
   const result = await layoutTerraformFromSources(sources, {
-      layoutMode: "strata",
-      pipelineCompact: true,
-      strataSweeps: 4,
-      strataCoordinateRefine: true,
-      ...(edgeStyle !== "straight" ? { strataEdgeStyle: edgeStyle } : {}),
-    },
-  );
+    layoutMode: "strata",
+    pipelineCompact: true,
+    strataSweeps: 4,
+    strataCoordinateRefine: true,
+    ...(edgeStyle !== "straight" ? { strataEdgeStyle: edgeStyle } : {}),
+  });
   if (!result.ok) {
     throw new Error(result.error);
   }

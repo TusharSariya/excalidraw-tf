@@ -115,7 +115,8 @@ const repairEdge = (
  * Build a LEGITIMATE routed polyline: derive the exact centre-clipped chord the
  * repair produces for a straight edge, then bend it with an interior waypoint
  * while keeping the same first/last endpoints and marking it routed. This is a
- * faithful stand-in for what terraformPipelineStrataEdgeRouting.ts stamps.
+ * faithful stand-in for a stamped routed polyline (the style pass today; legacy
+ * scenes may carry the deleted router passes' stamps).
  */
 const buildLegitRoutedArrow = (
   rectA: ExcalidrawElement,

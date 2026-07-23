@@ -17,13 +17,15 @@ import {
   repairTerraformEdgeBindings,
   TERRAFORM_IMPORT_EDGE_LAYER_PINS,
 } from "./terraformVisibility";
-import type { TerraformEdgeRepairStats } from "./terraformVisibility";
+
 import { injectTerraformAwsIconsIntoElements } from "./terraformAwsIcons";
 import { detectEdgeCollapse } from "./terraformEdgeCollapse";
 import {
   isTerraformEdgeTripwireEnabled,
   tripwireRecordFinalizeSummary,
 } from "./terraformEdgeTripwire";
+
+import type { TerraformEdgeRepairStats } from "./terraformVisibility";
 
 import type { CollapsedPipelineEdge } from "./terraformPipelineLayoutShared";
 
