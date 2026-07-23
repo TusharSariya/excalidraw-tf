@@ -8,7 +8,6 @@ import React from "react";
 import { Dialog } from "./Dialog";
 import { FilledButton } from "./FilledButton";
 import { TerraformModulePackingSettings } from "./TerraformModulePackingSettings";
-import { TerraformImportPipelineSettings } from "./TerraformImportPipelineSettings";
 import { TerraformStrataSettings } from "./TerraformStrataSettings";
 import { useTerraformImportDialog } from "./useTerraformImportDialog";
 import {
@@ -54,21 +53,7 @@ export const TerraformImportModal = ({
     tfdFiles,
     view,
     pipelineCompact,
-    pipelineLayoutVariant,
-    pipelinePacked,
-    pipelinePackedPullLeft,
     pipelineIncludeAncillary,
-    pipelineSemanticPlacement,
-    pipelineSwimlaneLaneRise,
-    pipelineReorder,
-    pipelineCrossingMin,
-    pipelineDeBandLevel,
-    pipelineRankSeparate,
-    pipelineStraighten,
-    pipelineCoordRepack,
-    pipelineColumnPacking,
-    pipelineLayoutProfile,
-    pipelineStaircaseBandOverlap,
     strataSweeps,
     strataCoordinateRefine,
     strataRankSeparate,
@@ -568,10 +553,7 @@ terraform show -json tfplan > plan.json`}</code>
             {VIEW_OPTIONS.map((option) => {
               const checked = view === option.value;
               const disabled =
-                (option.value === "semantic" ||
-                  option.value === "pipeline" ||
-                  option.value === "rcll" ||
-                  option.value === "strata") &&
+                (option.value === "semantic" || option.value === "strata") &&
                 semanticViewDisabled;
               const descriptionId = `terraform-view-${option.value}-description`;
               return (
@@ -608,49 +590,6 @@ terraform show -json tfplan > plan.json`}</code>
               );
             })}
           </div>
-          {(view === "pipeline" || view === "rcll") &&
-            !semanticViewDisabled && (
-              <TerraformImportPipelineSettings
-                pipelineCompact={pipelineCompact}
-                pipelineLayoutVariant={pipelineLayoutVariant}
-                pipelinePacked={pipelinePacked}
-                pipelinePackedPullLeft={pipelinePackedPullLeft}
-                pipelineIncludeAncillary={pipelineIncludeAncillary}
-                pipelineSemanticPlacement={pipelineSemanticPlacement}
-                pipelineSwimlaneLaneRise={pipelineSwimlaneLaneRise}
-                pipelineReorder={pipelineReorder}
-                pipelineCrossingMin={pipelineCrossingMin}
-                pipelineDeBandLevel={pipelineDeBandLevel}
-                pipelineRankSeparate={pipelineRankSeparate}
-                pipelineStraighten={pipelineStraighten}
-                pipelineCoordRepack={pipelineCoordRepack}
-                pipelineColumnPacking={pipelineColumnPacking}
-                pipelineLayoutProfile={pipelineLayoutProfile}
-                pipelineStaircaseBandOverlap={pipelineStaircaseBandOverlap}
-                setPipelineCompact={dialog.setPipelineCompact}
-                setPipelineLayoutVariant={dialog.setPipelineLayoutVariant}
-                setPipelinePacked={dialog.setPipelinePacked}
-                setPipelinePackedPullLeft={dialog.setPipelinePackedPullLeft}
-                setPipelineIncludeAncillary={dialog.setPipelineIncludeAncillary}
-                setPipelineSemanticPlacement={
-                  dialog.setPipelineSemanticPlacement
-                }
-                setPipelineSwimlaneLaneRise={dialog.setPipelineSwimlaneLaneRise}
-                setPipelineReorder={dialog.setPipelineReorder}
-                setPipelineCrossingMin={dialog.setPipelineCrossingMin}
-                setPipelineDeBandLevel={dialog.setPipelineDeBandLevel}
-                setPipelineRankSeparate={dialog.setPipelineRankSeparate}
-                setPipelineStraighten={dialog.setPipelineStraighten}
-                setPipelineCoordRepack={dialog.setPipelineCoordRepack}
-                setPipelineColumnPacking={dialog.setPipelineColumnPacking}
-                setPipelineLayoutProfile={dialog.setPipelineLayoutProfile}
-                setPipelineStaircaseBandOverlap={
-                  dialog.setPipelineStaircaseBandOverlap
-                }
-                showPlacement={view !== "rcll"}
-                showVariant={view !== "rcll"}
-              />
-            )}
           {view === "strata" && (
             <TerraformStrataSettings
               strataSweeps={strataSweeps}

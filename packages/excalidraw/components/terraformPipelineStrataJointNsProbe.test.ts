@@ -57,11 +57,6 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 const round4 = (n: number): number => Math.round(n * 1e4) / 1e4;
 
 const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
-  A_v2_baseline: {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: true,
-  },
   I_strata_k4_a7: {
     layoutMode: "strata",
     pipelineCompact: true,
@@ -261,8 +256,7 @@ describe("W5b joint constrained-NS probe (report-emitting; never asserts gates)"
           };
           if (
             data.rcllV2Degraded !== undefined &&
-            data.rcllV2Degraded !== false &&
-            armLabel !== "A_v2_baseline"
+            data.rcllV2Degraded !== false
           ) {
             softFailures.push(
               `${preset}/${armLabel}: rcllV2Degraded=${JSON.stringify(
@@ -282,15 +276,13 @@ describe("W5b joint constrained-NS probe (report-emitting; never asserts gates)"
           );
         }
 
-        const base = armData.get("A_v2_baseline")!;
         report[presetLabel] = {
           preset,
           arms,
           cells: {
-            A__vs__I: cellOf(base, armData.get("I_strata_k4_a7")!),
-            A__vs__J: cellOf(base, armData.get("J_strata_k4_a7_rs")!),
-            A__vs__X: cellOf(base, x),
-            // The direct adjudication cell: joint (X) paired against sequential (J).
+            // The direct adjudication cell: joint (X) paired against sequential
+            // (J) — strata-vs-strata. The retired A_v2 baseline cells
+            // (A__vs__I/J/X) were removed with the Pipeline/RCLL views.
             J__vs__X: cellOf(armData.get("J_strata_k4_a7_rs")!, x),
           },
         };

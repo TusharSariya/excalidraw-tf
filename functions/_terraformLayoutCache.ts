@@ -12,7 +12,7 @@ export type LayoutCacheKv = {
   }>;
 };
 
-export type TerraformLayoutCacheView = "semantic" | "module" | "pipeline";
+export type TerraformLayoutCacheView = "semantic" | "module";
 
 export type ModuleLayoutPack = "default" | "box" | "rectpacking";
 
@@ -190,7 +190,7 @@ export function parseLayoutCacheQuery(url: URL): {
   if (!version || !presetId || !view) {
     return null;
   }
-  if (view !== "semantic" && view !== "module" && view !== "pipeline") {
+  if (view !== "semantic" && view !== "module") {
     return null;
   }
   const packRaw = url.searchParams.get("pack")?.trim();

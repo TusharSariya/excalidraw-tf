@@ -30,43 +30,12 @@ export type TerraformImportSession = {
   terraformLodPreset?: import("./terraformLod").TerraformLodPreset;
   /** Overview minimap for large scenes. Default false (feature flag). */
   terraformMinimapEnabled?: boolean;
-  /** Pipeline layout variant — classic global grid or compound hierarchy. */
+  /** Surviving engine variant — `"v2"` (Strata substrate) or `"strata"`. */
   pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
-  /** Pipeline packed mode — push sink-only groups right, re-pack lanes in Y. */
-  pipelinePacked?: boolean;
-  /** Packed only — pull slack clusters to their leftmost TFD-feasible column. */
-  pipelinePackedPullLeft?: boolean;
   /** Pipeline — draw non-TFD resources in per-hull "Unconnected" strips. */
   pipelineIncludeAncillary?: boolean;
   /** Pipeline — private VPC-endpoint-bound REST APIs placed at region level. */
   pipelinePrivateApiRegional?: boolean;
-  /** Pipeline — nesting-aware semantic placement (forced bands + straightening). */
-  pipelineSemanticPlacement?: boolean;
-  /** RCLL M4 — X-disjoint swimlane lanes rise to share Y rows. */
-  pipelineSwimlaneLaneRise?: boolean;
-  /** RCLL M6 — per-container barycenter crossing-min reorder. */
-  pipelineReorder?: boolean;
-  /** RCLL M6c — container-aware crossing minimization (supersedes the leaf reorder). */
-  pipelineCrossingMin?: boolean;
-  /** RCLL de-band depth — dissolve the chosen container level + all deeper levels into one
-   * shared column stack (frames → rails). `none` = today's boxed layout. */
-  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  /** Back-compat alias for `pipelineDeBandLevel: "subnet"` (older persisted sessions). */
-  pipelineSubnetDeBand?: boolean;
-  /** RCLL M8r — whole-model-global sibling-separation ranking (needs lane-rise). */
-  pipelineRankSeparate?: boolean;
-  /** RCLL M5 — Brandes–Köpf leaf straightening (Y-only spine alignment). */
-  pipelineStraighten?: boolean;
-  /** RCLL M5b — coordinated per-column permutation re-pack (refines straighten). */
-  pipelineCoordRepack?: boolean;
-  /** RCLL M5b — de-density: spread crowded columns. */
-  pipelineDeDensify?: boolean;
-  /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
-  /** RCLL "Layout" profile — `readable | balanced | compact` (expands into the RCLL flags). */
-  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
-  /** RCLL M3b / DEC-1 — X-disjoint cycle groups rise to share Y. Default on. */
-  pipelineStaircaseBandOverlap?: boolean;
   /** Strata (rcll-v2) OD-1 — X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;

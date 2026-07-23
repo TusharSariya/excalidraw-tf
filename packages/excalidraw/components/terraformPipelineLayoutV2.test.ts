@@ -28,7 +28,6 @@ import {
   isPrimaryVisibleResourceType,
 } from "./terraformPrimaryVisibility";
 import { resolveSourcesWithTfdComposition } from "./terraformImportCompositionResolve";
-import { layoutTerraformViaWorkers } from "./terraformLayoutWorkerClient";
 import {
   applyTfdOverlayToNodes,
   buildTerraformLocalImportNodesMap,
@@ -38,7 +37,10 @@ import type { TerraformImportPresetSources } from "./terraformImportPresetsTypes
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-async function layout(presetId: string, options: Record<string, unknown>) {
+async function layout(
+  presetId: string,
+  options: { compact?: boolean; includeAncillary?: boolean } = {},
+) {
   const raw = getTerraformImportPresetSourcesFromDb(presetId);
   const sources = resolveSourcesWithTfdComposition(
     raw! as TerraformImportPresetSources,
@@ -49,15 +51,12 @@ async function layout(presetId: string, options: Record<string, unknown>) {
   applyTfdOverlayToNodes(nodes, sources.tfdTexts, sources.tfdLabels);
   expect(nodes[DECLARED_DATAFLOW_ORDERED_KEY]?.length ?? 0).toBeGreaterThan(0);
 
-  const body = await layoutTerraformViaWorkers(
-    {
-      planDotBundles: sources.planDotBundles,
-      states: [],
-      stateLabels: [],
-      tfdTexts: sources.tfdTexts,
-      tfdLabels: sources.tfdLabels,
-    },
-    { semanticLayout: false, layoutMode: "pipeline", ...options },
+  // Drive the V2 builder directly — it is the Strata substrate and no longer
+  // reachable through a user-facing view/variant.
+  const body = await buildTerraformPipelineV2ExcalidrawScene(
+    nodes,
+    bundle.plan,
+    options,
   );
   const elements = body.elements as ExcalidrawElement[];
   const live = elements.filter((e) => !e.isDeleted);
@@ -144,28 +143,14 @@ describe("pipeline view v2", () => {
   it(
     "staging-extended-localstack-v2 — square, overlap-free, TFD-ordered, deterministic",
     async () => {
-      const classic = await layout("staging-extended-localstack-v2", {
-        pipelineLayoutVariant: "classic",
-        pipelineCompact: true,
-      });
       const v2 = await layout("staging-extended-localstack-v2", {
-        pipelineLayoutVariant: "v2",
-        pipelineCompact: true,
+        compact: true,
       });
 
       // eslint-disable-next-line no-console -- intentional diagnostic output
       console.log(
         `\n[pipeline:v2]\n${JSON.stringify(
           {
-            classic: {
-              bounds: classic.bounds,
-              aspect: classic.aspect,
-              crossings: classic.diagnostics.dataflow.crossings,
-              edgeViolations: classic.diagnostics.semanticEdgeViolations.length,
-              collisions: classic.diagnostics.collisionCount,
-              fractionNearStraight:
-                classic.diagnostics.dataflow.fractionNearStraight,
-            },
             v2: {
               bounds: v2.bounds,
               aspect: v2.aspect,
@@ -182,8 +167,6 @@ describe("pipeline view v2", () => {
         )}`,
       );
 
-      // It is the v2 variant.
-      expect(v2.meta.pipelineVariant).toBe("v2");
       expect(v2.elementCount).toBeGreaterThan(0);
 
       // Correctness: no overlaps / broken hierarchies.
@@ -196,26 +179,14 @@ describe("pipeline view v2", () => {
         "v2 backward TFD edges (must be zero)",
       ).toEqual([]);
 
-      // Wins vs v1 classic stacked: shorter, squarer, fewer crossings. Pure-sink
-      // fan-out bundles spill *beside* their source (elastic depth) instead of
-      // stacking under it, so the drawing reads near-square — not just "less
-      // tall". (Compact lands ≈ 1:1 aspect on this preset.)
-      expect(v2.bounds.height, "v2 shorter than classic stacked").toBeLessThan(
-        classic.bounds.height,
-      );
+      // Pure-sink fan-out bundles spill *beside* their source (elastic depth)
+      // instead of stacking under it, so the drawing reads near-square.
+      // (Compact lands ≈ 1:1 aspect on this preset.)
       expect(v2.aspect, "v2 reads near-square").toBeGreaterThan(0.8);
-      expect(v2.aspect, "v2 squarer than classic").toBeGreaterThan(
-        classic.aspect,
-      );
-      expect(
-        v2.diagnostics.dataflow.crossings,
-        "v2 fewer crossings than classic",
-      ).toBeLessThan(classic.diagnostics.dataflow.crossings);
 
       // Determinism: a second build is byte-identical in geometry + crossings.
       const v2b = await layout("staging-extended-localstack-v2", {
-        pipelineLayoutVariant: "v2",
-        pipelineCompact: true,
+        compact: true,
       });
       expect(v2b.bounds, "v2 determinism (bounds)").toEqual(v2.bounds);
       expect(
@@ -231,16 +202,15 @@ describe("pipeline all-resources respects primary grouping", () => {
   it(
     "every layout keeps unconnected primaries grouped; v2 nests the strips overlap-free",
     async () => {
-      const variants = ["classic", "compound", "v2"] as const;
+      const variants = ["v2"] as const;
       const scenes = {} as Record<
         typeof variants[number],
         Awaited<ReturnType<typeof layout>>
       >;
       for (const variant of variants) {
         scenes[variant] = await layout("staging-extended-localstack-v2", {
-          pipelineLayoutVariant: variant,
-          pipelineCompact: false, // Full mode — exercises the full builder + fallback path
-          pipelineIncludeAncillary: true,
+          compact: false, // Full mode — exercises the full builder + fallback path
+          includeAncillary: true,
         });
       }
 

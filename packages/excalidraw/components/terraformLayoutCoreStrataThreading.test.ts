@@ -92,31 +92,6 @@ const buildStrata = async (opts: Record<string, unknown> = {}) => {
   return result.scene as Scene;
 };
 
-const buildV2 = async (opts: Record<string, unknown> = {}) => {
-  const result = await layoutTerraformFromSources(v2Sources(), {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: true,
-    ...opts,
-  });
-  if (!result.ok) {
-    throw new Error(result.error);
-  }
-  return result.scene as Scene;
-};
-
-const buildRcll = async (opts: Record<string, unknown> = {}) => {
-  const result = await layoutTerraformFromSources(v2Sources(), {
-    layoutMode: "rcll",
-    pipelineCompact: true,
-    ...opts,
-  });
-  if (!result.ok) {
-    throw new Error(result.error);
-  }
-  return result.scene as Scene;
-};
-
 describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   // Hermetic isolation: the import prep cache (terraformImportPrepCache.ts) is
   // session-global and keyed on preset/flag, so a sibling test running in the
@@ -1044,31 +1019,6 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "pipelineColumnPackingInert fires for strata when columnPacking is requested (SDEC-26) — present on v2, ABSENT on rcll",
-    async () => {
-      const strataOff = await buildStrata();
-      expect(strataOff.meta.pipelineColumnPackingInert).toBeUndefined();
-
-      const strataCompact = await buildStrata({
-        pipelineColumnPacking: "compact",
-      });
-      expect(strataCompact.meta.pipelineColumnPacking).toBe("compact");
-      expect(strataCompact.meta.pipelineColumnPackingInert).toBe(true);
-
-      const v2Compact = await buildV2({ pipelineColumnPacking: "compact" });
-      expect(v2Compact.meta.pipelineColumnPacking).toBe("compact");
-      expect(v2Compact.meta.pipelineColumnPackingInert).toBe(true);
-
-      const rcllCompact = await buildRcll({
-        pipelineColumnPacking: "compact",
-      });
-      expect(rcllCompact.meta.pipelineColumnPacking).toBe("compact");
-      expect(rcllCompact.meta.pipelineColumnPackingInert).toBeUndefined();
-    },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
-  );
-
-  it(
     "the Strata engine produces its OWN scene (not a v2 passthrough) and honors ancillary",
     async () => {
       const strata = await buildStrata({ pipelineIncludeAncillary: true });
@@ -1084,12 +1034,6 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(strata.meta.pipelineAncillaryCount).toBeGreaterThan(0);
       expect(strata.meta.strataAncillaryBandCount).toBeGreaterThan(0);
       expect(strata.meta.strataAncillaryDegraded).toBeUndefined();
-      // it is NOT a byte-for-byte v2 passthrough anymore: the Strata engine owns
-      // placement, so its geometry differs from the v2 packer's.
-      const v2 = await buildV2({ pipelineIncludeAncillary: true });
-      expect(geometryTuples(strata.elements)).not.toEqual(
-        geometryTuples(v2.elements),
-      );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
   );
@@ -1104,20 +1048,6 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       // DIRECT engine path (`layoutTerraformFromSources`) — the one a URL/worker
       // caller hits — on the real multi-account private-API fixture.
       //
-      // Non-strata forces the flag false at the engine core ⇒ geometry is
-      // byte-identical regardless of what the caller passes (unchanged).
-      const v2Off = await buildV2();
-      const v2On = await buildV2({ pipelinePrivateApiRegional: true });
-      expect(geometryTuples(v2On.elements)).toEqual(
-        geometryTuples(v2Off.elements),
-      );
-
-      const rcllOff = await buildRcll();
-      const rcllOn = await buildRcll({ pipelinePrivateApiRegional: true });
-      expect(geometryTuples(rcllOn.elements)).toEqual(
-        geometryTuples(rcllOff.elements),
-      );
-
       // Strata CLAMPS the flag on: the caller's value is ignored. A strata build
       // that explicitly passes `pipelinePrivateApiRegional: false` (the exact
       // shape a legacy `privateApiRegional=0` URL produces) must yield the SAME

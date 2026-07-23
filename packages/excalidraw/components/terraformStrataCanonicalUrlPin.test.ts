@@ -147,25 +147,6 @@ describe("archived-URL corpus (c08 guards 2–3): every historical shape still p
     ) => void;
   }> = [
     {
-      label: "rcll aliases laneRise/laneSplit/cycleRise",
-      query: "?preset=demo&view=rcll&laneRise=1&laneSplit=1&cycleRise=0",
-      check: (p) => {
-        expect(p.swimlaneRise).toBe(true);
-        expect(p.rankSeparate).toBe(true);
-        expect(p.staircaseBandOverlap).toBe(false);
-      },
-    },
-    {
-      label: "legacy subnetDeBand → deBandLevel=subnet",
-      query: "?preset=demo&view=rcll&subnetDeBand=1",
-      check: (p) => expect(p.deBandLevel).toBe("subnet"),
-    },
-    {
-      label: "legacy deDensify → columnPacking=spread",
-      query: "?preset=demo&view=rcll&deDensify=1",
-      check: (p) => expect(p.columnPacking).toBe("spread"),
-    },
-    {
       label: "strataRankSep abbreviation (owner nightly)",
       query: "?preset=demo&view=strata&strataRankSep=1",
       check: (p) => expect(p.strataRankSeparate).toBe(true),
@@ -190,16 +171,6 @@ describe("archived-URL corpus (c08 guards 2–3): every historical shape still p
       label: "strataBandDepth case-slip subnetzone (S3-7 canonicalizes)",
       query: "?preset=demo&view=strata&strataBandDepth=subnetzone",
       check: (p) => expect(p.strataBandDepth).toBe("subnetZone"),
-    },
-    {
-      label: "columnPacking=shorten (NS packing bundle)",
-      query: "?preset=demo&view=rcll&columnPacking=shorten",
-      check: (p) => expect(p.columnPacking).toBe("shorten"),
-    },
-    {
-      label: "rcll named profile",
-      query: "?preset=demo&view=rcll&profile=compact",
-      check: (p) => expect(p.profile).toBe("compact"),
     },
     {
       label: "relative-mode packed epsilon 0<ε<1",

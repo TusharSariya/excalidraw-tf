@@ -320,7 +320,9 @@ export const TerraformScenePanel = ({
     const { buildTerraformReconcileOptionsForAppState } = await import(
       "./terraformVisibility"
     );
-    const { expandPipelineCluster } = await import("./terraformPipelineLayout");
+    const { expandPipelineCluster } = await import(
+      "./terraformPipelineLayoutExpand"
+    );
     const reconcileOpts = buildTerraformReconcileOptionsForAppState(
       app.state.terraformEdgeLayerPins,
       app.state.terraformEdgeHoverPeekKey,
@@ -345,7 +347,7 @@ export const TerraformScenePanel = ({
       "./terraformVisibility"
     );
     const { collapsePipelineCluster } = await import(
-      "./terraformPipelineLayout"
+      "./terraformPipelineLayoutExpand"
     );
     const reconcileOpts = buildTerraformReconcileOptionsForAppState(
       app.state.terraformEdgeLayerPins,

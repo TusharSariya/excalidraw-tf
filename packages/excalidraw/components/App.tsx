@@ -8237,7 +8237,7 @@ class App extends React.Component<AppProps, AppState> {
         const isExpanded = hitEl.customData?.terraformPipelineExpanded === true;
         void (async () => {
           const { expandPipelineCluster, collapsePipelineCluster } =
-            await import("./terraformPipelineLayout");
+            await import("./terraformPipelineLayoutExpand");
           const nextEls = isExpanded
             ? collapsePipelineCluster(allEls, hitEl, reconcileOpts)
             : await expandPipelineCluster(allEls, hitEl, reconcileOpts);

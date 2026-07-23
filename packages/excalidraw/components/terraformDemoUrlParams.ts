@@ -1,9 +1,7 @@
 /* eslint-disable max-lines */
 import {
   isDeBandLevel,
-  isRcllLayoutProfile,
   type DeBandLevel,
-  type RcllLayoutProfile,
 } from "./terraformPipelineLayoutProfiles";
 
 import {
@@ -93,34 +91,9 @@ export type TerraformDemoUrlParams = {
   pack?: ModulePackingMode;
   compact?: boolean;
   pipelineVariant?: PipelineLayoutVariant;
-  packed?: boolean;
-  packedPullLeft?: boolean;
   ancillary?: boolean;
   /** Opt-in: private VPC-endpoint-bound REST APIs placed at region level. */
   privateApiRegional?: boolean;
-  semanticPlace?: boolean;
-  /** Accepts the clear alias `laneRise` as well as the milestone name `swimlaneRise`. */
-  swimlaneRise?: boolean;
-  reorder?: boolean;
-  /** RCLL M6c: container-aware crossing minimization (hierarchical superset of reorder). */
-  crossingMin?: boolean;
-  /** RCLL de-band depth: `none | subnet | vpc | region | account | provider`. */
-  deBandLevel?: DeBandLevel;
-  /** Back-compat alias for `deBandLevel=subnet` (the original subnet-only probe). */
-  subnetDeBand?: boolean;
-  /** Accepts the clear alias `laneSplit` as well as the milestone name `rankSeparate`. */
-  rankSeparate?: boolean;
-  straighten?: boolean;
-  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten, within band). */
-  coordRepack?: boolean;
-  deDensify?: boolean;
-  /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  columnPacking?: "spread" | "none" | "compact" | "shorten";
-  /** RCLL "Layout" profile — `readable | balanced | compact` (outcome-first preset). */
-  profile?: RcllLayoutProfile;
-  /** RCLL DEC-1 cycle-band rise; default on — only `=0` (false) is meaningful.
-   * Accepts the clear alias `cycleRise` as well as the milestone name. */
-  staircaseBandOverlap?: boolean;
 
   // ─── Strata (rcll-v2) engine flags — S0a: accepted + threaded, unused until the
   // engine lands (M1). All opt-in, default off/0. ───
@@ -229,23 +202,12 @@ export type TerraformDemoUrlParams = {
   focusMaxHops?: number;
 };
 
-const VALID_COLUMN_PACKING = new Set<"spread" | "none" | "compact" | "shorten">(
-  ["spread", "none", "compact", "shorten"],
-);
-
 const PRESET_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-const VALID_VIEWS = new Set<TerraformView>([
-  "module",
-  "semantic",
-  "pipeline",
-  "rcll",
-  "strata",
-]);
+const VALID_VIEWS = new Set<TerraformView>(["module", "semantic", "strata"]);
 const VALID_PIPELINE_VARIANTS = new Set<PipelineLayoutVariant>([
-  "classic",
-  "compound",
   "v2",
+  "strata",
 ]);
 const VALID_PACK_MODES = new Set<ModulePackingMode>([
   "default",
@@ -344,18 +306,6 @@ export const parseTerraformDemoUrlParams = (
     return undefined;
   };
 
-  let packed = parseBooleanParam("packed");
-  if (packed === null) {
-    return null;
-  }
-  const packedPullLeft = parseBooleanParam("packedPullLeft");
-  if (packedPullLeft === null) {
-    return null;
-  }
-  // Pull-left only exists within packed mode, so the param implies it.
-  if (packedPullLeft === true && packed !== false) {
-    packed = true;
-  }
   const compact = parseBooleanParam("compact");
   if (compact === null) {
     return null;
@@ -367,90 +317,6 @@ export const parseTerraformDemoUrlParams = (
   const privateApiRegional = parseBooleanParam("privateApiRegional");
   if (privateApiRegional === null) {
     return null;
-  }
-  const semanticPlace = parseBooleanParam("semanticPlace");
-  if (semanticPlace === null) {
-    return null;
-  }
-  const swimlaneRise = parseBooleanAlias("laneRise", "swimlaneRise");
-  if (swimlaneRise === null) {
-    return null;
-  }
-  const reorder = parseBooleanParam("reorder");
-  if (reorder === null) {
-    return null;
-  }
-  const crossingMin = parseBooleanParam("crossingMin");
-  if (crossingMin === null) {
-    return null;
-  }
-  const subnetDeBand = parseBooleanParam("subnetDeBand");
-  if (subnetDeBand === null) {
-    return null;
-  }
-  // De-band depth enum. Hard-fail on an invalid value (same contract as columnPacking).
-  // Back-compat: a legacy `subnetDeBand=1` (no explicit level) ⇒ `subnet`.
-  const deBandLevelRaw = params.get("deBandLevel");
-  let deBandLevel: DeBandLevel | undefined;
-  if (deBandLevelRaw != null && deBandLevelRaw.trim() !== "") {
-    const normalized = deBandLevelRaw.trim().toLowerCase();
-    if (!isDeBandLevel(normalized)) {
-      return null;
-    }
-    deBandLevel = normalized;
-  } else if (subnetDeBand === true) {
-    deBandLevel = "subnet";
-  }
-  const rankSeparate = parseBooleanAlias("laneSplit", "rankSeparate");
-  if (rankSeparate === null) {
-    return null;
-  }
-  const straighten = parseBooleanParam("straighten");
-  if (straighten === null) {
-    return null;
-  }
-  const coordRepack = parseBooleanParam("coordRepack");
-  if (coordRepack === null) {
-    return null;
-  }
-  const deDensify = parseBooleanParam("deDensify");
-  if (deDensify === null) {
-    return null;
-  }
-  // "Column packing" tri-state. Hard-fail on an invalid value (same contract as the
-  // booleans). Back-compat: a legacy `deDensify=1` (no explicit packing) ⇒ `spread`.
-  const columnPackingRaw = params.get("columnPacking");
-  let columnPacking: "spread" | "none" | "compact" | "shorten" | undefined;
-  if (columnPackingRaw != null && columnPackingRaw.trim() !== "") {
-    const normalized = columnPackingRaw.trim().toLowerCase() as
-      | "spread"
-      | "none"
-      | "compact"
-      | "shorten";
-    if (!VALID_COLUMN_PACKING.has(normalized)) {
-      return null;
-    }
-    columnPacking = normalized;
-  } else if (deDensify === true) {
-    columnPacking = "spread";
-  }
-  const staircaseBandOverlap = parseBooleanAlias(
-    "cycleRise",
-    "staircaseBandOverlap",
-  );
-  if (staircaseBandOverlap === null) {
-    return null;
-  }
-
-  // "Layout" profile enum. Hard-fail on an invalid value (same contract as columnPacking).
-  const profileRaw = params.get("profile");
-  let profile: RcllLayoutProfile | undefined;
-  if (profileRaw != null && profileRaw.trim() !== "") {
-    const normalized = profileRaw.trim().toLowerCase();
-    if (!isRcllLayoutProfile(normalized)) {
-      return null;
-    }
-    profile = normalized;
   }
 
   // Strata (rcll-v2) engine flags — S0a: accepted + threaded, unused until the
@@ -781,23 +647,8 @@ export const parseTerraformDemoUrlParams = (
     ...(pack ? { pack } : {}),
     ...(compact != null ? { compact } : {}),
     ...(pipelineVariant ? { pipelineVariant } : {}),
-    ...(packed != null ? { packed } : {}),
-    ...(packedPullLeft != null ? { packedPullLeft } : {}),
     ...(ancillary != null ? { ancillary } : {}),
     ...(privateApiRegional != null ? { privateApiRegional } : {}),
-    ...(semanticPlace != null ? { semanticPlace } : {}),
-    ...(swimlaneRise != null ? { swimlaneRise } : {}),
-    ...(reorder != null ? { reorder } : {}),
-    ...(crossingMin != null ? { crossingMin } : {}),
-    ...(subnetDeBand != null ? { subnetDeBand } : {}),
-    ...(deBandLevel != null ? { deBandLevel } : {}),
-    ...(rankSeparate != null ? { rankSeparate } : {}),
-    ...(straighten != null ? { straighten } : {}),
-    ...(coordRepack != null ? { coordRepack } : {}),
-    ...(deDensify != null ? { deDensify } : {}),
-    ...(columnPacking != null ? { columnPacking } : {}),
-    ...(profile != null ? { profile } : {}),
-    ...(staircaseBandOverlap != null ? { staircaseBandOverlap } : {}),
     ...(strataNsRank != null ? { strataNsRank } : {}),
     ...(strataSweeps != null ? { strataSweeps } : {}),
     ...(strataCoordRefine != null ? { strataCoordRefine } : {}),
@@ -868,23 +719,8 @@ export const buildTerraformDemoUrl = (
   setEnum("pack", params.pack);
   setBool("compact", params.compact);
   setEnum("pipelineVariant", params.pipelineVariant);
-  setBool("packed", params.packed);
-  setBool("packedPullLeft", params.packedPullLeft);
   setBool("ancillary", params.ancillary);
   setBool("privateApiRegional", params.privateApiRegional);
-  setBool("semanticPlace", params.semanticPlace);
-  setBool("swimlaneRise", params.swimlaneRise);
-  setBool("reorder", params.reorder);
-  setBool("crossingMin", params.crossingMin);
-  setEnum("deBandLevel", params.deBandLevel);
-  setBool("subnetDeBand", params.subnetDeBand);
-  setBool("rankSeparate", params.rankSeparate);
-  setBool("straighten", params.straighten);
-  setBool("coordRepack", params.coordRepack);
-  setBool("deDensify", params.deDensify);
-  setEnum("columnPacking", params.columnPacking);
-  setEnum("profile", params.profile);
-  setBool("staircaseBandOverlap", params.staircaseBandOverlap);
   setBool("strataNsRank", params.strataNsRank);
   setNum("strataSweeps", params.strataSweeps);
   setBool("strataCoordRefine", params.strataCoordRefine);
@@ -982,22 +818,8 @@ export type TerraformDemoSettingsSnapshot = {
   view: TerraformView;
   pipelineCompact: boolean;
   pipelineLayoutVariant: PipelineLayoutVariant;
-  pipelinePacked: boolean;
-  pipelinePackedPullLeft: boolean;
   pipelineIncludeAncillary: boolean;
   pipelinePrivateApiRegional: boolean;
-  pipelineSemanticPlacement: boolean;
-  pipelineSwimlaneLaneRise: boolean;
-  pipelineReorder: boolean;
-  pipelineCrossingMin: boolean;
-  pipelineDeBandLevel: DeBandLevel;
-  pipelineRankSeparate: boolean;
-  pipelineStraighten: boolean;
-  pipelineCoordRepack: boolean;
-  pipelineColumnPacking: "spread" | "none" | "compact" | "shorten";
-  /** The primary RCLL Layout control — `"custom"` once any flag is touched directly. */
-  pipelineLayoutProfile: RcllLayoutProfile | "custom";
-  pipelineStaircaseBandOverlap: boolean;
   moduleLayoutMode: ModulePackingMode;
   // ─── Strata (rcll-v2) engine flags — S0a: accepted + threaded, unused until the
   // engine lands (M1). All opt-in, default off/0. ───
@@ -1085,46 +907,6 @@ export const collectTerraformDemoParams = (
       ...(snapshot.moduleLayoutMode !== "default"
         ? { pack: snapshot.moduleLayoutMode }
         : {}),
-    };
-  }
-
-  if (snapshot.view === "pipeline") {
-    return {
-      ...base,
-      compact: snapshot.pipelineCompact,
-      pipelineVariant: snapshot.pipelineLayoutVariant,
-      packed: snapshot.pipelinePacked,
-      ...(snapshot.pipelinePackedPullLeft ? { packedPullLeft: true } : {}),
-      ancillary: snapshot.pipelineIncludeAncillary,
-      semanticPlace: snapshot.pipelineSemanticPlacement,
-      // `privateApiRegional` is strata-only (see the strata branch below); the
-      // pipeline view never applies it, so it is not serialized here — keeping
-      // non-strata share URLs byte-identical to before the flag existed.
-    };
-  }
-
-  if (snapshot.view === "rcll") {
-    // `compact` + `ancillary` are independent of the Layout profile, so always emit them.
-    // `privateApiRegional` is strata-only (see the strata branch); not serialized here.
-    const rcll: TerraformDemoUrlParams = {
-      ...base,
-      compact: snapshot.pipelineCompact,
-      ancillary: snapshot.pipelineIncludeAncillary,
-    };
-    if (snapshot.pipelineLayoutProfile !== "custom") {
-      return { ...rcll, profile: snapshot.pipelineLayoutProfile };
-    }
-    return {
-      ...rcll,
-      swimlaneRise: snapshot.pipelineSwimlaneLaneRise,
-      rankSeparate: snapshot.pipelineRankSeparate,
-      deBandLevel: snapshot.pipelineDeBandLevel,
-      staircaseBandOverlap: snapshot.pipelineStaircaseBandOverlap,
-      reorder: snapshot.pipelineReorder,
-      crossingMin: snapshot.pipelineCrossingMin,
-      straighten: snapshot.pipelineStraighten,
-      coordRepack: snapshot.pipelineCoordRepack,
-      columnPacking: snapshot.pipelineColumnPacking,
     };
   }
 

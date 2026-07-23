@@ -33,19 +33,9 @@ import {
   enrichAndReconcileTopologyPlacements,
 } from "./terraformTopologyPlacementBuild";
 import { buildTerraformTopologyExcalidrawScene } from "./terraformTopologyLayout";
-import {
-  buildTerraformCompoundPipelineExcalidrawScene,
-  buildTerraformPipelineExcalidrawScene,
-} from "./terraformPipelineLayout";
 import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
-import { buildTerraformPipelineRcllExcalidrawScene } from "./terraformPipelineLayoutRcll";
 import { buildTerraformStrataExcalidrawScene } from "./terraformPipelineStrata";
-import { applyRcllToggleGuards } from "./terraformPipelineToggleGuards";
-import {
-  resolveRcllLayoutProfile,
-  type DeBandLevel,
-  type RcllLayoutProfile,
-} from "./terraformPipelineLayoutProfiles";
+import { type DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import { TERRAFORM_MODULE_TREE_KEY } from "./terraformPlanMeta";
 import { DECLARED_DATAFLOW_ORDERED_KEY } from "./terraformDeclaredDataFlow";
 import {
@@ -425,41 +415,15 @@ type LayoutSceneContext = {
   stackIds: string[];
   addressToStack: Record<string, string>;
   deferDecorations?: boolean;
+  /** Compact card sizing (default on). Read by the V2 substrate and the Strata engine. */
   pipelineCompact?: boolean;
-  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
-  pipelinePacked?: boolean;
-  pipelinePackedPullLeft?: boolean;
+  /** Include ancillary (right-slack) strips. Read by the V2 substrate and Strata. */
   pipelineIncludeAncillary?: boolean;
-  /** Opt-in (default off): private VPC-endpoint-bound REST APIs placed at region level. */
+  /** Surviving engine variant: `"v2"` (Strata substrate) or `"strata"`. */
+  pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
+  /** Opt-in (default off; forced ON for strata): private VPC-endpoint-bound REST APIs
+   * placed at region level. Read by the V2 substrate and the Strata engine. */
   pipelinePrivateApiRegional?: boolean;
-  pipelineSemanticPlacement?: boolean;
-  /** RCLL M4: X-disjoint swimlane lanes rise to share Y rows. */
-  pipelineSwimlaneLaneRise?: boolean;
-  /** RCLL M6: per-container barycenter crossing-min reorder. */
-  pipelineReorder?: boolean;
-  /** RCLL M6c: container-aware crossing minimization (supersedes the leaf reorder). */
-  pipelineCrossingMin?: boolean;
-  /** RCLL de-band depth: dissolve the chosen container level + all deeper levels into one
-   * shared column stack (frames → rails). `none` = today's boxed layout. */
-  pipelineDeBandLevel?: DeBandLevel;
-  /** Back-compat alias for `pipelineDeBandLevel: "subnet"`. `pipelineDeBandLevel` wins. */
-  pipelineSubnetDeBand?: boolean;
-  /** RCLL M8r: whole-model-global sibling-separation ranking (needs lane-rise). */
-  pipelineRankSeparate?: boolean;
-  /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
-  pipelineStraighten?: boolean;
-  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten, within band). */
-  pipelineCoordRepack?: boolean;
-  /** RCLL M5b: de-density — spread crowded columns (dial defaulted by the guard). */
-  pipelineDeDensify?: boolean;
-  /** RCLL "Column packing" tri-state: `spread` = M5b pull-right, `compact` = M5c pull-left,
-   * `none` = neither. Front-door enum; supersedes `pipelineDeDensify` (legacy ⇒ `spread`). */
-  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
-  /** RCLL "Layout" profile, echoed into meta (when not `balanced`). The flag expansion is
-   * done at the `sceneContext` literal; this field is only carried for the meta echo. */
-  pipelineLayoutProfile?: RcllLayoutProfile;
-  /** RCLL M3b / DEC-1: X-disjoint cycle groups rise to share Y. Default true (undefined ⇒ on). */
-  pipelineStaircaseBandOverlap?: boolean;
   /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;
@@ -561,92 +525,22 @@ async function buildPipelineLayoutSceneBody(
     ctx.colorMode ?? TERRAFORM_COLOR_MODE_DEFAULT,
     // eslint-disable-next-line sonarjs/cognitive-complexity
     async () => {
-      // Shared as a variable (not a literal) so v2 — which reads only `compact`
-      // / `includeAncillary` — tolerates the extra classic/compound keys.
-      // RCLL toggle coupling is enforced once here (the dialog gates the UI; this is
-      // the backstop for URL/programmatic imports): `applyRcllToggleGuards` drops
-      // rankSeparate when the lane-rise is off (solo = taller/wider) and supplies the
-      // de-density width dial. `staircaseBandOverlap` is passthrough (undefined ⇒
-      // engine default true ⇒ OFF byte-identical).
-      // "Column packing" tri-state is the single front-door; derive the two mutually
-      // exclusive engine flags from it (legacy `pipelineDeDensify` ⇒ `spread`).
-      const columnPacking: "spread" | "none" | "compact" | "shorten" =
-        ctx.pipelineColumnPacking ??
-        (ctx.pipelineDeDensify ? "spread" : "none");
-      const { options: pipelineOptions, suppressions: rcllSuppressions } =
-        applyRcllToggleGuards({
-          compact: ctx.pipelineCompact !== false,
-          includeAncillary: ctx.pipelineIncludeAncillary === true,
-          packed: ctx.pipelinePacked === true,
-          packedPullLeft: ctx.pipelinePackedPullLeft === true,
-          semanticPlacement: ctx.pipelineSemanticPlacement === true,
-          swimlaneLaneRise: ctx.pipelineSwimlaneLaneRise === true,
-          reorder: ctx.pipelineReorder === true,
-          crossingMin: ctx.pipelineCrossingMin === true,
-          deBandLevel: ctx.pipelineDeBandLevel ?? "none",
-          rankSeparate: ctx.pipelineRankSeparate === true,
-          straighten: ctx.pipelineStraighten === true,
-          coordRepack: ctx.pipelineCoordRepack === true,
-          deDensify: columnPacking === "spread",
-          // "shorten" is a BUNDLE: the X-axis network-simplex depth-floor ranker PLUS
-          // column compaction (the proven additive config — NS shortens cross-column
-          // edges, compact pulls leaves left). So compact is on for both "compact" and
-          // "shorten"; only "shorten" also turns on the NS ranker.
-          columnCompact:
-            columnPacking === "compact" || columnPacking === "shorten",
-          networkSimplexRank: columnPacking === "shorten",
-          staircaseBandOverlap: ctx.pipelineStaircaseBandOverlap,
-        });
-      const rankSeparateSuppressed = rcllSuppressions.includes(
-        "rankSeparate-needs-rise",
-      );
-      const coordRepackSuppressed = rcllSuppressions.includes(
-        "coord-repack-needs-straighten",
-      );
-      const columnPackingConflict = rcllSuppressions.includes(
-        "column-packing-conflict-compact-wins",
-      );
-      const orderingConflict = rcllSuppressions.includes(
-        "ordering-conflict-crossing-min-wins",
-      );
-      // "shorten" (NS) was DROPPED because a live rankSeparate (the dominant height
-      // lever) wins the mutually-exclusive column axis. Observable so the user learns
-      // their "shorten" pick was a safe no-op, not a silent one.
-      const networkSimplexSuppressedByRankSeparate = rcllSuppressions.includes(
-        "rank-floor-conflict-rankseparate-wins-network-simplex",
-      );
-      // "shorten" (NS, when it survived) dropped a conflicting `deDensify`.
-      const networkSimplexRankConflict = rcllSuppressions.includes(
-        "rank-floor-conflict-network-simplex-wins-dedensify",
-      );
-      // The applied packing arm after the guard (a conflict drops `deDensify`).
-      // "shorten" (NS bundle) wins the echo over plain "compact" — it sets BOTH
-      // networkSimplexRank and columnCompact, so test for the discriminating flag first.
-      const appliedColumnPacking: "spread" | "none" | "compact" | "shorten" =
-        pipelineOptions.networkSimplexRank
-          ? "shorten"
-          : pipelineOptions.columnCompact
-          ? "compact"
-          : pipelineOptions.deDensify
-          ? "spread"
-          : "none";
+      // The two surviving engines both read only `compact` / `includeAncillary`
+      // (plus `pipelinePrivateApiRegional` and the `strata*` knobs). The removed
+      // classic/compound/rcll builders — and the toggle-guard coupling they needed —
+      // are gone; the variant is always `"strata"` in production (`"v2"` only via a
+      // direct-substrate test path).
+      const compact = ctx.pipelineCompact !== false;
+      const includeAncillary = ctx.pipelineIncludeAncillary === true;
       const buildPipeline =
-        ctx.pipelineLayoutVariant === "rcll"
-          ? buildTerraformPipelineRcllExcalidrawScene
-          : ctx.pipelineLayoutVariant === "strata"
-          ? buildTerraformStrataExcalidrawScene
-          : ctx.pipelineLayoutVariant === "v2"
+        ctx.pipelineLayoutVariant === "v2"
           ? buildTerraformPipelineV2ExcalidrawScene
-          : ctx.pipelineLayoutVariant === "compound"
-          ? buildTerraformCompoundPipelineExcalidrawScene
-          : buildTerraformPipelineExcalidrawScene;
-      // Merged into a variable (not passed as a literal) for the same reason the
-      // v2 comment above gives: assigning to a `const` first (rather than
-      // literal-in-call) skips TS's excess-property check, so every builder in
-      // the ternary — including Strata's three extra future-engine flags —
-      // tolerates the keys it doesn't read.
+          : buildTerraformStrataExcalidrawScene;
+      // Assembled as a `const` (not a call literal) so TS's excess-property check
+      // doesn't reject the strata-only keys the v2 builder ignores.
       const builderOptions = {
-        ...pipelineOptions,
+        compact,
+        includeAncillary,
         pipelinePrivateApiRegional: ctx.pipelinePrivateApiRegional,
         strataNetworkSimplexRank: ctx.strataNetworkSimplexRank,
         strataRankSeparate: ctx.strataRankSeparate,
@@ -747,96 +641,8 @@ async function buildPipelineLayoutSceneBody(
         meta: appendImportMeta(
           {
             ...pipelineScene.meta,
-            ...(ctx.pipelinePacked ? { pipelinePacked: true } : {}),
-            ...(ctx.pipelinePacked && ctx.pipelinePackedPullLeft
-              ? { pipelinePackedPullLeft: true }
-              : {}),
             ...(ctx.pipelineIncludeAncillary
               ? { pipelineIncludeAncillary: true }
-              : {}),
-            ...(ctx.pipelineSemanticPlacement
-              ? { pipelineSemanticPlacement: true }
-              : {}),
-            ...(ctx.pipelineSwimlaneLaneRise
-              ? { pipelineSwimlaneLaneRise: true }
-              : {}),
-            // Echo the POST-guard reorder arm (the guard drops it when crossingMin
-            // wins) so the meta never claims an ordering pass the engine didn't run.
-            ...(pipelineOptions.reorder ? { pipelineReorder: true } : {}),
-            ...(pipelineOptions.crossingMin
-              ? { pipelineCrossingMin: true }
-              : {}),
-            // Observable backstop: both ordering passes were requested; the guard kept
-            // the hierarchical crossing-min and dropped the leaf reorder (superset wins).
-            ...(orderingConflict ? { pipelineOrderingConflict: true } : {}),
-            // De-band depth echo — omit "none" (the identity ⇒ OFF byte-identical). Echo the
-            // legacy `pipelineSubnetDeBand` boolean too when the level is "subnet" (back-compat
-            // for existing assertions / the dev plugin's boolean-flag view).
-            ...((ctx.pipelineDeBandLevel ?? "none") !== "none"
-              ? { pipelineDeBandLevel: ctx.pipelineDeBandLevel }
-              : {}),
-            ...((ctx.pipelineDeBandLevel ?? "none") === "subnet"
-              ? { pipelineSubnetDeBand: true }
-              : {}),
-            ...(pipelineOptions.rankSeparate
-              ? { pipelineRankSeparate: true }
-              : {}),
-            // Observable footgun backstop: the user asked for rankSeparate but it
-            // was dropped because the lane-rise was off (URL/programmatic path).
-            ...(rankSeparateSuppressed
-              ? { pipelineRankSeparateSuppressed: true }
-              : {}),
-            ...(ctx.pipelineStraighten ? { pipelineStraighten: true } : {}),
-            // Echo the POST-guard coordRepack arm (the guard drops it when straighten
-            // is off) so the meta never claims a re-pack the engine didn't run.
-            ...(pipelineOptions.coordRepack
-              ? { pipelineCoordRepack: true }
-              : {}),
-            // Observable footgun backstop: the user asked for coordRepack but it was
-            // dropped because straighten was off (URL/programmatic path).
-            ...(coordRepackSuppressed
-              ? { pipelineCoordRepackSuppressed: true }
-              : {}),
-            // "Column packing": echo the applied arm, plus the legacy `pipelineDeDensify`
-            // flag when spread (back-compat for existing M5b assertions / dev plugin).
-            ...(appliedColumnPacking !== "none"
-              ? { pipelineColumnPacking: appliedColumnPacking }
-              : {}),
-            ...(appliedColumnPacking === "spread"
-              ? { pipelineDeDensify: true }
-              : {}),
-            // Honest packing meta (owner decision SDEC-26): "Column packing" is only
-            // CONSUMED by the rcll builder (columnCompact / networkSimplexRank /
-            // deDensify are rcll-only options) — every other variant, INCLUDING the
-            // Strata S0a passthrough, silently ignores it. Surface that so the meta
-            // never implies a packing pass ran when the active variant can't run one.
-            ...(appliedColumnPacking !== "none" &&
-            ctx.pipelineLayoutVariant !== "rcll"
-              ? { pipelineColumnPackingInert: true }
-              : {}),
-            // Observable backstop: both packing arms requested at the engine level; the
-            // guard kept Compact and dropped Spread.
-            ...(columnPackingConflict
-              ? { pipelineColumnPackingConflict: true }
-              : {}),
-            // Observable backstop: "shorten" (NS) dropped a conflicting `deDensify`.
-            ...(networkSimplexRankConflict
-              ? { pipelineNetworkSimplexRankConflict: true }
-              : {}),
-            // Observable footgun backstop: the user asked for "shorten" (NS) but it was
-            // dropped because a live rankSeparate (the dominant height lever) owns the
-            // column axis — the layout is the rankSeparate one, NOT a regressed NS one.
-            ...(networkSimplexSuppressedByRankSeparate
-              ? { pipelineNetworkSimplexRankSuppressed: true }
-              : {}),
-            ...(ctx.pipelineStaircaseBandOverlap === false
-              ? { pipelineStaircaseBandOverlap: false }
-              : {}),
-            // "Layout" profile echo — omit `balanced` (the identity ⇒ OFF byte-identical,
-            // like `columnPacking:"none"` / `staircaseBandOverlap:true` are omitted).
-            ...(ctx.pipelineLayoutProfile &&
-            ctx.pipelineLayoutProfile !== "balanced"
-              ? { pipelineLayoutProfile: ctx.pipelineLayoutProfile }
               : {}),
             importSource: ctx.importSource,
             plannedChanges: ctx.importSource !== "state-only",
@@ -1099,13 +905,9 @@ export async function layoutTerraformFromSources(
     options?.layoutMode ??
     (options?.semanticLayout === true ? "semantic" : "module");
   const semanticLayout = layoutMode === "semantic";
-  // RCLL and Strata view ride the pipeline family (need TFD edges, same
-  // validation + routing); RCLL M0 delegates to the compound builder via the
-  // §27 fallback rung, Strata S0a delegates to the v2 builder (passthrough).
-  const pipelineLayout =
-    layoutMode === "pipeline" ||
-    layoutMode === "rcll" ||
-    layoutMode === "strata";
+  // Strata view rides the pipeline family (needs TFD edges, same validation +
+  // routing); Strata S0a delegates to the v2 builder (passthrough).
+  const pipelineLayout = layoutMode === "strata";
   if (sources.planDotBundles.length > 0) {
     terraformImportProfilerMeasure("prep.cache", () => {
       buildTerraformImportPrepCache(sources, options);
@@ -1208,15 +1010,6 @@ export async function layoutTerraformFromSources(
     moduleTree: nodes5[TERRAFORM_MODULE_TREE_KEY],
   });
 
-  // "Layout" profile expansion — one place the outcome-first profile becomes the seven RCLL
-  // flags. An explicitly-set individual option (`options.pipelineX`) overrides the profile;
-  // absent ⇒ the profile's value; no profile ⇒ today's defaults (false / undefined). The
-  // dialog fans the profile into the flags itself, so on that path `pf` is absent and the
-  // explicit flags carry the choice (byte-identical to pre-profile behavior).
-  const pf = options?.pipelineLayoutProfile
-    ? resolveRcllLayoutProfile(options.pipelineLayoutProfile)
-    : undefined;
-
   const sceneContext: LayoutSceneContext = {
     sources,
     plan,
@@ -1236,54 +1029,18 @@ export async function layoutTerraformFromSources(
     // FORCES the flag true here — the caller's value is IGNORED (a strata URL
     // carrying the legacy `privateApiRegional=0` param can no longer turn it
     // off; the param is still parsed for reversibility but is inert for strata).
-    // Every non-strata layoutMode forces it false (it collides/gate-fails on
-    // v2/rcll/compound/pipeline/semantic), so those stay byte-identical no
-    // matter what the caller passed. sceneContext is the single fan-in —
-    // builderOptions (:601) and the meta echo (:782) both read
-    // `ctx.pipelinePrivateApiRegional`, so clamping here covers every consumer.
+    // Every non-strata layoutMode forces it false, so those stay byte-identical
+    // no matter what the caller passed. sceneContext is the single fan-in —
+    // builderOptions and the meta echo both read `ctx.pipelinePrivateApiRegional`,
+    // so clamping here covers every consumer.
     pipelinePrivateApiRegional: layoutMode === "strata",
-    // Force the variant for RCLL / Strata so a stale-session/default variant
-    // can't mis-route to the plain pipeline builder (dispatch keys on the
-    // variant). Strata rides its own layoutMode (not the `pipelineVariant`
-    // URL/dialog enum), so this clobber must win over any stale value there too.
+    // Force the variant for Strata so a stale-session/default variant can't
+    // mis-route the substrate dispatch. Strata rides its own layoutMode (not the
+    // `pipelineVariant` enum), so this clobber wins over any stale value; the only
+    // other reachable variant is `"v2"` via a direct substrate test path.
     pipelineLayoutVariant:
-      layoutMode === "rcll"
-        ? "rcll"
-        : layoutMode === "strata"
-        ? "strata"
-        : options?.pipelineLayoutVariant,
-    pipelinePacked: options?.pipelinePacked === true,
-    pipelinePackedPullLeft: options?.pipelinePackedPullLeft === true,
+      layoutMode === "strata" ? "strata" : options?.pipelineLayoutVariant,
     pipelineIncludeAncillary: options?.pipelineIncludeAncillary === true,
-    pipelineSemanticPlacement: options?.pipelineSemanticPlacement === true,
-    pipelineSwimlaneLaneRise:
-      options?.pipelineSwimlaneLaneRise ?? pf?.swimlaneLaneRise ?? false,
-    pipelineReorder: options?.pipelineReorder ?? pf?.reorder ?? false,
-    pipelineCrossingMin:
-      options?.pipelineCrossingMin ?? pf?.crossingMin ?? false,
-    // De-band depth: explicit enum wins, then the legacy `subnetDeBand` boolean alias,
-    // then the profile's level, defaulting to "none" (today's boxed layout).
-    pipelineDeBandLevel:
-      options?.pipelineDeBandLevel ??
-      (options?.pipelineSubnetDeBand ? "subnet" : undefined) ??
-      pf?.deBandLevel ??
-      "none",
-    // These four were declared on the context + consumed by the pipeline body but
-    // never forwarded here, so they were silently dropped on the worker/headless
-    // path (`layoutTerraformFromSources`) — rankSeparate/straighten/deDensify/
-    // staircaseBandOverlap did nothing from the dialog/URL. Forward them.
-    pipelineRankSeparate:
-      options?.pipelineRankSeparate ?? pf?.rankSeparate ?? false,
-    pipelineStraighten: options?.pipelineStraighten ?? pf?.straighten ?? false,
-    pipelineCoordRepack:
-      options?.pipelineCoordRepack ?? pf?.coordRepack ?? false,
-    pipelineDeDensify: options?.pipelineDeDensify === true,
-    // "Column packing" tri-state (M5b spread / M5c compact) — same silent-drop hazard:
-    // forward it or the dialog/URL toggle does nothing on the worker/headless path.
-    pipelineColumnPacking: options?.pipelineColumnPacking ?? pf?.columnPacking,
-    pipelineLayoutProfile: options?.pipelineLayoutProfile,
-    pipelineStaircaseBandOverlap:
-      options?.pipelineStaircaseBandOverlap ?? pf?.staircaseBandOverlap,
     // Strata (rcll-v2) OD-1/OD-2/A7 flags (C6′ seam 1 — the literal is the one place
     // options not listed here are silently dropped, per trap #4). S0a: accepted +
     // threaded through to the builder's meta echo; unused until the engine lands.

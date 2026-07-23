@@ -84,7 +84,6 @@ import {
 import {
   computeStrataConeMetrics,
   computeStrataPathMetrics,
-  pairedPathMetricsCi,
   rtHatAttenuated,
   type PathMetricsRow,
   type StrataConeMetrics,
@@ -115,11 +114,6 @@ const BASE_STRATA: Record<string, unknown> = {
 };
 
 const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
-  A_v2: {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: true,
-  },
   I: { ...BASE_STRATA },
   // Neutral naming (decision 11): rankSeparate is a height/angle-vs-tracing
   // trade per v3.2 — never "optimized".
@@ -968,20 +962,6 @@ function alphaSweepCell(
   return { sweep, maxAlphaParityOrBetter: maxAlphaParityOrBetter ?? null };
 }
 
-function pathsCellView(
-  baseRows: readonly PathMetricsRow[],
-  candRows: readonly PathMetricsRow[],
-) {
-  const ci = pairedPathMetricsCi(baseRows, candRows);
-  return {
-    rtHatP50: ciView(ci.rtHatP50),
-    rtHatP90: ciView(ci.rtHatP90),
-    conP90: ciView(ci.conP90),
-    crP90: ciView(ci.crP90),
-    tllP50: ciView(ci.tllP50),
-  };
-}
-
 // ── determinism normalization ────────────────────────────────────────────────
 
 /** Wall-clock keys stripped before the run-twice deep-equal. */
@@ -1062,19 +1042,13 @@ async function buildPresetFragment(
     sceneArms[armLabel] = armReport(armLabel, arm, softFailures, presetContext);
   }
 
-  const v2 = arms.get("A_v2")!;
   const strataI = arms.get("I")!;
   const strataRs = arms.get("I_RS")!;
 
-  // Cell 1 (paired): strata-vs-v2, path-key paired (baseline = A_v2).
-  const pairedPathCells = {
-    A_v2__vs__I: pathsCellView(v2.paths.rows, strataI.paths.rows),
-    A_v2__vs__I_RS: pathsCellView(v2.paths.rows, strataRs.paths.rows),
-  };
-
-  // Cell 2 (α-sweep, W6-comparable): baseline = unaided I (α=1).
+  // Cell 2 (α-sweep, W6-comparable): baseline = unaided I (α=1). The retired
+  // A_v2 baseline cells (Cell 1 pairedPathCells + crossoverSweep_v2F) were
+  // removed with the Pipeline/RCLL views; only the strata-vs-strata sweeps stay.
   const strataUnaided = rtMapOf(strataI.paths.rows, 1);
-  const crossover = alphaSweepCell(strataUnaided, v2.paths.rows);
   const symmetric = alphaSweepCell(strataUnaided, strataI.paths.rows);
   const rsSweep = alphaSweepCell(strataUnaided, strataRs.paths.rows);
   const alphaSweep = {
@@ -1083,8 +1057,6 @@ async function buildPresetFragment(
       "α is an ASSUMED substitution model (rtHatAttenuated scales the cr/con " +
       "visual-search terms), not a measurement — REPORT-only sensitivity " +
       "analysis, W6-comparable shape",
-    crossoverSweep_v2F_vs_I_unaided: crossover.sweep,
-    maxAlphaParityOrBetter_v2F: crossover.maxAlphaParityOrBetter,
     symmetric_IF_vs_I_unaided: symmetric.sweep,
     maxAlphaParityOrBetter_IF: symmetric.maxAlphaParityOrBetter,
     sweep_I_RS_F_vs_I_unaided: rsSweep.sweep,
@@ -1092,7 +1064,7 @@ async function buildPresetFragment(
   };
 
   return {
-    fragment: { sceneArms, pairedPathCells, alphaSweep },
+    fragment: { sceneArms, alphaSweep },
     arms,
   };
 }

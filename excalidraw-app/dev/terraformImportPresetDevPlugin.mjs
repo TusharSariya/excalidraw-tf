@@ -205,9 +205,9 @@ export const LAYOUT_NUM_PARAMS = [
 
 // Which engine variant `/api/terraform-layout` runs. Parsed separately from
 // LAYOUT_ENUM_PARAMS (below) because it selects `options.layoutMode` itself rather
-// than a nested option, and — unlike the enum params — has an explicit default
-// ("rcll") so omitting it preserves the pre-strata proof-API behavior byte-for-byte.
-const LAYOUT_MODE_ALLOWED = ["rcll", "strata", "pipeline"];
+// than a nested option. Since the Pipeline/RCLL views were removed, `strata` is the
+// only surviving layout engine and is the default when the param is omitted.
+const LAYOUT_MODE_ALLOWED = ["strata"];
 
 // Self-describing catalog returned by `?describe=1` so a caller can discover the
 // vocabulary without reading source. Kept beside the param tables it documents.
@@ -218,8 +218,8 @@ const LAYOUT_PARAM_CATALOG = {
   layoutMode: {
     param: "layoutMode",
     values: LAYOUT_MODE_ALLOWED,
-    default: "rcll",
-    note: 'Which layout engine runs. `strata` is the S0a scaffold — passthrough to the rcll v2 substrate (identical geometry); scene meta echoes pipelineLayoutVariant:"strata" + strataPassthrough:true once the engine-side wiring lands. Omitting the param preserves pre-strata behavior byte-for-byte.',
+    default: "strata",
+    note: 'Which layout engine runs. `strata` is the only surviving engine (Pipeline/RCLL views were removed); it builds on the v2 substrate. Scene meta echoes pipelineLayoutVariant:"strata".',
   },
   profiles: {
     param: "profile",
@@ -904,9 +904,9 @@ const buildLayoutProofPayload = (
 
   return {
     preset: presetId,
-    // Reflects the *requested* layoutMode (defaulted to "rcll" when absent) — was
-    // hardcoded "rcll" pre-strata (docs/strata-view-implementation-flow.md trap #5).
-    view: layoutMode ?? "rcll",
+    // Reflects the *requested* layoutMode (defaulted to "strata" when absent;
+    // "strata" is the only surviving engine after Pipeline/RCLL removal).
+    view: layoutMode ?? "strata",
     requested,
     resolved: {
       profile: meta.pipelineLayoutProfile ?? requested.profile ?? "balanced",
@@ -1164,8 +1164,8 @@ export const terraformImportPresetDevPlugin = () => ({
           return;
         }
 
-        // layoutMode: which engine variant runs. Default "rcll" preserves the
-        // pre-strata proof-API behavior byte-for-byte when the param is absent.
+        // layoutMode: which engine variant runs. Default "strata" — the only
+        // surviving engine after the Pipeline/RCLL views were removed.
         const layoutModeValue = parseLayoutEnumParam(
           params.get("layoutMode"),
           LAYOUT_MODE_ALLOWED,
@@ -1178,7 +1178,7 @@ export const terraformImportPresetDevPlugin = () => ({
           });
           return;
         }
-        const layoutMode = layoutModeValue ?? "rcll";
+        const layoutMode = layoutModeValue ?? "strata";
 
         const options = { layoutMode };
         const requested = {};

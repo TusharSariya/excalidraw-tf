@@ -53,11 +53,6 @@ const round4 = (n: number): number => Math.round(n * 1e4) / 1e4;
 
 /** Same arm bundles as the W5 repaired-stats harness. */
 const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
-  A_v2_baseline: {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: true,
-  },
   G_strata_k0: { layoutMode: "strata", pipelineCompact: true },
   H_strata_k4: { layoutMode: "strata", pipelineCompact: true, strataSweeps: 4 },
   I_strata_k4_a7: {

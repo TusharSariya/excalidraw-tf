@@ -31,14 +31,8 @@ export const deriveLayoutModeFromView = (
 ): TerraformLayoutMode => {
   const canUseSemanticView =
     sources.planDotBundles.length > 0 || sources.states.length > 0;
-  if (view === "rcll" && canUseSemanticView) {
-    return "rcll";
-  }
   if (view === "strata" && canUseSemanticView) {
     return "strata";
-  }
-  if (view === "pipeline" && canUseSemanticView) {
-    return "pipeline";
   }
   if (view === "semantic" && canUseSemanticView) {
     return "semantic";
@@ -55,23 +49,8 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Pipeline view: start with satellites hidden (true, default) or all visible (false). */
   pipelineCompact?: boolean;
   pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
-  pipelinePacked?: boolean;
-  pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
   pipelinePrivateApiRegional?: boolean;
-  pipelineSemanticPlacement?: boolean;
-  pipelineSwimlaneLaneRise?: boolean;
-  pipelineReorder?: boolean;
-  pipelineCrossingMin?: boolean;
-  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  pipelineSubnetDeBand?: boolean;
-  pipelineRankSeparate?: boolean;
-  pipelineStraighten?: boolean;
-  pipelineCoordRepack?: boolean;
-  pipelineDeDensify?: boolean;
-  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
-  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
-  pipelineStaircaseBandOverlap?: boolean;
   /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;
@@ -163,23 +142,8 @@ export const runTerraformImportWithView = async ({
   moduleLayoutOptions = DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   pipelineCompact,
   pipelineLayoutVariant,
-  pipelinePacked,
-  pipelinePackedPullLeft,
   pipelineIncludeAncillary,
   pipelinePrivateApiRegional,
-  pipelineSemanticPlacement,
-  pipelineSwimlaneLaneRise,
-  pipelineReorder,
-  pipelineCrossingMin,
-  pipelineDeBandLevel,
-  pipelineSubnetDeBand,
-  pipelineRankSeparate,
-  pipelineStraighten,
-  pipelineCoordRepack,
-  pipelineDeDensify,
-  pipelineColumnPacking,
-  pipelineLayoutProfile,
-  pipelineStaircaseBandOverlap,
   strataNetworkSimplexRank,
   strataSweeps,
   strataCoordinateRefine,
@@ -216,10 +180,7 @@ export const runTerraformImportWithView = async ({
 }: RunTerraformImportFromSourcesArgs): Promise<RunTerraformImportFromSourcesResult> => {
   const layoutMode = deriveLayoutModeFromView(view, sources);
   const semanticLayout = layoutMode === "semantic";
-  const isPipelineFamily =
-    layoutMode === "pipeline" ||
-    layoutMode === "rcll" ||
-    layoutMode === "strata";
+  const isPipelineFamily = layoutMode === "strata";
   return runTerraformImportFromSources(app, setAppState, sources, {
     semanticLayout,
     layoutMode: isPipelineFamily ? layoutMode : undefined,
@@ -229,8 +190,6 @@ export const runTerraformImportWithView = async ({
       ? {
           pipelineCompact,
           pipelineLayoutVariant,
-          pipelinePacked,
-          pipelinePackedPullLeft,
           pipelineIncludeAncillary,
           // View-scoping (the SINGLE place non-strata forces the flag off):
           // the private-API regional placement is only wired for the strata
@@ -244,19 +203,6 @@ export const runTerraformImportWithView = async ({
               ? pipelinePrivateApiRegional ??
                 TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional
               : false,
-          pipelineSemanticPlacement,
-          pipelineSwimlaneLaneRise,
-          pipelineReorder,
-          pipelineCrossingMin,
-          pipelineDeBandLevel,
-          pipelineSubnetDeBand,
-          pipelineRankSeparate,
-          pipelineStraighten,
-          pipelineCoordRepack,
-          pipelineDeDensify,
-          pipelineColumnPacking,
-          pipelineLayoutProfile,
-          pipelineStaircaseBandOverlap,
           strataNetworkSimplexRank,
           strataSweeps,
           strataCoordinateRefine,
@@ -319,23 +265,8 @@ export type RunTerraformPresetImportOptions = {
   moduleLayoutOptions?: TerraformModuleLayoutOptions;
   pipelineCompact?: boolean;
   pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
-  pipelinePacked?: boolean;
-  pipelinePackedPullLeft?: boolean;
   pipelineIncludeAncillary?: boolean;
   pipelinePrivateApiRegional?: boolean;
-  pipelineSemanticPlacement?: boolean;
-  pipelineSwimlaneLaneRise?: boolean;
-  pipelineReorder?: boolean;
-  pipelineCrossingMin?: boolean;
-  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  pipelineSubnetDeBand?: boolean;
-  pipelineRankSeparate?: boolean;
-  pipelineStraighten?: boolean;
-  pipelineCoordRepack?: boolean;
-  pipelineDeDensify?: boolean;
-  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
-  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
-  pipelineStaircaseBandOverlap?: boolean;
   /** Strata (rcll-v2) OD-1/OD-2/A7 flags. S0a: accepted + threaded, unused until
    * the engine lands (M1). All default off/0. */
   strataNetworkSimplexRank?: boolean;
@@ -435,23 +366,8 @@ export const runTerraformPresetImport = async (
     moduleLayoutOptions,
     pipelineCompact: options.pipelineCompact,
     pipelineLayoutVariant: options.pipelineLayoutVariant,
-    pipelinePacked: options.pipelinePacked,
-    pipelinePackedPullLeft: options.pipelinePackedPullLeft,
     pipelineIncludeAncillary: options.pipelineIncludeAncillary,
     pipelinePrivateApiRegional: options.pipelinePrivateApiRegional,
-    pipelineSemanticPlacement: options.pipelineSemanticPlacement,
-    pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise,
-    pipelineReorder: options.pipelineReorder,
-    pipelineCrossingMin: options.pipelineCrossingMin,
-    pipelineDeBandLevel: options.pipelineDeBandLevel,
-    pipelineSubnetDeBand: options.pipelineSubnetDeBand,
-    pipelineRankSeparate: options.pipelineRankSeparate,
-    pipelineStraighten: options.pipelineStraighten,
-    pipelineCoordRepack: options.pipelineCoordRepack,
-    pipelineDeDensify: options.pipelineDeDensify,
-    pipelineColumnPacking: options.pipelineColumnPacking,
-    pipelineLayoutProfile: options.pipelineLayoutProfile,
-    pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
     strataNetworkSimplexRank: options.strataNetworkSimplexRank,
     strataSweeps: options.strataSweeps,
     strataCoordinateRefine: options.strataCoordinateRefine,

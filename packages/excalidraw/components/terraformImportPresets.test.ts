@@ -41,7 +41,8 @@ describe("terraformImportPresets", () => {
     expect(presets[3]?.id).toBe("staging-extended-localstack-v2");
     expect(presets[4]?.id).toBe("staging-heldout-mesh");
     expect(presets[5]?.id).toBe("staging-extended-localstack-strata");
-    expect(presets[0]?.view).toBe("pipeline");
+    // Legacy catalog `view: "pipeline"` migrates to "strata" (Pipeline view removed).
+    expect(presets[0]?.view).toBe("strata");
   });
 
   it("supports user preset save/update/delete lifecycle via API", async () => {

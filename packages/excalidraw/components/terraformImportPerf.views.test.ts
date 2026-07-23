@@ -28,13 +28,6 @@ const PERF_BUDGET_SEMANTIC_MS =
     ? 300_000
     : 120_000;
 
-const PERF_BUDGET_PIPELINE_MS =
-  process.env.CI && process.env.VITEST_COVERAGE === "1"
-    ? 180_000
-    : process.env.CI
-    ? 150_000
-    : 45_000;
-
 const PERF_BUDGET_MODULE_MS =
   process.env.CI && process.env.VITEST_COVERAGE === "1"
     ? 180_000
@@ -148,23 +141,6 @@ describe("terraform import performance (all views)", () => {
       if (process.env.VITEST_TERRAFORM_PROFILE === "1") {
         terraformImportProfilerLogSummary();
       }
-    },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS,
-  );
-
-  it(
-    "pipeline import within budget",
-    async () => {
-      terraformImportProfilerReset();
-      const t0 = performance.now();
-      const body = await layoutTerraformViaWorkers(sources(), {
-        semanticLayout: false,
-        layoutMode: "pipeline",
-      });
-      const ms = performance.now() - t0;
-      capturedSpansByView.pipeline = terraformImportProfilerSummary();
-      expect((body.elements as unknown[]).length).toBeGreaterThan(0);
-      expect(ms).toBeLessThan(PERF_BUDGET_PIPELINE_MS);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS,
   );

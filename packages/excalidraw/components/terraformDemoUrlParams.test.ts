@@ -18,24 +18,11 @@ const queryOf = (url: string): string => url.slice(url.indexOf("?"));
 
 const baseSnapshot: TerraformDemoSettingsSnapshot = {
   presetId: "staging-extended-localstack-v2",
-  view: "rcll",
+  view: "strata",
   pipelineCompact: true,
-  pipelineLayoutVariant: "classic",
-  pipelinePacked: false,
-  pipelinePackedPullLeft: false,
+  pipelineLayoutVariant: "strata",
   pipelineIncludeAncillary: false,
   pipelinePrivateApiRegional: false,
-  pipelineSemanticPlacement: false,
-  pipelineSwimlaneLaneRise: false,
-  pipelineReorder: false,
-  pipelineCrossingMin: false,
-  pipelineDeBandLevel: "none",
-  pipelineRankSeparate: false,
-  pipelineStraighten: false,
-  pipelineCoordRepack: false,
-  pipelineColumnPacking: "none",
-  pipelineLayoutProfile: "balanced",
-  pipelineStaircaseBandOverlap: true,
   strataNetworkSimplexRank: false,
   strataSweeps: 0,
   strataCoordinateRefine: false,
@@ -104,32 +91,12 @@ describe("terraformDemoUrlParams", () => {
       });
     });
 
-    it("parses pipeline variant and packed", () => {
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=staging-extended-localstack-v2&view=pipeline&pipelineVariant=compound&packed=1",
-        ),
-      ).toEqual({
-        presetId: "staging-extended-localstack-v2",
-        view: "pipeline",
-        pipelineVariant: "compound",
-        packed: true,
-      });
-      expect(parseTerraformDemoUrlParams("?preset=demo&packed=false")).toEqual({
-        presetId: "demo",
-        packed: false,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&packed=nope"),
-      ).toBeNull();
-    });
-
     it("parses compact", () => {
       expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&compact=1"),
+        parseTerraformDemoUrlParams("?preset=demo&view=strata&compact=1"),
       ).toEqual({
         presetId: "demo",
-        view: "rcll",
+        view: "strata",
         compact: true,
       });
       expect(parseTerraformDemoUrlParams("?preset=demo&compact=0")).toEqual({
@@ -143,10 +110,10 @@ describe("terraformDemoUrlParams", () => {
 
     it("parses ancillary", () => {
       expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=pipeline&ancillary=1"),
+        parseTerraformDemoUrlParams("?preset=demo&view=strata&ancillary=1"),
       ).toEqual({
         presetId: "demo",
-        view: "pipeline",
+        view: "strata",
         ancillary: true,
       });
       expect(parseTerraformDemoUrlParams("?preset=demo&ancillary=0")).toEqual({
@@ -158,241 +125,6 @@ describe("terraformDemoUrlParams", () => {
       ).toBeNull();
     });
 
-    it("parses swimlaneRise (RCLL M4 A/B)", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&swimlaneRise=1"),
-      ).toEqual({
-        presetId: "demo",
-        view: "rcll",
-        swimlaneRise: true,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&swimlaneRise=0"),
-      ).toEqual({
-        presetId: "demo",
-        swimlaneRise: false,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&swimlaneRise=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses reorder (RCLL M6 A/B)", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&reorder=1"),
-      ).toEqual({
-        presetId: "demo",
-        view: "rcll",
-        reorder: true,
-      });
-      expect(parseTerraformDemoUrlParams("?preset=demo&reorder=0")).toEqual({
-        presetId: "demo",
-        reorder: false,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&reorder=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses crossingMin (RCLL M6c container-aware crossing-min)", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&crossingMin=1"),
-      ).toEqual({
-        presetId: "demo",
-        view: "rcll",
-        crossingMin: true,
-      });
-      expect(parseTerraformDemoUrlParams("?preset=demo&crossingMin=0")).toEqual(
-        {
-          presetId: "demo",
-          crossingMin: false,
-        },
-      );
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&crossingMin=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses subnetDeBand (legacy alias ⇒ deBandLevel=subnet)", () => {
-      // The legacy boolean is preserved AND mapped to the generalized de-band enum.
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&subnetDeBand=1"),
-      ).toEqual({
-        presetId: "demo",
-        view: "rcll",
-        subnetDeBand: true,
-        deBandLevel: "subnet",
-      });
-      // `subnetDeBand=0` does not synthesize a level (stays "none" downstream).
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&subnetDeBand=0"),
-      ).toEqual({
-        presetId: "demo",
-        subnetDeBand: false,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&subnetDeBand=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses deBandLevel (RCLL hierarchy-level de-band depth)", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&deBandLevel=vpc"),
-      ).toEqual({
-        presetId: "demo",
-        view: "rcll",
-        deBandLevel: "vpc",
-      });
-      // Case-insensitive; explicit level wins over a co-present alias.
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&subnetDeBand=1&deBandLevel=Region",
-        ),
-      ).toEqual({
-        presetId: "demo",
-        subnetDeBand: true,
-        deBandLevel: "region",
-      });
-      // Invalid level hard-fails (same contract as columnPacking / profile).
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&deBandLevel=datacenter"),
-      ).toBeNull();
-    });
-
-    it("parses rankSeparate (RCLL M8r A/B)", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&rankSeparate=1"),
-      ).toEqual({ presetId: "demo", view: "rcll", rankSeparate: true });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&rankSeparate=0"),
-      ).toEqual({ presetId: "demo", rankSeparate: false });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&rankSeparate=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses straighten (RCLL M5 A/B)", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&straighten=1"),
-      ).toEqual({ presetId: "demo", view: "rcll", straighten: true });
-      expect(parseTerraformDemoUrlParams("?preset=demo&straighten=0")).toEqual({
-        presetId: "demo",
-        straighten: false,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&straighten=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses deDensify (RCLL M5b A/B) — legacy alias maps to columnPacking=spread", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&deDensify=1"),
-      ).toEqual({
-        presetId: "demo",
-        view: "rcll",
-        deDensify: true,
-        columnPacking: "spread",
-      });
-      expect(parseTerraformDemoUrlParams("?preset=demo&deDensify=0")).toEqual({
-        presetId: "demo",
-        deDensify: false,
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&deDensify=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses columnPacking (RCLL M5b/M5c tri-state) and rejects invalid", () => {
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=rcll&columnPacking=compact",
-        ),
-      ).toEqual({ presetId: "demo", view: "rcll", columnPacking: "compact" });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&columnPacking=none"),
-      ).toEqual({ presetId: "demo", columnPacking: "none" });
-      // explicit columnPacking wins over a legacy deDensify=1
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&deDensify=1&columnPacking=compact",
-        ),
-      ).toEqual({
-        presetId: "demo",
-        deDensify: true,
-        columnPacking: "compact",
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&columnPacking=sideways"),
-      ).toBeNull();
-    });
-
-    it("parses columnPacking=shorten (X-axis network-simplex bundle)", () => {
-      // "shorten" is a valid VALID_COLUMN_PACKING member (case-insensitive).
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=rcll&columnPacking=shorten",
-        ),
-      ).toEqual({ presetId: "demo", view: "rcll", columnPacking: "shorten" });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&columnPacking=SHORTEN"),
-      ).toEqual({ presetId: "demo", columnPacking: "shorten" });
-    });
-
-    it("parses profile (RCLL Layout profile) and rejects invalid", () => {
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&profile=compact"),
-      ).toEqual({ presetId: "demo", view: "rcll", profile: "compact" });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&profile=readable"),
-      ).toEqual({ presetId: "demo", profile: "readable" });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&profile=balanced"),
-      ).toEqual({ presetId: "demo", profile: "balanced" });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&profile=sideways"),
-      ).toBeNull();
-    });
-
-    it("accepts clear aliases (laneRise/laneSplit/cycleRise) for the milestone params", () => {
-      // laneRise ⇒ swimlaneRise
-      expect(parseTerraformDemoUrlParams("?preset=demo&laneRise=1")).toEqual({
-        presetId: "demo",
-        swimlaneRise: true,
-      });
-      // laneSplit ⇒ rankSeparate
-      expect(parseTerraformDemoUrlParams("?preset=demo&laneSplit=1")).toEqual({
-        presetId: "demo",
-        rankSeparate: true,
-      });
-      // cycleRise ⇒ staircaseBandOverlap
-      expect(parseTerraformDemoUrlParams("?preset=demo&cycleRise=0")).toEqual({
-        presetId: "demo",
-        staircaseBandOverlap: false,
-      });
-      // the legacy milestone name still works
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&swimlaneRise=1"),
-      ).toEqual({ presetId: "demo", swimlaneRise: true });
-      // an invalid alias value hard-fails
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&laneSplit=maybe"),
-      ).toBeNull();
-    });
-
-    it("parses staircaseBandOverlap (RCLL DEC-1, default on — only =0 is meaningful)", () => {
-      // Default on: absent ⇒ omitted (engine default true downstream).
-      expect(parseTerraformDemoUrlParams("?preset=demo&view=rcll")).toEqual({
-        presetId: "demo",
-        view: "rcll",
-      });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&staircaseBandOverlap=0"),
-      ).toEqual({ presetId: "demo", staircaseBandOverlap: false });
-      expect(
-        parseTerraformDemoUrlParams("?preset=demo&staircaseBandOverlap=maybe"),
-      ).toBeNull();
-    });
-
     it("rejects invalid view or pack", () => {
       expect(
         parseTerraformDemoUrlParams("?preset=demo&view=invalid"),
@@ -401,17 +133,6 @@ describe("terraformDemoUrlParams", () => {
         parseTerraformDemoUrlParams("?preset=demo&pack=invalid"),
       ).toBeNull();
       expect(parseTerraformDemoUrlParams("?preset=bad id")).toBeNull();
-    });
-
-    it("parses view=rcll (deep-link)", () => {
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=staging-extended-localstack-v2&view=rcll",
-        ),
-      ).toEqual({
-        presetId: "staging-extended-localstack-v2",
-        view: "rcll",
-      });
     });
 
     it("parses view=strata (deep-link)", () => {
@@ -645,12 +366,12 @@ describe("terraformDemoUrlParams", () => {
   describe("buildTerraformDemoUrl", () => {
     it("emits a /demo path with the preset and origin", () => {
       const url = buildTerraformDemoUrl(
-        { presetId: "demo", view: "rcll" },
+        { presetId: "demo", view: "strata" },
         { origin: "https://tfdraw.dev" },
       );
       expect(url.startsWith("https://tfdraw.dev/demo?")).toBe(true);
       expect(url).toContain("preset=demo");
-      expect(url).toContain("view=rcll");
+      expect(url).toContain("view=strata");
     });
 
     it("serializes booleans as 1/0 and skips undefined fields", () => {
@@ -663,26 +384,6 @@ describe("terraformDemoUrlParams", () => {
       expect(params.get("ancillary")).toBe("1");
       expect(params.get("compact")).toBe("0");
       expect(params.has("reorder")).toBe(false);
-    });
-
-    it("round-trips every demo param through the parser", () => {
-      const full: TerraformDemoUrlParams = {
-        presetId: "staging-extended-localstack-v2",
-        view: "rcll",
-        compact: false,
-        ancillary: true,
-        swimlaneRise: true,
-        reorder: true,
-        crossingMin: true,
-        deBandLevel: "region",
-        rankSeparate: true,
-        straighten: true,
-        columnPacking: "compact",
-        staircaseBandOverlap: false,
-      };
-      expect(
-        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(full))),
-      ).toEqual(full);
     });
 
     it("round-trips strata view + engine flags through the parser", () => {
@@ -780,85 +481,6 @@ describe("terraformDemoUrlParams", () => {
           moduleLayoutMode: "rectpacking",
         }).pack,
       ).toBe("rectpacking");
-    });
-
-    it("pipeline view captures variant, packing, ancillary, placement", () => {
-      const params = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "pipeline",
-        pipelineLayoutVariant: "compound",
-        pipelinePacked: true,
-        pipelinePackedPullLeft: true,
-        pipelineIncludeAncillary: true,
-        pipelineSemanticPlacement: true,
-      });
-      expect(params).toMatchObject({
-        view: "pipeline",
-        pipelineVariant: "compound",
-        packed: true,
-        packedPullLeft: true,
-        ancillary: true,
-        semanticPlace: true,
-      });
-    });
-
-    it("rcll view with a named profile emits profile, not raw flags", () => {
-      const params = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "rcll",
-        pipelineLayoutProfile: "compact",
-      });
-      expect(params.profile).toBe("compact");
-      expect(params.swimlaneRise).toBeUndefined();
-      expect(params.straighten).toBeUndefined();
-      // Independent toggles are still captured.
-      expect(params.compact).toBe(true);
-      expect(params.ancillary).toBe(false);
-    });
-
-    it("pipeline + rcll views never serialize privateApiRegional (strata-only)", () => {
-      // The flag is view-scoped to strata; a non-strata snapshot that happens to
-      // carry it true must NOT emit the param, so non-strata share URLs stay
-      // byte-identical (and never advertise a placement they won't apply).
-      const pipeline = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "pipeline",
-        pipelinePrivateApiRegional: true,
-      });
-      expect("privateApiRegional" in pipeline).toBe(false);
-      const rcll = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "rcll",
-        pipelinePrivateApiRegional: true,
-      });
-      expect("privateApiRegional" in rcll).toBe(false);
-    });
-
-    it("rcll view with a custom profile spells out the eight flags", () => {
-      const params = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "rcll",
-        pipelineLayoutProfile: "custom",
-        pipelineSwimlaneLaneRise: true,
-        pipelineRankSeparate: true,
-        pipelineDeBandLevel: "vpc",
-        pipelineStaircaseBandOverlap: false,
-        pipelineReorder: true,
-        pipelineCrossingMin: true,
-        pipelineStraighten: true,
-        pipelineColumnPacking: "spread",
-      });
-      expect(params.profile).toBeUndefined();
-      expect(params).toMatchObject({
-        swimlaneRise: true,
-        rankSeparate: true,
-        deBandLevel: "vpc",
-        staircaseBandOverlap: false,
-        reorder: true,
-        crossingMin: true,
-        straighten: true,
-        columnPacking: "spread",
-      });
     });
 
     it("strata view always emits the engine flags explicitly (both states)", () => {
@@ -1054,28 +676,6 @@ describe("terraformDemoUrlParams", () => {
   });
 
   describe("buildTerraformDemoUrlFromSettings", () => {
-    it("round-trips a custom rcll snapshot through the parser", () => {
-      const snapshot: TerraformDemoSettingsSnapshot = {
-        ...baseSnapshot,
-        view: "rcll",
-        pipelineCompact: false,
-        pipelineIncludeAncillary: true,
-        pipelineLayoutProfile: "custom",
-        pipelineSwimlaneLaneRise: true,
-        pipelineRankSeparate: true,
-        pipelineDeBandLevel: "account",
-        pipelineStaircaseBandOverlap: false,
-        pipelineReorder: true,
-        pipelineCrossingMin: true,
-        pipelineStraighten: true,
-        pipelineColumnPacking: "compact",
-      };
-      const parsed = parseTerraformDemoUrlParams(
-        queryOf(buildTerraformDemoUrlFromSettings(snapshot)),
-      );
-      expect(parsed).toEqual(collectTerraformDemoParams(snapshot));
-    });
-
     it("round-trips a strata snapshot (engine flags on) through the parser", () => {
       const snapshot: TerraformDemoSettingsSnapshot = {
         ...baseSnapshot,
@@ -1119,12 +719,12 @@ describe("terraformDemoUrlParams", () => {
   describe("runtime canvas view settings", () => {
     it("parses lod, minimap, layers, and canvasPerf", () => {
       const parsed = parseTerraformDemoUrlParams(
-        "?preset=demo&view=rcll&lodEnabled=0&lodPreset=detailed&minimap=1" +
+        "?preset=demo&view=strata&lodEnabled=0&lodPreset=detailed&minimap=1" +
           "&layers=dep,net&canvasPerf=hideicons,noclip&canvasPerfZoom=0.4",
       );
       expect(parsed).toMatchObject({
         presetId: "demo",
-        view: "rcll",
+        view: "strata",
         lodEnabled: false,
         lodPreset: "detailed",
         minimap: true,
@@ -1176,14 +776,14 @@ describe("terraformDemoUrlParams", () => {
 
     it("parses focusdir (W11 WP1) and omits it when absent", () => {
       expect(
-        parseTerraformDemoUrlParams("?preset=demo&view=rcll&focusdir=deps"),
+        parseTerraformDemoUrlParams("?preset=demo&view=strata&focusdir=deps"),
       ).toMatchObject({ focusDirection: "dependencies" });
       expect(
         parseTerraformDemoUrlParams(
-          "?preset=demo&view=rcll&focusdir=dependents",
+          "?preset=demo&view=strata&focusdir=dependents",
         ),
       ).toMatchObject({ focusDirection: "dependents" });
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=rcll");
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(absent).not.toBeNull();
       expect(absent!.focusDirection).toBeUndefined();
     });
@@ -1199,11 +799,11 @@ describe("terraformDemoUrlParams", () => {
 
     it("parses focushops=all (W11 WP1) as Infinity and omits it when absent", () => {
       const all = parseTerraformDemoUrlParams(
-        "?preset=demo&view=rcll&focushops=all",
+        "?preset=demo&view=strata&focushops=all",
       );
       expect(all).not.toBeNull();
       expect(all!.focusMaxHops).toBe(Infinity);
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=rcll");
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(absent).not.toBeNull();
       expect(absent!.focusMaxHops).toBeUndefined();
     });
@@ -1276,7 +876,7 @@ describe("terraformDemoUrlParams", () => {
     it("round-trips focusdir + focushops=all through build/parse", () => {
       const full: TerraformDemoUrlParams = {
         presetId: "demo",
-        view: "rcll",
+        view: "strata",
         focusDirection: "dependents",
         focusMaxHops: Infinity,
       };
@@ -1288,7 +888,7 @@ describe("terraformDemoUrlParams", () => {
     it("round-trips a finite focushops cap through build/parse (W11 F5)", () => {
       const finite: TerraformDemoUrlParams = {
         presetId: "demo",
-        view: "rcll",
+        view: "strata",
         focusMaxHops: 2,
       };
       const url = buildTerraformDemoUrl(finite);
@@ -1343,7 +943,7 @@ describe("terraformDemoUrlParams", () => {
     it("round-trips a full runtime-settings params object", () => {
       const full: TerraformDemoUrlParams = {
         presetId: "demo",
-        view: "rcll",
+        view: "strata",
         lodEnabled: true,
         lodPreset: "performance",
         minimap: false,

@@ -7,16 +7,7 @@ export const SLOW_TEST_PATTERNS = [
   "**/terraformTopologySubnetContainment.test.ts",
   "**/terraformTopologySubnetPlacement.test.ts",
   "**/terraformStackDebug.test.ts",
-  "**/terraformPipelineTfdBind.test.ts",
-  // Heavy RCLL layout-engine integration tests (each rebuilds the full pipeline
-  // many times; measured 154-655s on CI). Quarantined into the sharded slow lane
-  // so `yarn test:fast` stays fast. terraformPipelineRcll.test.ts (655s, the
-  // single biggest file) is later split into ~3 sibling files so it is not a
-  // per-shard wall-clock floor; update the pattern below when that lands.
-  "**/terraformPipelineRcll.test.ts",
   "**/terraformLayoutWorkerParity.test.ts",
-  "**/terraformPipelineRankSeparate.test.ts",
-  "**/terraformPipelineRcllAncillaryIntegration.test.ts",
   "**/terraformPipelineLayoutV2.test.ts",
   "**/terraformImportPrepCache.test.ts",
   // S2-3: report-only strata research batteries — each self-describes as
@@ -30,11 +21,8 @@ export const SLOW_TEST_PATTERNS = [
   "**/terraformPipelineStrataPackedScoringBattery.test.ts",
   "**/terraformPipelineStrataHopSweepBattery.test.ts",
   "**/terraformPipelineStrataTaskTracingBattery.test.ts",
-  "**/terraformPipelineStrataW12HeldoutScaleBattery.test.ts",
   "**/terraformPipelineStrataRankScorerFactorial.test.ts",
-  "**/terraformPipelineStrataRepairedStats.test.ts",
   "**/terraformPipelineStrataEpsilonFrontier.test.ts",
   "**/terraformPipelineStrataJointNsProbe.test.ts",
   "**/terraformPipelineStrataChurnTriple.test.ts",
-  "**/terraformPipelineStrataHighlightSpike.test.ts",
 ] as const;
