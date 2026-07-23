@@ -77,6 +77,12 @@ describe("canonical audit URL pin (c08 guard 1)", () => {
       strataPackedScoringEpsilon: 1,
       strataEdgeRouting: false,
       strataBorderRoute: false,
+      // Both are genuinely-new engine options the resolver now always returns
+      // (default off; not set by the audit URL, so they resolve false) — the
+      // ONLY legitimate reason to touch this frozen literal (c08 §0).
+      // strataChannelRoute = probe P1; strataEdgeClip = loop-2 E2 clip pass.
+      strataChannelRoute: false,
+      strataEdgeClip: false,
       strataBandCompact: false,
       strataBandDepth: "root",
       strataSiftRelocate: true,

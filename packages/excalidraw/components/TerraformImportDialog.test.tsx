@@ -159,6 +159,9 @@ describe("TerraformImportModal", () => {
       pipelineCoordRepack: false,
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
+      // pipelineLayoutProfile threads for every view (undefined until a named
+      // RCLL profile is picked); pre-existing stale gap in this full-bag pin.
+      pipelineLayoutProfile: undefined,
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
       // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
@@ -182,6 +185,11 @@ describe("TerraformImportModal", () => {
       strataLeafShift: false,
       strataEdgeRouting: false,
       strataBorderRoute: false,
+      // strataChannelRoute (probe P1) + strataEdgeClip (loop-2 E2 clip) thread
+      // for every view (default off); the pin predated both — strataChannelRoute
+      // was a pre-existing stale gap, strataEdgeClip is this change's addition.
+      strataChannelRoute: false,
+      strataEdgeClip: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -221,6 +229,9 @@ describe("TerraformImportModal", () => {
       pipelineCoordRepack: false,
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
+      // pipelineLayoutProfile threads for every view (undefined until a named
+      // RCLL profile is picked); pre-existing stale gap in this full-bag pin.
+      pipelineLayoutProfile: undefined,
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
       // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
@@ -244,6 +255,11 @@ describe("TerraformImportModal", () => {
       strataLeafShift: false,
       strataEdgeRouting: false,
       strataBorderRoute: false,
+      // strataChannelRoute (probe P1) + strataEdgeClip (loop-2 E2 clip) thread
+      // for every view (default off); the pin predated both — strataChannelRoute
+      // was a pre-existing stale gap, strataEdgeClip is this change's addition.
+      strataChannelRoute: false,
+      strataEdgeClip: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,

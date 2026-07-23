@@ -124,6 +124,7 @@ const sessionToDemoSnapshot = (
   strataEdgeRouting: session.strataEdgeRouting ?? false,
   strataBorderRoute: session.strataBorderRoute ?? false,
   strataChannelRoute: session.strataChannelRoute ?? false,
+  strataEdgeClip: session.strataEdgeClip ?? false,
   // Raw forward — omit at default ("straight")/absent so the demo snapshot (and
   // the URL built from it) never carries a default style key. Non-default
   // styles forward.

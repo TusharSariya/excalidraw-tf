@@ -146,6 +146,11 @@ export type TerraformDemoUrlParams = {
   /** Strata probe P1 inter-rank channel routing (`strataChannelRoute=1/0`,
    * the owner's dummy-column idea). Default off. */
   strataChannelRoute?: boolean;
+  /** Loop-2 E2 container-boundary clip pass (`strataEdgeClip=1/0`, Graphviz
+   * lhead/ltail): declared dataflow arrows terminate/originate ON the
+   * leaf-cluster frame borders with LR port discipline and hull port chains.
+   * Runs FIRST among the edge passes and owns eligible edges. Default off. */
+  strataEdgeClip?: boolean;
   /** Strata probe P2 edge render style
    * (`strataEdgeStyle=straight|step|curve`). Default `"straight"`. */
   strataEdgeStyle?: "straight" | "step" | "curve";
@@ -498,6 +503,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataChannelRoute === null) {
     return null;
   }
+  const strataEdgeClip = parseBooleanParam("strataEdgeClip");
+  if (strataEdgeClip === null) {
+    return null;
+  }
   // Probe P2 edge style enum. Hard-fail on an invalid value (same contract as
   // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
   // default downstream. Case-insensitive, matching the band-depth parse.
@@ -790,6 +799,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
     ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
     ...(strataChannelRoute != null ? { strataChannelRoute } : {}),
+    ...(strataEdgeClip != null ? { strataEdgeClip } : {}),
     ...(strataEdgeStyle != null ? { strataEdgeStyle } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
@@ -877,6 +887,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataEdgeRouting", params.strataEdgeRouting);
   setBool("strataBorderRoute", params.strataBorderRoute);
   setBool("strataChannelRoute", params.strataChannelRoute);
+  setBool("strataEdgeClip", params.strataEdgeClip);
   setEnum("strataEdgeStyle", params.strataEdgeStyle);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
@@ -995,6 +1006,10 @@ export type TerraformDemoSettingsSnapshot = {
   /** Probe P1 inter-rank channel routing. Optional (like `strataEdgeStyle`) so a
    * snapshot literal predating this field still type-checks; absent ⇒ false. */
   strataChannelRoute?: boolean;
+  /** Loop-2 E2 container-boundary clip pass. Optional (like `strataChannelRoute`)
+   * so a snapshot literal predating this field still type-checks; absent ⇒
+   * false. */
+  strataEdgeClip?: boolean;
   /** Probe P2 edge render style. Optional (like `strataBandDepth`) so a
    * snapshot literal predating this field still type-checks; absent ⇒
    * "straight". */
@@ -1142,6 +1157,9 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataBorderRoute ? { strataBorderRoute: true } : {}),
       // Probe P1 channel routing: default-off — truthy-only, like border route.
       ...(snapshot.strataChannelRoute ? { strataChannelRoute: true } : {}),
+      // Loop-2 E2 container-boundary clip: default-off — truthy-only, like the
+      // channel router above (the clip module never runs when absent).
+      ...(snapshot.strataEdgeClip ? { strataEdgeClip: true } : {}),
       // Probe P2 edge style: default "straight" omitted (non-default only),
       // like the band-depth cut.
       ...((snapshot.strataEdgeStyle ?? "straight") !== "straight"

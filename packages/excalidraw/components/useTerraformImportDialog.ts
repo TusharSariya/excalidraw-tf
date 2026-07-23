@@ -194,6 +194,11 @@ export const useTerraformImportDialog = ({
   const [strataChannelRoute, setStrataChannelRoute] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChannelRoute as boolean,
   );
+  // Strata loop-2 E2 (strata-only): container-boundary clip pass (Graphviz
+  // lhead/ltail). Default OFF / byte-identical (the module never runs).
+  const [strataEdgeClip, setStrataEdgeClip] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeClip as boolean,
+  );
   // Strata probe P2 (strata-only): edge render style (straight | step | curve).
   // Default "straight" / byte-identical (the style module never runs).
   const [strataEdgeStyle, setStrataEdgeStyle] = useState<
@@ -570,6 +575,7 @@ export const useTerraformImportDialog = ({
         strataEdgeRouting,
         strataBorderRoute,
         strataChannelRoute,
+        strataEdgeClip,
         strataEdgeStyle,
         strataBandDepth,
         strataDeBandLevel,
@@ -734,6 +740,7 @@ export const useTerraformImportDialog = ({
           strataEdgeRouting,
           strataBorderRoute,
           strataChannelRoute,
+          strataEdgeClip,
           strataEdgeStyle,
           strataBandDepth,
           strataDeBandLevel,
@@ -861,6 +868,7 @@ export const useTerraformImportDialog = ({
         strataEdgeRouting,
         strataBorderRoute,
         strataChannelRoute,
+        strataEdgeClip,
         strataEdgeStyle,
         strataBandDepth,
         strataDeBandLevel,
@@ -1109,6 +1117,7 @@ export const useTerraformImportDialog = ({
         strataEdgeRouting,
         strataBorderRoute,
         strataChannelRoute,
+        strataEdgeClip,
         strataEdgeStyle,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
@@ -1161,6 +1170,7 @@ export const useTerraformImportDialog = ({
     strataEdgeRouting,
     strataBorderRoute,
     strataChannelRoute,
+    strataEdgeClip,
     strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
@@ -1209,6 +1219,7 @@ export const useTerraformImportDialog = ({
     strataEdgeRouting,
     strataBorderRoute,
     strataChannelRoute,
+    strataEdgeClip,
     strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
@@ -1279,6 +1290,7 @@ export const useTerraformImportDialog = ({
     setStrataEdgeRouting,
     setStrataBorderRoute,
     setStrataChannelRoute,
+    setStrataEdgeClip,
     setStrataEdgeStyle,
     setStrataBandDepth,
     setStrataDeBandLevel,

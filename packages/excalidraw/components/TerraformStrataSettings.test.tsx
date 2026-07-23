@@ -4,9 +4,23 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { TerraformStrataSettings } from "./TerraformStrataSettings";
 
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
 import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
+
+// The live edge diagnostic reads the current scene via `useExcalidrawElements`
+// (the ONLY thing this component tree imports from ./App). Override it to serve
+// a per-test element list from a hoisted holder so the provenance-breakdown test
+// can inject clip-stamped arrows; the default [] leaves every other test in its
+// pre-import (declared 0 → placeholder) state, byte-identical to before.
+const hoistedScene = vi.hoisted(
+  () => ({ elements: [] as NonDeletedExcalidrawElement[] }),
+);
+vi.mock("./App", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./App")>()),
+  useExcalidrawElements: () => hoistedScene.elements,
+}));
 
 /**
  * DOM-identity harness for the TerraformStrataSettings panel.
@@ -34,6 +48,7 @@ const baseProps = (): Props => ({
   strataEdgeRouting: false,
   strataBorderRoute: false,
   strataChannelRoute: false,
+  strataEdgeClip: false,
   strataEdgeStyle: "straight" as const,
   strataBandDepth: "account" as StrataHullRole,
   strataDeBandLevel: "none" as DeBandLevel,
@@ -56,6 +71,7 @@ const baseProps = (): Props => ({
   setStrataEdgeRouting: vi.fn(),
   setStrataBorderRoute: vi.fn(),
   setStrataChannelRoute: vi.fn(),
+  setStrataEdgeClip: vi.fn(),
   setStrataEdgeStyle: vi.fn(),
   setStrataBandDepth: vi.fn(),
   setStrataDeBandLevel: vi.fn(),
@@ -348,6 +364,9 @@ const StatefulPanel = (initial: Partial<Props> = {}) => {
     const [borderRoute, setBorderRoute] = React.useState<boolean>(
       initial.strataBorderRoute ?? false,
     );
+    const [edgeClip, setEdgeClip] = React.useState<boolean>(
+      initial.strataEdgeClip ?? false,
+    );
     return (
       <TerraformStrataSettings
         {...baseProps()}
@@ -356,10 +375,12 @@ const StatefulPanel = (initial: Partial<Props> = {}) => {
         strataEdgeRouting={edgeRouting}
         strataChannelRoute={channelRoute}
         strataBorderRoute={borderRoute}
+        strataEdgeClip={edgeClip}
         setStrataEdgeStyle={setEdgeStyle}
         setStrataEdgeRouting={setEdgeRouting}
         setStrataChannelRoute={setChannelRoute}
         setStrataBorderRoute={setBorderRoute}
+        setStrataEdgeClip={setEdgeClip}
       />
     );
   };
@@ -597,8 +618,131 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
   });
 
   it("shows the pre-import diagnostic placeholder with no scene elements", () => {
-    // In isolation the ExcalidrawElementsContext default is [] → declared 0.
+    // The mocked useExcalidrawElements serves hoistedScene.elements (default []),
+    // matching the real pre-import context default → declared 0.
     renderPanel();
     expect(screen.getByText("Edge stats appear after import")).toBeTruthy();
+  });
+
+  // (d) The fourth one-hot preset — Flow — maps to strataEdgeClip only.
+  it("writes the Flow preset one-hot (clip on, the three routers off)", () => {
+    const setEdge = vi.fn();
+    const setChannel = vi.fn();
+    const setBorder = vi.fn();
+    const setClip = vi.fn();
+    renderPanel({
+      setStrataEdgeRouting: setEdge,
+      setStrataChannelRoute: setChannel,
+      setStrataBorderRoute: setBorder,
+      setStrataEdgeClip: setClip,
+    });
+    const routing = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    fireEvent.click(within(routing).getByRole("radio", { name: "Flow" }));
+    expect(setClip).toHaveBeenLastCalledWith(true);
+    expect(setEdge).toHaveBeenLastCalledWith(false);
+    expect(setChannel).toHaveBeenLastCalledWith(false);
+    expect(setBorder).toHaveBeenLastCalledWith(false);
+  });
+
+  it("activates the Flow segment when only strataEdgeClip is on (one-hot view)", () => {
+    renderPanel({ strataEdgeClip: true });
+    const routing = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    expect(
+      within(routing)
+        .getByRole("radio", { name: "Flow" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // No Custom segment / banner for a single active router.
+    expect(
+      within(routing).queryByRole("radio", { name: "Custom" }),
+    ).toBeNull();
+    expect(screen.queryByText(/custom routing combination/i)).toBeNull();
+  });
+
+  it("shows the transient Custom segment for a composed URL that includes clip", () => {
+    // clip + channel (only reachable from a URL) → 2 active routers → Custom.
+    renderPanel({ strataEdgeClip: true, strataChannelRoute: true });
+    const routing = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    expect(
+      within(routing)
+        .getByRole("radio", { name: "Custom" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(screen.getByText(/custom routing combination/i)).toBeTruthy();
+    // Flow is NOT solely active in the composed state.
+    expect(
+      within(routing)
+        .getByRole("radio", { name: "Flow" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+
+  it("replaces a clip-composed router state with Flow via the one-hot write", () => {
+    // From {clip, channel} custom, picking Flow flips to clip-only (one-hot).
+    StatefulPanel({ strataEdgeClip: true, strataChannelRoute: true });
+    const routing = () =>
+      screen.getByRole("radiogroup", { name: "Strata edge routing preset" });
+    expect(
+      within(routing()).getByRole("radio", { name: "Custom" }),
+    ).toBeTruthy();
+
+    fireEvent.click(within(routing()).getByRole("radio", { name: "Flow" }));
+
+    expect(
+      within(routing()).queryByRole("radio", { name: "Custom" }),
+    ).toBeNull();
+    expect(
+      within(routing())
+        .getByRole("radio", { name: "Flow" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("surfaces clip provenance in the live scene diagnostic breakdown", () => {
+    // Inject two declared dataflow arrows: one clip-stamped multi-point polyline
+    // (counts as reshaped under 'clip') and one plain straight chord (declared
+    // but not reshaped) — the breakdown must attribute the reshaped one to the
+    // clip stamper's plain word ('clipped') and count the other as straight.
+    const clipArrow = {
+      id: "clip-1",
+      type: "arrow",
+      isDeleted: false,
+      points: [
+        [0, 0],
+        [10, 5],
+        [20, 0],
+      ],
+      customData: {
+        terraformEdgeLayer: "declaredDataFlow",
+        terraformRoutedPolyline: true,
+        terraformRoutedBy: "clip",
+      },
+    } as unknown as NonDeletedExcalidrawElement;
+    const straightArrow = {
+      id: "straight-1",
+      type: "arrow",
+      isDeleted: false,
+      points: [
+        [0, 0],
+        [30, 0],
+      ],
+      customData: { terraformEdgeLayer: "declaredDataFlow" },
+    } as unknown as NonDeletedExcalidrawElement;
+    hoistedScene.elements = [clipArrow, straightArrow];
+    try {
+      renderPanel();
+      const diagnostic = screen.getByText(/Current scene:/i);
+      expect(diagnostic.textContent).toMatch(/1 of 2 edges reshaped/);
+      expect(diagnostic.textContent).toMatch(/1 clipped/);
+      expect(diagnostic.textContent).toMatch(/1 straight/);
+    } finally {
+      hoistedScene.elements = [];
+    }
   });
 });

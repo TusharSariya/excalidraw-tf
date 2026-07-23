@@ -507,6 +507,64 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataEdgeClip end-to-end (both silent-drop literals -> scene build -> meta echo + clipped counts + terraformRoutedBy:\"clip\" stamps; default-off byte-identical)",
+    async () => {
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default off: no clip meta keys emitted (byte-identical off).
+      expect(off.meta.strataEdgeClip).toBeUndefined();
+      expect(off.meta.strataEdgeClipClipped).toBeUndefined();
+      expect(off.meta.strataEdgeClipPortFaces).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH silent-drop literals (sceneContext + builderOptions) →
+      // engine echo, and the pass actually clipped eligible net-forward edges.
+      expect(on.meta.strataEdgeClip).toBe(true);
+      expect(typeof on.meta.strataEdgeClipClipped).toBe("number");
+      expect(on.meta.strataEdgeClipClipped as number).toBeGreaterThan(0);
+      expect(typeof on.meta.strataEdgeClipPortFaces).toBe("number");
+      // Clipped arrows carry the clip provenance stamp in the final scene.
+      const clippedArrows = on.elements.filter((el) => {
+        if (el.type !== "arrow") {
+          return false;
+        }
+        const cd = el.customData as Record<string, unknown> | undefined;
+        const rel = cd?.relationship as Record<string, unknown> | undefined;
+        return (
+          typeof rel?.source === "string" &&
+          rel?.aggregated !== true &&
+          cd?.terraformRoutedPolyline === true &&
+          cd?.terraformRoutedBy === "clip"
+        );
+      });
+      expect(clippedArrows.length).toBeGreaterThan(0);
+
+      // Explicit false is byte-identical to the flag-off scene (the module never
+      // runs), checked at bbox AND polyline level.
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
     "threads strataBandCompact through the sceneContext literal (WP2 — threading-only; engine consumption + meta echo is WP1's parallel build)",
     async () => {
       // Both literals in terraformLayoutCore.ts (LayoutSceneContext +

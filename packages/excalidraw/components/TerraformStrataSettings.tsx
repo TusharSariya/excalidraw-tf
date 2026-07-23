@@ -58,6 +58,7 @@ export const TerraformStrataSettings = ({
   strataEdgeRouting,
   strataBorderRoute,
   strataChannelRoute,
+  strataEdgeClip,
   strataEdgeStyle,
   strataBandDepth,
   strataDeBandLevel,
@@ -80,6 +81,7 @@ export const TerraformStrataSettings = ({
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataChannelRoute,
+  setStrataEdgeClip,
   setStrataEdgeStyle,
   setStrataBandDepth,
   setStrataDeBandLevel,
@@ -103,6 +105,10 @@ export const TerraformStrataSettings = ({
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
   strataChannelRoute: boolean;
+  /** Loop-2 E2 container-boundary clip pass — declared dataflow arrows
+   * terminate/originate on the leaf-cluster frame borders. Strata-only,
+   * default off; the "Flow" one-hot Routing preset. */
+  strataEdgeClip: boolean;
   strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
   strataDeBandLevel: DeBandLevel;
@@ -136,6 +142,7 @@ export const TerraformStrataSettings = ({
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataChannelRoute: (channelRoute: boolean) => void;
+  setStrataEdgeClip: (edgeClip: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
@@ -655,10 +662,12 @@ export const TerraformStrataSettings = ({
             strataEdgeRouting={strataEdgeRouting}
             strataBorderRoute={strataBorderRoute}
             strataChannelRoute={strataChannelRoute}
+            strataEdgeClip={strataEdgeClip}
             strataEdgeStyle={strataEdgeStyle}
             setStrataEdgeRouting={setStrataEdgeRouting}
             setStrataBorderRoute={setStrataBorderRoute}
             setStrataChannelRoute={setStrataChannelRoute}
+            setStrataEdgeClip={setStrataEdgeClip}
             setStrataEdgeStyle={setStrataEdgeStyle}
           />
           {/* Private API placement is no longer a control. owner-decisions.md

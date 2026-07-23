@@ -40,6 +40,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataEdgeRouting",
   "strataBorderRoute",
   "strataChannelRoute",
+  "strataEdgeClip",
   "strataEdgeStyle",
   "strataBandCompact",
   "strataBandDepth",
@@ -232,6 +233,18 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
   ["strataChannelRoute", "strataEdgeRouting"],
   ["strataChannelRoute", "strataBorderRoute"],
   ["strataChannelRoute", "strataEdgeStyle"],
+  // Loop-2 E2 container-boundary clip composes with every other edge pass via
+  // the SAME first-stamper-wins protocol as channelRoute: clip runs FIRST among
+  // ALL the edge passes (terraformPipelineStrataSceneBuild.ts — before channel /
+  // edgeRouting / border / style), stamps terraformRoutedPolyline +
+  // terraformRoutedBy:"clip", and owns its eligible net-forward cross-cluster
+  // edges, so the four passes below each SKIP the edges it clipped (they only
+  // touch what it left). No conflict — declared independent so the totality
+  // guard has these pairs on record.
+  ["strataEdgeClip", "strataChannelRoute"],
+  ["strataEdgeClip", "strataEdgeRouting"],
+  ["strataEdgeClip", "strataBorderRoute"],
+  ["strataEdgeClip", "strataEdgeStyle"],
   // NOTE: bandDepth × deBandLevel is NOT independent — it is a declared
   // value-conflict (STRATA_VALUE_CONFLICTS), so it is deliberately absent here.
 ];

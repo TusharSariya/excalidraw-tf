@@ -641,6 +641,60 @@ describe("terraformDemoUrlParams", () => {
       expect(absentUrl).not.toContain("strataChannelRoute");
     });
 
+    it("parses strataEdgeClip and omits it when the URL does not carry it", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeClip=1",
+      );
+      expect(on).toMatchObject({ strataEdgeClip: true });
+      const off = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeClip=0",
+      );
+      expect(off).toMatchObject({ strataEdgeClip: false });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(absent!.strataEdgeClip).toBeUndefined();
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeClip=maybe",
+        ),
+      ).toBeNull();
+    });
+
+    it("round-trips strataEdgeClip through buildTerraformDemoUrl", () => {
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+        strataEdgeClip: true,
+      });
+      expect(url).toContain("strataEdgeClip=1");
+      // Emitted param re-parses to the same value.
+      const query = url.slice(url.indexOf("?"));
+      const parsed = parseTerraformDemoUrlParams(query);
+      expect(parsed).toMatchObject({ strataEdgeClip: true });
+      // Absent ⇒ omitted from the URL entirely.
+      const absentUrl = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+      });
+      expect(absentUrl).not.toContain("strataEdgeClip");
+    });
+
+    it("emits strataEdgeClip from a strata snapshot only when set (truthy-only)", () => {
+      // collectTerraformDemoParams maps the snapshot's strataEdgeClip truthy-only
+      // (like strataChannelRoute), so a default-off scene stays byte-identical.
+      const onUrl = buildTerraformDemoUrlFromSettings({
+        ...baseSnapshot,
+        view: "strata",
+        strataEdgeClip: true,
+      });
+      expect(onUrl).toContain("strataEdgeClip=1");
+      const offUrl = buildTerraformDemoUrlFromSettings({
+        ...baseSnapshot,
+        view: "strata",
+        strataEdgeClip: false,
+      });
+      expect(offUrl).not.toContain("strataEdgeClip");
+    });
+
     it("omits strataPackedEps when the URL does not carry it", () => {
       const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(params).not.toBeNull();

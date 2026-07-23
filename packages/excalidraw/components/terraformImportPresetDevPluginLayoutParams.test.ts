@@ -77,6 +77,7 @@ const fullStrataSnapshot: TerraformDemoSettingsSnapshot = {
   strataEdgeRouting: true,
   strataBorderRoute: true,
   strataChannelRoute: true,
+  strataEdgeClip: true,
   strataEdgeStyle: "step",
   strataBandCompact: true,
   strataBandDepth: "root",
@@ -124,6 +125,7 @@ describe("terraform-layout dev API allowlist coverage", () => {
     for (const key of [
       "strataEdgeStyle",
       "strataChannelRoute",
+      "strataEdgeClip",
       "strataBandCompact",
       "strataChainRelocate",
       "strataCoordCascade",

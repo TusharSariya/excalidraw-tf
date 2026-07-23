@@ -518,6 +518,25 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.edgeclip.off": {
+    title: "Clip edges to container borders · Off",
+    body: "Cross-container arrows keep their straight centre-to-centre chord and pass through container walls wherever the diagonal happens to cross them. Byte-identical scenes (the clip module never runs).",
+    dev: {
+      implements:
+        "strataEdgeClip=false: routeStrataEdgeClip never runs; TFD arrows keep their two-point chords (byte-identical).",
+    },
+  },
+  "strata.edgeclip.on": {
+    title: "Clip edges to container borders · On — E2",
+    body: "The Graphviz lhead/ltail idea. Each eligible cross-container dataflow arrow is clipped so it starts on the right edge of the source's box and ends on the left edge of the target's box, crossing every container border straight-on (perpendicular) rather than slashing across the interior at an angle. Ports are spread along each face so several arrows sharing a wall don't stack. Runs FIRST among all the edge passes and owns its eligible net-forward edges — the routers only see what it leaves.",
+    dev: {
+      implements:
+        'strataEdgeClip=true: routeStrataEdgeClip clips each eligible net-forward cross-cluster declared arrow to LR frame-border ports (leaf-cluster frames + hull port chains), stamps terraformRoutedPolyline + terraformRoutedBy:"clip" + terraformClipAnchor, and repair validates them through the typed "clip" gate. Runs before channelRoute/edgeRouting/borderRoute/edgeStyle (first-stamper-wins), so they skip its edges; net-backward / same-column edges are left for them.',
+      refs: [
+        "Gansner et al. 1993 — A Technique for Drawing Directed Graphs (dot; lhead/ltail cluster clipping)",
+      ],
+    },
+  },
   "strata.edgestyle.straight": {
     title: "Edge style · Straight",
     body: "No reshaping — edges are direct lines (default).",
@@ -544,19 +563,31 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       refs: ["React Flow (xyflow) — getBezierPath (MIT)"],
     },
   },
-  // Routing PRESETS — the user-facing segmented control's four one-hot choices
-  // (Off / Around boxes / Through channels / Border exits) plus the transient
-  // "Custom" segment. Each preset maps ONE-HOT onto the three raw router
-  // booleans (strataEdgeRouting / strataChannelRoute / strataBorderRoute) whose
-  // own per-toggle jargon lives in strata.edgerouting.* / strata.channelroute.*
-  // / strata.borderroute.* above (surfaced only in the DEV composition drawer).
-  // Bodies are deliberately plain — the technical detail stays in `dev`.
+  // Routing PRESETS — the user-facing segmented control's five one-hot choices
+  // (Off / Flow / Around boxes / Through channels / Border exits) plus the
+  // transient "Custom" segment. Each preset maps ONE-HOT onto the four raw
+  // router booleans (strataEdgeClip / strataEdgeRouting / strataChannelRoute /
+  // strataBorderRoute) whose own per-toggle jargon lives in strata.edgeclip.* /
+  // strata.edgerouting.* / strata.channelroute.* / strata.borderroute.* above
+  // (surfaced only in the DEV composition drawer). Bodies are deliberately
+  // plain — the technical detail stays in `dev`.
   "strata.routing.off": {
     title: "Routing · Off",
     body: "Edges connect directly.",
     dev: {
       implements:
-        "All three routers off (strataEdgeRouting = strataChannelRoute = strataBorderRoute = false): straight chords, byte-identical scenes.",
+        "All four routers off (strataEdgeClip = strataEdgeRouting = strataChannelRoute = strataBorderRoute = false): straight chords, byte-identical scenes.",
+    },
+  },
+  "strata.routing.flow": {
+    title: "Routing · Flow",
+    body: "Flow — edges leave a resource's box on the right and enter the target's box on the left, crossing container borders straight-on. The arrow stops at the box border.",
+    dev: {
+      implements:
+        'One-hot: strataEdgeClip=true only (routeStrataEdgeClip — Graphviz lhead/ltail container-boundary clipping; LR frame-border ports, hull port chains, terraformRoutedBy:"clip"). Runs first among all the edge passes and owns eligible net-forward edges.',
+      refs: [
+        "Gansner et al. 1993 — A Technique for Drawing Directed Graphs (dot; lhead/ltail cluster clipping)",
+      ],
     },
   },
   "strata.routing.around": {
@@ -588,7 +619,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     body: "Two or more routing passes are combined (set by this link). Pick any preset to replace it, or keep it as-is.",
     dev: {
       implements:
-        "A composed router combination (2+ of strataEdgeRouting / strataChannelRoute / strataBorderRoute true) that no single preset represents. Reachable only from a URL; picking any preset writes the one-hot booleans.",
+        "A composed router combination (2+ of strataEdgeClip / strataEdgeRouting / strataChannelRoute / strataBorderRoute true) that no single preset represents. Reachable only from a URL; picking any preset writes the one-hot booleans.",
     },
   },
   "strata.banddepth": {

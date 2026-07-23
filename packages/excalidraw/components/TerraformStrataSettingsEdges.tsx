@@ -11,10 +11,12 @@ import { useExcalidrawElements } from "./App";
 import type { OptionHelpKey } from "./TerraformImportPipelineSettings";
 import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
-/** The four `customData.terraformRoutedBy` stamp classes, in the order the live
- * diagnostic lists them, each mapped to a plain word. Mirrors the four edge
- * stampers (style pass + the three routers). */
+/** The five `customData.terraformRoutedBy` stamp classes, in the order the live
+ * diagnostic lists them, each mapped to a plain word. Mirrors the five edge
+ * stampers (the clip pass + the three routers + the style pass). `clip` runs
+ * FIRST among all the edge passes, so it heads the list. */
 const STRATA_ROUTED_BY_LABELS = {
+  clip: "clipped",
   channel: "channels",
   route: "rerouted",
   border: "border exits",
@@ -23,15 +25,22 @@ const STRATA_ROUTED_BY_LABELS = {
 
 type StrataRoutedBy = keyof typeof STRATA_ROUTED_BY_LABELS;
 
-/** One of the Routing segmented control's four one-hot presets, or the
+/** One of the Routing segmented control's five one-hot presets, or the
  * transient "custom" state a composed URL (2+ routers on) lands in. */
-type StrataRoutingPreset = "off" | "around" | "channels" | "border" | "custom";
+type StrataRoutingPreset =
+  | "off"
+  | "flow"
+  | "around"
+  | "channels"
+  | "border"
+  | "custom";
 
 /**
- * Derive the Routing control's active preset from the three raw router booleans.
- * The mapping is ONE-HOT: exactly one router on ↔ one preset. Two or more on is
- * a composed combination no single preset represents → "custom" (only reachable
- * from a URL; picking any preset writes the one-hot booleans back). This is
+ * Derive the Routing control's active preset from the four raw router booleans
+ * (the container-boundary clip pass + the three routers). The mapping is
+ * ONE-HOT: exactly one router on ↔ one preset. Two or more on is a composed
+ * combination no single preset represents → "custom" (only reachable from a
+ * URL; picking any preset writes the one-hot booleans back). This is
  * presentation only — it reads the same booleans the URL/options already carry
  * and changes no semantics.
  */
@@ -39,8 +48,9 @@ const strataRoutingPreset = (
   edgeRouting: boolean,
   channelRoute: boolean,
   borderRoute: boolean,
+  edgeClip: boolean,
 ): StrataRoutingPreset => {
-  const active = [edgeRouting, channelRoute, borderRoute].filter(
+  const active = [edgeRouting, channelRoute, borderRoute, edgeClip].filter(
     Boolean,
   ).length;
   if (active === 0) {
@@ -48,6 +58,9 @@ const strataRoutingPreset = (
   }
   if (active >= 2) {
     return "custom";
+  }
+  if (edgeClip) {
+    return "flow";
   }
   if (edgeRouting) {
     return "around";
@@ -71,6 +84,7 @@ const computeStrataEdgeStats = (
   let declared = 0;
   let reshaped = 0;
   const by: Record<StrataRoutedBy, number> = {
+    clip: 0,
     channel: 0,
     route: 0,
     border: 0,
@@ -96,6 +110,7 @@ const computeStrataEdgeStats = (
       reshaped += 1;
       const provenance: unknown = customData.terraformRoutedBy;
       if (
+        provenance === "clip" ||
         provenance === "channel" ||
         provenance === "route" ||
         provenance === "border" ||
@@ -136,10 +151,12 @@ export const TerraformStrataSettingsEdges = ({
   strataEdgeRouting,
   strataBorderRoute,
   strataChannelRoute,
+  strataEdgeClip,
   strataEdgeStyle,
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataChannelRoute,
+  setStrataEdgeClip,
   setStrataEdgeStyle,
 }: {
   /** The parent's segmented-button factory — a closure over its hover/sticky
@@ -155,10 +172,12 @@ export const TerraformStrataSettingsEdges = ({
   strataEdgeRouting: boolean;
   strataBorderRoute: boolean;
   strataChannelRoute: boolean;
+  strataEdgeClip: boolean;
   strataEdgeStyle: StrataEdgeStyle;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataChannelRoute: (channelRoute: boolean) => void;
+  setStrataEdgeClip: (edgeClip: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
 }) => {
   // Live scene for the edge diagnostic — the same non-deleted element array the
@@ -176,6 +195,7 @@ export const TerraformStrataSettingsEdges = ({
     strataEdgeRouting,
     strataChannelRoute,
     strataBorderRoute,
+    strataEdgeClip,
   );
   const routingIsCustom = routingPreset === "custom";
   const [routingBannerDismissed, setRoutingBannerDismissed] =
@@ -184,6 +204,9 @@ export const TerraformStrataSettingsEdges = ({
     preset: Exclude<StrataRoutingPreset, "custom">,
   ) => {
     // One-hot write — presentation only; URL/option semantics are unchanged.
+    // Clip runs first and owns its edges; the three routers only see the rest,
+    // so a single active flag is a faithful one-hot for every preset.
+    setStrataEdgeClip(preset === "flow");
     setStrataEdgeRouting(preset === "around");
     setStrataChannelRoute(preset === "channels");
     setStrataBorderRoute(preset === "border");
@@ -297,6 +320,12 @@ export const TerraformStrataSettingsEdges = ({
       onSelect: () => applyRoutingPreset("off"),
     },
     {
+      label: "Flow",
+      active: routingPreset === "flow",
+      helpKey: "strata.routing.flow",
+      onSelect: () => applyRoutingPreset("flow"),
+    },
+    {
       label: "Around boxes",
       active: routingPreset === "around",
       helpKey: "strata.routing.around",
@@ -332,7 +361,7 @@ export const TerraformStrataSettingsEdges = ({
   // declared edge is reshaped or the style is Straight (nothing to reshape);
   // amber when fewer edges are reshaped than declared under a reshaping style.
   const { declared, reshaped, by } = edgeStats;
-  const routersPresent = by.channel + by.route + by.border > 0;
+  const routersPresent = by.clip + by.channel + by.route + by.border > 0;
   let edgeDiagnostic: React.ReactNode;
   if (declared === 0) {
     edgeDiagnostic = (
@@ -351,7 +380,7 @@ export const TerraformStrataSettingsEdges = ({
     let breakdown = "";
     if (routersPresent) {
       const parts: string[] = [];
-      (["channel", "route", "border", "style"] as const).forEach((key) => {
+      (["clip", "channel", "route", "border", "style"] as const).forEach((key) => {
         if (by[key] > 0) {
           parts.push(`${by[key]} ${STRATA_ROUTED_BY_LABELS[key]}`);
         }
@@ -425,7 +454,7 @@ export const TerraformStrataSettingsEdges = ({
         routingSegments,
       )}
       {edgeDiagnostic}
-      {/* DEV-only composition drawer: the three raw router toggles (and their
+      {/* DEV-only composition drawer: the four raw router toggles (and their
           coupling hints) that the one-hot Routing presets stand in for. Non-DEV
           users never see or need these — the presets + the Custom escape hatch
           cover every reachable combination. The help aside's technical
@@ -438,6 +467,34 @@ export const TerraformStrataSettingsEdges = ({
           >
             Developer: routing passes
           </summary>
+          <div role="group" aria-label="Strata container-boundary clip">
+            <span className="TerraformImportModal__controlLabel">
+              Clip edges to container borders{" "}
+              <span>
+                terminate each cross-container arrow on the facing box borders
+                (right-of-source → left-of-target), crossing walls straight-on
+              </span>
+            </span>
+            <div className="TerraformImportModal__segmentedControl">
+              {option("Off", !strataEdgeClip, "strata.edgeclip.off", () =>
+                setStrataEdgeClip(false),
+              )}
+              {option("On", strataEdgeClip, "strata.edgeclip.on", () =>
+                setStrataEdgeClip(true),
+              )}
+            </div>
+            {strataEdgeClip &&
+              (strataEdgeRouting || strataBorderRoute || strataChannelRoute) && (
+                <div className="TerraformImportModal__couplingHint">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    Flow owns eligible edges; the other routers only see the
+                    rest — clip runs first and stamps every eligible net-forward
+                    cross-container edge, so they touch only what it leaves.
+                  </span>
+                </div>
+              )}
+          </div>
           <div role="group" aria-label="Strata edge routing">
             <span className="TerraformImportModal__controlLabel">
               Route edges around boxes{" "}
