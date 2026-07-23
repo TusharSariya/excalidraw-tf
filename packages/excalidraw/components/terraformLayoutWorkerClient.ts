@@ -195,13 +195,10 @@ export async function layoutTerraformViaWorkers(
     (options.semanticLayout === true ? "semantic" : "module");
   const semanticLayout = layoutMode === "semantic";
   // Pipeline family — must match the authoritative predicate in
-  // terraformLayoutCore.ts (`pipeline` | `rcll` | `strata`). W14 F1: `strata` was
-  // missing here, so a strata import fell through to `runSequential` and never
-  // reached the pipelineFull worker offload (lever B) — it ran on the main thread.
-  const pipelineLayout =
-    layoutMode === "pipeline" ||
-    layoutMode === "rcll" ||
-    layoutMode === "strata";
+  // terraformLayoutCore.ts (`strata`). W14 F1: `strata` was missing here, so a
+  // strata import fell through to `runSequential` and never reached the
+  // pipelineFull worker offload (lever B) — it ran on the main thread.
+  const pipelineLayout = layoutMode === "strata";
 
   const runSequential = async () => {
     const result = await layoutTerraformFromSources(sources, options);

@@ -195,7 +195,7 @@ const PRESET = "staging-localstack";
 
 describe("perEdge export (real preset)", () => {
   it(
-    `${PRESET} — aggregates recomputed from perEdge rows equal reported aggregates (v2 + strata arms)`,
+    `${PRESET} — aggregates recomputed from perEdge rows equal reported aggregates (strata arm)`,
     async () => {
       const raw = getTerraformImportPresetSourcesFromDb(PRESET);
       expect(raw, `preset ${PRESET} exists`).toBeTruthy();
@@ -203,11 +203,6 @@ describe("perEdge export (real preset)", () => {
         raw! as TerraformImportPresetSources,
       );
       const arms: Array<Record<string, unknown>> = [
-        {
-          layoutMode: "pipeline",
-          pipelineLayoutVariant: "v2",
-          pipelineCompact: true,
-        },
         { layoutMode: "strata", pipelineCompact: true, strataSweeps: 4 },
       ];
       for (const options of arms) {

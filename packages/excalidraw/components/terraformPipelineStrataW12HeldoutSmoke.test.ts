@@ -83,23 +83,14 @@ const TIMEOUT = STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 60;
 // Arm options copied from terraformPipelineStrataTaskTracingBattery.test.ts
 // (A_v2 / I) and terraformPipelineStrataExtentGate.test.ts (full-detail
 // bundles F_v2_full_ancillary / I2_strata_k4_a7_full).
+// The v2 baseline arms (A_v2, F_v2_full_ancillary) were retired with the
+// Pipeline/RCLL views; only the strata arms remain.
 const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
-  A_v2: {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: true,
-  },
   I: {
     layoutMode: "strata",
     pipelineCompact: true,
     strataSweeps: 4,
     strataCoordinateRefine: true,
-  },
-  F_v2_full_ancillary: {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: false,
-    pipelineIncludeAncillary: true,
   },
   I2_strata_k4_a7_full: {
     layoutMode: "strata",

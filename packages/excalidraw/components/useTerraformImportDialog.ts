@@ -39,15 +39,9 @@ import {
   toPresetId,
   type PlanDotBundleRow,
   type PipelineLayoutVariant,
-  type RcllLayoutProfileSelection,
   type TerraformView,
 } from "./terraformImportDialogUtils";
-import {
-  DEFAULT_RCLL_LAYOUT_PROFILE,
-  resolveRcllLayoutProfile,
-  type DeBandLevel,
-  type RcllLayoutProfile,
-} from "./terraformPipelineLayoutProfiles";
+import { type DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import { buildTerraformDemoUrlFromSettings } from "./terraformDemoUrlParams";
 import { TERRAFORM_STRATA_LAYOUT_DEFAULTS } from "./terraformStrataDefaults";
 
@@ -80,41 +74,9 @@ export const useTerraformImportDialog = ({
   const [view, setView] = useState<TerraformView>("semantic");
   const [pipelineCompact, setPipelineCompact] = useState(true);
   const [pipelineLayoutVariant, setPipelineLayoutVariant] =
-    useState<PipelineLayoutVariant>("classic");
-  const [pipelinePacked, setPipelinePacked] = useState(false);
-  const [pipelinePackedPullLeft, setPipelinePackedPullLeft] = useState(false);
+    useState<PipelineLayoutVariant>("strata");
   const [pipelineIncludeAncillary, setPipelineIncludeAncillary] =
     useState(false);
-  const [pipelineSemanticPlacement, setPipelineSemanticPlacement] =
-    useState(false);
-  // RCLL M4 (rcll-only): swimlane lanes rise to share Y rows. Not reset on view
-  // switch — it is the one dial the RCLL view owns.
-  const [pipelineSwimlaneLaneRise, setPipelineSwimlaneLaneRise] =
-    useState(false);
-  // RCLL M6 (rcll-only): per-container barycenter crossing-min reorder. Like the
-  // swimlane dial, not reset on view switch — the RCLL view owns it.
-  const [pipelineReorder, setPipelineReorder] = useState(false);
-  // RCLL M6c (rcll-only): container-aware crossing minimization — the hierarchical
-  // superset of the leaf reorder (the guard makes it win when both are on). RCLL-owned.
-  const [pipelineCrossingMin, setPipelineCrossingMin] = useState(false);
-  const [pipelineDeBandLevel, setPipelineDeBandLevel] =
-    useState<DeBandLevel>("none");
-  // RCLL M8r (rcll-only): whole-model-global sibling-separation ranking. Gated in
-  // the UI to require the lane-rise (solo = taller/wider — see toggle guards).
-  const [pipelineRankSeparate, setPipelineRankSeparate] = useState(false);
-  // RCLL M5 (rcll-only): Brandes–Köpf leaf straightening.
-  const [pipelineStraighten, setPipelineStraighten] = useState(false);
-  // RCLL M5b (rcll-only): coordinated per-column permutation re-pack (refines straighten).
-  const [pipelineCoordRepack, setPipelineCoordRepack] = useState(false);
-  // RCLL "Column packing" tri-state (rcll-only): `spread` = M5b de-density (pull-right),
-  // `compact` = M5c column compaction (pull-left), `none` = neither. Default `none`.
-  const [pipelineColumnPacking, setPipelineColumnPacking] = useState<
-    "spread" | "none" | "compact" | "shorten"
-  >("none");
-  // RCLL M3b / DEC-1 (rcll-only): X-disjoint cycle groups rise to share Y. Default
-  // ON (true) — turning it off (Stacked) makes cyclic groups taller.
-  const [pipelineStaircaseBandOverlap, setPipelineStaircaseBandOverlap] =
-    useState(true);
   // Strata (rcll-v2) OD-1/OD-2/A7 flags (strata-only), threaded end-to-end
   // (URL → here → sceneContext → builder → scene meta); UI toggles in
   // TerraformStrataSettings.tsx (SDEC-49). K=4 + A7 seed ON: the W5 repaired-stats
@@ -257,113 +219,8 @@ export const useTerraformImportDialog = ({
     DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
   );
 
-  // RCLL "Layout" — the outcome-first PRIMARY control. A named profile fans out into the
-  // RCLL flags above (the values actually threaded to import); touching any of those
-  // levers directly (from the Advanced disclosure) flips this to "custom" so the primary
-  // control never lies about what is active. Default `balanced` = today's flag defaults.
-  const [pipelineLayoutProfile, setPipelineLayoutProfileState] =
-    useState<RcllLayoutProfileSelection>(DEFAULT_RCLL_LAYOUT_PROFILE);
-
-  // Apply a named profile: expand its bundle into the RCLL flag setters (raw, so the
-  // fan-out itself does not mark "custom"), then record the profile as the primary choice.
-  const applyPipelineLayoutProfile = useCallback(
-    (profile: RcllLayoutProfile) => {
-      const flags = resolveRcllLayoutProfile(profile);
-      setPipelineSwimlaneLaneRise(flags.swimlaneLaneRise);
-      setPipelineRankSeparate(flags.rankSeparate);
-      setPipelineDeBandLevel(flags.deBandLevel);
-      setPipelineStaircaseBandOverlap(flags.staircaseBandOverlap);
-      setPipelineReorder(flags.reorder);
-      setPipelineCrossingMin(flags.crossingMin);
-      setPipelineStraighten(flags.straighten);
-      setPipelineCoordRepack(flags.coordRepack);
-      setPipelineColumnPacking(flags.columnPacking);
-      setPipelineLayoutProfileState(profile);
-    },
-    [],
-  );
-
-  // Wrap each individual RCLL-flag setter so an Advanced edit flips the primary control to
-  // "custom". `markCustom` only downgrades a named profile — re-applying a profile resets it.
-  const markLayoutCustom = useCallback(
-    () => setPipelineLayoutProfileState("custom"),
-    [],
-  );
-  const setPipelineSwimlaneLaneRiseCustom = useCallback(
-    (v: boolean) => {
-      setPipelineSwimlaneLaneRise(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineReorderCustom = useCallback(
-    (v: boolean) => {
-      setPipelineReorder(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineCrossingMinCustom = useCallback(
-    (v: boolean) => {
-      setPipelineCrossingMin(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineDeBandLevelCustom = useCallback(
-    (v: DeBandLevel) => {
-      setPipelineDeBandLevel(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineRankSeparateCustom = useCallback(
-    (v: boolean) => {
-      setPipelineRankSeparate(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineStraightenCustom = useCallback(
-    (v: boolean) => {
-      setPipelineStraighten(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineCoordRepackCustom = useCallback(
-    (v: boolean) => {
-      setPipelineCoordRepack(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineColumnPackingCustom = useCallback(
-    (v: "spread" | "none" | "compact" | "shorten") => {
-      setPipelineColumnPacking(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-  const setPipelineStaircaseBandOverlapCustom = useCallback(
-    (v: boolean) => {
-      setPipelineStaircaseBandOverlap(v);
-      markLayoutCustom();
-    },
-    [markLayoutCustom],
-  );
-
-  // RCLL view delegates to the compound builder at M0 (its own algorithm lands
-  // across later milestones) and does not expose the height/placement dials.
-  // Strata (S0a) is the same v2-passthrough situation. Reset the shared dials so
-  // stale panel state can't ride along into either import.
   const handleSetView = useCallback((next: TerraformView) => {
     setView(next);
-    if (next === "rcll" || next === "strata") {
-      setPipelinePacked(false);
-      setPipelinePackedPullLeft(false);
-      setPipelineSemanticPlacement(false);
-    }
   }, []);
   const [loading, setLoading] = useState(false);
   const [layoutProgress, setLayoutProgress] = useState<string | null>(null);
@@ -534,23 +391,11 @@ export const useTerraformImportDialog = ({
         moduleLayoutOptions,
         pipelineCompact,
         pipelineLayoutVariant,
-        pipelinePacked,
-        pipelinePackedPullLeft,
         pipelineIncludeAncillary,
         // Threaded for every view; `runTerraformImportWithView` view-scopes it
         // (non-strata → false), so the strata-ON seed never leaks to another
         // pipeline.
         pipelinePrivateApiRegional,
-        pipelineSemanticPlacement,
-        pipelineSwimlaneLaneRise,
-        pipelineReorder,
-        pipelineCrossingMin,
-        pipelineDeBandLevel,
-        pipelineRankSeparate,
-        pipelineStraighten,
-        pipelineCoordRepack,
-        pipelineColumnPacking,
-        pipelineStaircaseBandOverlap,
         strataNetworkSimplexRank,
         strataSweeps,
         strataCoordinateRefine,
@@ -701,22 +546,10 @@ export const useTerraformImportDialog = ({
           moduleLayoutOptions,
           pipelineCompact,
           pipelineLayoutVariant,
-          pipelinePacked,
-          pipelinePackedPullLeft,
           pipelineIncludeAncillary,
           // View-scoped downstream (non-strata → false); the strata-ON seed
           // never reaches another pipeline's engine call.
           pipelinePrivateApiRegional,
-          pipelineSemanticPlacement,
-          pipelineSwimlaneLaneRise,
-          pipelineReorder,
-          pipelineCrossingMin,
-          pipelineDeBandLevel,
-          pipelineRankSeparate,
-          pipelineStraighten,
-          pipelineCoordRepack,
-          pipelineColumnPacking,
-          pipelineStaircaseBandOverlap,
           strataNetworkSimplexRank,
           strataSweeps,
           strataCoordinateRefine,
@@ -832,19 +665,7 @@ export const useTerraformImportDialog = ({
         moduleLayoutOptions,
         pipelineCompact,
         pipelineLayoutVariant,
-        pipelinePacked,
-        pipelinePackedPullLeft,
         pipelineIncludeAncillary,
-        pipelineSemanticPlacement,
-        pipelineSwimlaneLaneRise,
-        pipelineReorder,
-        pipelineCrossingMin,
-        pipelineDeBandLevel,
-        pipelineRankSeparate,
-        pipelineStraighten,
-        pipelineCoordRepack,
-        pipelineColumnPacking,
-        pipelineStaircaseBandOverlap,
         strataNetworkSimplexRank,
         strataSweeps,
         strataCoordinateRefine,
@@ -1075,25 +896,12 @@ export const useTerraformImportDialog = ({
         view,
         pipelineCompact,
         pipelineLayoutVariant,
-        pipelinePacked,
-        pipelinePackedPullLeft,
         pipelineIncludeAncillary,
         // Strata exposes a toggle for this (default ON); the share URL round-
         // trips its current state. The strata serialize branch emits it in both
         // states so an explicit OFF survives share→reload. For non-strata views
         // it stays truthy-only downstream and the engine ignores it anyway.
         pipelinePrivateApiRegional,
-        pipelineSemanticPlacement,
-        pipelineSwimlaneLaneRise,
-        pipelineReorder,
-        pipelineCrossingMin,
-        pipelineDeBandLevel,
-        pipelineRankSeparate,
-        pipelineStraighten,
-        pipelineCoordRepack,
-        pipelineColumnPacking,
-        pipelineLayoutProfile,
-        pipelineStaircaseBandOverlap,
         strataNetworkSimplexRank,
         strataSweeps,
         strataCoordinateRefine,
@@ -1133,21 +941,8 @@ export const useTerraformImportDialog = ({
     view,
     pipelineCompact,
     pipelineLayoutVariant,
-    pipelinePacked,
-    pipelinePackedPullLeft,
     pipelineIncludeAncillary,
     pipelinePrivateApiRegional,
-    pipelineSemanticPlacement,
-    pipelineSwimlaneLaneRise,
-    pipelineReorder,
-    pipelineCrossingMin,
-    pipelineDeBandLevel,
-    pipelineRankSeparate,
-    pipelineStraighten,
-    pipelineCoordRepack,
-    pipelineColumnPacking,
-    pipelineLayoutProfile,
-    pipelineStaircaseBandOverlap,
     strataNetworkSimplexRank,
     strataSweeps,
     strataCoordinateRefine,
@@ -1181,21 +976,8 @@ export const useTerraformImportDialog = ({
     view,
     pipelineCompact,
     pipelineLayoutVariant,
-    pipelinePacked,
-    pipelinePackedPullLeft,
     pipelineIncludeAncillary,
     pipelinePrivateApiRegional,
-    pipelineSemanticPlacement,
-    pipelineSwimlaneLaneRise,
-    pipelineReorder,
-    pipelineCrossingMin,
-    pipelineDeBandLevel,
-    pipelineRankSeparate,
-    pipelineStraighten,
-    pipelineCoordRepack,
-    pipelineColumnPacking,
-    pipelineLayoutProfile,
-    pipelineStaircaseBandOverlap,
     strataNetworkSimplexRank,
     strataSweeps,
     strataCoordinateRefine,
@@ -1249,23 +1031,8 @@ export const useTerraformImportDialog = ({
     setView: handleSetView,
     setPipelineCompact,
     setPipelineLayoutVariant,
-    setPipelinePacked,
-    setPipelinePackedPullLeft,
     setPipelineIncludeAncillary,
     setPipelinePrivateApiRegional,
-    setPipelineSemanticPlacement,
-    // The RCLL-flag setters are the "custom"-marking wrappers, so any Advanced edit
-    // flips the primary Layout control to "Custom" (the raw setters stay internal).
-    setPipelineSwimlaneLaneRise: setPipelineSwimlaneLaneRiseCustom,
-    setPipelineReorder: setPipelineReorderCustom,
-    setPipelineCrossingMin: setPipelineCrossingMinCustom,
-    setPipelineDeBandLevel: setPipelineDeBandLevelCustom,
-    setPipelineRankSeparate: setPipelineRankSeparateCustom,
-    setPipelineStraighten: setPipelineStraightenCustom,
-    setPipelineCoordRepack: setPipelineCoordRepackCustom,
-    setPipelineColumnPacking: setPipelineColumnPackingCustom,
-    setPipelineStaircaseBandOverlap: setPipelineStaircaseBandOverlapCustom,
-    setPipelineLayoutProfile: applyPipelineLayoutProfile,
     setStrataNetworkSimplexRank,
     setStrataSweeps,
     setStrataCoordinateRefine,

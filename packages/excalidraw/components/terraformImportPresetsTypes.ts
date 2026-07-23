@@ -2,12 +2,7 @@ import importPresetsCatalog from "../assets/import-presets.catalog.json";
 
 import type { TerraformPlanDotBundle } from "./terraformPlanParsing";
 
-export type TerraformImportPresetView =
-  | "semantic"
-  | "module"
-  | "pipeline"
-  | "rcll"
-  | "strata";
+export type TerraformImportPresetView = "semantic" | "module" | "strata";
 
 export type TerraformImportPresetWarning = {
   code: "missing_state_file" | "missing_optional_tfd" | "composition_error";
@@ -148,14 +143,14 @@ export function normalizeTerraformImportPreset(
   }
   const id = typeof value.id === "string" ? value.id.trim() : "";
   const name = typeof value.name === "string" ? value.name.trim() : "";
+  // Legacy `"pipeline"`/`"rcll"` catalog & persisted-session values migrate to
+  // `"strata"` (the surviving layered dataflow view) rather than hard-failing.
   const view =
     value.view === "module"
       ? "module"
-      : value.view === "pipeline"
-      ? "pipeline"
-      : value.view === "rcll"
-      ? "rcll"
-      : value.view === "strata"
+      : value.view === "strata" ||
+        value.view === "pipeline" ||
+        value.view === "rcll"
       ? "strata"
       : "semantic";
   const rootPath =

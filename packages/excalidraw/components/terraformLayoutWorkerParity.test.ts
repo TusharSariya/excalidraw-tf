@@ -68,18 +68,6 @@ describe("terraform layout worker parity", () => {
       workerOptions: { semanticLayout: true as const },
     },
     {
-      name: "pipeline",
-      sources: () => stagingMultiStatePipelineLayoutSources(),
-      coreOptions: {
-        semanticLayout: false as const,
-        layoutMode: "pipeline" as const,
-      },
-      workerOptions: {
-        semanticLayout: false as const,
-        layoutMode: "pipeline" as const,
-      },
-    },
-    {
       name: "module",
       sources: () => stagingMultiStateLayoutSources(),
       coreOptions: { semanticLayout: false as const },
@@ -95,18 +83,6 @@ describe("terraform layout worker parity", () => {
       workerOptions: {
         semanticLayout: false as const,
         layoutMode: "strata" as const,
-      },
-    },
-    {
-      name: "rcll",
-      sources: () => stagingMultiStatePipelineLayoutSources(),
-      coreOptions: {
-        semanticLayout: false as const,
-        layoutMode: "rcll" as const,
-      },
-      workerOptions: {
-        semanticLayout: false as const,
-        layoutMode: "rcll" as const,
       },
     },
   ] as const;
@@ -153,13 +129,6 @@ describe("terraform layout worker parity", () => {
       name: string;
       options: TerraformLayoutOptions;
     }> = [
-      {
-        name: "P2 staging-localstack pipeline",
-        options: {
-          semanticLayout: false,
-          layoutMode: "pipeline",
-        },
-      },
       {
         name: "P2 staging-localstack strata (sweeps=4 + coordRefine)",
         options: {
@@ -321,7 +290,7 @@ describe("terraform layout worker parity", () => {
         withFailingWorker(() =>
           layoutTerraformViaWorkers(emptySources, {
             semanticLayout: false,
-            layoutMode: "pipeline",
+            layoutMode: "strata",
           }),
         ),
       ).rejects.toThrow();
@@ -334,7 +303,7 @@ describe("terraform layout worker parity", () => {
         () =>
           layoutTerraformViaWorkers(sources, {
             semanticLayout: false,
-            layoutMode: "pipeline",
+            layoutMode: "strata",
           }),
       );
       const snapshot = buildTerraformLayoutSnapshot(

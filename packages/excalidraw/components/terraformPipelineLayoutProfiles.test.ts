@@ -1,89 +1,68 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_RCLL_LAYOUT_PROFILE,
-  isRcllLayoutProfile,
-  RCLL_LAYOUT_PROFILES,
-  resolveRcllLayoutProfile,
-  type RcllLayoutProfileFlags,
+  DEBAND_LEVELS,
+  DEBAND_LEVEL_BY_TOPOLOGY_ROLE,
+  deBandLevelRank,
+  isDeBandLevel,
+  topologyRoleDeBandRank,
+  type DeBandLevel,
 } from "./terraformPipelineLayoutProfiles";
 
-// The exact flag set the dialog ships as its defaults today (useTerraformImportDialog):
-// every RCLL pass off except the cycle-rise (staircaseBandOverlap), which is on.
-const TODAY_DEFAULT_FLAGS: RcllLayoutProfileFlags = {
-  swimlaneLaneRise: false,
-  rankSeparate: false,
-  deBandLevel: "none",
-  staircaseBandOverlap: true,
-  reorder: false,
-  crossingMin: false,
-  straighten: false,
-  coordRepack: false,
-  columnPacking: "none",
-};
+// The RCLL "Layout" profile machinery this file used to cover was removed with
+// the Pipeline/RCLL views; only the de-band depth ladder (still read by Strata)
+// remains here, so this suite pins that ladder's invariants.
 
-describe("resolveRcllLayoutProfile", () => {
-  it("balanced reproduces today's default flags EXACTLY (byte-identical contract)", () => {
-    expect(resolveRcllLayoutProfile("balanced")).toEqual(TODAY_DEFAULT_FLAGS);
+describe("de-band depth ladder", () => {
+  it("DEBAND_LEVELS lists every rung, shallow→deep", () => {
+    expect([...DEBAND_LEVELS]).toEqual([
+      "none",
+      "subnet",
+      "vpc",
+      "region",
+      "account",
+      "provider",
+    ]);
   });
 
-  it("balanced is the default profile", () => {
-    expect(DEFAULT_RCLL_LAYOUT_PROFILE).toBe("balanced");
-    expect(resolveRcllLayoutProfile(DEFAULT_RCLL_LAYOUT_PROFILE)).toEqual(
-      TODAY_DEFAULT_FLAGS,
-    );
-  });
-
-  it("readable stacks cycles and turns on legibility passes, no width-shrinkers", () => {
-    expect(resolveRcllLayoutProfile("readable")).toEqual({
-      swimlaneLaneRise: false,
-      rankSeparate: false,
-      deBandLevel: "none",
-      staircaseBandOverlap: false,
-      reorder: true,
-      crossingMin: false,
-      straighten: true,
-      coordRepack: false,
-      columnPacking: "none",
-    });
-  });
-
-  it("compact enables the height + width composition (rise+split+deband+compact)", () => {
-    expect(resolveRcllLayoutProfile("compact")).toEqual({
-      swimlaneLaneRise: true,
-      rankSeparate: true,
-      deBandLevel: "subnet",
-      staircaseBandOverlap: true,
-      reorder: true,
-      crossingMin: false,
-      straighten: true,
-      coordRepack: false,
-      columnPacking: "compact",
-    });
-  });
-
-  it("compact never violates the lane-split guard (rankSeparate needs lane-rise)", () => {
-    const f = resolveRcllLayoutProfile("compact");
-    // rankSeparate alone is a regression; the guard drops it unless the lane-rise is on.
-    // A profile must never hand the guard an invalid pair.
-    expect(f.rankSeparate && !f.swimlaneLaneRise).toBe(false);
-  });
-
-  it("is pure — repeated calls return equal, independent objects", () => {
-    for (const p of RCLL_LAYOUT_PROFILES) {
-      const a = resolveRcllLayoutProfile(p);
-      const b = resolveRcllLayoutProfile(p);
-      expect(a).toEqual(b);
-      expect(a).not.toBe(b); // fresh object each call (no shared mutable state)
+  it("isDeBandLevel accepts every rung and rejects anything else", () => {
+    for (const level of DEBAND_LEVELS) {
+      expect(isDeBandLevel(level)).toBe(true);
     }
+    expect(isDeBandLevel("zone")).toBe(false);
+    expect(isDeBandLevel("")).toBe(false);
+    expect(isDeBandLevel(undefined)).toBe(false);
+    expect(isDeBandLevel(3)).toBe(false);
   });
 
-  it("isRcllLayoutProfile guards the enum", () => {
-    expect(isRcllLayoutProfile("compact")).toBe(true);
-    expect(isRcllLayoutProfile("balanced")).toBe(true);
-    expect(isRcllLayoutProfile("readable")).toBe(true);
-    expect(isRcllLayoutProfile("sideways")).toBe(false);
-    expect(isRcllLayoutProfile(undefined)).toBe(false);
-    expect(isRcllLayoutProfile(null)).toBe(false);
+  it("deBandLevelRank orders none=0 (shallowest) → subnet=5 (deepest)", () => {
+    const ranks = DEBAND_LEVELS.map((l) => deBandLevelRank(l));
+    expect(deBandLevelRank("none")).toBe(0);
+    expect(deBandLevelRank("provider")).toBe(1);
+    expect(deBandLevelRank("account")).toBe(2);
+    expect(deBandLevelRank("region")).toBe(3);
+    expect(deBandLevelRank("vpc")).toBe(4);
+    expect(deBandLevelRank("subnet")).toBe(5);
+    // Every rank is distinct.
+    expect(new Set(ranks).size).toBe(ranks.length);
+  });
+
+  it("each topology role maps to the level that dissolves it, and ranks agree", () => {
+    const roles = [
+      "subnetZone",
+      "vpc",
+      "region",
+      "account",
+      "provider",
+    ] as const;
+    for (const role of roles) {
+      const level: DeBandLevel = DEBAND_LEVEL_BY_TOPOLOGY_ROLE[role];
+      expect(isDeBandLevel(level)).toBe(true);
+      expect(level).not.toBe("none");
+      expect(topologyRoleDeBandRank(role)).toBe(deBandLevelRank(level));
+    }
+    // subnetZone is the deepest role → highest rank; provider the shallowest.
+    expect(topologyRoleDeBandRank("subnetZone")).toBe(5);
+    expect(topologyRoleDeBandRank("provider")).toBe(1);
   });
 });

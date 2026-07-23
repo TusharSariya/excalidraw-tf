@@ -131,59 +131,17 @@ export type TerraformPlanParsingOptions = {
    * Satellites are added on demand when the user clicks the card.
    */
   pipelineCompact?: boolean;
-  /** Pipeline layout: classic global grid or compound hierarchy containers. */
+  /** Surviving engine variant: `"v2"` (Strata substrate) or `"strata"`. */
   pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
-  /** Pipeline layout: enable cross-lane column slack packing (experimental). */
-  pipelinePacked?: boolean;
-  /** Packed only: pull slack clusters to their leftmost TFD-feasible column. */
-  pipelinePackedPullLeft?: boolean;
   /** Pipeline: also draw non-TFD resources in per-hull "Unconnected" strips. */
   pipelineIncludeAncillary?: boolean;
   /**
-   * Pipeline (opt-in, default off): private VPC-endpoint-bound REST APIs
-   * (`aws_api_gateway_rest_api` with `endpoint_configuration.types = ["PRIVATE"]`)
-   * are placed at ACCOUNT+REGION level with a companion-inferred owning account,
-   * instead of nested inside a VPC/subnet. OFF ⇒ byte-identical topology extraction.
+   * Pipeline (opt-in, default off; forced ON for strata): private VPC-endpoint-bound
+   * REST APIs (`aws_api_gateway_rest_api` with `endpoint_configuration.types =
+   * ["PRIVATE"]`) are placed at ACCOUNT+REGION level with a companion-inferred owning
+   * account, instead of nested inside a VPC/subnet. OFF ⇒ byte-identical extraction.
    */
   pipelinePrivateApiRegional?: boolean;
-  /**
-   * Pipeline (opt-in, default off): nesting-aware semantic placement —
-   * role-based forced topology bands + deterministic dataflow straightening.
-   */
-  pipelineSemanticPlacement?: boolean;
-  /**
-   * RCLL M4 (opt-in, default off): inside a swimlane, X-disjoint lanes rise to
-   * share Y rows (DEC-1 extended to swimlane interiors), reclaiming height while
-   * keeping the shared column axis (CON-12-safe).
-   */
-  pipelineSwimlaneLaneRise?: boolean;
-  /** RCLL M6: per-container barycenter crossing-min reorder (A/B toggle). */
-  pipelineReorder?: boolean;
-  /** RCLL M6c: container-aware crossing minimization (hierarchical superset of reorder). */
-  pipelineCrossingMin?: boolean;
-  /** RCLL de-band depth: dissolve the chosen container level + all deeper levels into one
-   * shared column stack (frames → rails). `none` = today's boxed layout. */
-  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  /** Back-compat alias for `pipelineDeBandLevel: "subnet"`. `pipelineDeBandLevel` wins. */
-  pipelineSubnetDeBand?: boolean;
-  /** RCLL M8r: whole-model-global sibling-separation ranking (needs lane-rise). */
-  pipelineRankSeparate?: boolean;
-  /** RCLL M5: Brandes–Köpf leaf straightening (Y-only spine alignment). */
-  pipelineStraighten?: boolean;
-  /** RCLL M5b: coordinated per-column permutation re-pack (refines straighten). */
-  pipelineCoordRepack?: boolean;
-  /** RCLL M5b: de-density — spread crowded columns one column right. */
-  pipelineDeDensify?: boolean;
-  /** RCLL "Column packing" tri-state: `spread` = M5b de-density (pull-right), `compact`
-   * = M5c column compaction (pull-left), `none` = neither. The single front-door enum;
-   * supersedes `pipelineDeDensify` (kept as a legacy alias ⇒ `spread`). Default `none`. */
-  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
-  /** RCLL "Layout" profile — outcome-first preset (`readable | balanced | compact`) that
-   * expands into the RCLL flags above. `balanced` = today's defaults (byte-identical). An
-   * explicitly-set individual flag overrides the profile. See terraformPipelineLayoutProfiles. */
-  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
-  /** RCLL M3b / DEC-1: X-disjoint cycle groups rise to share Y. Default on; only `=false` is meaningful. */
-  pipelineStaircaseBandOverlap?: boolean;
   /** Strata (rcll-v2) OD-1: X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;

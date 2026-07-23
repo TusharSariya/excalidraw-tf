@@ -113,21 +113,6 @@ describe("strata option-surface regression (W0-I4)", () => {
     }
   });
 
-  it("RCLL aliases round-trip to their canonical fields (laneRise/laneSplit/cycleRise)", () => {
-    // The builder emits the canonical param name; the parser accepts the alias.
-    // Assert the ALIAS URL parses to the same field the canonical URL does.
-    const canonical = parseTerraformDemoUrlParams(
-      "?preset=demo&swimlaneRise=1&rankSeparate=1&staircaseBandOverlap=0",
-    );
-    const aliased = parseTerraformDemoUrlParams(
-      "?preset=demo&laneRise=1&laneSplit=1&cycleRise=0",
-    );
-    expect(aliased).toEqual(canonical);
-    expect(aliased?.swimlaneRise).toBe(true);
-    expect(aliased?.rankSeparate).toBe(true);
-    expect(aliased?.staircaseBandOverlap).toBe(false);
-  });
-
   it("S5-6: strataRankSeparate full-name spelling aliases to the abbreviation", () => {
     // The owner's nightly URL uses `strataRankSep`; archived rcll URLs use the
     // full name. Both must resolve to the same field, abbreviation-first.
@@ -162,11 +147,6 @@ describe("strata option-surface regression (W0-I4)", () => {
     expect(
       parseTerraformDemoUrlParams("?preset=demo&strataBandDepth=zone"),
     ).toBeNull();
-  });
-
-  it("legacy subnetDeBand=1 aliases to deBandLevel=subnet", () => {
-    const parsed = parseTerraformDemoUrlParams("?preset=demo&subnetDeBand=1");
-    expect(parsed?.deBandLevel).toBe("subnet");
   });
 
   it("an invalid value in any strata param hard-fails the whole URL (no silent drop)", () => {

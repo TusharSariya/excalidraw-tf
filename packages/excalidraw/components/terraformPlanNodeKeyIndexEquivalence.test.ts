@@ -207,7 +207,7 @@ describe("resolveTerraformPlanNodeKey indexed path equivalence", () => {
     sources: Parameters<
       typeof terraformPlanParsingModule.terraformPlanParsingFromSources
     >[0],
-    layoutMode: "module" | "semantic" | "pipeline",
+    layoutMode: "module" | "semantic" | "strata",
   ) {
     const res =
       await terraformPlanParsingModule.terraformPlanParsingFromSources(
@@ -244,7 +244,7 @@ describe("resolveTerraformPlanNodeKey indexed path equivalence", () => {
         );
         await harvestFromFixtureBuild(
           stagingMultiStatePipelineLayoutSources(),
-          "pipeline",
+          "strata",
         );
       } finally {
         spy.mockRestore();

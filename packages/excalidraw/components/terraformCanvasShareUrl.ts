@@ -48,11 +48,7 @@ export type TerraformCanvasViewSettings = {
 export const deriveViewFromSession = (
   session: TerraformImportSession,
 ): TerraformView => {
-  if (
-    session.layoutMode === "pipeline" ||
-    session.layoutMode === "rcll" ||
-    session.layoutMode === "strata"
-  ) {
+  if (session.layoutMode === "strata") {
     return session.layoutMode;
   }
   return session.semanticLayout ? "semantic" : "module";
@@ -66,9 +62,7 @@ const sessionToDemoSnapshot = (
   presetId,
   view: deriveViewFromSession(session),
   pipelineCompact: session.pipelineCompact ?? true,
-  pipelineLayoutVariant: session.pipelineLayoutVariant ?? "classic",
-  pipelinePacked: session.pipelinePacked ?? false,
-  pipelinePackedPullLeft: session.pipelinePackedPullLeft ?? false,
+  pipelineLayoutVariant: session.pipelineLayoutVariant ?? "strata",
   pipelineIncludeAncillary: session.pipelineIncludeAncillary ?? false,
   // S5-9: fall back to the strata view DEFAULT (ON), not `false`. A strata
   // session that somehow lacks the retained field must round-trip to the
@@ -79,22 +73,6 @@ const sessionToDemoSnapshot = (
   pipelinePrivateApiRegional:
     session.pipelinePrivateApiRegional ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.pipelinePrivateApiRegional,
-  pipelineSemanticPlacement: session.pipelineSemanticPlacement ?? false,
-  pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise ?? false,
-  pipelineReorder: session.pipelineReorder ?? false,
-  pipelineCrossingMin: session.pipelineCrossingMin ?? false,
-  pipelineDeBandLevel:
-    session.pipelineDeBandLevel ??
-    (session.pipelineSubnetDeBand ? "subnet" : "none"),
-  pipelineRankSeparate: session.pipelineRankSeparate ?? false,
-  pipelineStraighten: session.pipelineStraighten ?? false,
-  pipelineCoordRepack: session.pipelineCoordRepack ?? false,
-  pipelineColumnPacking:
-    session.pipelineColumnPacking ??
-    (session.pipelineDeDensify ? "spread" : "none"),
-  // No retained profile ⇒ the explicit flags above are authoritative (treated as "custom").
-  pipelineLayoutProfile: session.pipelineLayoutProfile ?? "custom",
-  pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap ?? true,
   strataNetworkSimplexRank: session.strataNetworkSimplexRank ?? false,
   // S5-9: sweeps + coordinate-refine fall back to the SDEC-54 validated
   // strata defaults (K=4 + A7 ON), not `0`/`false`. The old inverted

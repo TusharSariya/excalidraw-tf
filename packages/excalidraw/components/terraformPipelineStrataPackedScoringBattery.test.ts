@@ -69,11 +69,6 @@ const round4 = (n: number): number => Math.round(n * 1e4) / 1e4;
 // ── arms ─────────────────────────────────────────────────────────────────────
 
 const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
-  A_v2_baseline: {
-    layoutMode: "pipeline",
-    pipelineLayoutVariant: "v2",
-    pipelineCompact: true,
-  },
   I_strata_k4_a7: {
     layoutMode: "strata",
     pipelineCompact: true,
@@ -125,8 +120,6 @@ const ARM_OPTIONS: Record<string, Record<string, unknown>> = {
 
 /** [baseline, candidate] pairs the gate plan reads. */
 const CELL_PAIRS: ReadonlyArray<readonly [string, string]> = [
-  ["A_v2_baseline", "I_strata_k4_a7"],
-  ["A_v2_baseline", "P_strata_k4_a7_packed"],
   ["I_strata_k4_a7", "P_strata_k4_a7_packed"],
   ["C2_strata_config2", "Q_strata_config2_converge"],
   ["I_strata_k4_a7", "Q_strata_config2_converge"],

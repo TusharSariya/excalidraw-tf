@@ -33,24 +33,13 @@ vi.mock("./terraformSceneApply", () => ({
   runTerraformImportFromSources: vi.fn(async () => ({})),
   terraformPipelineReplayOptionsFromSession: vi.fn((session) => ({
     pipelineLayoutVariant:
-      session.pipelineLayoutVariant ??
-      (session.layoutMode === "rcll" ? "rcll" : "classic"),
-    pipelinePacked: session.pipelinePacked === true,
-    pipelinePackedPullLeft: session.pipelinePackedPullLeft === true,
+      session.layoutMode === "strata"
+        ? "strata"
+        : session.pipelineLayoutVariant,
     pipelineIncludeAncillary: session.pipelineIncludeAncillary === true,
-    pipelineSemanticPlacement: session.pipelineSemanticPlacement === true,
-    pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise === true,
-    pipelineReorder: session.pipelineReorder === true,
-    pipelineCrossingMin: session.pipelineCrossingMin === true,
-    pipelineDeBandLevel:
-      session.pipelineDeBandLevel ??
-      (session.pipelineSubnetDeBand ? "subnet" : "none"),
-    pipelineRankSeparate: session.pipelineRankSeparate === true,
-    pipelineStraighten: session.pipelineStraighten === true,
-    pipelineDeDensify: session.pipelineDeDensify === true,
-    pipelineColumnPacking: session.pipelineColumnPacking,
-    pipelineLayoutProfile: session.pipelineLayoutProfile,
-    pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap,
+    pipelinePrivateApiRegional: session.pipelinePrivateApiRegional === true,
+    strataRankSeparate: session.strataRankSeparate === true,
+    strataPackedScoring: session.strataPackedScoring === true,
   })),
 }));
 
@@ -210,23 +199,16 @@ describe("TerraformScenePanel", () => {
     expect(refreshTerraformLayout).toHaveBeenCalled();
   });
 
-  it("compact toggle preserves RCLL session options when relayouting", async () => {
+  it("compact toggle preserves Strata session options when relayouting", async () => {
     setTerraformImportSession({
       sources: { planDotBundles: [], states: [], tfdTexts: [] },
       semanticLayout: false,
-      layoutMode: "rcll",
+      layoutMode: "strata",
       moduleLayoutOptions: DEFAULT_TERRAFORM_MODULE_LAYOUT_OPTIONS,
       pipelineCompact: false,
       pipelineIncludeAncillary: true,
-      pipelineSwimlaneLaneRise: true,
-      pipelineReorder: true,
-      pipelineCrossingMin: true,
-      pipelineDeBandLevel: "none",
-      pipelineRankSeparate: true,
-      pipelineStraighten: true,
-      pipelineColumnPacking: "compact",
-      pipelineLayoutProfile: "compact",
-      pipelineStaircaseBandOverlap: true,
+      strataRankSeparate: true,
+      strataPackedScoring: true,
       preset: null,
       importedTfdTexts: [],
       snapshot: {
@@ -253,19 +235,12 @@ describe("TerraformScenePanel", () => {
       hoisted.setAppState,
       expect.anything(),
       expect.objectContaining({
-        layoutMode: "rcll",
+        layoutMode: "strata",
         pipelineCompact: true,
-        pipelineLayoutVariant: "rcll",
+        pipelineLayoutVariant: "strata",
         pipelineIncludeAncillary: true,
-        pipelineSwimlaneLaneRise: true,
-        pipelineReorder: true,
-        pipelineCrossingMin: true,
-        pipelineDeBandLevel: "none",
-        pipelineRankSeparate: true,
-        pipelineStraighten: true,
-        pipelineColumnPacking: "compact",
-        pipelineLayoutProfile: "compact",
-        pipelineStaircaseBandOverlap: true,
+        strataRankSeparate: true,
+        strataPackedScoring: true,
       }),
     );
   });

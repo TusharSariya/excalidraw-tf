@@ -35,7 +35,6 @@ const OUT_BULK = join(OUT_DIR, "terraform-layout-cache-bulk.json");
 
 const EXPECTED_ELEMENT_COUNTS: Record<string, number> = {
   "staging-multi-state-expanded/semantic": 9160,
-  "staging-multi-state-expanded/pipeline": 1121,
 };
 
 type CacheEntry = { key: string; value: string };
@@ -68,11 +67,7 @@ describe.runIf(process.env.PRECOMPUTE_LAYOUT_CACHE === "1")(
           throw new Error(`Preset sources missing in DB: ${presetId}`);
         }
 
-        const views: TerraformLayoutCacheView[] = [
-          "semantic",
-          "pipeline",
-          "module",
-        ];
+        const views: TerraformLayoutCacheView[] = ["semantic", "module"];
 
         for (const view of views) {
           const packs: (ModuleLayoutPack | undefined)[] =

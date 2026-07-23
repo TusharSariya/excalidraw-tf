@@ -105,18 +105,11 @@ function loadSources(preset: string) {
 }
 
 // ---------------------------------------------------------------------------
-// ARMS (WP-3a/3b options; A_v2_baseline = the v2.0 §6-A4 empirical anchor)
+// ARMS (WP-3a/3b options; strata arms only — the retired v2.0 §6-A4 empirical
+// anchor `A_v2_baseline` was removed with the Pipeline/RCLL views)
 // ---------------------------------------------------------------------------
 
 const ARMS: Array<[string, Record<string, unknown>]> = [
-  [
-    "A_v2_baseline",
-    {
-      layoutMode: "pipeline",
-      pipelineLayoutVariant: "v2",
-      pipelineCompact: true,
-    },
-  ],
   ["G_strata_k0", { layoutMode: "strata", pipelineCompact: true }],
   [
     "H_strata_k4",

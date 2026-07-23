@@ -176,42 +176,11 @@ export type RunTerraformImportFromSourcesOptions = {
   terraformLodEnabled?: boolean;
   terraformLodPreset?: AppState["terraformLodPreset"];
   pipelineLayoutVariant?: import("./terraformImportDialogUtils").PipelineLayoutVariant;
-  /** Pipeline packed mode — push sink-only groups right and re-pack lanes in Y. Default false. */
-  pipelinePacked?: boolean;
-  /** Packed only — pull slack clusters to their leftmost TFD-feasible column. Default false. */
-  pipelinePackedPullLeft?: boolean;
   /** Pipeline — draw non-TFD resources in per-hull "Unconnected" strips. Default false. */
   pipelineIncludeAncillary?: boolean;
-  /** Pipeline — private VPC-endpoint-bound REST APIs placed at region level. Default false. */
+  /** Pipeline — private VPC-endpoint-bound REST APIs placed at region level (forced ON
+   * for strata). Default false. */
   pipelinePrivateApiRegional?: boolean;
-  /** Pipeline — nesting-aware semantic placement (forced bands + straightening). Default false. */
-  pipelineSemanticPlacement?: boolean;
-  /** RCLL M4 — X-disjoint swimlane lanes rise to share Y rows. Default false. */
-  pipelineSwimlaneLaneRise?: boolean;
-  /** RCLL M6 — per-container barycenter crossing-min reorder. Default false. */
-  pipelineReorder?: boolean;
-  /** RCLL M6c — container-aware crossing minimization (superset of reorder). Default false. */
-  pipelineCrossingMin?: boolean;
-  /** RCLL de-band depth — dissolve the chosen container level + all deeper levels into one
-   * shared column stack. Default "none" (today's boxed layout). */
-  pipelineDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  /** Back-compat alias for `pipelineDeBandLevel: "subnet"`. `pipelineDeBandLevel` wins. */
-  pipelineSubnetDeBand?: boolean;
-  /** RCLL M8r — whole-model-global sibling-separation ranking (needs lane-rise). Default false. */
-  pipelineRankSeparate?: boolean;
-  /** RCLL M5 — Brandes–Köpf leaf straightening. Default false. */
-  pipelineStraighten?: boolean;
-  /** RCLL M5b — coordinated per-column permutation re-pack (refines straighten). Default false. */
-  pipelineCoordRepack?: boolean;
-  /** RCLL M5b — de-density: spread crowded columns. Default false. */
-  pipelineDeDensify?: boolean;
-  /** RCLL "Column packing" tri-state: `spread` (M5b) / `none` / `compact` (M5c). */
-  pipelineColumnPacking?: "spread" | "none" | "compact" | "shorten";
-  /** RCLL "Layout" profile — `readable | balanced | compact` (expands into the RCLL flags;
-   * `balanced` = today's defaults). An explicit individual flag overrides it. */
-  pipelineLayoutProfile?: import("./terraformPipelineLayoutProfiles").RcllLayoutProfile;
-  /** RCLL M3b / DEC-1 — X-disjoint cycle groups rise to share Y. Default on (undefined). */
-  pipelineStaircaseBandOverlap?: boolean;
   /** Strata (rcll-v2) OD-1 — X-axis network-simplex rank refinement. S0a: accepted +
    * threaded, unused until the engine lands (M1). Default off. */
   strataNetworkSimplexRank?: boolean;
@@ -315,22 +284,8 @@ export const terraformPipelineReplayOptionsFromSession = (
 ): Pick<
   RunTerraformImportFromSourcesOptions,
   | "pipelineLayoutVariant"
-  | "pipelinePacked"
-  | "pipelinePackedPullLeft"
   | "pipelineIncludeAncillary"
   | "pipelinePrivateApiRegional"
-  | "pipelineSemanticPlacement"
-  | "pipelineSwimlaneLaneRise"
-  | "pipelineReorder"
-  | "pipelineCrossingMin"
-  | "pipelineDeBandLevel"
-  | "pipelineRankSeparate"
-  | "pipelineStraighten"
-  | "pipelineCoordRepack"
-  | "pipelineDeDensify"
-  | "pipelineColumnPacking"
-  | "pipelineLayoutProfile"
-  | "pipelineStaircaseBandOverlap"
   | "strataNetworkSimplexRank"
   | "strataSweeps"
   | "strataCoordinateRefine"
@@ -362,29 +317,9 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataRowGap"
 > => ({
   pipelineLayoutVariant:
-    session.layoutMode === "rcll"
-      ? "rcll"
-      : session.layoutMode === "strata"
-      ? "strata"
-      : session.pipelineLayoutVariant ?? "classic",
-  pipelinePacked: session.pipelinePacked === true,
-  pipelinePackedPullLeft: session.pipelinePackedPullLeft === true,
+    session.layoutMode === "strata" ? "strata" : session.pipelineLayoutVariant,
   pipelineIncludeAncillary: session.pipelineIncludeAncillary === true,
   pipelinePrivateApiRegional: session.pipelinePrivateApiRegional === true,
-  pipelineSemanticPlacement: session.pipelineSemanticPlacement === true,
-  pipelineSwimlaneLaneRise: session.pipelineSwimlaneLaneRise === true,
-  pipelineReorder: session.pipelineReorder === true,
-  pipelineCrossingMin: session.pipelineCrossingMin === true,
-  pipelineDeBandLevel:
-    session.pipelineDeBandLevel ??
-    (session.pipelineSubnetDeBand ? "subnet" : "none"),
-  pipelineRankSeparate: session.pipelineRankSeparate === true,
-  pipelineStraighten: session.pipelineStraighten === true,
-  pipelineCoordRepack: session.pipelineCoordRepack === true,
-  pipelineDeDensify: session.pipelineDeDensify === true,
-  pipelineColumnPacking: session.pipelineColumnPacking,
-  pipelineLayoutProfile: session.pipelineLayoutProfile,
-  pipelineStaircaseBandOverlap: session.pipelineStaircaseBandOverlap,
   strataNetworkSimplexRank: session.strataNetworkSimplexRank === true,
   strataSweeps: session.strataSweeps ?? 0,
   strataCoordinateRefine: session.strataCoordinateRefine === true,
@@ -465,22 +400,8 @@ export const terraformPipelineReplayOptionsFromSession = (
 type PipelineForwardOptionKeys =
   | "pipelineCompact"
   | "pipelineLayoutVariant"
-  | "pipelinePacked"
-  | "pipelinePackedPullLeft"
   | "pipelineIncludeAncillary"
-  | "pipelinePrivateApiRegional"
-  | "pipelineSemanticPlacement"
-  | "pipelineSwimlaneLaneRise"
-  | "pipelineReorder"
-  | "pipelineCrossingMin"
-  | "pipelineDeBandLevel"
-  | "pipelineRankSeparate"
-  | "pipelineStraighten"
-  | "pipelineCoordRepack"
-  | "pipelineDeDensify"
-  | "pipelineColumnPacking"
-  | "pipelineLayoutProfile"
-  | "pipelineStaircaseBandOverlap";
+  | "pipelinePrivateApiRegional";
 
 type StrataForwardOptionKeys =
   | "strataNetworkSimplexRank"
@@ -616,41 +537,15 @@ function buildPipelineFamilyLayoutOptions(
   RunTerraformImportFromSourcesOptions,
   PipelineForwardOptionKeys | StrataForwardOptionKeys
 > {
-  if (
-    layoutMode !== "pipeline" &&
-    layoutMode !== "rcll" &&
-    layoutMode !== "strata"
-  ) {
+  if (layoutMode !== "strata") {
     return {};
   }
   return {
     pipelineCompact: options.pipelineCompact !== false,
     pipelineLayoutVariant:
-      layoutMode === "rcll"
-        ? "rcll"
-        : layoutMode === "strata"
-        ? "strata"
-        : options.pipelineLayoutVariant ?? "classic",
-    pipelinePacked: options.pipelinePacked === true,
-    pipelinePackedPullLeft: options.pipelinePackedPullLeft === true,
+      layoutMode === "strata" ? "strata" : options.pipelineLayoutVariant,
     pipelineIncludeAncillary: options.pipelineIncludeAncillary === true,
     pipelinePrivateApiRegional: options.pipelinePrivateApiRegional === true,
-    pipelineSemanticPlacement: options.pipelineSemanticPlacement === true,
-    pipelineSwimlaneLaneRise: options.pipelineSwimlaneLaneRise === true,
-    pipelineReorder: options.pipelineReorder === true,
-    pipelineCrossingMin: options.pipelineCrossingMin === true,
-    pipelineDeBandLevel:
-      options.pipelineDeBandLevel ??
-      (options.pipelineSubnetDeBand ? "subnet" : "none"),
-    pipelineRankSeparate: options.pipelineRankSeparate === true,
-    pipelineStraighten: options.pipelineStraighten === true,
-    pipelineCoordRepack: options.pipelineCoordRepack === true,
-    pipelineDeDensify: options.pipelineDeDensify === true,
-    pipelineColumnPacking: options.pipelineColumnPacking,
-    pipelineLayoutProfile: options.pipelineLayoutProfile,
-    // Default-on: undefined ⇒ engine default (true). Only an explicit
-    // false (Stacked) flows through.
-    pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
     ...buildStrataForwardOptions(options),
   };
 }
@@ -662,20 +557,8 @@ async function layoutTerraformSceneFromSources(
   moduleLayoutOptions: TerraformModuleLayoutOptions,
 ): Promise<TerraformExcalidrawScenePayload> {
   const presetId = options.preset?.id?.trim();
-  // Packed and ancillary pipeline scenes are not part of the KV layout cache
-  // key yet; skip the cache so such imports never return the default layout.
-  // RCLL and Strata are never cached (RCLL M0 delegates + Strata S0a
-  // passthrough; neither has a cache key for its dials yet).
-  const skipLayoutCache =
-    layoutMode === "rcll" ||
-    layoutMode === "strata" ||
-    (layoutMode === "pipeline" &&
-      (options.pipelineLayoutVariant === "v2" ||
-        options.pipelinePacked === true ||
-        options.pipelinePackedPullLeft === true ||
-        options.pipelineIncludeAncillary === true ||
-        options.pipelinePrivateApiRegional === true ||
-        options.pipelineSemanticPlacement === true));
+  // Strata is never cached (S0a passthrough; no cache key for its dials yet).
+  const skipLayoutCache = layoutMode === "strata";
   if (presetId && !skipLayoutCache) {
     const cached = await fetchPresetLayoutCache(
       presetId,

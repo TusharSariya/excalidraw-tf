@@ -47,13 +47,7 @@ const queryOf = (url: string): string => url.slice(url.indexOf("?"));
 
 describe("terraformCanvasShareUrl", () => {
   describe("deriveViewFromSession", () => {
-    it("recovers pipeline-family views from layoutMode", () => {
-      expect(deriveViewFromSession(makeSession({ layoutMode: "rcll" }))).toBe(
-        "rcll",
-      );
-      expect(
-        deriveViewFromSession(makeSession({ layoutMode: "pipeline" })),
-      ).toBe("pipeline");
+    it("recovers the strata view from layoutMode", () => {
       expect(deriveViewFromSession(makeSession({ layoutMode: "strata" }))).toBe(
         "strata",
       );
@@ -78,10 +72,9 @@ describe("terraformCanvasShareUrl", () => {
 
   it("encodes preset + layout + runtime settings into a /demo URL", () => {
     const session = makeSession({
-      layoutMode: "rcll",
+      layoutMode: "strata",
       pipelineCompact: false,
       pipelineIncludeAncillary: true,
-      pipelineLayoutProfile: "compact",
     });
     const view: TerraformCanvasViewSettings = {
       terraformLodEnabled: false,
@@ -109,10 +102,9 @@ describe("terraformCanvasShareUrl", () => {
     const parsed = parseTerraformDemoUrlParams(queryOf(url!));
     expect(parsed).toMatchObject({
       presetId: "staging-extended-localstack-v2",
-      view: "rcll",
+      view: "strata",
       compact: false,
       ancillary: true,
-      profile: "compact",
       lodEnabled: false,
       lodPreset: "detailed",
       minimap: true,
@@ -245,7 +237,7 @@ describe("terraformCanvasShareUrl", () => {
 
   it("omits dev perf params when settings are at defaults", () => {
     const url = buildTerraformCanvasShareUrl(
-      makeSession({ layoutMode: "rcll" }),
+      makeSession({ layoutMode: "strata" }),
       defaultView,
     );
     expect(url).not.toContain("canvasPerf");
@@ -257,7 +249,7 @@ describe("terraformCanvasShareUrl", () => {
   describe("W11 WP1 — relationship-focus view settings", () => {
     it("omits focusdir/focushops at defaults, mirroring edgeLayerPins omission", () => {
       const url = buildTerraformCanvasShareUrl(
-        makeSession({ layoutMode: "rcll" }),
+        makeSession({ layoutMode: "strata" }),
         defaultView,
       );
       expect(url).not.toContain("focusdir");
@@ -272,7 +264,7 @@ describe("terraformCanvasShareUrl", () => {
         terraformFocusMaxHops: -1,
       };
       const url = buildTerraformCanvasShareUrl(
-        makeSession({ layoutMode: "rcll" }),
+        makeSession({ layoutMode: "strata" }),
         view,
         { origin: "https://tfdraw.dev" },
       );
@@ -289,7 +281,7 @@ describe("terraformCanvasShareUrl", () => {
         terraformFocusMaxHops: Infinity,
       };
       const url = buildTerraformCanvasShareUrl(
-        makeSession({ layoutMode: "rcll" }),
+        makeSession({ layoutMode: "strata" }),
         view,
       );
       expect(url).toContain("focushops=all");
@@ -301,7 +293,7 @@ describe("terraformCanvasShareUrl", () => {
         terraformFocusMaxHops: 2,
       };
       const url = buildTerraformCanvasShareUrl(
-        makeSession({ layoutMode: "rcll" }),
+        makeSession({ layoutMode: "strata" }),
         view,
       );
       expect(url).toContain("focushops=2");
@@ -315,7 +307,7 @@ describe("terraformCanvasShareUrl", () => {
         terraformFocusMaxHops: 0,
       };
       const url = buildTerraformCanvasShareUrl(
-        makeSession({ layoutMode: "rcll" }),
+        makeSession({ layoutMode: "strata" }),
         view,
       );
       // 0 must survive the emit (null-check, not truthiness) and the parse.
@@ -334,7 +326,7 @@ describe("terraformCanvasShareUrl", () => {
         terraformFocusMaxHops: 100,
       };
       const url = buildTerraformCanvasShareUrl(
-        makeSession({ layoutMode: "rcll" }),
+        makeSession({ layoutMode: "strata" }),
         view,
       );
       expect(url).toContain("focushops=100");
@@ -373,7 +365,7 @@ describe("terraformCanvasShareUrl", () => {
           terraformFocusMaxHops: junk,
         };
         const url = buildTerraformCanvasShareUrl(
-          makeSession({ layoutMode: "rcll" }),
+          makeSession({ layoutMode: "strata" }),
           view,
         );
         expect(url).not.toContain("focushops");

@@ -76,7 +76,7 @@ describe("terraformImportPresetLoader", () => {
     const preset: TerraformImportPreset = {
       id: "staging-localstack",
       name: "Staging LocalStack",
-      view: "pipeline",
+      view: "strata",
       rootPath: "packages/backend/terraform/staging-localstack",
       hasContent: false,
       stacks: [
