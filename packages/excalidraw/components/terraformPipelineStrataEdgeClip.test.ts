@@ -5,13 +5,17 @@
  *
  * Coverage: endpoints exactly ON the source-frame RIGHT face / target-frame
  * LEFT face (the clip), write-back re-origin (points[0] === [0,0]), horizontal
- * tangent stubs at departure/arrival, perpendicular hull port-chain crossings
- * on the correct faces (never top/bottom), per-face port ordering + ≥12px
- * separation across 3 edges sharing a face, net-backward + same-column skips
- * (byte-identical, unstamped), and the repair gate: a VALID clip polyline
- * survives `repairTerraformEdgeBindings` with provenance intact while a STALE
- * one (frame moved → >2px face miss) or a foreign-frame anchor is flattened
- * and stripped (fail-closed).
+ * tangent departures/arrivals, perpendicular hull port-chain crossings on the
+ * correct faces (never top/bottom), per-face port ordering + ≥12px separation
+ * across 3 edges sharing a face, same-column skips (byte-identical,
+ * unstamped), E2.4 over-the-top lanes (cross-band X-overlap + net-backward
+ * edges: above/below selection, lane never enters a hull, deterministic
+ * stable-by-id lane allocation with 16px stacking), E2.3 gutter nudging
+ * (≥12px track separation at the 25%/75% waypoint columns), and the repair
+ * gate: a VALID clip polyline (including a lane polyline) survives
+ * `repairTerraformEdgeBindings` with provenance intact while a STALE one
+ * (frame moved → >2px face miss) or a foreign-frame anchor is flattened and
+ * stripped (fail-closed).
  *
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataEdgeClip.test.ts --exclude "**\/.claude/**"
  */
@@ -21,6 +25,8 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import {
+  STRATA_CLIP_LANE_CLEARANCE_PX,
+  STRATA_CLIP_LANE_SEPARATION_PX,
   STRATA_CLIP_PORT_SEPARATION_PX,
   routeStrataEdgeClip,
 } from "./terraformPipelineStrataEdgeClip";
@@ -338,7 +344,7 @@ describe("routeStrataEdgeClip (scene pass)", () => {
     }
   });
 
-  it("skips net-backward and same-column edges byte-identically (unstamped — the style-pass orbit / E2.4 lanes own them)", () => {
+  it("skips same-column edges byte-identically (unstamped — the style-pass orbit owns them)", () => {
     const root = hull("__root__", [], []);
     const a = hull("hull-a", ["vpc-a"], ["a1", "a2"]);
     const b = hull("hull-b", ["vpc-b"], ["b1"]);
@@ -353,21 +359,17 @@ describe("routeStrataEdgeClip (scene pass)", () => {
       ["hull-a", { hull: a, box: box(-20, -20, 120, 300) }],
       ["hull-b", { hull: b, box: box(380, 100, 120, 80) }],
     ]);
-    const backward = tfdArrow("b1", "a1", [400, 140], [80, 20]);
     const sameColumn = tfdArrow("a1", "a2", [40, 40], [40, 200]);
-    const beforeBackward = JSON.stringify(backward);
     const beforeSameColumn = JSON.stringify(sameColumn);
-    const skeleton = [backward, sameColumn];
+    const skeleton = [sameColumn];
     const meta = routeStrataEdgeClip(
       skeleton,
       modelOf(root),
       placementOf(leafBoxes, boxedHulls),
     );
     expect(meta.clipped).toBe(0);
-    expect(meta.skippedBackward).toBe(1);
     expect(meta.skippedSameColumn).toBe(1);
-    expect(JSON.stringify(skeleton[0])).toBe(beforeBackward);
-    expect(JSON.stringify(skeleton[1])).toBe(beforeSameColumn);
+    expect(JSON.stringify(skeleton[0])).toBe(beforeSameColumn);
   });
 
   it("skips an edge already stamped by another pass (first-stamper-wins)", () => {
@@ -386,6 +388,523 @@ describe("routeStrataEdgeClip (scene pass)", () => {
     expect(meta.clipped).toBe(0);
     expect(meta.skippedAlreadyRouted).toBe(1);
     expect(JSON.stringify(skeleton[0])).toBe(before);
+  });
+});
+
+// ── E2.4 over-the-top lanes + E2.3 gutter nudging ───────────────────────────
+
+/** Does the axis-aligned segment a→b overlap the STRICT interior of box r? */
+const segmentEntersInterior = (a: Pt, b: Pt, r: StrataBox): boolean => {
+  const EPS = 1e-6;
+  const ix0 = Math.max(Math.min(a[0], b[0]), r.x);
+  const ix1 = Math.min(Math.max(a[0], b[0]), r.x + r.width);
+  const iy0 = Math.max(Math.min(a[1], b[1]), r.y);
+  const iy1 = Math.min(Math.max(a[1], b[1]), r.y + r.height);
+  if (ix0 > ix1 || iy0 > iy1) {
+    return false;
+  }
+  const midX = (ix0 + ix1) / 2;
+  const midY = (iy0 + iy1) / 2;
+  return (
+    midX > r.x + EPS &&
+    midX < r.x + r.width - EPS &&
+    midY > r.y + EPS &&
+    midY < r.y + r.height - EPS &&
+    (ix1 - ix0 > EPS || iy1 - iy0 > EPS)
+  );
+};
+
+const polylineEntersBox = (poly: readonly Pt[], r: StrataBox): boolean => {
+  for (let i = 0; i + 1 < poly.length; i++) {
+    if (segmentEntersInterior(poly[i]!, poly[i + 1]!, r)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** Three side-by-side single-leaf hulls in one band — the backward edge
+ * b1→a1 must fly a lane OVER hull-mid, never through it. */
+const backwardFixture = () => {
+  const root = hull("__root__", [], []);
+  const a = hull("hull-a", ["vpc-a"], ["a1"]);
+  const mid = hull("hull-mid", ["vpc-mid"], ["m1"]);
+  const b = hull("hull-b", ["vpc-b"], ["b1"]);
+  root.children = [a, mid, b];
+  const leafBoxes = new Map<string, StrataBox>([
+    ["a1", box(0, 0, 80, 40)],
+    ["m1", box(200, 0, 80, 40)],
+    ["b1", box(400, 0, 80, 40)],
+  ]);
+  const boxedHulls = new Map([
+    ["hull-a", { hull: a, box: box(-20, -20, 120, 80) }],
+    ["hull-mid", { hull: mid, box: box(180, -20, 120, 80) }],
+    ["hull-b", { hull: b, box: box(380, -20, 120, 80) }],
+  ]);
+  return { root, leafBoxes, boxedHulls };
+};
+
+describe("routeStrataEdgeClip — E2.4 lanes + E2.3 gutter nudging", () => {
+  it("routes a net-backward edge over an ABOVE lane: source R-face egress, target L-face ingress, lane clear of every hull", () => {
+    const { root, leafBoxes, boxedHulls } = backwardFixture();
+    const skeleton = [tfdArrow("b1", "a1", [400, 20], [80, 20])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.skippedBackward).toBe(0);
+    expect(meta.laneEdges).toBe(1);
+    expect(meta.laneBackward).toBe(1);
+    expect(meta.laneAbove).toBe(1);
+    expect(meta.laneBelow).toBe(0);
+    expect(meta.laneFallback).toBe(0);
+
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    expect(el.customData.terraformRoutedPolyline).toBe(true);
+    expect(el.customData.terraformRoutedBy).toBe("clip");
+    expect(el.customData.terraformClipLane).toBe("above");
+    expect(el.customData.terraformClipAnchor).toEqual({
+      start: { frameKey: "b1", side: "right" },
+      end: { frameKey: "a1", side: "left" },
+    });
+
+    const abs = absPointsOf(skeleton[0]!);
+    expect(isAxisAligned(abs)).toBe(true);
+    // Side discipline: origin ON the source leaf's RIGHT face, terminus ON
+    // the target leaf's LEFT face — same ports the repair gate validates.
+    expect(abs[0]![0]).toBe(480);
+    expect(abs[abs.length - 1]![0]).toBe(0);
+    // The lane rides ABOVE the union of every transited hull:
+    // laneY = unionTop − 24 (laneIndex 0).
+    const minY = Math.min(...abs.map((p) => p[1]));
+    expect(minY).toBe(-20 - STRATA_CLIP_LANE_CLEARANCE_PX);
+    // The lane NEVER enters any hull — in particular not the sibling band
+    // hull-mid it flies over (the box a chord would pierce).
+    for (const key of ["hull-a", "hull-mid", "hull-b"] as const) {
+      const h = boxedHulls.get(key)!.box;
+      expect(
+        crossesHorizontalBorder(abs, h.y, h.x, h.x + h.width),
+        `${key} top border pierced`,
+      ).toBe(false);
+      expect(
+        crossesHorizontalBorder(abs, h.y + h.height, h.x, h.x + h.width),
+        `${key} bottom border pierced`,
+      ).toBe(false);
+    }
+    expect(polylineEntersBox(abs, boxedHulls.get("hull-mid")!.box)).toBe(false);
+    expect(polylineEntersBox(abs, leafBoxes.get("m1")!)).toBe(false);
+  });
+
+  it("keeps a cross-band edge on the Z-detour when the Z is measurably clear (no lane needed)", () => {
+    // Two X-disjoint bands with a clean gap between them: the Z's verticals
+    // sit outside both boxes and its horizontal rides the band gap — no lane.
+    const { root, leafBoxes, boxedHulls } = basicFixture();
+    const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 140])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.laneEdges).toBe(0);
+    expect(meta.laneFallback).toBe(0);
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    expect(el.customData.terraformClipLane).toBeUndefined();
+    const abs = absPointsOf(skeleton[0]!);
+    // Still clip-disciplined and clean: no top/bottom border crossing.
+    expect(abs[0]![0]).toBe(80);
+    expect(abs[abs.length - 1]![0]).toBe(400);
+    for (const key of ["hull-a", "hull-b"] as const) {
+      const h = boxedHulls.get(key)!.box;
+      expect(crossesHorizontalBorder(abs, h.y, h.x, h.x + h.width)).toBe(false);
+      expect(
+        crossesHorizontalBorder(abs, h.y + h.height, h.x, h.x + h.width),
+      ).toBe(false);
+    }
+  });
+
+  it("routes a cross-band X-OVERLAP forward edge over an ABOVE lane when the Z-detour would transit a sibling band", () => {
+    // hull-a is a wide top band whose X-extent overlaps hull-b's (the bottom
+    // band); sibling band hull-c sits exactly where the Z-detour's first
+    // vertical would run — the edge must lane over the union instead.
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const c = hull("hull-c", ["vpc-c"], ["c1"]);
+    const b = hull("hull-b", ["vpc-b"], ["b1"]);
+    root.children = [a, c, b];
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 0, 80, 40)],
+      ["c1", box(320, 110, 80, 40)],
+      ["b1", box(400, 220, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["hull-a", { hull: a, box: box(-20, -20, 520, 80) }],
+      ["hull-c", { hull: c, box: box(300, 90, 300, 90) }],
+      ["hull-b", { hull: b, box: box(380, 200, 120, 80) }],
+    ]);
+    const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 240])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.laneEdges).toBe(1);
+    expect(meta.laneAbove).toBe(1);
+    expect(meta.laneBackward).toBe(0);
+    expect(meta.laneFallback).toBe(0);
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    expect(el.customData.terraformClipLane).toBe("above");
+
+    const abs = absPointsOf(skeleton[0]!);
+    expect(isAxisAligned(abs)).toBe(true);
+    expect(abs[0]![0]).toBe(80); // a1 R face
+    expect(abs[abs.length - 1]![0]).toBe(400); // b1 L face
+    // Lane above the union of the bands (unionTop = −20).
+    const minY = Math.min(...abs.map((p) => p[1]));
+    expect(minY).toBe(-20 - STRATA_CLIP_LANE_CLEARANCE_PX);
+    // No top/bottom border crossing on any band, and the sibling band the
+    // Z-detour would have pierced is never entered.
+    for (const key of ["hull-a", "hull-b", "hull-c"] as const) {
+      const h = boxedHulls.get(key)!.box;
+      expect(crossesHorizontalBorder(abs, h.y, h.x, h.x + h.width)).toBe(false);
+      expect(
+        crossesHorizontalBorder(abs, h.y + h.height, h.x, h.x + h.width),
+      ).toBe(false);
+    }
+    expect(polylineEntersBox(abs, boxedHulls.get("hull-c")!.box)).toBe(false);
+  });
+
+  it("ORBITS the shared top-level unit when an in-hull lane is impossible: legal side-face exit/re-entry, staircase offsets, no hull entered", () => {
+    // Both endpoints live under one top-level hull P; sibling band hull-c is
+    // wider than both endpoint bands, so no in-place Z or corridor clears it.
+    // The lane must ride AROUND P: out its RIGHT face, over its top, back in
+    // its LEFT face.
+    const root = hull("__root__", [], []);
+    const p = hull("P", ["prov"], []);
+    const a = hull("hull-a", ["prov", "band-a"], ["a1"]);
+    const c = hull("hull-c", ["prov", "band-c"], ["c1"]);
+    const b = hull("hull-b", ["prov", "band-b"], ["b1"]);
+    p.children = [a, c, b];
+    root.children = [p];
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 0, 80, 40)],
+      ["c1", box(0, 110, 80, 40)],
+      ["b1", box(400, 220, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["P", { hull: p, box: box(-40, -40, 700, 340) }],
+      ["hull-a", { hull: a, box: box(-20, -20, 520, 80) }],
+      ["hull-c", { hull: c, box: box(-30, 90, 680, 90) }],
+      ["hull-b", { hull: b, box: box(-20, 200, 600, 80) }],
+    ]);
+    const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 240])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.laneEdges).toBe(1);
+    expect(meta.laneAbove).toBe(1);
+    expect(meta.laneFallback).toBe(0);
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    expect(el.customData.terraformClipLane).toBe("above");
+
+    const abs = absPointsOf(skeleton[0]!);
+    const P = boxedHulls.get("P")!.box;
+    // Orbit: lane above P (laneY = P.top − 24), riser beyond P's right face,
+    // descender beyond its left face (staircase offset 24 at laneIndex 0).
+    const minY = Math.min(...abs.map((p2) => p2[1]));
+    expect(minY).toBe(P.y - STRATA_CLIP_LANE_CLEARANCE_PX);
+    const maxX = Math.max(...abs.map((p2) => p2[0]));
+    const minX = Math.min(...abs.map((p2) => p2[0]));
+    expect(maxX).toBe(P.x + P.width + STRATA_CLIP_LANE_CLEARANCE_PX);
+    expect(minX).toBe(P.x - STRATA_CLIP_LANE_CLEARANCE_PX);
+    // Side discipline everywhere: NO top/bottom border crossing on P or any
+    // band (P is exited/re-entered through its vertical faces only), and the
+    // wide sibling band is never entered.
+    for (const [, boxed] of boxedHulls) {
+      const h = boxed.box;
+      expect(crossesHorizontalBorder(abs, h.y, h.x, h.x + h.width)).toBe(false);
+      expect(
+        crossesHorizontalBorder(abs, h.y + h.height, h.x, h.x + h.width),
+      ).toBe(false);
+    }
+    expect(polylineEntersBox(abs, boxedHulls.get("hull-c")!.box)).toBe(false);
+  });
+
+  it("picks a BELOW lane when the union's bottom is closer to both endpoints", () => {
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const b = hull("hull-b", ["vpc-b"], ["b1"]);
+    root.children = [a, b];
+    // Tall hulls, leaves parked near the BOTTOM: both ports sit closer to the
+    // union's bottom than its top.
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 220, 80, 40)],
+      ["b1", box(400, 220, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["hull-a", { hull: a, box: box(-20, -20, 120, 300) }],
+      ["hull-b", { hull: b, box: box(380, -20, 120, 300) }],
+    ]);
+    const skeleton = [tfdArrow("b1", "a1", [400, 240], [80, 240])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.laneEdges).toBe(1);
+    expect(meta.laneBelow).toBe(1);
+    expect(meta.laneAbove).toBe(0);
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    expect(el.customData.terraformClipLane).toBe("below");
+    const abs = absPointsOf(skeleton[0]!);
+    // laneY = unionBottom + 24 (laneIndex 0): union bottom = −20 + 300 = 280.
+    const maxY = Math.max(...abs.map((p) => p[1]));
+    expect(maxY).toBe(280 + STRATA_CLIP_LANE_CLEARANCE_PX);
+    for (const key of ["hull-a", "hull-b"] as const) {
+      const h = boxedHulls.get(key)!.box;
+      expect(crossesHorizontalBorder(abs, h.y, h.x, h.x + h.width)).toBe(false);
+      expect(
+        crossesHorizontalBorder(abs, h.y + h.height, h.x, h.x + h.width),
+      ).toBe(false);
+    }
+  });
+
+  it("allocates laneIndex deterministically (stable by edge id, 16px stacking) regardless of skeleton order", () => {
+    const buildFixture = () => {
+      const root = hull("__root__", [], []);
+      const a = hull("hull-a", ["vpc-a"], ["a1", "a2"]);
+      const b = hull("hull-b", ["vpc-b"], ["b1", "b2"]);
+      root.children = [a, b];
+      const leafBoxes = new Map<string, StrataBox>([
+        ["a1", box(0, 20, 80, 40)],
+        ["a2", box(0, 80, 80, 40)],
+        ["b1", box(400, 20, 80, 40)],
+        ["b2", box(400, 80, 80, 40)],
+      ]);
+      const boxedHulls = new Map([
+        ["hull-a", { hull: a, box: box(-20, -20, 120, 300) }],
+        ["hull-b", { hull: b, box: box(380, -20, 120, 300) }],
+      ]);
+      return { root, leafBoxes, boxedHulls };
+    };
+    const minYOf = (el: ExcalidrawElementSkeleton): number =>
+      Math.min(...absPointsOf(el).map((p) => p[1]));
+
+    // Two X-overlapping backward lanes — laneIndex by edge id, 16px apart.
+    const f1 = buildFixture();
+    const first = [
+      tfdArrow("b1", "a1", [400, 40], [80, 40]),
+      tfdArrow("b2", "a2", [400, 100], [80, 100]),
+    ];
+    const meta1 = routeStrataEdgeClip(
+      first,
+      modelOf(f1.root),
+      placementOf(f1.leafBoxes, f1.boxedHulls),
+    );
+    expect(meta1.laneEdges).toBe(2);
+    const laneY1 = minYOf(first[0]!); // arrow-b1-a1 → laneIndex 0
+    const laneY2 = minYOf(first[1]!); // arrow-b2-a2 → laneIndex 1
+    expect(laneY1).toBe(-20 - STRATA_CLIP_LANE_CLEARANCE_PX);
+    expect(laneY2).toBe(laneY1 - STRATA_CLIP_LANE_SEPARATION_PX);
+
+    // Same edges, reversed skeleton order → identical lane Ys per edge id.
+    const f2 = buildFixture();
+    const reversed = [
+      tfdArrow("b2", "a2", [400, 100], [80, 100]),
+      tfdArrow("b1", "a1", [400, 40], [80, 40]),
+    ];
+    routeStrataEdgeClip(
+      reversed,
+      modelOf(f2.root),
+      placementOf(f2.leafBoxes, f2.boxedHulls),
+    );
+    expect(minYOf(reversed[1]!)).toBe(laneY1); // b1→a1 unchanged
+    expect(minYOf(reversed[0]!)).toBe(laneY2); // b2→a2 unchanged
+  });
+
+  it("spreads E2.3 gutter tracks ≥12px apart at the 25%/75% waypoint columns when mean-y ties collide", () => {
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1", "a2", "a3"]);
+    const b = hull("hull-b", ["vpc-b"], ["b1", "b2", "b3"]);
+    root.children = [a, b];
+    // Sources top→bottom, targets mirrored bottom→top: every edge's mid-
+    // gutter mean y is identical (160) — the nudge must separate the tracks.
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 40, 80, 40)],
+      ["a2", box(0, 140, 80, 40)],
+      ["a3", box(0, 240, 80, 40)],
+      ["b1", box(400, 240, 80, 40)],
+      ["b2", box(400, 140, 80, 40)],
+      ["b3", box(400, 40, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["hull-a", { hull: a, box: box(-20, -20, 120, 340) }],
+      ["hull-b", { hull: b, box: box(380, -20, 120, 340) }],
+    ]);
+    const skeleton = [
+      tfdArrow("a1", "b1", [80, 60], [400, 260]),
+      tfdArrow("a2", "b2", [80, 160], [400, 160]),
+      tfdArrow("a3", "b3", [80, 260], [400, 60]),
+    ];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(3);
+    expect(meta.laneEdges).toBe(0);
+
+    // The mid gutter runs hull-a R (x=100) → hull-b L (x=380); its waypoint
+    // columns sit at 25%/75% (rank-staggered inward) → the track is the
+    // horizontal segment spanning the gutter's centre (x=240). Extract it
+    // per edge.
+    const trackOf = (el: ExcalidrawElementSkeleton): number => {
+      const abs = absPointsOf(el);
+      for (let i = 0; i + 1 < abs.length; i++) {
+        const [x0, y0] = abs[i]!;
+        const [x1, y1] = abs[i + 1]!;
+        if (
+          Math.abs(y1 - y0) < 1e-6 &&
+          Math.min(x0, x1) <= 235 &&
+          Math.max(x0, x1) >= 245
+        ) {
+          return y0;
+        }
+      }
+      throw new Error("no mid-gutter track segment found");
+    };
+    const tracks = skeleton.map(trackOf);
+    const sorted = [...tracks].sort((x, y) => x - y);
+    for (let i = 1; i < sorted.length; i++) {
+      expect(sorted[i]! - sorted[i - 1]!).toBeGreaterThanOrEqual(
+        STRATA_CLIP_PORT_SEPARATION_PX,
+      );
+    }
+  });
+
+  it("round-trips a BACKWARD lane polyline through the unchanged repair gate (kept under clip provenance)", () => {
+    const { root, leafBoxes, boxedHulls } = backwardFixture();
+    const skeleton = [tfdArrow("b1", "a1", [400, 20], [80, 20])];
+    routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    const routed = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      points: Pt[];
+      customData: Record<string, unknown>;
+    };
+    const el = (o: Record<string, unknown>): ExcalidrawElement =>
+      ({
+        angle: 0,
+        isDeleted: false,
+        groupIds: [],
+        frameId: null,
+        boundElements: null,
+        version: 1,
+        versionNonce: 0,
+        updated: 1,
+        locked: false,
+        opacity: 100,
+        ...o,
+      } as unknown as ExcalidrawElement);
+    const elements: ExcalidrawElement[] = [
+      el({
+        id: "frame-b1",
+        type: "frame",
+        x: 400,
+        y: 0,
+        width: 80,
+        height: 40,
+        customData: {
+          terraform: true,
+          terraformTopologyRole: "primaryCluster",
+          terraformTopologyKey: "frame-b1",
+          terraformPrimaryAddress: "b1",
+        },
+      }),
+      el({
+        id: "frame-a1",
+        type: "frame",
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 40,
+        customData: {
+          terraform: true,
+          terraformTopologyRole: "primaryCluster",
+          terraformTopologyKey: "frame-a1",
+          terraformPrimaryAddress: "a1",
+        },
+      }),
+      el({
+        id: "card-b1",
+        type: "rectangle",
+        x: 410,
+        y: 5,
+        width: 60,
+        height: 30,
+        customData: {
+          terraform: true,
+          terraformVisibilityRole: "resource",
+          terraformVisibilityKey: "b1",
+        },
+      }),
+      el({
+        id: "card-a1",
+        type: "rectangle",
+        x: 10,
+        y: 5,
+        width: 60,
+        height: 30,
+        customData: {
+          terraform: true,
+          terraformVisibilityRole: "resource",
+          terraformVisibilityKey: "a1",
+        },
+      }),
+      el({
+        id: "arrow-b1-a1",
+        type: "arrow",
+        x: routed.x,
+        y: routed.y,
+        width: routed.width,
+        height: routed.height,
+        points: routed.points,
+        customData: routed.customData,
+      }),
+    ];
+    const stats = createTerraformEdgeRepairStats();
+    const out = repairTerraformEdgeBindings(elements, stats);
+    const arrow = out.find((e) => e.id === "arrow-b1-a1") as
+      | (ExcalidrawElement & { points: Pt[] })
+      | undefined;
+    expect(arrow).toBeDefined();
+    expect(stats.keptBy.clip).toBe(1);
+    expect(stats.routedFlattened).toBe(0);
+    expect(arrow!.points.length).toBe(routed.points.length);
+    expect(arrow!.customData?.terraformRoutedBy).toBe("clip");
+    expect(arrow!.customData?.terraformClipLane).toBe("above");
   });
 });
 

@@ -1295,6 +1295,14 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeClipPortFaces: scene.edgeClip.portFaces,
               strataEdgeClipMaxPortsOnFace: scene.edgeClip.maxPortsOnFace,
               strataEdgeClipWaypoints: scene.edgeClip.waypointsTotal,
+              // E2.4 lane census: edges routed over above/below lanes, the
+              // net-backward subset brought into the pass, and lane
+              // candidates that fell back (Z-detour / unstamped).
+              strataEdgeClipLaneEdges: scene.edgeClip.laneEdges,
+              strataEdgeClipLaneAbove: scene.edgeClip.laneAbove,
+              strataEdgeClipLaneBelow: scene.edgeClip.laneBelow,
+              strataEdgeClipLaneBackward: scene.edgeClip.laneBackward,
+              strataEdgeClipLaneFallback: scene.edgeClip.laneFallback,
             }
           : {}),
         // Probe P1 channel-route observability — present only when the pass ran.

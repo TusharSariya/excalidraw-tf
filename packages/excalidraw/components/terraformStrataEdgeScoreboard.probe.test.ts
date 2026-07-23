@@ -111,6 +111,76 @@ const declaredCensus = (
 
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
 
+/**
+ * E2.4 lane census: backwardXPx attribution split between lane edges
+ * (`customData.terraformClipLane` — sanctioned over-the-top travel) and
+ * non-lane edges (must be ≈0 once the Z-detours ride lanes), plus the
+ * above/below lane counts. Mirrors the scoreboard's backward-X definition
+ * (Σ max(0, −Δx) over consecutive absolute points of NET-FORWARD edges).
+ */
+const laneCensus = (
+  elements: readonly ExcalidrawElement[],
+): {
+  laneEdges: number;
+  laneAbove: number;
+  laneBelow: number;
+  laneBackwardXPx: number;
+  nonLaneBackwardXPx: number;
+} => {
+  let laneEdges = 0;
+  let laneAbove = 0;
+  let laneBelow = 0;
+  let laneBackwardXPx = 0;
+  let nonLaneBackwardXPx = 0;
+  for (const el of elements) {
+    if (
+      el.type !== "arrow" ||
+      getTerraformEdgeLayer(el) !== "declaredDataFlow"
+    ) {
+      continue;
+    }
+    const pts = (
+      (el as { points?: ReadonlyArray<readonly [number, number]> }).points ?? []
+    ).map(([px, py]) => [el.x + px, el.y + py] as const);
+    if (pts.length < 2) {
+      continue;
+    }
+    const lane = (el.customData as Record<string, unknown> | undefined)
+      ?.terraformClipLane;
+    if (lane === "above" || lane === "below") {
+      laneEdges += 1;
+      if (lane === "above") {
+        laneAbove += 1;
+      } else {
+        laneBelow += 1;
+      }
+    }
+    const netForward = pts[pts.length - 1]![0] - pts[0]![0] > 1;
+    if (!netForward) {
+      continue;
+    }
+    let back = 0;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const dx = pts[i + 1]![0] - pts[i]![0];
+      if (dx < 0) {
+        back += -dx;
+      }
+    }
+    if (lane === "above" || lane === "below") {
+      laneBackwardXPx += back;
+    } else {
+      nonLaneBackwardXPx += back;
+    }
+  }
+  return {
+    laneEdges,
+    laneAbove,
+    laneBelow,
+    laneBackwardXPx: Math.round(laneBackwardXPx * 100) / 100,
+    nonLaneBackwardXPx: Math.round(nonLaneBackwardXPx * 100) / 100,
+  };
+};
+
 const armMetrics = (scene: Scene) => {
   const els = scene.elements;
   const scoreboard = computeStrataEdgeScoreboard(els);
@@ -123,6 +193,7 @@ const armMetrics = (scene: Scene) => {
   return {
     scoreboard,
     declared: declaredCensus(els),
+    lanes: laneCensus(els),
     pierce: {
       total: pierce.pierce.total,
       edgeCount: pierce.pierce.edgeCount,
@@ -206,6 +277,7 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
           `SCOREBOARD ${arm} ${JSON.stringify({
             ...m.scoreboard,
             declared: m.declared,
+            lanes: m.lanes,
             pierce: m.pierce,
             crossings: m.crossings,
             ownCardReentry: m.ownCardReentry,

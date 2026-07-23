@@ -472,14 +472,16 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     ? buildStrataEdgeStyleAnchors(skeleton)
     : undefined;
 
-  // ── Loop-2 E2.1+E2.2 container-boundary CLIP pass (flag-gated). Runs FIRST
-  // among ALL the edge passes — when ON it owns every eligible net-forward
-  // cross-cluster declared edge (endpoints clipped ON the leaf-cluster frame
-  // borders, LR port discipline, hull port chains) and stamps
-  // `terraformRoutedPolyline` + `terraformRoutedBy:"clip"` +
-  // `terraformClipAnchor`, so the channel/route/border/style passes below
-  // (all first-stamper-wins) skip its edges; net-backward / same-column edges
-  // are left unstamped for them. It does NOT consume `edgeStyleAnchors` — its
+  // ── Loop-2 E2.1+E2.2 container-boundary CLIP pass (flag-gated; E2.3 gutter
+  // nudging + E2.4 over-the-top lanes). Runs FIRST among ALL the edge passes —
+  // when ON it owns every eligible cross-cluster declared edge (endpoints
+  // clipped ON the leaf-cluster frame borders, LR port discipline, hull port
+  // chains; cross-band X-overlap and net-backward edges ride E2.4 lanes above/
+  // below the transited bands) and stamps `terraformRoutedPolyline` +
+  // `terraformRoutedBy:"clip"` + `terraformClipAnchor`, so the
+  // channel/route/border/style passes below (all first-stamper-wins) skip its
+  // edges; same-column edges (and backward edges no lane fits) are left
+  // unstamped for them. It does NOT consume `edgeStyleAnchors` — its
   // endpoints are frame-border ports, not card-body anchors; repair validates
   // them through the typed "clip" gate instead (terraformVisibility.ts).
   // Absent the flag this never runs (byte-identical). ──
