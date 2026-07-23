@@ -55,6 +55,23 @@
  * When a keyed rect is missing (the edges repair itself leaves unchanged), the
  * pass falls back to the skeleton chord endpoints.
  *
+ * RENDER FIDELITY (E1.1). Curve-styled (non-orbit) records get `roundness:
+ * null` in the Phase-3 write-back — NOT the `{type:2}` inherited from
+ * skeleton creation. TFD arrows default to `roundness:{type:2}` (see
+ * terraformElkLayout.ts), and RoughJS's `shape.ts` reaches for
+ * `generator.curve()` whenever roundness is set — which re-splines the
+ * `STRATA_EDGE_STYLE_CURVE_SAMPLES`-point polyline through ALL of its points,
+ * bowing the rendered stroke OUTSIDE the computed path (including into
+ * adjacent cards). The Stage-C passes above (own-card re-entry clamp, lens
+ * removal) validate and guard-gate the COMPUTED polyline, so the render must
+ * match it exactly: `roundness:null` makes RoughJS draw straight segments
+ * between the sampled points instead, and the raised sample count keeps that
+ * literal polyline visually smooth. The orbit class is exempt — it shares
+ * `smoothStepPolyline`'s coarse rectilinear shape (a handful of points with
+ * genuine right-angle corners, see `orbitPolyline`), so like `step` it keeps
+ * `{type:2}` to round those corners; only the true bezier sample is dense
+ * enough to fall prey to the re-splining bow.
+ *
  * Determinism (C4′): no RNG, no clock; pure function of endpoints + style.
  * Clearance is read inside the function, never as a module-level const derived
  * from a layout import (SDEC-34 NaN hazard).
@@ -85,8 +102,11 @@ export const STRATA_EDGE_STYLE_STUB_PX = 20;
 export const STRATA_EDGE_STYLE_BORDER_RADIUS = 5;
 /** React Flow bezier default curvature. */
 export const STRATA_EDGE_STYLE_CURVATURE = 0.25;
-/** Cubic-bezier sample count → SAMPLES+1 polyline points (14 points). */
-export const STRATA_EDGE_STYLE_CURVE_SAMPLES = 13;
+/** Cubic-bezier sample count → SAMPLES+1 polyline points (25 points). Render
+ * fidelity (E1.1): the polyline IS the rendered path (roundness forced off on
+ * curve-styled records, see Phase 3 in `applyStrataEdgeStyle`), so this must
+ * be dense enough that the literal straight-segment polyline reads as smooth. */
+export const STRATA_EDGE_STYLE_CURVE_SAMPLES = 24;
 
 export type StrataEdgeStyleMeta = {
   style: Exclude<StrataEdgeStyle, "straight">;
@@ -966,10 +986,24 @@ export function applyStrataEdgeStyle(
       ),
       width: maxX - minX,
       height: maxY - minY,
-      // Step: round the orthogonal corners in the renderer (React Flow
-      // smoothstep look) while the polyline stays clean 2-bend geometry for the
-      // bend metric. Curve is already smooth — leave its roundness untouched.
-      ...(style === "step" || r.orbit ? { roundness: { type: 2 } } : {}),
+      // Step (and the orbit class, which shares step's coarse rectilinear
+      // shape — see `orbitPolyline`: start/[startX,orbitY]/[endX,orbitY]/end,
+      // 2 right-angle corners) round their orthogonal corners in the renderer
+      // (React Flow smoothstep look) while the polyline stays clean 2-bend
+      // geometry for the bend metric.
+      //
+      // Render fidelity (E1.1): a true (non-orbit) curve record's polyline IS
+      // the finely-sampled shape (`STRATA_EDGE_STYLE_CURVE_SAMPLES` points) —
+      // it must render as the LITERAL path Stage C computed and validated
+      // (crossings/pierce guards). Leaving roundness inherited from skeleton
+      // creation (`{type:2}`) makes RoughJS's `generator.curve()` re-spline
+      // through all those points instead of drawing straight segments between
+      // them, bowing outside the computed polyline into adjacent cards. So
+      // curve (non-orbit) records force roundness OFF (`null`) here; the
+      // dense sampling then reads as smooth on its own.
+      ...(style === "step" || r.orbit
+        ? { roundness: { type: 2 } }
+        : { roundness: null }),
       customData: {
         ...(r.el.customData ?? {}),
         terraformRoutedPolyline: true,
