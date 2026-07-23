@@ -60,6 +60,7 @@ import { pointFrom } from "@excalidraw/math";
 import type { LocalPoint } from "@excalidraw/math";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
+import { computeTerraformChordAnchors } from "./terraformEdgeAnchors";
 import {
   STRATA_EDGE_ROUTING_MAX_WAYPOINTS,
   strataEdgeRoutingClearance,
@@ -67,6 +68,10 @@ import {
 import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
 import { compareStrataContentKeys } from "./terraformPipelineStrataTypes";
 
+// Type-only: the shared body-rect anchor authority `buildStrataEdgeStyleAnchors`
+// produces (terraformPipelineStrataSceneBuild.ts). Type-only import ⇒ no runtime
+// cycle.
+import type { StrataEdgeStyleAnchors } from "./terraformPipelineStrataEdgeStyle";
 import type {
   StrataBox,
   StrataHullNode,
@@ -298,14 +303,54 @@ const relationshipOf = (
 /**
  * Scene-level pass: rewrite, IN PLACE in the skeleton array, every TFD arrow
  * that leaves its own ancestor container(s) as a long interior diagonal, giving
- * it a clean single-side exit. Endpoints (`x`/`y` and the final absolute point)
- * NEVER move — only interior waypoints are inserted. Non-eligible arrows are
- * untouched (byte-identical); flag-off this module never runs.
+ * it a clean single-side exit. Interior waypoints are inserted; the chord
+ * endpoints (`x`/`y` and the final absolute point) are the body-rect repair
+ * anchors when the shared authority resolves both keys (E1.5), else the
+ * frame-clipped chord. Non-eligible arrows are untouched (byte-identical);
+ * flag-off this module never runs.
+ *
+ * ── ENDPOINTS = REPAIR ANCHORS (wave-4 E1.5). ── When the shared body-rect
+ * anchor authority (`buildStrataEdgeStyleAnchors`, terraformPipelineStrataScene-
+ * Build.ts) resolves BOTH of an edge's endpoint keys, the chord `start`/`end` —
+ * which drive facingSide, borderWaypoint, straightInteriorL1, the re-penetration
+ * / foreign guards AND the write-back origin — are
+ * `computeTerraformChordAnchors(bodyRectA, bodyRectB)` (terraformEdgeAnchors.ts):
+ * the EXACT centre-clipped BODY-rect endpoints `repairTerraformEdgeBindings`
+ * re-derives at element time. The exit/entry waypoint math therefore runs on the
+ * real endpoints, and the routed polyline's first/last absolute points sit ON the
+ * body cards (chebyshev 0), so repair's validate-before-trust gate
+ * (ROUTED_ANCHOR_TOLERANCE = 48px) KEEPS the `terraformRoutedPolyline` stamp
+ * instead of flattening the border route. Previously the endpoints were the leaf
+ * FRAME-clipped chord (el.x/el.y + last point), which for tall composite cards
+ * sits >48px from the inset body rect — so repair flattened those routes back to
+ * chords in FULL mode. A per-edge key MISS (endpoint not a keyed body rect) falls
+ * back to the frame-clipped chord — exactly the edges repair leaves unchanged
+ * (terraformVisibility.ts `!rectA || !rectB` early return). Absent the `anchors`
+ * argument every edge takes the chord fallback, byte-identical to the pre-E1.5
+ * pass. `el.x`/`el.y` are re-anchored at `poly[0]` (which equals the derived
+ * `start`) because `convertToExcalidrawElements` re-normalizes `points[0]`→[0,0]
+ * anchored at `el.x`/`el.y`; in the fallback case `start === [el.x, el.y]`, so
+ * this stays byte-identical.
+ *
+ * DEGENERATE <3-POINT COLLAPSE: not reachable here. A stamp is emitted only when
+ * at least one chain returns "waypoints" (≥1 inserted waypoint), so the written
+ * `poly = [start, ...waypoints, end]` always has ≥3 entries, and the write-back
+ * preserves that array verbatim (no simplify pass) — so a stamped border polyline
+ * always trips repair's `points.length > 2` gate as a genuine route. (The channel
+ * router needed E1.2's collinear-stub because it runs `simplifyPolyline`; this
+ * pass does not.)
+ *
+ * @param anchors The shared body-rect anchor authority
+ *   (`buildStrataEdgeStyleAnchors`). When supplied and BOTH of an edge's endpoint
+ *   keys resolve, the chord endpoints are the body-clipped anchors repair re-
+ *   derives; absent / a per-edge key miss ⇒ the frame-clipped chord (byte-
+ *   identical to the pre-E1.5 pass).
  */
 export function routeStrataBorderExits(
   skeleton: ExcalidrawElementSkeleton[],
   model: StrataModel,
   placement: StrataPlacementResult,
+  anchors?: StrataEdgeStyleAnchors,
 ): StrataBorderRouteMeta {
   const ancestors = leafAncestorsOf(model.hullRoot);
   const pad = strataEdgeRoutingClearance();
@@ -373,11 +418,31 @@ export function routeStrataBorderExits(
     if (!Array.isArray(pts) || pts.length < 2) {
       continue;
     }
-    const sx = el.x;
-    const sy = el.y;
     const lastPt = pts[pts.length - 1]!;
-    const start: Pt = [sx, sy];
-    const end: Pt = [sx + lastPt[0], sy + lastPt[1]];
+    // Default endpoints = the skeleton chord, clipped against the leaf FRAME box.
+    // These are the endpoints repair leaves alone when an anchor is missing.
+    let start: Pt = [el.x, el.y];
+    let end: Pt = [el.x + lastPt[0], el.y + lastPt[1]];
+    // Prefer the shared body-rect anchors (the SAME endpoints
+    // `repairTerraformEdgeBindings` re-derives at element time) when BOTH endpoint
+    // keys resolve to a card body rect — keyed exactly as repair keys them
+    // (`customData.relationship` source/target). The exit/entry waypoint math, the
+    // guards and the write-back origin ALL run on these real endpoints, so repair
+    // finds the routed polyline already on its recomputed anchors and keeps the
+    // stamp. A key miss falls back to the frame-clipped chord — the same edges
+    // repair leaves unchanged (see the file header "ENDPOINTS = REPAIR ANCHORS").
+    if (anchors) {
+      const rectA = anchors.bodyRectByKey.get(rel.source);
+      const rectB = anchors.bodyRectByKey.get(rel.target);
+      if (rectA && rectB) {
+        const pairKey = [rel.source, rel.target].sort().join("|||");
+        const chord = computeTerraformChordAnchors(rectA, rectB, {
+          structuralPair: anchors.structuralPairKeys.has(pairKey),
+        });
+        start = [chord.startPoint.x, chord.startPoint.y];
+        end = [chord.endPoint.x, chord.endPoint.y];
+      }
+    }
 
     const srcAnc = ancestors.get(rel.source);
     const tgtAnc = ancestors.get(rel.target);
@@ -571,8 +636,14 @@ export function routeStrataBorderExits(
       continue;
     }
 
-    // Accept: rewrite in place, el-relative points, bbox extents, marker set so
-    // repairTerraformEdgeBindings does not flatten the polyline back to a chord.
+    // Accept: rewrite in place, origin-relative points, bbox extents, marker set
+    // so repairTerraformEdgeBindings does not flatten the polyline back to a
+    // chord. Origin the element at the polyline's FIRST absolute point
+    // (`poly[0]` === the derived `start`) so points[0] === [0,0] and el.x/el.y ===
+    // that first point — the body-rect anchor repair re-derives when the anchors
+    // resolved (else the frame-clipped chord, byte-identical). See the file header
+    // "ENDPOINTS = REPAIR ANCHORS" for why re-origining is required.
+    const [ox, oy] = start;
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -585,7 +656,9 @@ export function routeStrataBorderExits(
     }
     skeleton[i] = {
       ...el,
-      points: poly.map(([px, py]) => pointFrom<LocalPoint>(px - sx, py - sy)),
+      x: ox,
+      y: oy,
+      points: poly.map(([px, py]) => pointFrom<LocalPoint>(px - ox, py - oy)),
       width: maxX - minX,
       height: maxY - minY,
       customData: {

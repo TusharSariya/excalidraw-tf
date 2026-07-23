@@ -433,17 +433,19 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 
   // ── Shared body-rect anchor authority. The CARD body rects (+ the structural-
   // dependency pair keys) `repairTerraformEdgeBindings` re-derives at element
-  // time (terraformEdgeAnchors.ts). Collected ONCE here — BEFORE the channel
-  // router — so BOTH the channel router and the edge-style pass below re-origin
-  // their polyline endpoints onto the SAME anchors repair validates against:
-  // composite cards put the leaf FRAME border >48px from the inset body rect, so
-  // frame-clipped endpoints get flattened back to chords. A pure read of the
-  // card rectangles — the edge passes rewrite only arrow points/x/y/customData,
-  // never card skeletons, so hoisting ahead of them is read-only-safe. Computed
-  // only when a consumer needs it, so the default-off scene skips the collection
-  // and stays byte-identical. ──
+  // time (terraformEdgeAnchors.ts). Collected ONCE here — BEFORE the edge passes —
+  // so ALL FOUR consumers (channel router, around-boxes router, border router,
+  // edge-style pass) re-origin their polyline endpoints onto the SAME anchors
+  // repair validates against: composite cards put the leaf FRAME border >48px
+  // from the inset body rect, so frame-clipped endpoints get flattened back to
+  // chords. A pure read of the card rectangles — the edge passes rewrite only
+  // arrow points/x/y/customData, never card skeletons, so hoisting ahead of them
+  // is read-only-safe. Computed only when a consumer needs it, so the default-off
+  // scene skips the collection and stays byte-identical. ──
   const needsEdgeAnchors =
     input.channelRoute === true ||
+    input.edgeRouting === true ||
+    input.borderRoute === true ||
     (input.edgeStyle !== undefined && input.edgeStyle !== "straight");
   const edgeStyleAnchors = needsEdgeAnchors
     ? buildStrataEdgeStyleAnchors(skeleton)
@@ -472,10 +474,19 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // ── Package C spike (W9, flag-gated): detour TFD arrows whose straight
   // chord penetrates a foreign box. Runs on the just-emitted TFD arrows only
   // (the aggregated frame connectors below are relationship.aggregated and
-  // would be skipped anyway); endpoints/bindings/customData are untouched, so
-  // frame-parenting below is unaffected. Absent the flag this pass never runs.
+  // would be skipped anyway); interior waypoints/customData change and its
+  // polyline endpoints are re-origined onto `edgeStyleAnchors` (E1.5 — the SAME
+  // body rects repair validates, so the stamped detours survive repair instead
+  // of flattening on the frame-vs-body gap). Bindings and card skeletons are
+  // untouched, so frame-parenting below is unaffected. Absent the flag this pass
+  // never runs.
   const edgeRouting = input.edgeRouting
-    ? routeStrataSkeletonEdges(skeleton, input.model, input.placement)
+    ? routeStrataSkeletonEdges(
+        skeleton,
+        input.model,
+        input.placement,
+        edgeStyleAnchors,
+      )
     : undefined;
 
   // ── P3-pierce border-exit routing (flag-gated). Runs AFTER edgeRouting and
@@ -483,9 +494,16 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // `terraformRoutedPolyline` by edgeRouting (it would otherwise re-derive
   // [start,W,end] from the endpoints, discarding edgeRouting's foreign-detour
   // waypoints). So each edge is owned by whichever pass fired first — no
-  // clobber, no re-pierce. Absent the flag this never runs. ──
+  // clobber, no re-pierce. Its exit/entry waypoints and endpoints are re-origined
+  // onto `edgeStyleAnchors` (E1.5), the SAME body rects repair validates. Absent
+  // the flag this never runs. ──
   const borderRoute = input.borderRoute
-    ? routeStrataBorderExits(skeleton, input.model, input.placement)
+    ? routeStrataBorderExits(
+        skeleton,
+        input.model,
+        input.placement,
+        edgeStyleAnchors,
+      )
     : undefined;
 
   // ── Probe P2 edge STYLE (flag-gated). Runs LAST of the edge passes and
