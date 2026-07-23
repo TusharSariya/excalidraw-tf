@@ -981,13 +981,17 @@ export type TerraformRoutedBy =
   | "clip";
 
 /** One end of a clip-routed polyline's serialized anchor
- * (`customData.terraformClipAnchor.start` / `.end`), stamped by
- * `routeStrataEdgeClip`: `frameKey` is the endpoint's CLUSTER ADDRESS (===
+ * (`customData.terraformClipAnchor.start` / `.end`), stamped by whichever pass
+ * terminates edge endpoints on the leaf-cluster frame border (the box-endpoints
+ * pass): `frameKey` is the endpoint's CLUSTER ADDRESS (===
  * `relationship.source`/`.target` === the leaf cluster frame's
- * `terraformPrimaryAddress`), `side` the declared clip face. */
+ * `terraformPrimaryAddress`), `side` the declared clip face — any of the four
+ * frame faces, or `"card"` for the per-end fallback where this endpoint
+ * terminates on the resource CARD as usual (mixed edges: one end boxed, the
+ * other not). */
 export type TerraformClipAnchorEnd = {
   frameKey: string;
-  side: "left" | "right";
+  side: "left" | "right" | "top" | "bottom" | "card";
 };
 
 type TerraformClipAnchor = {
@@ -996,7 +1000,7 @@ type TerraformClipAnchor = {
 };
 
 /** Max px a clip endpoint may sit off its declared frame face (perpendicular
- * axis) or outside the face's Y-extent before repair flattens it. Clip
+ * axis) or outside the face's extent (parallel axis) before repair flattens it. Clip
  * endpoints are stamped EXACTLY on the face at skeleton time and the frame is
  * emitted at the identical box, so 2px is pure float slack — any real frame
  * move lands far outside it (the stale-route threat, see
@@ -1008,7 +1012,11 @@ const parseClipAnchorEnd = (v: unknown): TerraformClipAnchorEnd | null => {
   if (
     o &&
     typeof o.frameKey === "string" &&
-    (o.side === "left" || o.side === "right")
+    (o.side === "left" ||
+      o.side === "right" ||
+      o.side === "top" ||
+      o.side === "bottom" ||
+      o.side === "card")
   ) {
     return { frameKey: o.frameKey, side: o.side };
   }
@@ -1253,42 +1261,51 @@ export const repairTerraformEdgeBindings = (
     const hasRoutedMarker = hasRoutedFlag && element.points.length > 2;
     const firstPoint = element.points[0]!;
     const lastPoint = element.points[element.points.length - 1]!;
-    // ── Typed CLIP gate (loop-2 E2.2). A "clip"-provenance polyline
-    // (terraformPipelineStrataEdgeClip.ts) terminates ON the leaf-cluster
-    // FRAME borders — typically far beyond ROUTED_ANCHOR_TOLERANCE from the
-    // card body rects — so the endpoint-on-card check below would flatten
-    // every one of them. Instead, when the arrow carries valid
-    // `terraformClipAnchor` data, each endpoint is validated against the LIVE
-    // frame rect resolved from the anchor's frameKey:
+    // ── Typed CLIP gate (loop-2 E2.2; generalized to 4 faces + per-end card
+    // fallback for the box-endpoints pass). A "clip"-provenance polyline
+    // terminates ON the leaf-cluster FRAME borders — typically far beyond
+    // ROUTED_ANCHOR_TOLERANCE from the card body rects — so the
+    // endpoint-on-card check below would flatten every one of them. Instead,
+    // when the arrow carries valid `terraformClipAnchor` data, each endpoint
+    // is validated against the LIVE frame rect resolved from the anchor's
+    // frameKey:
     //   • frameKey must EQUAL the relationship endpoint's cluster address —
     //     the strongest ancestry check serialized data affords: it pins the
     //     frame as the endpoint's IMMEDIATE containment box (the leaf cluster
     //     frame carries `terraformPrimaryAddress` === that address in both
     //     compact and full modes), so a pasted/foreign anchor naming any other
-    //     frame fails closed;
+    //     frame fails closed. This holds UNIFORMLY for all sides, including
+    //     the "card" fallback below;
     //   • the endpoint must sit ON the declared face of that live rect. The
-    //     check is deliberately ASYMMETRIC (`clipEndpointOnDeclaredFace`):
-    //       – X-RIGID on the perpendicular axis: |px − faceX| ≤
-    //         TERRAFORM_CLIP_FACE_TOLERANCE (2px). The port is stamped EXACTLY on
-    //         the face X at skeleton time and the frame is emitted at the
-    //         identical box, so the only legitimate slack is the ≤0.5px layout
-    //         quantization (half-pixel band coords) plus ~1.5px float headroom.
-    //         A frame that MOVED in X (the stale-route threat above) misses by
-    //         far more than 2px, so the tight bound fails it closed.
-    //       – Y-FREE within the face extent: py may sit anywhere in
-    //         [rect.y, rect.y+height] (±2px). This is INTENTIONAL, not laxness —
-    //         the clip pass assigns per-face barycenter port Y by opposite-
-    //         endpoint order and re-spreads them across the face height, so a
-    //         legit endpoint's Y is NOT pinned to its skeleton value; a live
-    //         frame whose ports legitimately re-spread must still validate. The
-    //         face EXTENT (top/bottom) is the invariant we can check; the exact
-    //         Y within it is not. (Loop-3 option to tighten this without
-    //         rejecting re-spread: serialize the port's relative-Y FRACTION
-    //         alongside the anchor and validate py against rect.y + frac·height.)
-    //     A frame that moved so far its whole extent no longer covers the port's
-    //     Y still fails via the extent bound.
-    //   • the declared sides must be the pass's LR discipline (start "right",
-    //     end "left") — any other stamp is not ours.
+    //     check is deliberately ASYMMETRIC per face
+    //     (`clipEndpointOnDeclaredFace`) — RIGID on the face's perpendicular
+    //     axis, FREE along the face's extent:
+    //       – left/right: |px − faceX| ≤ TERRAFORM_CLIP_FACE_TOLERANCE (2px),
+    //         py free within [rect.y, rect.y+height] (±2px).
+    //       – top/bottom: |py − faceY| ≤ TERRAFORM_CLIP_FACE_TOLERANCE (2px),
+    //         px free within [rect.x, rect.x+width] (±2px).
+    //     The port is stamped EXACTLY on the face at skeleton time and the
+    //     frame is emitted at the identical box, so the only legitimate
+    //     perpendicular slack is the ≤0.5px layout quantization (half-pixel
+    //     band coords) plus ~1.5px float headroom. A frame that MOVED on the
+    //     perpendicular axis (the stale-route threat above) misses by far more
+    //     than 2px, so the tight bound fails it closed. The free axis is
+    //     INTENTIONAL, not laxness — the stamping pass assigns per-face ports
+    //     by opposite-endpoint order and re-spreads them across the face
+    //     extent, so a legit endpoint's parallel coordinate is NOT pinned to
+    //     its skeleton value; the face EXTENT is the invariant we can check.
+    //     (This asymmetry is why the gate branches on the declared axis rather
+    //     than using a generic perimeter-distance test, which would lose the
+    //     face binding at corners.) A frame that moved so far its extent no
+    //     longer covers the port's parallel coordinate still fails via the
+    //     extent bound.
+    //   • side "card" is the per-end FALLBACK: this endpoint terminates on the
+    //     resource CARD as usual (mixed edges — one end boxed on a frame face,
+    //     the other not), so it validates against its bound CARD rect with the
+    //     same ROUTED_ANCHOR_TOLERANCE (48px) chebyshev rule the generic
+    //     routed gate uses. The frameKey ancestry equality still applies.
+    //   • ANY combination of parsed sides is legal; both ends must
+    //     individually pass.
     // On ANY failure — missing/malformed anchors, unresolved frame, moved
     // frame — the arrow is flattened to the standard chord and the marker AND
     // anchors are stripped (fail-closed, self-healing), exactly like a stale
@@ -1311,37 +1328,60 @@ export const repairTerraformEdgeBindings = (
       py: number,
       anchor: TerraformClipAnchorEnd,
       expectedKey: string,
+      card: { x: number; y: number; width: number; height: number },
     ): boolean => {
       if (anchor.frameKey !== expectedKey) {
         return false;
+      }
+      if (anchor.side === "card") {
+        // Per-end card fallback: same 48px chebyshev rule as the generic
+        // routed gate, against this endpoint's bound CARD rect.
+        return (
+          chebyshevDistanceOutsideRect(
+            px,
+            py,
+            card.x,
+            card.y,
+            card.width,
+            card.height,
+          ) <= ROUTED_ANCHOR_TOLERANCE
+        );
       }
       const rect = getClusterFrameRects().get(anchor.frameKey);
       if (!rect) {
         return false;
       }
-      const faceX = anchor.side === "left" ? rect.x : rect.x + rect.width;
+      if (anchor.side === "left" || anchor.side === "right") {
+        const faceX = anchor.side === "left" ? rect.x : rect.x + rect.width;
+        return (
+          Math.abs(px - faceX) <= TERRAFORM_CLIP_FACE_TOLERANCE &&
+          py >= rect.y - TERRAFORM_CLIP_FACE_TOLERANCE &&
+          py <= rect.y + rect.height + TERRAFORM_CLIP_FACE_TOLERANCE
+        );
+      }
+      const faceY = anchor.side === "top" ? rect.y : rect.y + rect.height;
       return (
-        Math.abs(px - faceX) <= TERRAFORM_CLIP_FACE_TOLERANCE &&
-        py >= rect.y - TERRAFORM_CLIP_FACE_TOLERANCE &&
-        py <= rect.y + rect.height + TERRAFORM_CLIP_FACE_TOLERANCE
+        Math.abs(py - faceY) <= TERRAFORM_CLIP_FACE_TOLERANCE &&
+        px >= rect.x - TERRAFORM_CLIP_FACE_TOLERANCE &&
+        px <= rect.x + rect.width + TERRAFORM_CLIP_FACE_TOLERANCE
       );
     };
     const clipEndpointsOnFrames =
       hasRoutedMarker &&
       clipAnchor !== null &&
-      clipAnchor.start.side === "right" &&
-      clipAnchor.end.side === "left" &&
       clipEndpointOnDeclaredFace(
         element.x + firstPoint[0],
         element.y + firstPoint[1],
         clipAnchor.start,
         relationship.source,
+        rectA,
       ) &&
       clipEndpointOnDeclaredFace(
         element.x + lastPoint[0],
         element.y + lastPoint[1],
         clipAnchor.end,
         relationship.target,
+        rectB,
       );
     const routedEndpointsOnCards =
       !isClipProvenance &&
