@@ -167,6 +167,16 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "probe P2 (edge-routing-research 2026-07-22): React-Flow smoothstep/bezier render styles for TFD chords; default 'straight' byte-identical (module never runs) and omitted from URLs (non-default-only emit); scored on angle metrics + eyeball A/B",
   },
   {
+    urlParam: "strataBoxEndpoints",
+    optionKey: "strataBoxEndpoints",
+    kind: "boolean",
+    default: false,
+    surface: "basic",
+    emitClass: "C2",
+    decidedNow: false,
+    note: "'Box endpoints' — edge endpoints terminate on the labeled resource box border instead of the resource card. M5 box-endpoint anchoring: opt-in boolean threaded through every seam, default off (byte-identical — no consumer yet). M6 lands the geometry (endpoints re-anchor to the labeled leaf-cluster frame border). Emitted truthy-only (C2)",
+  },
+  {
     urlParam: "strataBandCompact",
     optionKey: "strataBandCompact",
     kind: "boolean",

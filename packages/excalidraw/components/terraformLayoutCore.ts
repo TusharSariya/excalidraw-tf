@@ -529,6 +529,10 @@ type LayoutSceneContext = {
    * column between source and current rank, Y-redrop, grow ancestor chain. Default
    * off. Carries the mandatory right-edge column guard. */
   strataLeafShift?: boolean;
+  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
+   * leaf-cluster frame border instead of the resource card. Default off; inert
+   * until M6 wires a consumer (threaded through every seam meanwhile). */
+  strataBoxEndpoints?: boolean;
   /** A01 slack height gate absolute px budget (default 150). */
   strataLeafShiftHeightBudgetPx?: number;
   /** A01 slack height gate relative budget fraction (default 0.01). */
@@ -675,6 +679,9 @@ async function buildPipelineLayoutSceneBody(
         strataCoordCascade: ctx.strataCoordCascade,
         strataHeightGate: ctx.strataHeightGate,
         strataLeafShift: ctx.strataLeafShift,
+        // M5 box-endpoint anchoring — SEAM 2 (builderOptions fan-in). Forwarded
+        // as a plain boolean; inert until M6 reads it in the strata builder.
+        strataBoxEndpoints: ctx.strataBoxEndpoints,
         // A01 leaf-shift budget knobs: optional-only forward (no default
         // materialized — absent ⇒ engine defaults 150/0.01/8/300).
         ...(ctx.strataLeafShiftHeightBudgetPx !== undefined
@@ -1320,6 +1327,10 @@ export async function layoutTerraformFromSources(
     // threaded everywhere else. Budget knobs are optional-only forwards (absent ⇒
     // engine defaults 150/0.01/8/300), so the default shape is byte-identical.
     strataLeafShift: options?.strataLeafShift === true,
+    // M5 box-endpoint anchoring — SEAM 1 (sceneContext literal). MUST be listed
+    // here or it is silently dropped on the real app path (RCLL threading
+    // boundary), however correctly it is threaded everywhere else. Inert until M6.
+    strataBoxEndpoints: options?.strataBoxEndpoints === true,
     ...(options?.strataLeafShiftHeightBudgetPx !== undefined
       ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
       : {}),

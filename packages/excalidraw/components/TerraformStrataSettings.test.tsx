@@ -44,6 +44,7 @@ const baseProps = (): Props => ({
   strataPackedScoringEpsilon: 0,
   strataBlockClamp: false,
   strataTranspose: false,
+  strataBoxEndpoints: false,
   strataHeightGate: false,
   strataEdgeStyle: "straight" as const,
   strataBandDepth: "account" as StrataHullRole,
@@ -65,6 +66,7 @@ const baseProps = (): Props => ({
   setStrataPackedScoringEpsilon: vi.fn(),
   setStrataBlockClamp: vi.fn(),
   setStrataTranspose: vi.fn(),
+  setStrataBoxEndpoints: vi.fn(),
   setStrataHeightGate: vi.fn(),
   setStrataEdgeStyle: vi.fn(),
   setStrataBandDepth: vi.fn(),
@@ -446,6 +448,51 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
         .getByRole("radio", { name: "Straight" })
         .getAttribute("tabindex"),
     ).toBe("-1");
+  });
+
+  // (d) M5 box-endpoint anchoring — a one-hot boolean segmented control mirroring
+  // the Style row: "Resource" writes false, "Box" writes true.
+  it("Endpoints row writes strataBoxEndpoints per segment (Resource=false / Box=true)", () => {
+    const setBoxEndpoints = vi.fn();
+    renderPanel({ setStrataBoxEndpoints: setBoxEndpoints });
+    const group = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Box" }));
+    expect(setBoxEndpoints).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Resource" }));
+    expect(setBoxEndpoints).toHaveBeenLastCalledWith(false);
+  });
+
+  it("Endpoints row reflects the current value as the checked segment (default OFF ⇒ Resource)", () => {
+    renderPanel();
+    const group = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+    expect(
+      within(group)
+        .getByRole("radio", { name: "Resource" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // Help copy is wired: hovering the Box segment drives the shared help panel.
+    fireEvent.mouseEnter(within(group).getByRole("radio", { name: "Box" }));
+    expect(screen.getByLabelText("Option explanation").textContent).toContain(
+      "labeled box",
+    );
+  });
+
+  it("Endpoints row shows Box as the checked segment when strataBoxEndpoints is on", () => {
+    renderPanel({ strataBoxEndpoints: true });
+    const group = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+    expect(
+      within(group)
+        .getByRole("radio", { name: "Box" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
   });
 
   it("shows the pre-import diagnostic placeholder with no scene elements", () => {

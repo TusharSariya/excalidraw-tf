@@ -697,6 +697,20 @@ describe("terraformDemoUrlParams", () => {
       expect(queryOf(off)).not.toContain("strataLeafShift");
     });
 
+    it("round-trips strataBoxEndpoints on/off through build+parse (M5)", () => {
+      const on: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        strataBoxEndpoints: true,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(on))),
+      ).toEqual(on);
+      // default-off ⇒ no param emitted (byte-identity).
+      const off = buildTerraformDemoUrl({ presetId: "demo", view: "strata" });
+      expect(queryOf(off)).not.toContain("strataBoxEndpoints");
+    });
+
     it("round-trips strataBandDepth through build+parse", () => {
       const full: TerraformDemoUrlParams = {
         presetId: "staging-extended-localstack-v2",
@@ -883,6 +897,20 @@ describe("terraformDemoUrlParams", () => {
         strataLeafShift: true,
       });
       expect(on.strataLeafShift).toBe(true);
+    });
+
+    it("strataBoxEndpoints emits truthy-only in the strata collect (M5)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataBoxEndpoints" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBoxEndpoints: true,
+      });
+      expect(on.strataBoxEndpoints).toBe(true);
     });
 
     it("strataPackedScoring emits explicitly in both states (owner default-ON flip 2026-07-17)", () => {

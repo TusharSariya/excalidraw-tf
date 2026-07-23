@@ -640,6 +640,49 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "threads strataBoxEndpoints end-to-end (sceneContext + builderOptions literals -> engine -> meta echo) and is INERT (M5: no geometry change)",
+    async () => {
+      // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading
+      // boundary'): the flag must survive the sceneContext literal AND the
+      // builderOptions fan-in in terraformLayoutCore.ts, or it is dropped on the
+      // real `layoutTerraformFromSources` app path while looking wired in the
+      // dialog. The engine echoes `strataBoxEndpoints: true` in flagMeta only when
+      // on, so the meta echo is the app-observable end-to-end proof. M5 ships the
+      // flag INERT: turning it on must NOT move any geometry (M6 lands that).
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default-off: the echo key is ABSENT (not present-with-false).
+      expect(off.meta.strataBoxEndpoints).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBoxEndpoints: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // The flag threaded all the way to the engine's flagMeta echo.
+      expect(on.meta.strataBoxEndpoints).toBe(true);
+      expect(on.elements.length).toBeGreaterThan(0);
+      // INERT: the ON build is byte-identical to the OFF build (no consumer yet).
+      expect(geometryTuples(on.elements)).toEqual(geometryTuples(off.elements));
+
+      // Explicit-false is likewise byte-identical to today's baseline.
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBoxEndpoints: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
     "threads strataLeafShift end-to-end (sceneContext + builderOptions literals -> engine -> meta echo, default-off byte-identical)",
     async () => {
       // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading

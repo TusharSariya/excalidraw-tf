@@ -207,6 +207,13 @@ export type TerraformStrataSceneOptions = {
    */
   strataTranspose?: boolean;
   /**
+   * M5 box-endpoint anchoring (default off, opt-in): edge endpoints terminate on
+   * the labeled leaf-cluster frame border instead of the resource card. Threaded
+   * through every seam and echoed truthy-only in `flagMeta`, but INERT today — no
+   * builder consumes it yet; M6 lands the endpoint geometry.
+   */
+  strataBoxEndpoints?: boolean;
+  /**
    * Exclusive-downstream CHAIN relocate (default off, opt-in): a post-A7 pass
    * that rigidly co-translates a unit U together with its exclusive downstream
    * group G(U) in Y (each member within its own stationary parent hull box), so
@@ -421,6 +428,10 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataAncillaryAllocator = options?.strataAncillaryAllocator !== false;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
+  // M5 box-endpoint anchoring, default off. Inert today (no consumer); echoed
+  // truthy-only in flagMeta so the proof API can observe it end-to-end. M6 wires
+  // the endpoint geometry.
+  const strataBoxEndpoints = options?.strataBoxEndpoints === true;
   // Exclusive-downstream chain relocate (post-A7), default off.
   const strataChainRelocate = options?.strataChainRelocate === true;
   // A7 tie-cascade (extends coordinateRefine), default off. Lets a net-zero
@@ -527,6 +538,9 @@ export async function buildTerraformStrataExcalidrawScene(
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
     // P2 transpose echo — present only when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
+    // M5 box-endpoint echo — present only when on (byte-identity); boolean-only
+    // (no weights/cap), inert until M6.
+    ...(strataBoxEndpoints ? { strataBoxEndpoints: true } : {}),
     // Chain-relocate echo — present only when on (byte-identity).
     ...(strataChainRelocate ? { strataChainRelocate: true } : {}),
     // Relocate objective weights/cap echoes — the OD-15 vertical-relocate, the

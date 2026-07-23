@@ -173,6 +173,12 @@ export const useTerraformImportDialog = ({
   const [strataTranspose, setStrataTranspose] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose as boolean,
   );
+  // M5 box-endpoint anchoring (strata-only): edge endpoints terminate on the
+  // labeled leaf-cluster frame border instead of the resource card. Default OFF
+  // (byte-identical — inert until M6 wires the geometry).
+  const [strataBoxEndpoints, setStrataBoxEndpoints] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBoxEndpoints as boolean,
+  );
   // Strata P5 (Lever C, strata-only): per-hull implied-height maintain-or-
   // decrease referee on the sink-pull-in / block-clamp adoptions. Default OFF
   // (inert under phase 1 — byte-identical).
@@ -559,6 +565,7 @@ export const useTerraformImportDialog = ({
         strataTransitiveAdopt,
         strataBlockClamp,
         strataTranspose,
+        strataBoxEndpoints,
         strataHeightGate,
         strataEdgeStyle,
         strataBandDepth,
@@ -724,6 +731,7 @@ export const useTerraformImportDialog = ({
           strataTransitiveAdopt,
           strataBlockClamp,
           strataTranspose,
+          strataBoxEndpoints,
           strataHeightGate,
           strataEdgeStyle,
           strataBandDepth,
@@ -851,6 +859,7 @@ export const useTerraformImportDialog = ({
         strataTransitiveAdopt,
         strataBlockClamp,
         strataTranspose,
+        strataBoxEndpoints,
         strataHeightGate,
         strataEdgeStyle,
         strataBandDepth,
@@ -1099,6 +1108,7 @@ export const useTerraformImportDialog = ({
         strataTransitiveAdopt,
         strataBlockClamp,
         strataTranspose,
+        strataBoxEndpoints,
         strataHeightGate,
         strataEdgeStyle,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
@@ -1152,6 +1162,7 @@ export const useTerraformImportDialog = ({
     strataTransitiveAdopt,
     strataBlockClamp,
     strataTranspose,
+    strataBoxEndpoints,
     strataHeightGate,
     strataEdgeStyle,
     strataBandDepth,
@@ -1199,6 +1210,7 @@ export const useTerraformImportDialog = ({
     strataTransitiveAdopt,
     strataBlockClamp,
     strataTranspose,
+    strataBoxEndpoints,
     strataHeightGate,
     strataEdgeStyle,
     strataBandDepth,
@@ -1268,6 +1280,7 @@ export const useTerraformImportDialog = ({
     setStrataTransitiveAdopt,
     setStrataBlockClamp,
     setStrataTranspose,
+    setStrataBoxEndpoints,
     setStrataHeightGate,
     setStrataEdgeStyle,
     setStrataBandDepth,

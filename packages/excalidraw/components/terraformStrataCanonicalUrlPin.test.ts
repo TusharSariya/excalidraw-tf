@@ -88,6 +88,10 @@ describe("canonical audit URL pin (c08 guard 1)", () => {
       strataCoordCascade: false,
       strataHeightGate: true,
       strataLeafShift: false,
+      // M5 box-endpoint anchoring — genuinely-new engine option (default off;
+      // not set by the audit URL, so it resolves false, emitted like every strata
+      // boolean). M5 addition.
+      strataBoxEndpoints: false,
       strataDeBandLevel: "vpc",
       strataCrossWeightPenetration: 1,
       strataCrossWeightEdge: 1,

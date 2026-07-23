@@ -31,6 +31,7 @@ describe("resolveStrataDemoOptions", () => {
       strataCoordCascade: false,
       strataHeightGate: false,
       strataLeafShift: false,
+      strataBoxEndpoints: false,
       // The default cut ("account") is OMITTED (raw-forward discipline): no
       // seam may materialize a default `strataBandDepth` own key.
     });
@@ -89,6 +90,7 @@ describe("resolveStrataDemoOptions", () => {
       strataCoordCascade: false,
       strataHeightGate: false,
       strataLeafShift: false,
+      strataBoxEndpoints: false,
       // Default cut omitted — see the bare-URL test above.
     });
   });
@@ -113,6 +115,19 @@ describe("resolveStrataDemoOptions", () => {
       "?preset=staging-multi-state-expanded&view=strata&strataBandCompact=1",
     );
     expect(resolveStrataDemoOptions(on!).strataBandCompact).toBe(true);
+  });
+
+  it("resolves strataBoxEndpoints: default false (emitted, mirrors strataTranspose), explicit URL param wins", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    // Emitted unconditionally like every other strata boolean (strataTranspose) —
+    // the bare URL resolves to the default false key.
+    expect(resolveStrataDemoOptions(bare!).strataBoxEndpoints).toBe(false);
+    const on = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataBoxEndpoints=1",
+    );
+    expect(resolveStrataDemoOptions(on!).strataBoxEndpoints).toBe(true);
   });
 
   it("resolves strataBandDepth: default omitted (no default key), explicit URL param wins", () => {

@@ -60,6 +60,7 @@ describe("strata option-surface regression (W0-I4)", () => {
       strataTranspose: true,
       strataHeightGate: true,
       strataLeafShift: true,
+      strataBoxEndpoints: true,
       strataChainRelocate: true,
       strataCoordCascade: true,
     };
@@ -231,6 +232,7 @@ describe("strata option-surface regression (W0-I4)", () => {
       "strataTranspose",
       "strataHeightGate",
       "strataLeafShift",
+      "strataBoxEndpoints",
       "strataChainRelocate",
       "strataCoordCascade",
     ];

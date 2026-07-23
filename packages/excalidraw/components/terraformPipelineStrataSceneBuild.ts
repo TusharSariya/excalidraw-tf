@@ -121,6 +121,13 @@ export type StrataSceneBuildInput = {
    * when non-empty (flag-OFF byte-identity).
    */
   ancillaryBands?: ReadonlyMap<string, StrataAncillaryBand>;
+  /**
+   * M5 box-endpoint anchoring (default off): when set, edge endpoints terminate
+   * on the labeled leaf-cluster frame border instead of the resource card.
+   * Accepted here so the flag threads into the scene build input; M6 consumes it
+   * (the endpoint re-anchor pass). Inert today — no code reads it yet.
+   */
+  boxEndpoints?: boolean;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's

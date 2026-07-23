@@ -177,6 +177,9 @@ describe("TerraformImportModal", () => {
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
       strataTranspose: true,
+      // M5 box-endpoint anchoring threads for every view (default off); inert
+      // downstream (the pipeline/strata engine ignores it until M6).
+      strataBoxEndpoints: false,
       strataChainRelocate: false,
       strataCoordCascade: false,
       strataHeightGate: false,
@@ -240,6 +243,9 @@ describe("TerraformImportModal", () => {
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
       strataTranspose: true,
+      // M5 box-endpoint anchoring threads for every view (default off); inert
+      // downstream (the pipeline/strata engine ignores it until M6).
+      strataBoxEndpoints: false,
       strataChainRelocate: false,
       strataCoordCascade: false,
       strataHeightGate: false,
@@ -1206,6 +1212,34 @@ describe("TerraformImportModal", () => {
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
       expect.objectContaining({ strataCoordinateRefine: true }),
+    );
+  });
+
+  it("Strata view: Endpoints · Box threads strataBoxEndpoints true (M5)", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    // Default OFF: Resource is the checked segment.
+    const endpoints = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+    expect(
+      within(endpoints)
+        .getByRole("radio", { name: "Resource" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    fireEvent.click(within(endpoints).getByRole("radio", { name: "Box" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataBoxEndpoints: true }),
     );
   });
 

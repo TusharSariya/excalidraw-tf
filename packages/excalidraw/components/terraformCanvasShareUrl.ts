@@ -165,6 +165,10 @@ const sessionToDemoSnapshot = (
   // on share and reopened with default-off geometry. `?? false` is byte-
   // identical for field-absent sessions (false ⇒ never emitted).
   strataLeafShift: session.strataLeafShift ?? false,
+  // M5 box-endpoint anchoring — default off; forward the retained session state
+  // (`?? false` is byte-identical for field-absent sessions: false ⇒ never
+  // emitted by the truthy-only serializer).
+  strataBoxEndpoints: session.strataBoxEndpoints ?? false,
   // De-band ladder: omit at the default `"none"` (a TRUTHY string — the
   // explicit compare is load-bearing) so a shared URL of a default scene is
   // byte-identical to today's.

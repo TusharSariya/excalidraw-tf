@@ -103,6 +103,10 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   /** E3.3 row-gap scale factor. Default off ⇒ 1 (byte-identical); the resolver
    * omits it at the default (raw-forward). */
   strataRowGap: 1,
+  /** M5 box-endpoint anchoring (strata-only, opt-in): edge endpoints terminate on
+   * the labeled leaf-cluster frame border instead of the resource card. Default
+   * OFF (byte-identical — no consumer yet; M6 lands the geometry). */
+  strataBoxEndpoints: false,
 } as const;
 
 /**
@@ -169,6 +173,8 @@ export const resolveStrataDemoOptions = (params: {
   strataColumnGap?: number;
   /** E3.3 row-gap scale factor. */
   strataRowGap?: number;
+  /** M5 box-endpoint anchoring (strata-only). Default off. */
+  strataBoxEndpoints?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -245,6 +251,12 @@ export const resolveStrataDemoOptions = (params: {
     strataLeafShift:
       params.strataLeafShift ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataLeafShift,
+    // M5 box-endpoint anchoring: emit unconditionally like the other strata
+    // booleans (strataTranspose above). Default false; inert until M6 wires a
+    // consumer, so the resolved value never moves geometry today.
+    strataBoxEndpoints:
+      params.strataBoxEndpoints ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBoxEndpoints,
     // De-band ladder: forward RAW and omit at the default `"none"` (never
     // materialize a default own key). `"none"` is a TRUTHY string, so the
     // explicit `!== "none"` compare is load-bearing — an `&&`-truthy gate would

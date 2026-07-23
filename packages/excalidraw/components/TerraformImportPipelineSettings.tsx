@@ -474,6 +474,22 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       refs: ["React Flow (xyflow) — getBezierPath (MIT)"],
     },
   },
+  "strata.endpoints.resource": {
+    title: "Endpoints · Resource",
+    body: "Edges start and end at the resource cards themselves (default). This is how the diagram looks today.",
+    dev: {
+      implements:
+        "strataBoxEndpoints=false (default): edge endpoints anchor to the resource card, unchanged from today (byte-identical — no consumer reads the flag yet).",
+    },
+  },
+  "strata.endpoints.box": {
+    title: "Endpoints · Box",
+    body: "Edges start and end at the labeled box around a resource (its leaf-cluster frame) instead of the card. Note: dragging a card re-anchors that edge back to the card until the next re-import or repair.",
+    dev: {
+      implements:
+        "strataBoxEndpoints=true: threaded through every seam and echoed in flagMeta, but INERT until M6 — M6 lands the endpoint re-anchor pass (terminate on the labeled leaf-cluster frame border).",
+    },
+  },
   "strata.spacing.columngap.default": {
     title: "Column gap · Default",
     body: "The standard horizontal gap between columns of cards (150 px). Leave this on unless arrows between columns look cramped.",

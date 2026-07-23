@@ -87,20 +87,26 @@ export const TerraformStrataSettingsEdges = ({
   setHoverKey,
   setStickyKey,
   strataEdgeStyle,
+  strataBoxEndpoints,
   strataColumnGap,
   strataRowGap,
   setStrataEdgeStyle,
+  setStrataBoxEndpoints,
   setStrataColumnGap,
   setStrataRowGap,
 }: {
   setHoverKey: (key: OptionHelpKey | null) => void;
   setStickyKey: (key: OptionHelpKey) => void;
   strataEdgeStyle: StrataEdgeStyle;
+  /** M5 box-endpoint anchoring: OFF ⇒ endpoints on the resource card, ON ⇒ on
+   * the labeled leaf-cluster frame border. Inert until M6. */
+  strataBoxEndpoints: boolean;
   /** E3.3 inter-column gutter override (px). `undefined` ⇒ default (150). */
   strataColumnGap: number | undefined;
   /** E3.3 row-gap scale factor. `undefined` ⇒ default (1). */
   strataRowGap: number | undefined;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
+  setStrataBoxEndpoints: (boxEndpoints: boolean) => void;
   /** E3.3 — `undefined` clears back to the default gap. */
   setStrataColumnGap: (columnGap: number | undefined) => void;
   /** E3.3 — `undefined` clears back to the default factor. */
@@ -202,6 +208,25 @@ export const TerraformStrataSettingsEdges = ({
       active: strataEdgeStyle === "curve",
       helpKey: "strata.edgestyle.curve",
       onSelect: () => setStrataEdgeStyle("curve"),
+    },
+  ];
+
+  // M5 box-endpoint anchoring — a one-hot boolean segmented control (mirrors the
+  // Style row). "Resource" is OFF (endpoints on the card, today's default);
+  // "Box" is ON (endpoints on the labeled leaf-cluster frame border). Inert until
+  // M6 wires the geometry; the value still threads through every seam meanwhile.
+  const endpointsSegments: StrataRadioSegment[] = [
+    {
+      label: "Resource",
+      active: !strataBoxEndpoints,
+      helpKey: "strata.endpoints.resource",
+      onSelect: () => setStrataBoxEndpoints(false),
+    },
+    {
+      label: "Box",
+      active: strataBoxEndpoints,
+      helpKey: "strata.endpoints.box",
+      onSelect: () => setStrataBoxEndpoints(true),
     },
   ];
 
@@ -316,6 +341,13 @@ export const TerraformStrataSettingsEdges = ({
           Style <span>reshape data-flow edges</span>
         </>,
         styleSegments,
+      )}
+      {renderRadioGroup(
+        "Strata edge endpoints",
+        <>
+          Endpoints <span>where data-flow edges terminate</span>
+        </>,
+        endpointsSegments,
       )}
       {renderRadioGroup(
         "Strata column gap",

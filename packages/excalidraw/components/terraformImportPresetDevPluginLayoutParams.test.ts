@@ -89,6 +89,7 @@ const fullStrataSnapshot: TerraformDemoSettingsSnapshot = {
   strataCoordCascade: true,
   strataHeightGate: true,
   strataLeafShift: true,
+  strataBoxEndpoints: true,
   strataDeBandLevel: "subnet",
 };
 

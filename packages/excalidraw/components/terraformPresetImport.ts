@@ -103,6 +103,10 @@ export type RunTerraformImportFromSourcesArgs = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs.
    * Default off. */
   strataTranspose?: boolean;
+  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
+   * leaf-cluster frame border instead of the resource card. Default off; inert
+   * until M6. */
+  strataBoxEndpoints?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
   /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
@@ -186,6 +190,7 @@ export const runTerraformImportWithView = async ({
   strataTransitiveAdopt,
   strataBlockClamp,
   strataTranspose,
+  strataBoxEndpoints,
   strataHeightGate,
   strataLeafShift,
   strataLeafShiftHeightBudgetPx,
@@ -262,6 +267,7 @@ export const runTerraformImportWithView = async ({
           strataTransitiveAdopt,
           strataBlockClamp,
           strataTranspose,
+          strataBoxEndpoints,
           strataHeightGate,
           strataLeafShift,
           // Budget knobs are optional numbers — forward ONLY when explicitly set so
@@ -347,6 +353,9 @@ export type RunTerraformPresetImportOptions = {
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. Default off. */
   strataTranspose?: boolean;
+  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
+   * leaf-cluster frame border instead of the resource card. Default off. */
+  strataBoxEndpoints?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
   /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
@@ -453,6 +462,7 @@ export const runTerraformPresetImport = async (
     strataTransitiveAdopt: options.strataTransitiveAdopt,
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
+    strataBoxEndpoints: options.strataBoxEndpoints,
     strataHeightGate: options.strataHeightGate,
     strataLeafShift: options.strataLeafShift,
     strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx,

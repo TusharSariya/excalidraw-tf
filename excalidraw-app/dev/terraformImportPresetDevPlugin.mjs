@@ -123,6 +123,10 @@ export const LAYOUT_BOOLEAN_PARAMS = [
   ["strataChainRelocate", "strataChainRelocate"],
   ["strataCoordCascade", "strataCoordCascade"],
   ["strataLeafShift", "strataLeafShift"],
+  // M5 box-endpoint anchoring — the /demo URL API parses `strataBoxEndpoints`;
+  // forward it so the proof-API arm is not silently no-op'd. Default OFF, inert
+  // until M6 lands the geometry.
+  ["strataBoxEndpoints", "strataBoxEndpoints"],
 ];
 
 // Enum (non-boolean) layout params: [paramName, optionKey, allowedValues].
@@ -293,6 +297,8 @@ const LAYOUT_PARAM_CATALOG = {
       "A7 tie-cascade — a net-zero fixed-point column escapes to its two-sided median and chases chord-connected downstreams. layoutMode=strata.",
     strataLeafShift:
       "A01 leaf X-shift — pull degree-1 pure-sink leaves left toward their source (carries the right-edge column guard). layoutMode=strata.",
+    strataBoxEndpoints:
+      "M5 box-endpoint anchoring — edge endpoints terminate on the labeled leaf-cluster frame border instead of the resource card. Default off, inert until M6 lands the geometry. layoutMode=strata.",
   },
   ints: {
     strataSweeps:
@@ -978,6 +984,9 @@ const buildLayoutProofPayload = (
       strataChainRelocate: meta.strataChainRelocate ?? false,
       strataCoordCascade: meta.strataCoordCascade ?? false,
       strataLeafShift: meta.strataLeafShift ?? false,
+      // M5 box-endpoint anchoring — flagMeta echoes truthy-only, so `?? false`
+      // reads the applied state honestly (false when off / inert).
+      strataBoxEndpoints: meta.strataBoxEndpoints ?? false,
       // Relocate-objective knobs — echoed by the engine only when a relocate
       // operator (sift/leaf-shift/…) actually consumes them, so `?? null` reads
       // honestly (a number proves the knob reached the engine's option bag).

@@ -54,6 +54,7 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon,
   strataBlockClamp,
   strataTranspose,
+  strataBoxEndpoints,
   strataHeightGate,
   strataEdgeStyle,
   strataBandDepth,
@@ -75,6 +76,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon,
   setStrataBlockClamp,
   setStrataTranspose,
+  setStrataBoxEndpoints,
   setStrataHeightGate,
   setStrataEdgeStyle,
   setStrataBandDepth,
@@ -97,6 +99,8 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon: number;
   strataBlockClamp: boolean;
   strataTranspose: boolean;
+  /** M5 box-endpoint anchoring (strata-only, default off). Inert until M6. */
+  strataBoxEndpoints: boolean;
   strataHeightGate: boolean;
   strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
@@ -131,6 +135,7 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
+  setStrataBoxEndpoints: (boxEndpoints: boolean) => void;
   setStrataHeightGate: (heightGate: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
@@ -652,9 +657,11 @@ export const TerraformStrataSettings = ({
             setHoverKey={setHoverKey}
             setStickyKey={setStickyKey}
             strataEdgeStyle={strataEdgeStyle}
+            strataBoxEndpoints={strataBoxEndpoints}
             strataColumnGap={strataColumnGap}
             strataRowGap={strataRowGap}
             setStrataEdgeStyle={setStrataEdgeStyle}
+            setStrataBoxEndpoints={setStrataBoxEndpoints}
             setStrataColumnGap={setStrataColumnGap}
             setStrataRowGap={setStrataRowGap}
           />
