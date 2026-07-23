@@ -1,3 +1,5 @@
+import { existsSync } from "fs";
+import { createRequire } from "module";
 import path from "path";
 
 import { configDefaults, defineConfig } from "vitest/config";
@@ -23,6 +25,42 @@ import { configDefaults, defineConfig } from "vitest/config";
 //    which fails to resolve when this config is invoked from a nested cwd);
 //  - private `cacheDir` so a probe run never clobbers the base Vite cache.
 const ROOT = __dirname;
+
+// Resolve the vitest-canvas-mock setup entry ROBUSTLY. A hardcoded
+// `dist/index.js` path breaks whenever the installed build differs (the probe
+// then cannot run at all — the failure mode this fix removes). We must land on
+// the ESM `dist/index.js`, NOT `dist/index.cjs`: `require.resolve` follows the
+// package's `require` export condition straight to the CJS `dist/index.cjs`,
+// which does `require("vitest")` and throws under vitest v3 (ESM-only). So we
+// use the bare resolution ONLY to locate the package's `dist` directory (robust
+// to workspace hoisting) and then prefer `index.js` over `index.cjs` inside it,
+// falling back to the hoisted node_modules guess if resolution throws.
+const resolveCanvasMockSetup = (): string => {
+  const requireFrom = createRequire(
+    path.join(ROOT, "vitest.probe.config.mts"),
+  );
+  const distDirs: string[] = [];
+  try {
+    distDirs.push(path.dirname(requireFrom.resolve("vitest-canvas-mock")));
+  } catch {
+    // ignore — fall through to the hoisted node_modules guess below.
+  }
+  distDirs.push(path.resolve(ROOT, "node_modules/vitest-canvas-mock/dist"));
+  for (const dist of distDirs) {
+    for (const entry of ["index.js", "index.cjs"]) {
+      const candidate = path.join(dist, entry);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  throw new Error(
+    "vitest.probe.config: could not resolve a vitest-canvas-mock setup entry " +
+      `(looked in ${distDirs.join(", ")} for index.js / index.cjs).`,
+  );
+};
+
+const CANVAS_MOCK_SETUP = resolveCanvasMockSetup();
 
 export default defineConfig({
   cacheDir: path.resolve(ROOT, "node_modules/.vite-probe"),
@@ -86,7 +124,7 @@ export default defineConfig({
     },
     setupFiles: [
       path.resolve(ROOT, "./setupVitestCanvasMock.ts"),
-      path.resolve(ROOT, "node_modules/vitest-canvas-mock/dist/index.js"),
+      CANVAS_MOCK_SETUP,
       path.resolve(ROOT, "./setupTests.ts"),
     ],
     globals: true,

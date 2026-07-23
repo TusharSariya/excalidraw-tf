@@ -228,6 +228,93 @@ describe("badPatterns M4 — endpointOcclusion", () => {
     expect(off[0]!.reentryRect?.frameId).toBe("card-A");
   });
 
+  it("does NOT count a body-anchored endpoint's egress run as re-entry (exit-first)", () => {
+    // Measurement-artifact fix: the source anchor sits DEEP inside A's composite
+    // frame (100,100 — 100px in from every border, far past the 20px stub), and
+    // the edge simply runs out through A's right border to (300,100) and never
+    // comes back. The single body→border→out run is egress, not re-entry. The
+    // old fixed-20px-skip rule flagged it (after skipping 20px it is still inside
+    // A's interior); exit-first semantics correctly skip the whole egress run.
+    const els = [
+      card("A", 0, 0, 200, 200),
+      card("B", 400, 0, 100, 100),
+      arrow(
+        0,
+        0,
+        [
+          [100, 100],
+          [300, 100],
+        ],
+        "A",
+        "B",
+      ),
+    ];
+    const bp = diagnosePipelineScene(els).badPatterns;
+    expect(bp.endpointOcclusion.ownCardReentryCount).toBe(0);
+    expect(bp.endpointOcclusion.ownCardReentryEdges).toBe(0);
+    expect(bp.endpointOcclusion.endpointsResolved).toBe(2);
+
+    const off = diagnoseBadPatternOffenders(els).endpointOcclusion;
+    expect(off).toHaveLength(0);
+  });
+
+  it("still counts a GENUINE re-entry from a body anchor (exits, loops back in)", () => {
+    // Body anchor at (100,100) deep inside A. The edge exits A's right border to
+    // (300,100), goes up to (300,50), then runs back left into A's interior at
+    // (150,50). That final leg is a true re-entry AFTER the polyline has left.
+    const els = [
+      card("A", 0, 0, 200, 200),
+      card("B", 400, 0, 100, 100),
+      arrow(
+        0,
+        0,
+        [
+          [100, 100],
+          [300, 100],
+          [300, 50],
+          [150, 50],
+        ],
+        "A",
+        "B",
+      ),
+    ];
+    const bp = diagnosePipelineScene(els).badPatterns;
+    expect(bp.endpointOcclusion.ownCardReentryCount).toBe(1);
+    expect(bp.endpointOcclusion.ownCardReentryEdges).toBe(1);
+
+    const off = diagnoseBadPatternOffenders(els).endpointOcclusion;
+    expect(off).toHaveLength(1);
+    expect(off[0]!.reentry).toBe("src");
+    expect(off[0]!.reentryRect?.frameId).toBe("card-A");
+  });
+
+  it("flags a degenerate always-inside edge via the stub lower bound", () => {
+    // The whole edge lives inside A and never exits (a chord that never leaves
+    // its own card). There is no egress run to skip, so the 20px stub lower
+    // bound applies and the always-inside remainder is still flagged.
+    const els = [
+      card("A", 0, 0, 200, 200),
+      card("B", 400, 0, 100, 100),
+      arrow(
+        0,
+        0,
+        [
+          [50, 50],
+          [150, 150],
+        ],
+        "A",
+        "B",
+      ),
+    ];
+    const bp = diagnosePipelineScene(els).badPatterns;
+    expect(bp.endpointOcclusion.ownCardReentryCount).toBe(1);
+    expect(bp.endpointOcclusion.ownCardReentryEdges).toBe(1);
+
+    const off = diagnoseBadPatternOffenders(els).endpointOcclusion;
+    expect(off).toHaveLength(1);
+    expect(off[0]!.reentry).toBe("src");
+  });
+
   it("classifies an anchor-region crossing as own (within 28px of an attachment point)", () => {
     // A runs left→right from its start anchor (0,0). C crosses A at (15,0),
     // which is 15px (≤ R_ANCHOR=28) from A's start anchor → endpointCrossOwn.

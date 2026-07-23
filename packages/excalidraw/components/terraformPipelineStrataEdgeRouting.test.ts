@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
+import { computeTerraformChordAnchors } from "./terraformEdgeAnchors";
 import {
   routeStrataEdge,
   routeStrataSkeletonEdges,
@@ -27,6 +28,7 @@ import {
 } from "./terraformPipelineStrataEdgeRouting";
 import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
 
+import type { StrataEdgeStyleAnchors } from "./terraformPipelineStrataEdgeStyle";
 import type {
   StrataBox,
   StrataHullNode,
@@ -486,5 +488,118 @@ describe("routeStrataSkeletonEdges — E1.3 scene pass", () => {
     });
     expect(skeleton[0]).toBe(arrow);
     expect(JSON.stringify(skeleton[0])).toBe(frozen);
+  });
+});
+
+// ── E1.5 body-rect anchors path ──────────────────────────────────────────────
+// The central wave-4 mechanism: when the shared body-rect anchor authority
+// resolves BOTH endpoint keys, the chord endpoints (used for eligibility,
+// routing AND the write-back origin) are `computeTerraformChordAnchors`, not the
+// frame-clipped chord. The suites above only exercise the no-anchors fallback.
+
+const anchorsOf = (
+  entries: Array<[string, StrataBox]>,
+  structuralPairKeys: string[] = [],
+): StrataEdgeStyleAnchors => ({
+  bodyRectByKey: new Map(entries),
+  structuralPairKeys: new Set(structuralPairKeys),
+});
+
+describe("routeStrataSkeletonEdges — E1.5 body-rect anchors path", () => {
+  it("(a) re-origins el.x/el.y at the body anchor; endpoints === computeTerraformChordAnchors", () => {
+    const { model, placement } = fixture();
+    // Body rects offset in Y from the frame chord so the ANCHOR chord (y=30) is
+    // provably distinct from the frame chord (y=20). Both pierce card b1, so the
+    // edge routes; the write-back origin must be the ANCHOR start, not the frame.
+    const rectA = box(0, 10, 80, 40); // centre (40, 30)
+    const rectB = box(400, 10, 80, 40); // centre (440, 30)
+    const expected = computeTerraformChordAnchors(rectA, rectB, {
+      structuralPair: false,
+    });
+    // Sanity: the anchor chord differs from the frame chord we hand tfdArrow.
+    expect(expected.startPoint).toEqual({ x: 80, y: 30 });
+    expect(expected.endPoint).toEqual({ x: 400, y: 30 });
+
+    const skeleton = [tfdArrow("a1", "a2", [80, 20], [400, 20])];
+    const meta = routeStrataSkeletonEdges(
+      skeleton,
+      model,
+      placement,
+      anchorsOf([
+        ["a1", rectA],
+        ["a2", rectB],
+      ]),
+    );
+    expect(meta.routed).toBe(1);
+
+    const routed = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      points: Array<[number, number]>;
+    };
+    // Re-origined at the body anchor: points[0] === [0,0], el.x/el.y === the
+    // anchor start (NOT the frame start y=20).
+    expect(routed.points[0]).toEqual([0, 0]);
+    expect(routed.x).toBe(expected.startPoint.x);
+    expect(routed.y).toBe(expected.startPoint.y);
+    expect(routed.y).not.toBe(20); // proves the anchor chord, not the frame chord
+    // Last absolute point is exactly the anchor endpoint.
+    const abs = routed.points.map(
+      ([px, py]) => [routed.x + px, routed.y + py] as [number, number],
+    );
+    expect(abs[abs.length - 1]).toEqual([
+      expected.endPoint.x,
+      expected.endPoint.y,
+    ]);
+  });
+
+  it("(b) eligibility follows the ANCHOR chord: eligible WITH anchors, clean WITHOUT", () => {
+    const { model, placement } = fixture();
+    // Frame chord y=-20 is a hull-only pierce (above card b1) ⇒ NOT eligible.
+    // Body rects clip the chord to y=20, straight through card b1 ⇒ eligible.
+    const arrowNoAnchor = tfdArrow("a1", "a2", [80, -20], [400, -20]);
+    const frozen = JSON.stringify(arrowNoAnchor);
+    const skelNoAnchor = [arrowNoAnchor];
+    const m0 = routeStrataSkeletonEdges(skelNoAnchor, model, placement);
+    expect(m0.routed).toBe(0);
+    expect(m0.unroutable).toBe(0);
+    expect(JSON.stringify(skelNoAnchor[0])).toBe(frozen); // byte-identical
+
+    const skelAnchor = [tfdArrow("a1", "a2", [80, -20], [400, -20])];
+    const m1 = routeStrataSkeletonEdges(
+      skelAnchor,
+      model,
+      placement,
+      anchorsOf([
+        ["a1", box(0, 0, 80, 40)], // centre (40,20) ⇒ anchor chord y=20
+        ["a2", box(400, 0, 80, 40)],
+      ]),
+    );
+    expect(m1.routed).toBe(1);
+  });
+
+  it("(b) eligibility follows the ANCHOR chord: eligible WITHOUT anchors, clean WITH", () => {
+    const { model, placement } = fixture();
+    // The reverse: frame chord y=20 pierces card b1 ⇒ eligible + routed. Body
+    // rects clip the chord to y=-20 (hull-only, above b1) ⇒ NOT eligible.
+    const skelNoAnchor = [tfdArrow("a1", "a2", [80, 20], [400, 20])];
+    const m0 = routeStrataSkeletonEdges(skelNoAnchor, model, placement);
+    expect(m0.routed).toBe(1);
+
+    const arrowAnchor = tfdArrow("a1", "a2", [80, 20], [400, 20]);
+    const frozen = JSON.stringify(arrowAnchor);
+    const skelAnchor = [arrowAnchor];
+    const m1 = routeStrataSkeletonEdges(
+      skelAnchor,
+      model,
+      placement,
+      anchorsOf([
+        ["a1", box(0, -40, 80, 40)], // centre (40,-20) ⇒ anchor chord y=-20
+        ["a2", box(400, -40, 80, 40)],
+      ]),
+    );
+    expect(m1.routed).toBe(0);
+    expect(m1.unroutable).toBe(0);
+    expect(JSON.stringify(skelAnchor[0])).toBe(frozen); // byte-identical
   });
 });

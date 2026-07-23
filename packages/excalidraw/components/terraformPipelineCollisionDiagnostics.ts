@@ -1266,28 +1266,87 @@ function compressBackwardRuns(points: Array<[number, number]>): SignedRun[] {
   return runs;
 }
 
-/** Own-card re-entry test (§4a): does the polyline pierce `rect`'s interior
- * after STUB_SKIP_PX of arc length from the start? Walk forward, split the
- * segment straddling the skip point, test each remaining (sub)segment via the
- * pierce leaf's `segmentIntersectsRectInterior`. Call with reversed points to
- * test the target end. */
+/** Strict (OPEN) interior membership, matching `segmentIntersectsRectInterior`'s
+ * midpoint rule: a point ON the border is NOT inside. */
+const pointStrictlyInsideRect = (
+  p: readonly [number, number],
+  rect: Rect,
+): boolean =>
+  rect.width > 0 &&
+  rect.height > 0 &&
+  p[0] > rect.x &&
+  p[0] < rect.x + rect.width &&
+  p[1] > rect.y &&
+  p[1] < rect.y + rect.height;
+
+/**
+ * Own-card re-entry test (§4a): does the polyline RE-ENTER `rect`'s interior
+ * *after it has first left it*? Call with reversed points to test the target
+ * end.
+ *
+ * EXIT-FIRST SEMANTICS (measurement-artifact fix). The naïve "skip a fixed
+ * `skipPx` of arc, then flag any interior presence" rule mis-counts every
+ * legitimate egress run: a body-anchored endpoint (route/border/style-pass
+ * edges since the curve-fix track) sits well OVER `skipPx` INSIDE its composite
+ * frame, so the single run from the body out through the frame border is still
+ * inside the rect past `skipPx` and reads as a re-entry it is not. A re-entry is
+ * only real once the polyline has EXITED the rect and come back. So:
+ *   1. Walk from the endpoint until the path first leaves the interior; skip
+ *      that whole egress run (its arc length, but never less than `skipPx` — the
+ *      stub lower bound still clears a border-hugging start).
+ *   2. Test only the remainder for interior intersection.
+ *   3. Degenerate always-inside edge (never exits): fall back to the `skipPx`
+ *      lower-bound skip so a chord that never leaves its own card is still
+ *      flagged.
+ * Splits the segment straddling the effective skip point, then tests each
+ * remaining (sub)segment via the pierce leaf's `segmentIntersectsRectInterior`.
+ */
 function polylineReentersRect(
   points: ReadonlyArray<readonly [number, number]>,
   rect: Rect,
   skipPx: number,
 ): boolean {
+  if (points.length < 2) {
+    return false;
+  }
+  // Arc length to the first exit from the interior. If the endpoint already
+  // sits on/outside the border (a non-body anchor), the egress is 0 and the
+  // effective skip collapses to the `skipPx` lower bound — i.e. the original
+  // fixed-stub behavior, unchanged. If the endpoint is inside (body anchor),
+  // skip out to the first vertex that leaves the interior.
+  let exitAcc: number | null = pointStrictlyInsideRect(points[0]!, rect)
+    ? null
+    : 0;
+  if (exitAcc === null) {
+    let walk = 0;
+    for (let i = 0; i + 1 < points.length; i++) {
+      const a = points[i]!;
+      const b = points[i + 1]!;
+      walk += Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (!pointStrictlyInsideRect(b, rect)) {
+        exitAcc = walk;
+        break;
+      }
+    }
+  }
+  // exitAcc === null here ⇒ the polyline never left the interior (degenerate
+  // always-inside). Use the stub lower bound so the remainder test still flags
+  // it; otherwise skip the whole egress run (>= the stub lower bound).
+  const effectiveSkip =
+    exitAcc === null ? skipPx : Math.max(skipPx, exitAcc);
+
   let acc = 0;
   for (let i = 0; i + 1 < points.length; i++) {
     const a = points[i]!;
     const b = points[i + 1]!;
     const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (acc + L <= skipPx) {
+    if (acc + L <= effectiveSkip) {
       acc += L;
       continue;
     }
     let start: readonly [number, number] = a;
-    if (acc < skipPx && L > 0) {
-      const tt = (skipPx - acc) / L;
+    if (acc < effectiveSkip && L > 0) {
+      const tt = (effectiveSkip - acc) / L;
       start = [a[0] + tt * (b[0] - a[0]), a[1] + tt * (b[1] - a[1])];
     }
     if (segmentIntersectsRectInterior(start, b, rect)) {

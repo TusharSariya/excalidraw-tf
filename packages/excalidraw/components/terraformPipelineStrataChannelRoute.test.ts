@@ -437,6 +437,63 @@ describe("routeStrataChannelEdges (scene pass)", () => {
     expect(meta.runsTotal).toBe(0);
   });
 
+  it("keeps a degenerate same-Y inter-rank pair as a 3-point collinear stub (E1.2), stamped", () => {
+    // Horizontally-aligned inter-rank cards: the (body-anchored) endpoints clip
+    // to the SAME Y, so the orthogonal route is geometrically a straight chord
+    // and simplifyPolyline reduces it to 2 points. The E1.2 degenerate branch
+    // keeps the perpendicular exit stub as an explicit interior waypoint so the
+    // stamped polyline stays >2 points (repair's `points.length > 2` gate) — and
+    // the stub is COLLINEAR with the straight run, so the rendered edge is
+    // visually unchanged.
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const b = hull("hull-b", ["vpc-b"], ["b1"]);
+    root.children = [a, b];
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 0, 80, 40)],
+      ["b1", box(400, 0, 80, 40)], // SAME Y band as a1 ⇒ same-Y chord
+    ]);
+    const boxedHulls = new Map([
+      ["__root__", { hull: root, box: box(-40, -40, 600, 140) }],
+      ["hull-a", { hull: a, box: box(-20, -20, 120, 80) }],
+      ["hull-b", { hull: b, box: box(380, -20, 120, 80) }],
+    ]);
+    // a1 right-mid → b1 left-mid, both at y=20: an inter-rank edge whose chord is
+    // exactly horizontal.
+    const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 20])];
+    const meta = routeStrataChannelEdges(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+      false,
+    );
+    expect(meta.routed).toBe(1);
+    expect(meta.flat).toBe(0);
+    expect(meta.guardReverted).toBe(0);
+
+    const el = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      points: Pt[];
+      customData: Record<string, unknown>;
+    };
+    // Endpoints preserved; exactly 3 points (start, collinear stub, end).
+    expect(el.x).toBe(80);
+    expect(el.y).toBe(20);
+    expect(el.points[0]).toEqual([0, 0]);
+    expect(el.points.length).toBe(3);
+    const abs = absPointsOf(skeleton[0]!);
+    expect(abs[abs.length - 1]).toEqual([400, 20]);
+    // Exactly collinear: the cross product of the three points is 0.
+    const [p0, p1, p2] = el.points as [Pt, Pt, Pt];
+    const cross =
+      (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]);
+    expect(cross).toBe(0);
+    // Stamped so repair preserves the >2-point routed shape.
+    expect(el.customData.terraformRoutedPolyline).toBe(true);
+    expect(el.customData.terraformRoutedBy).toBe("channel");
+  });
+
   it("emits roundness on channel polylines when corner-softening is requested (edgeStyle composition)", () => {
     const root = hull("__root__", [], []);
     const a = hull("hull-a", ["vpc-a"], ["a1"]);

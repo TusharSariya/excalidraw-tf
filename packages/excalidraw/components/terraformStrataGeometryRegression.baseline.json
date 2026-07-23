@@ -3,7 +3,8 @@
   "__updates__": [
     "2026-07-17 — W0-I4 initial freeze from pre-overnight tip e962579f9 (fast cells; audit/vpc-deband rows SKIPPED-SLOW)",
     "2026-07-17 — W0-I1 fix round — geometryHash canonicalization change (drop element id + integer-pixel rounding, keep points/count:length:fnv64); orchestrator-mandated. Layout geometry unchanged; only the per-cell fingerprint changes.",
-    "2026-07-17 — owner default flip 2026-07-17: transpose/sift/packedScoring ON, rankSeparate OFF (mutual-excl), privateApiRegional always-on — default geometry improves cr273->252 pierce226->139"
+    "2026-07-17 — owner default flip 2026-07-17: transpose/sift/packedScoring ON, rankSeparate OFF (mutual-excl), privateApiRegional always-on — default geometry improves cr273->252 pierce226->139",
+    "2026-07-23 — E1.3 soft-hull router + E1.4 entry chains, owner-ruled trade (aesthetic-edges loop 1)"
   ],
   "cells": {
     "P2::strata-default": {
@@ -117,17 +118,17 @@
       "ok": true,
       "geometryHash": "1328:47475:9266f8c8f63a6a97",
       "elementCount": 1328,
-      "renderedCrossings": 334,
-      "pierce": 43,
+      "renderedCrossings": 306,
+      "pierce": 132,
       "topoFrames": 33,
-      "piercePerTopoFrame": 1.303
+      "piercePerTopoFrame": 4
     },
     "P2::borderRoute": {
       "status": "measured",
       "ok": true,
       "geometryHash": "1328:47475:9266f8c8f63a6a97",
       "elementCount": 1328,
-      "renderedCrossings": 244,
+      "renderedCrossings": 252,
       "pierce": 139,
       "topoFrames": 33,
       "piercePerTopoFrame": 4.2121
@@ -253,17 +254,17 @@
       "ok": true,
       "geometryHash": "731:25855:792caea6fcedfc39",
       "elementCount": 731,
-      "renderedCrossings": 53,
-      "pierce": 20,
+      "renderedCrossings": 37,
+      "pierce": 48,
       "topoFrames": 18,
-      "piercePerTopoFrame": 1.1111
+      "piercePerTopoFrame": 2.6667
     },
     "P1::borderRoute": {
       "status": "measured",
       "ok": true,
       "geometryHash": "731:25855:792caea6fcedfc39",
       "elementCount": 731,
-      "renderedCrossings": 25,
+      "renderedCrossings": 26,
       "pierce": 49,
       "topoFrames": 18,
       "piercePerTopoFrame": 2.7222

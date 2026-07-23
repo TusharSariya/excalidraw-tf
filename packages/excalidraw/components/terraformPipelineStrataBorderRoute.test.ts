@@ -18,12 +18,14 @@ import { describe, expect, it } from "vitest";
 
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
+import { computeTerraformChordAnchors } from "./terraformEdgeAnchors";
 import {
   routeStrataBorderExits,
   type StrataBorderRouteMeta,
 } from "./terraformPipelineStrataBorderRoute";
 import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
 
+import type { StrataEdgeStyleAnchors } from "./terraformPipelineStrataEdgeStyle";
 import type {
   StrataBox,
   StrataHullNode,
@@ -563,5 +565,62 @@ describe("routeStrataBorderExits (P3 border-exit)", () => {
     expect(meta.routed).toBe(0);
     expect(skeleton[0]).toBe(aggregated);
     expect(skeleton[1]).toBe(otherLayer);
+  });
+
+  // ── E1.5 body-rect anchors path ────────────────────────────────────────────
+  // The suites above only exercise the no-anchors fallback. When the shared
+  // body-rect anchor authority resolves BOTH endpoint keys, the chord `start`/
+  // `end` — which drive facingSide, the exit chain AND the write-back origin —
+  // are `computeTerraformChordAnchors`, not the frame-clipped chord.
+  it("E1.5: re-origins at the body anchor and builds the exit chain on the ANCHOR chord", () => {
+    const { model, placement } = baseFixture();
+    const rectSrc = box(40, 40, 20, 20); // centre (50,50)
+    const rectSink = box(300, 300, 40, 40); // centre (320,320)
+    const expected = computeTerraformChordAnchors(rectSrc, rectSink, {
+      structuralPair: false,
+    });
+    // The anchor chord starts at (60,60) — inside vpcA — provably distinct from
+    // the frame chord we hand tfdArrow (which starts at (50,50)).
+    expect(expected.startPoint).toEqual({ x: 60, y: 60 });
+    expect(expected.endPoint).toEqual({ x: 300, y: 300 });
+
+    const anchors: StrataEdgeStyleAnchors = {
+      bodyRectByKey: new Map([
+        ["src", rectSrc],
+        ["sink", rectSink],
+      ]),
+      structuralPairKeys: new Set<string>(),
+    };
+    const skeleton = [tfdArrow("src", "sink", [50, 50], [300, 300])];
+    const meta = routeStrataBorderExits(skeleton, model, placement, anchors);
+    expect(meta.routed).toBe(1);
+    expect(meta.unclean).toBe(0);
+    expect(meta.noGain).toBe(0);
+
+    const routed = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      points: Array<[number, number]>;
+      customData: Record<string, unknown>;
+    };
+    // Re-origined at the body anchor (NOT the frame start (50,50)).
+    expect(routed.points[0]).toEqual([0, 0]);
+    expect(routed.x).toBe(expected.startPoint.x);
+    expect(routed.y).toBe(expected.startPoint.y);
+    expect(routed.x).not.toBe(50);
+    const abs: Pt[] = routed.points.map(([px, py]) => [
+      routed.x + px,
+      routed.y + py,
+    ]);
+    expect(abs[abs.length - 1]).toEqual([
+      expected.endPoint.x,
+      expected.endPoint.y,
+    ]);
+    // The exit chain ran on the ANCHOR chord: exactly one clean exit of vpcA.
+    expect(
+      boundaryCrossings(abs, placement.boxedHulls.get("hull-a")!.box),
+    ).toBe(1);
+    expect(routed.customData.terraformRoutedPolyline).toBe(true);
+    expect(routed.customData.terraformRoutedBy).toBe("border");
   });
 });
