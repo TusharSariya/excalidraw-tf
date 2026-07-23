@@ -923,7 +923,9 @@ describe("curve + router combos — provenance + first-stamper-wins + repair kee
       flag: "strataBorderRoute",
       by: "border",
       routedMetaKey: "strataBorderRouteRouted",
-      preRepairStamps: 40,
+      // E1.4 added symmetric entry-side chains: +7 edges now routed on this
+      // preset (40 exit-only → 47 with ingress; measured 2026-07-23).
+      preRepairStamps: 47,
       selfFlatten: 0,
     },
   ] as const;
