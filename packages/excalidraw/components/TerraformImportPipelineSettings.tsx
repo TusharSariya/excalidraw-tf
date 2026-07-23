@@ -467,10 +467,10 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
   },
   "strata.edgerouting.on": {
     title: "Route edges around containers · On — W9 spike",
-    body: "Arrows whose straight line would tunnel through an unrelated container are re-drawn as short detours around it (endpoint ancestors stay permeable; everything else keeps its straight line). Bounded bends: an edge that cannot be routed cleanly within the cap falls back to its straight chord.",
+    body: "Arrows whose straight line would tunnel through an unrelated card are re-drawn as short forward detours around it (container outlines may be crossed — that reads better than a backward loop; endpoint ancestors stay permeable; everything else keeps its straight line). Bounded bends: an edge that cannot be routed cleanly within the cap, or only via an overlong detour, falls back to its straight chord.",
     dev: {
       implements:
-        "strataEdgeRouting=true (Package C / W9): routeStrataSkeletonEdges detours penetrating TFD arrows around clearance-inflated foreign boxes (≤6 waypoints, min added L1, deterministic ties).",
+        "strataEdgeRouting=true (Package C / W9 + E1.3 soft router): routeStrataSkeletonEdges detours card-penetrating TFD arrows around clearance-inflated foreign cards; hulls are soft (crossed at γ=40 cost), backtrack penalized (λ=1.5, net-forward edges), detours >1.8× chord capped back to the chord (≤6 waypoints, deterministic right/below-first ties).",
       refs: [
         "Wybrow/Marriott/Stuckey 2006 — Incremental Connector Routing",
         "Bouts & Speckmann 2015 — Clustered Edge Routing",
@@ -564,7 +564,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     body: "Edges detour around cards in their path.",
     dev: {
       implements:
-        "One-hot: strataEdgeRouting=true only (routeStrataSkeletonEdges detours penetrating arrows around foreign boxes).",
+        "One-hot: strataEdgeRouting=true only (routeStrataSkeletonEdges detours card-penetrating arrows around foreign cards; hulls soft, direction-aware — E1.3).",
     },
   },
   "strata.routing.channels": {

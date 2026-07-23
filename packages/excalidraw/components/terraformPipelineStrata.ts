@@ -1232,6 +1232,7 @@ export async function buildTerraformStrataExcalidrawScene(
           ? {
               strataEdgeRoutingRouted: scene.edgeRouting.routed,
               strataEdgeRoutingUnroutable: scene.edgeRouting.unroutable,
+              strataEdgeRoutingCappedDetour: scene.edgeRouting.cappedDetour,
               strataEdgeRoutingWaypoints: scene.edgeRouting.waypointsTotal,
             }
           : {}),

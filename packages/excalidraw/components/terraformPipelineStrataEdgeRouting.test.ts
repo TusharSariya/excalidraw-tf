@@ -6,7 +6,9 @@
  * chained two-obstacle detour, waypoint-cap fallback, determinism) plus the
  * skeleton-level pass (endpoint-ancestor permeability, unrelated-card
  * obstacles, flag-off no-op via the scene-build seam, byte-identity of
- * unrouted arrows).
+ * unrouted arrows), plus the E1.3 direction-aware soft-router battery
+ * (right/below tie order, left-swing hygiene, soft-hull crossing over
+ * backward loops, spanner cap, hull-only chords untouched).
  *
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataEdgeRouting.test.ts --exclude "**\/.claude/**"
  */
@@ -17,7 +19,10 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 import {
   routeStrataEdge,
   routeStrataSkeletonEdges,
+  STRATA_EDGE_ROUTING_CARD_CLEARANCE,
   STRATA_EDGE_ROUTING_MAX_WAYPOINTS,
+  STRATA_EDGE_ROUTING_T_DETOUR_CAP,
+  strataDetourExceedsCap,
   strataEdgeRoutingClearance,
 } from "./terraformPipelineStrataEdgeRouting";
 import { STRATA_HULL_POLICY } from "./terraformPipelineStrataTypes";
@@ -241,6 +246,7 @@ describe("routeStrataSkeletonEdges (scene pass)", () => {
     expect(meta).toEqual({
       routed: 1,
       unroutable: 0,
+      cappedDetour: 0,
       waypointsTotal: expect.any(Number),
     });
     const routed = skeleton[0] as unknown as {
@@ -296,7 +302,12 @@ describe("routeStrataSkeletonEdges (scene pass)", () => {
     otherLayer.customData.terraformEdgeLayer = "networking";
     const skeleton = [aggregated, otherLayer];
     const meta = routeStrataSkeletonEdges(skeleton, model, placement);
-    expect(meta).toEqual({ routed: 0, unroutable: 0, waypointsTotal: 0 });
+    expect(meta).toEqual({
+      routed: 0,
+      unroutable: 0,
+      cappedDetour: 0,
+      waypointsTotal: 0,
+    });
     expect(skeleton[0]).toBe(aggregated);
     expect(skeleton[1]).toBe(otherLayer);
   });
@@ -331,5 +342,149 @@ describe("routeStrataSkeletonEdges (scene pass)", () => {
     const m2 = routeStrataSkeletonEdges(s2, model, placement);
     expect(JSON.stringify(m1)).toBe(JSON.stringify(m2));
     expect(JSON.stringify(s1)).toBe(JSON.stringify(s2));
+  });
+});
+
+// ── E1.3 direction-aware soft router ─────────────────────────────────────────
+
+describe("routeStrataEdge — E1.3 direction-aware soft router (pure core)", () => {
+  it("(a) vertical-major forward detour no longer swings left: hygiene drops left candidates", () => {
+    // Card's LEFT flank is much closer (pre-E1.3 pure-L1 picked left: 398 vs
+    // 538 L1), but its left corners sit at x = -44, left of
+    // min(start.x, end.x) - cardClearance = -24, so the left candidate is
+    // dropped before scoring and the route goes RIGHT.
+    const obstacle = box(-20, 100, 120, 60);
+    const route = routeStrataEdge([0, 0], [10, 300], [obstacle]);
+    expect(route).not.toBeNull();
+    expect(route!.waypoints).toBeGreaterThan(0);
+    for (const [px] of route!.points.slice(1, -1)) {
+      expect(px).toBeGreaterThanOrEqual(obstacle.x + obstacle.width);
+    }
+    expect(polylineAvoids(route!.points, obstacle)).toBe(true);
+  });
+
+  it("(a) exact cost ties resolve right-before-left / below-before-above", () => {
+    // Vertical-major chord, obstacle symmetric about it: both flanks cost the
+    // same, the earliest candidate wins, and E1.3 reordered right-first
+    // (pre-E1.3 this went LEFT).
+    const vObstacle = box(-50, 100, 100, 60);
+    const vRoute = routeStrataEdge([0, 0], [0, 300], [vObstacle]);
+    expect(vRoute).not.toBeNull();
+    for (const [px] of vRoute!.points.slice(1, -1)) {
+      expect(px).toBeGreaterThan(0);
+    }
+    // Horizontal-major chord, obstacle symmetric about it: below-first
+    // (pre-E1.3 this went ABOVE).
+    const hObstacle = box(100, -50, 100, 100);
+    const hRoute = routeStrataEdge([0, 0], [300, 0], [hObstacle]);
+    expect(hRoute).not.toBeNull();
+    for (const [, py] of hRoute!.points.slice(1, -1)) {
+      expect(py).toBeGreaterThan(0);
+    }
+  });
+
+  it("(c)(d) crosses a soft hull going forward instead of orbiting it; card stays hard-avoided", () => {
+    const card = box(140, -30, 40, 60); // hard: straddles the chord
+    const hull = box(100, -200, 120, 400); // soft: encloses the card's column
+    const route = routeStrataEdge(
+      [0, 0],
+      [300, 0],
+      [card],
+      STRATA_EDGE_ROUTING_CARD_CLEARANCE,
+      [hull],
+    );
+    expect(route).not.toBeNull();
+    // (c) the card is still hard-avoided (raw interior clean)...
+    expect(polylineAvoids(route!.points, card)).toBe(true);
+    // ...while the soft hull IS crossed — pre-E1.3 the hull was a hard
+    // obstacle, so the router had to orbit its whole 400px-tall box.
+    expect(polylineAvoids(route!.points, hull)).toBe(false);
+    // (d) no backward X travel anywhere on the path (owner: backward is
+    // worse than a hull crossing).
+    for (let i = 0; i + 1 < route!.points.length; i++) {
+      expect(route!.points[i + 1]![0]).toBeGreaterThanOrEqual(
+        route!.points[i]![0],
+      );
+    }
+    // And the forward hull-crossing detour is modest — under the spanner cap.
+    expect(strataDetourExceedsCap(route!.points)).toBe(false);
+  });
+
+  it("(b) strataDetourExceedsCap flags >1.8x-chord polylines only", () => {
+    // Chord itself never caps.
+    expect(
+      strataDetourExceedsCap([
+        [0, 0],
+        [300, 0],
+      ]),
+    ).toBe(false);
+    // Shallow detour (~316px over a 300px chord) stays allowed.
+    expect(
+      strataDetourExceedsCap([
+        [0, 0],
+        [150, 50],
+        [300, 0],
+      ]),
+    ).toBe(false);
+    // Deep detour (~892px over a 300px chord) exceeds 1.8x.
+    expect(
+      strataDetourExceedsCap([
+        [0, 0],
+        [150, 420],
+        [300, 0],
+      ]),
+    ).toBe(true);
+    // Degenerate zero-length chord never caps.
+    expect(
+      strataDetourExceedsCap([
+        [0, 0],
+        [100, 100],
+        [0, 0],
+      ]),
+    ).toBe(false);
+    expect(STRATA_EDGE_ROUTING_T_DETOUR_CAP).toBe(1.8);
+  });
+});
+
+describe("routeStrataSkeletonEdges — E1.3 scene pass", () => {
+  it("(b) counts an over-cap detour as cappedDetour and keeps the chord byte-identical", () => {
+    const { model, placement } = fixture();
+    // A tall foreign "tower" card across the chord: the only clean detours
+    // climb ~800px for a 320px chord (>1.8x) — capped back to the chord.
+    (placement.leafBoxes as Map<string, StrataBox>).set(
+      "tower",
+      box(200, -800, 60, 1600),
+    );
+    const arrow = tfdArrow("a1", "a2", [80, 20], [400, 20]);
+    const frozen = JSON.stringify(arrow);
+    const skeleton = [arrow];
+    const meta = routeStrataSkeletonEdges(skeleton, model, placement);
+    expect(meta).toEqual({
+      routed: 0,
+      unroutable: 0,
+      cappedDetour: 1,
+      waypointsTotal: 0,
+    });
+    expect(skeleton[0]).toBe(arrow); // same reference — untouched
+    expect(JSON.stringify(skeleton[0])).toBe(frozen);
+  });
+
+  it("hull-only chord penetration is no longer eligible: byte-identical, uncounted", () => {
+    const { model, placement } = fixture();
+    // y = -20 runs inside foreign hull-b (interior y in (-30, 70)) but above
+    // card b1 (interior y in (-10, 50)) — a hull-only pierce. Owner ruling:
+    // hull crossings are acceptable, so the chord IS the desired output.
+    const arrow = tfdArrow("a1", "a2", [80, -20], [400, -20]);
+    const frozen = JSON.stringify(arrow);
+    const skeleton = [arrow];
+    const meta = routeStrataSkeletonEdges(skeleton, model, placement);
+    expect(meta).toEqual({
+      routed: 0,
+      unroutable: 0,
+      cappedDetour: 0,
+      waypointsTotal: 0,
+    });
+    expect(skeleton[0]).toBe(arrow);
+    expect(JSON.stringify(skeleton[0])).toBe(frozen);
   });
 });

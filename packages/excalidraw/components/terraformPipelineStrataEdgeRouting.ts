@@ -1,40 +1,98 @@
 /**
- * Strata Package C spike — post-A7 obstacle-avoiding edge routing (SDEC-59
- * follow-up; W9 battery terraformPipelineStrataRoutingSpike.test.ts).
+ * Strata Package C — post-A7 obstacle-avoiding edge routing (SDEC-59
+ * follow-up; W9 battery terraformPipelineStrataRoutingSpike.test.ts), revised
+ * by perf-exp E1.3 into a DIRECTION-AWARE SOFT ROUTER.
  *
  * Mode "penetrating-only": AFTER final geometry (post packedScoring guard,
  * post-A7, at scene-skeleton assembly), each rendered TFD arrow whose straight
- * centre-clipped chord passes through the INTERIOR of at least one FOREIGN box
- * — a hull frame that is an ancestor of neither endpoint, or an unrelated
- * primary-cluster card — is replaced by a polyline detour around the offending
- * boxes. Every other arrow is left byte-identical; flag-off this module never
- * runs.
+ * centre-clipped chord passes through the INTERIOR of at least one FOREIGN
+ * CARD (an unrelated primary-cluster card) is replaced by a polyline detour.
+ * Every other arrow is left byte-identical; flag-off this module never runs.
  *
- * Literature grounding (graph-layout corpus doc ids, cited in the W9 doc):
+ * ── E1.3 obstacle classes (owner ruling: hull crossings are acceptable,
+ * backward travel is worse, cards must still be avoided) ──
+ *  - CARDS are HARD obstacles, inflated by STRATA_EDGE_ROUTING_CARD_CLEARANCE
+ *    (24px — raised from 14 so detours hug cards less tightly).
+ *  - HULLS are SOFT: non-ancestor hulls are NOT in the hard `blocks()` set any
+ *    more. Instead every candidate polyline pays
+ *    STRATA_EDGE_ROUTING_HULL_CROSSING_PENALTY per (segment × raw-hull-interior)
+ *    crossing incidence in the cost. A short forward path across one hull line
+ *    is now legal and usually beats the old long backward loop. The legacy
+ *    14px hull clearance (strataEdgeRoutingClearance) is kept exported for the
+ *    places where hulls remain relevant (tests / hull-side geometry); soft
+ *    crossings themselves are counted against RAW hull interiors.
+ *
+ * ── E1.3 cost ──
+ *    cost = L1(poly) + λ·backtrackXPx(poly) + γ_hull·hullCrossings(poly)
+ *  with λ = STRATA_EDGE_ROUTING_BACKTRACK_LAMBDA (1.5) and γ_hull =
+ *  STRATA_EDGE_ROUTING_HULL_CROSSING_PENALTY (40). Literature: Dwyer,
+ *  Marriott & Wybrow (GD 2006) integrate edge routing as penalized poly-line
+ *  cost minimization rather than hard feasibility; libavoid exposes the same
+ *  direction bias as `reverseDirectionPenalty` — our λ·backtrackXPx term is
+ *  its rectilinear analog. backtrackXPx = Σ max(0, −Δx) over segments,
+ *  applied ONLY to net-forward edges (end.x > start.x). Net-BACKWARD declared
+ *  edges are left direction-unpenalized: they are rare under LR strata and
+ *  already orbit-handled by the strataEdgeStyle back-edge arm — mirroring the
+ *  penalty (Σ max(0, +Δx)) would fight the orbit geometry for no gain.
+ *
+ * ── E1.3 candidate hygiene (net-forward edges only) ──
+ *  Detour candidates any of whose corners lie left of
+ *  min(start.x, end.x) − cardClearance are DROPPED (never even scored) — the
+ *  old router's goofy backward loops entered the search here. Tie order is
+ *  reversed to right-before-left (vertical-major) / below-before-above
+ *  (horizontal-major), so exact cost ties now resolve forward/downward,
+ *  deterministically (strict `<` keeps the earliest candidate).
+ *
+ * ── E1.3 spanner cap ──
+ *  A found detour whose Euclidean polyline length exceeds
+ *  STRATA_EDGE_ROUTING_T_DETOUR_CAP (1.8) × the chord's Euclidean length is
+ *  discarded by the scene pass — the straight chord is kept (with whatever
+ *  hull crossing that implies) and the edge is counted `cappedDetour`
+ *  alongside the existing `unroutable` ledger.
+ *
+ * ── E1.3 acceptance split ──
+ *  The scene-pass acceptance re-check rejects a detour only on raw foreign
+ *  CARD penetration. Hull penetration is allowed — it was already paid for in
+ *  the cost.
+ *
+ * ── E1.3 judgment calls (documented per the experiment brief) ──
+ *  1. Eligibility narrowed to CARD penetration. A chord whose only foreign
+ *     penetrations are hulls is, under the owner ruling, already the desired
+ *     output — the router would return it unchanged (no hard blocker), so
+ *     such edges are skipped early, stay byte-identical, and are NOT counted
+ *     `unroutable` (keeping that ledger meaningful: it still means "a card is
+ *     pierced and no clean route fit the cap").
+ *  2. Soft-hull scoring integrates into the recursion by scoring COMPLETE
+ *     candidate polylines at each recursion level (cost recomputed from the
+ *     assembled geometry, never summed from child fragments) — no
+ *     double-counting. Selection is greedy-hierarchical, not globally
+ *     optimal, matching the pre-E1.3 structure.
+ *  3. Recursion guard: hulls leaving the hard set strictly SHRINKS the
+ *     blocker set (cards only), so there are fewer firstBlocker hits and
+ *     fewer recursions than pre-E1.3; the waypoint budget still decreases by
+ *     2 per nesting level, so termination is unchanged.
+ *  4. `shortcut` keeps its hard-obstacle cleanliness test and additionally
+ *     refuses to drop a waypoint when the bypass segment would INCREASE the
+ *     soft-hull crossing count (L1 and backtrack are subadditive under
+ *     waypoint removal, so only the hull term needs the guard).
+ *  5. First-stamper-wins, provenance "route", and chord endpoints are all
+ *     unchanged — this pass never moves endpoints.
+ *
+ * Earlier literature grounding (graph-layout corpus doc ids, W9 doc):
  *  - Wybrow/Marriott/Stuckey, Incremental Connector Routing
- *    (doi-10-1007-11618058-40): route AROUND obstacles with shortest
- *    obstacle-avoiding paths; the orthogonal variant penalizes bends over
- *    length — we bound bends hard (waypoint cap) and pick minimal added
- *    length.
- *  - Bouts & Speckmann, Clustered Edge Routing
- *    (forward-10-1109-pacificvis-2015-7156356): edges routed around cluster
- *    hull obstacles, endpoints' own ancestor hulls stay permeable.
- *  - Purchase (s2-10-1007-bfb0021827): bends cost readability less than
- *    crossings — a few shallow bends to remove a container pierce is the
- *    right trade.
- *  - Xu et al. 2012 (doi-10-1109-tvcg-2012-189): gratuitous curvature hurts;
- *    routes deviate minimally from the straight chord (greedy waypoint
- *    shortcutting below).
+ *    (doi-10-1007-11618058-40); Bouts & Speckmann, Clustered Edge Routing
+ *    (forward-10-1109-pacificvis-2015-7156356); Purchase
+ *    (s2-10-1007-bfb0021827): bends are cheaper than crossings; Xu et al.
+ *    2012 (doi-10-1109-tvcg-2012-189): deviate minimally from the chord.
  *
  * Determinism (C4′): no RNG, no clock. Edge order = skeleton emission order
  * (itself C4′-stable); obstacle order = hulls then cards, each code-unit
- * sorted by id; candidate order = above-before-below / left-before-right;
- * ties on added L1 length keep the earliest candidate.
+ * sorted by id; candidate order = below-before-above / right-before-left;
+ * ties on cost keep the earliest candidate.
  *
- * Clearance: PIPELINE_FRAME_PAD / 2 = 14px — half the hull frame padding, and
- * below half the tightest sibling gap (PIPELINE_CLUSTER_GAP_Y = 36), so a
- * detour hugs the inflated obstacle inside the existing gutters. Computed
- * inside functions, never as a module-level const (SDEC-34: the
+ * Clearance: card clearance is the plain literal 24 (safe as a module-level
+ * const). The legacy hull clearance PIPELINE_FRAME_PAD / 2 = 14px is computed
+ * inside a function, never as a module-level const (SDEC-34: the
  * planParsing→layoutCore import cycle makes module-level consts derived from
  * terraformPipelineLayoutShared entry-order-dependent NaNs).
  *
@@ -61,15 +119,40 @@ import type {
  * Purchase: a few bends are cheap; many are not. */
 export const STRATA_EDGE_ROUTING_MAX_WAYPOINTS = 6;
 
-/** Detour clearance around obstacle boxes, px (see file header). */
+/** E1.3 — clearance around HARD obstacles (cards), px. Raised from the legacy
+ * 14 so detours keep visibly clear of card borders. Plain literal, so a
+ * module-level const is SDEC-34-safe. */
+export const STRATA_EDGE_ROUTING_CARD_CLEARANCE = 24;
+
+/** E1.3 λ — cost per backtracked X pixel (Σ max(0, −Δx) over segments) on
+ * net-forward edges. See header: Dwyer/Marriott/Wybrow GD2006; libavoid
+ * `reverseDirectionPenalty`. */
+export const STRATA_EDGE_ROUTING_BACKTRACK_LAMBDA = 1.5;
+
+/** E1.3 γ_hull — cost (px-equivalent) per (segment × hull-interior) crossing
+ * incidence against RAW soft-hull boxes. */
+export const STRATA_EDGE_ROUTING_HULL_CROSSING_PENALTY = 40;
+
+/** E1.3 T_DETOUR_CAP — spanner cap: a detour whose Euclidean length exceeds
+ * this multiple of its chord is discarded (chord kept, counted
+ * `cappedDetour`). */
+export const STRATA_EDGE_ROUTING_T_DETOUR_CAP = 1.8;
+
+/** Legacy hull-side clearance (14px = PIPELINE_FRAME_PAD / 2), kept where
+ * hulls remain relevant. Function, not const — see SDEC-34 note in header. */
 export const strataEdgeRoutingClearance = (): number => PIPELINE_FRAME_PAD / 2;
 
 export type StrataEdgeRoutingMeta = {
   /** Edges rewritten to a detour polyline. */
   routed: number;
-  /** Eligible (penetrating) edges left straight: no clean route within the
-   * waypoint cap, or every blocker's clearance zone contains an endpoint. */
+  /** Eligible (card-penetrating) edges left straight: no clean route within
+   * the waypoint cap, every blocker's clearance zone contains an endpoint, or
+   * the found detour re-entered a raw foreign card. */
   unroutable: number;
+  /** E1.3: eligible edges whose found detour exceeded the
+   * STRATA_EDGE_ROUTING_T_DETOUR_CAP spanner bound — the straight chord is
+   * kept (with whatever hull crossing that implies). */
+  cappedDetour: number;
   /** Total interior waypoints added across all routed edges. */
   waypointsTotal: number;
 };
@@ -78,6 +161,21 @@ type Pt = readonly [number, number];
 
 /** Closed inflated obstacle in absolute px. */
 type Inflated = { x0: number; y0: number; x1: number; y1: number };
+
+/** E1.3 direction/soft context, computed ONCE per edge in routeStrataEdge and
+ * threaded through the recursion (direction is a property of the WHOLE edge,
+ * not of a sub-segment). */
+type RouteCtx = {
+  /** Net-forward edge (end.x > start.x): backtrack is penalized and left-
+   * swinging candidates are dropped. Net-backward/vertical edges get neither
+   * (rare + orbit-handled; see header). */
+  forward: boolean;
+  /** Hygiene floor: min(start.x, end.x) − cardClearance. Applied to candidate
+   * corners of net-forward edges only. */
+  xFloor: number;
+  /** RAW foreign hull boxes — soft obstacles, crossed at γ_hull cost each. */
+  softHulls: readonly StrataBox[];
+};
 
 const inflate = (b: StrataBox, c: number): Inflated => ({
   x0: b.x - c,
@@ -148,38 +246,47 @@ function firstBlocker(a: Pt, b: Pt, obstacles: readonly Inflated[]): number {
 }
 
 /**
- * The two corner detours around an inflated blocker, deterministic order.
- * Chord-axis rule: a mostly-horizontal chord detours above/below (above
- * first); a mostly-vertical one detours left/right (left first). Corners are
- * ordered along the direction of travel.
+ * The corner detours around an inflated blocker, deterministic order.
+ * Chord-axis rule: a mostly-horizontal chord detours below/above (E1.3:
+ * BELOW first); a mostly-vertical one detours right/left (E1.3: RIGHT
+ * first) — cost ties resolve forward/downward. Corners are ordered along the
+ * direction of travel. E1.3 hygiene: on net-forward edges, candidates with
+ * any corner left of ctx.xFloor are dropped (no backward loops enter the
+ * search).
  */
-function detourCandidates(a: Pt, b: Pt, box: Inflated): Pt[][] {
+function detourCandidates(a: Pt, b: Pt, box: Inflated, ctx: RouteCtx): Pt[][] {
+  let out: Pt[][];
   if (Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1])) {
     const xs: readonly [number, number] =
       a[0] <= b[0] ? [box.x0, box.x1] : [box.x1, box.x0];
-    return [
+    out = [
+      [
+        [xs[0], box.y1],
+        [xs[1], box.y1],
+      ], // below (first — ties resolve downward)
       [
         [xs[0], box.y0],
         [xs[1], box.y0],
       ], // above
+    ];
+  } else {
+    const ys: readonly [number, number] =
+      a[1] <= b[1] ? [box.y0, box.y1] : [box.y1, box.y0];
+    out = [
       [
-        [xs[0], box.y1],
-        [xs[1], box.y1],
-      ], // below
+        [box.x1, ys[0]],
+        [box.x1, ys[1]],
+      ], // right (first — ties resolve forward)
+      [
+        [box.x0, ys[0]],
+        [box.x0, ys[1]],
+      ], // left
     ];
   }
-  const ys: readonly [number, number] =
-    a[1] <= b[1] ? [box.y0, box.y1] : [box.y1, box.y0];
-  return [
-    [
-      [box.x0, ys[0]],
-      [box.x0, ys[1]],
-    ], // left
-    [
-      [box.x1, ys[0]],
-      [box.x1, ys[1]],
-    ], // right
-  ];
+  if (!ctx.forward) {
+    return out;
+  }
+  return out.filter((corners) => corners.every((c) => c[0] >= ctx.xFloor));
 }
 
 const l1 = (poly: readonly Pt[]): number => {
@@ -191,19 +298,78 @@ const l1 = (poly: readonly Pt[]): number => {
   return s;
 };
 
+/** Σ max(0, −Δx) over segments — X pixels travelled backward. */
+const backtrackXPx = (poly: readonly Pt[]): number => {
+  let s = 0;
+  for (let i = 0; i + 1 < poly.length; i++) {
+    s += Math.max(0, poly[i]![0] - poly[i + 1]![0]);
+  }
+  return s;
+};
+
+/** Crossing incidences of one segment against RAW soft-hull interiors. */
+const segmentHullCrossings = (
+  a: Pt,
+  b: Pt,
+  hulls: readonly StrataBox[],
+): number => {
+  let n = 0;
+  for (const h of hulls) {
+    if (
+      segmentIntersectsStrataBoxInterior(
+        a[0],
+        a[1],
+        b[0],
+        b[1],
+        h.x,
+        h.y,
+        h.x + h.width,
+        h.y + h.height,
+      )
+    ) {
+      n += 1;
+    }
+  }
+  return n;
+};
+
+const polylineHullCrossings = (
+  poly: readonly Pt[],
+  hulls: readonly StrataBox[],
+): number => {
+  let n = 0;
+  for (let i = 0; i + 1 < poly.length; i++) {
+    n += segmentHullCrossings(poly[i]!, poly[i + 1]!, hulls);
+  }
+  return n;
+};
+
+/** E1.3 candidate cost — computed from COMPLETE candidate geometry at each
+ * recursion level (never summed from child fragments; see header note 2). */
+const routeCost = (poly: readonly Pt[], ctx: RouteCtx): number =>
+  l1(poly) +
+  (ctx.forward
+    ? STRATA_EDGE_ROUTING_BACKTRACK_LAMBDA * backtrackXPx(poly)
+    : 0) +
+  STRATA_EDGE_ROUTING_HULL_CROSSING_PENALTY *
+    polylineHullCrossings(poly, ctx.softHulls);
+
 /**
- * Route a→b around `obstacles` with at most `remaining` interior waypoints.
- * Returns the polyline (a and b included) or null when no clean route fits
- * the budget. Recursive corner search: find the first blocker, try its two
- * corner detours, repair each sub-segment recursively, keep the candidate
- * with minimal L1 length (tie → earliest candidate). The budget strictly
- * decreases by 2 per nesting level, so the search always terminates.
+ * Route a→b around HARD `obstacles` with at most `remaining` interior
+ * waypoints. Returns the polyline (a and b included) or null when no clean
+ * route fits the budget. Recursive corner search: find the first blocker, try
+ * its (hygiene-filtered) corner detours, repair each sub-segment recursively,
+ * keep the candidate with minimal E1.3 cost (tie → earliest candidate). The
+ * budget strictly decreases by 2 per nesting level, so the search always
+ * terminates; with hulls out of the hard set the blocker set is strictly
+ * smaller than pre-E1.3, so recursion volume can only shrink.
  */
 function routeSegment(
   a: Pt,
   b: Pt,
   obstacles: readonly Inflated[],
   remaining: number,
+  ctx: RouteCtx,
 ): Pt[] | null {
   const bi = firstBlocker(a, b, obstacles);
   if (bi < 0) {
@@ -213,14 +379,20 @@ function routeSegment(
     return null;
   }
   let best: Pt[] | null = null;
-  let bestL1 = Infinity;
-  for (const corners of detourCandidates(a, b, obstacles[bi]!)) {
+  let bestCost = Infinity;
+  for (const corners of detourCandidates(a, b, obstacles[bi]!, ctx)) {
     const anchor: Pt[] = [a, ...corners, b];
     let budget = remaining - corners.length;
     const pts: Pt[] = [anchor[0]!];
     let ok = true;
     for (let i = 0; i + 1 < anchor.length; i++) {
-      const sub = routeSegment(anchor[i]!, anchor[i + 1]!, obstacles, budget);
+      const sub = routeSegment(
+        anchor[i]!,
+        anchor[i + 1]!,
+        obstacles,
+        budget,
+        ctx,
+      );
       if (sub === null) {
         ok = false;
         break;
@@ -235,9 +407,9 @@ function routeSegment(
     if (!ok) {
       continue;
     }
-    const len = l1(pts);
-    if (len < bestL1) {
-      bestL1 = len;
+    const cost = routeCost(pts, ctx);
+    if (cost < bestCost) {
+      bestCost = cost;
       best = pts;
     }
   }
@@ -245,12 +417,25 @@ function routeSegment(
 }
 
 /** Greedy single pass dropping interior waypoints whose bypass segment is
- * clean (Xu: minimal deviation — never keep a bend that buys nothing). */
-function shortcut(poly: readonly Pt[], obstacles: readonly Inflated[]): Pt[] {
+ * clean against HARD obstacles (Xu: minimal deviation) AND does not increase
+ * the soft-hull crossing count (E1.3 guard — L1/backtrack are subadditive
+ * under waypoint removal, the hull term is not). */
+function shortcut(
+  poly: readonly Pt[],
+  obstacles: readonly Inflated[],
+  ctx: RouteCtx,
+): Pt[] {
   const out: Pt[] = [...poly];
   let i = 1;
   while (i + 1 < out.length) {
-    if (firstBlocker(out[i - 1]!, out[i + 1]!, obstacles) < 0) {
+    const hardClean = firstBlocker(out[i - 1]!, out[i + 1]!, obstacles) < 0;
+    const bypassHulls = hardClean
+      ? segmentHullCrossings(out[i - 1]!, out[i + 1]!, ctx.softHulls)
+      : Infinity;
+    const keptHulls =
+      segmentHullCrossings(out[i - 1]!, out[i]!, ctx.softHulls) +
+      segmentHullCrossings(out[i]!, out[i + 1]!, ctx.softHulls);
+    if (hardClean && bypassHulls <= keptHulls) {
       out.splice(i, 1);
     } else {
       i += 1;
@@ -259,20 +444,56 @@ function shortcut(poly: readonly Pt[], obstacles: readonly Inflated[]): Pt[] {
   return out;
 }
 
+const euclideanLen = (poly: readonly Pt[]): number => {
+  let s = 0;
+  for (let i = 0; i + 1 < poly.length; i++) {
+    s += Math.hypot(
+      poly[i + 1]![0] - poly[i]![0],
+      poly[i + 1]![1] - poly[i]![1],
+    );
+  }
+  return s;
+};
+
+/** E1.3 spanner cap check: true when the polyline's Euclidean length exceeds
+ * STRATA_EDGE_ROUTING_T_DETOUR_CAP × its own chord (first→last). Degenerate
+ * zero-length chords never cap. */
+export function strataDetourExceedsCap(points: readonly Pt[]): boolean {
+  if (points.length < 2) {
+    return false;
+  }
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  const chord = Math.hypot(last[0] - first[0], last[1] - first[1]);
+  if (!(chord > 0)) {
+    return false;
+  }
+  return euclideanLen(points) > STRATA_EDGE_ROUTING_T_DETOUR_CAP * chord;
+}
+
 /**
- * Pure routing core: route start→end around `obstacleBoxes` (raw, uninflated).
- * Eligibility is the CALLER's job (raw-interior penetration test); this
- * function inflates by `clearance`, drops obstacles whose clearance zone
- * contains an endpoint (cannot route around a box you start inside), and
- * returns the detour polyline or null (no clean route within the cap, or the
- * route degenerates to the chord after the drop rule).
+ * Pure routing core: route start→end around HARD `obstacleBoxes` (raw,
+ * uninflated — cards), treating `softHullBoxes` (raw foreign hulls) as
+ * cost-only soft obstacles. Eligibility is the CALLER's job (raw CARD
+ * interior penetration); this function inflates hard obstacles by
+ * `clearance`, drops obstacles whose clearance zone contains an endpoint
+ * (cannot route around a box you start inside), and returns the detour
+ * polyline or null (no clean route within the cap, or the route degenerates
+ * to the chord after the drop rule). The spanner cap is applied by the scene
+ * pass (via strataDetourExceedsCap), which owns the telemetry split.
  */
 export function routeStrataEdge(
   start: Pt,
   end: Pt,
   obstacleBoxes: readonly StrataBox[],
-  clearance: number = strataEdgeRoutingClearance(),
+  clearance: number = STRATA_EDGE_ROUTING_CARD_CLEARANCE,
+  softHullBoxes: readonly StrataBox[] = [],
 ): { points: Pt[]; waypoints: number } | null {
+  const ctx: RouteCtx = {
+    forward: end[0] > start[0],
+    xFloor: Math.min(start[0], end[0]) - clearance,
+    softHulls: softHullBoxes,
+  };
   const inflated = obstacleBoxes
     .map((b) => inflate(b, clearance))
     .filter((b) => !insideInflated(start, b) && !insideInflated(end, b));
@@ -281,11 +502,12 @@ export function routeStrataEdge(
     end,
     inflated,
     STRATA_EDGE_ROUTING_MAX_WAYPOINTS,
+    ctx,
   );
   if (routed === null) {
     return null;
   }
-  const poly = shortcut(routed, inflated);
+  const poly = shortcut(routed, inflated, ctx);
   if (poly.length <= 2) {
     return null; // chord (blockers all endpoint-adjacent) — leave untouched
   }
@@ -338,7 +560,8 @@ const relationshipOf = (
 
 /**
  * Scene-level pass (penetrating-only mode): rewrite, IN PLACE in the skeleton
- * array, every TFD arrow whose straight chord penetrates a foreign box.
+ * array, every TFD arrow whose straight chord penetrates a foreign CARD
+ * (E1.3: hull-only penetrations are the desired output and stay untouched).
  * Non-penetrating arrows are untouched (byte-identical emission); soft-delete
  * semantics, bindings and relationship customData are preserved — only
  * `points`/`width`/`height` change, and `x`/`y` (the chord start) never move.
@@ -372,6 +595,7 @@ export function routeStrataSkeletonEdges(
   const meta: StrataEdgeRoutingMeta = {
     routed: 0,
     unroutable: 0,
+    cappedDetour: 0,
     waypointsTotal: 0,
   };
 
@@ -394,23 +618,30 @@ export function routeStrataSkeletonEdges(
     const start: Pt = [sx, sy];
     const end: Pt = [sx + last[0], sy + last[1]];
 
-    // Foreign boxes for THIS edge: non-ancestor hulls + non-endpoint cards.
+    // Foreign boxes for THIS edge, split by E1.3 class: non-endpoint cards
+    // are HARD, non-ancestor hulls are SOFT.
     const srcAnc = ancestors.get(rel.source);
     const tgtAnc = ancestors.get(rel.target);
-    const foreign: StrataBox[] = [];
+    const foreignCards: StrataBox[] = [];
+    const foreignHulls: StrataBox[] = [];
     for (const o of obstacles) {
       if (o.kind === "hull") {
         if (srcAnc?.has(o.id) || tgtAnc?.has(o.id)) {
           continue;
         }
-      } else if (o.id === rel.source || o.id === rel.target) {
-        continue;
+        foreignHulls.push(o.box);
+      } else {
+        if (o.id === rel.source || o.id === rel.target) {
+          continue;
+        }
+        foreignCards.push(o.box);
       }
-      foreign.push(o.box);
     }
 
-    // Eligibility: the straight chord penetrates ≥1 RAW foreign interior.
-    const penetrates = foreign.some((b) =>
+    // Eligibility (E1.3): the straight chord penetrates ≥1 RAW foreign CARD
+    // interior. Hull-only penetrations keep the chord byte-identical — hull
+    // crossings are acceptable by owner ruling, so there is nothing to fix.
+    const penetratesCard = foreignCards.some((b) =>
       segmentIntersectsStrataBoxInterior(
         start[0],
         start[1],
@@ -422,22 +653,35 @@ export function routeStrataSkeletonEdges(
         b.y + b.height,
       ),
     );
-    if (!penetrates) {
+    if (!penetratesCard) {
       continue;
     }
 
-    const route = routeStrataEdge(start, end, foreign);
+    const route = routeStrataEdge(
+      start,
+      end,
+      foreignCards,
+      STRATA_EDGE_ROUTING_CARD_CLEARANCE,
+      foreignHulls,
+    );
     if (route === null) {
       meta.unroutable += 1;
       continue;
     }
-    // Acceptance check ("never emit a worse mess"): the detour must be
-    // penetration-free against EVERY raw foreign box — including obstacles
-    // the router dropped because their clearance zone contained an endpoint
-    // (the detour itself may not enter them either). Otherwise keep the
+    // E1.3 spanner cap: a detour longer than T_DETOUR_CAP × chord is worse
+    // than the pierce it fixes — keep the straight chord.
+    if (strataDetourExceedsCap(route.points)) {
+      meta.cappedDetour += 1;
+      continue;
+    }
+    // Acceptance check ("never emit a worse mess"), E1.3 split: the detour
+    // must be penetration-free against EVERY raw foreign CARD — including
+    // obstacles the router dropped because their clearance zone contained an
+    // endpoint (the detour itself may not enter them either). Hull
+    // penetration is ALLOWED (already paid for in cost). Otherwise keep the
     // straight chord and count the edge unroutable.
     let detourClean = true;
-    for (const b of foreign) {
+    for (const b of foreignCards) {
       for (let s = 0; s + 1 < route.points.length && detourClean; s++) {
         if (
           segmentIntersectsStrataBoxInterior(
