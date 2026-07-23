@@ -77,11 +77,6 @@ export const TerraformImportModal = ({
     strataBlockClamp,
     strataTranspose,
     strataHeightGate,
-    strataEdgeRouting,
-    strataBorderRoute,
-    strataChannelRoute,
-    strataEdgeClip,
-    strataEdgeSmooth,
     strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
@@ -665,11 +660,6 @@ terraform show -json tfplan > plan.json`}</code>
               strataBlockClamp={strataBlockClamp}
               strataTranspose={strataTranspose}
               strataHeightGate={strataHeightGate}
-              strataEdgeRouting={strataEdgeRouting}
-              strataBorderRoute={strataBorderRoute}
-              strataChannelRoute={strataChannelRoute}
-              strataEdgeClip={strataEdgeClip}
-              strataEdgeSmooth={strataEdgeSmooth}
               strataEdgeStyle={strataEdgeStyle}
               strataBandDepth={strataBandDepth}
               strataDeBandLevel={strataDeBandLevel}
@@ -693,11 +683,6 @@ terraform show -json tfplan > plan.json`}</code>
               setStrataBlockClamp={dialog.setStrataBlockClamp}
               setStrataTranspose={dialog.setStrataTranspose}
               setStrataHeightGate={dialog.setStrataHeightGate}
-              setStrataEdgeRouting={dialog.setStrataEdgeRouting}
-              setStrataBorderRoute={dialog.setStrataBorderRoute}
-              setStrataChannelRoute={dialog.setStrataChannelRoute}
-              setStrataEdgeClip={dialog.setStrataEdgeClip}
-              setStrataEdgeSmooth={dialog.setStrataEdgeSmooth}
               setStrataEdgeStyle={dialog.setStrataEdgeStyle}
               setStrataBandDepth={dialog.setStrataBandDepth}
               setStrataDeBandLevel={dialog.setStrataDeBandLevel}

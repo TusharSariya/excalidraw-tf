@@ -37,11 +37,6 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataCoordinateRefine",
   "strataPackedScoring",
   "strataPackedScoringEpsilon",
-  "strataEdgeRouting",
-  "strataBorderRoute",
-  "strataChannelRoute",
-  "strataEdgeClip",
-  "strataEdgeSmooth",
   "strataEdgeStyle",
   "strataBandCompact",
   "strataBandDepth",
@@ -222,55 +217,6 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
   [StrataRuleOptionKey, StrataRuleOptionKey]
 > = [
   ["strataSweeps", "strataCoordinateRefine"],
-  ["strataEdgeRouting", "strataBorderRoute"],
-  // Probe P2 edge STYLE composes UNDER both routers (it only reshapes chords
-  // they left un-routed) — no conflict, declared independent so the totality
-  // guard has these pairs on record.
-  ["strataEdgeStyle", "strataEdgeRouting"],
-  ["strataEdgeStyle", "strataBorderRoute"],
-  // Probe P1 channel routing composes with the other edge passes via the
-  // first-stamper-wins protocol: channelRoute runs FIRST and stamps
-  // terraformRoutedPolyline, so edgeRouting/borderRoute/edgeStyle each SKIP the
-  // edges it routed (they only touch chords it left). No conflict — declared
-  // independent (the seam ORDERING is enforced in code: channelRoute is invoked
-  // before the other three in terraformPipelineStrataSceneBuild.ts). channelRoute
-  // × edgeStyle is the composition the task calls out: edgeStyle only softens
-  // the channel polylines' corners (roundness), it never re-routes them.
-  ["strataChannelRoute", "strataEdgeRouting"],
-  ["strataChannelRoute", "strataBorderRoute"],
-  ["strataChannelRoute", "strataEdgeStyle"],
-  // Loop-2 E2 container-boundary clip composes with every other edge pass via
-  // the SAME first-stamper-wins protocol as channelRoute: clip runs FIRST among
-  // ALL the edge passes (terraformPipelineStrataSceneBuild.ts — before channel /
-  // edgeRouting / border / style), stamps terraformRoutedPolyline +
-  // terraformRoutedBy:"clip", and owns its eligible net-forward cross-cluster
-  // edges, so the four passes below each SKIP the edges it clipped (they only
-  // touch what it left). Each of the four honours it with the identical
-  // `customData.terraformRoutedPolyline === true` first-stamper guard at the
-  // top of its per-edge loop — channel, border and style always had it;
-  // edgeRouting's was ADDED in the loop-2 adversarial fix round (it previously
-  // re-routed clip/channel-stamped edges, silently overwriting provenance).
-  // No conflict — declared independent so the totality guard has these pairs on
-  // record.
-  ["strataEdgeClip", "strataChannelRoute"],
-  ["strataEdgeClip", "strataEdgeRouting"],
-  ["strataEdgeClip", "strataBorderRoute"],
-  ["strataEdgeClip", "strataEdgeStyle"],
-  // Loop-3 E3.1 smoothing composes OVER every stamper: it runs LAST among the
-  // edge passes (terraformPipelineStrataSceneBuild.ts — after clip / channel /
-  // edgeRouting / border / style), reads their `terraformRoutedPolyline` +
-  // `terraformRoutedBy` stamps, and only simplifies the stamped polylines'
-  // interior points + forces `roundness:null`. It never restamps provenance
-  // and skips "style" records (already exact-path), so no ordering conflict
-  // exists — declared independent so the totality guard has these pairs on
-  // record. Inert without at least one stamper on (nothing stamped ⇒ nothing
-  // to smooth), but deliberately NOT keyed in STRATA_INERT_UNLESS: the pass
-  // still runs and still emits its meta echo, which the proof API reads.
-  ["strataEdgeSmooth", "strataEdgeClip"],
-  ["strataEdgeSmooth", "strataChannelRoute"],
-  ["strataEdgeSmooth", "strataEdgeRouting"],
-  ["strataEdgeSmooth", "strataBorderRoute"],
-  ["strataEdgeSmooth", "strataEdgeStyle"],
   // NOTE: bandDepth × deBandLevel is NOT independent — it is a declared
   // value-conflict (STRATA_VALUE_CONFLICTS), so it is deliberately absent here.
 ];

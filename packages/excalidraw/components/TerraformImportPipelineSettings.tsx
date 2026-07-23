@@ -457,105 +457,6 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataTransitiveAdopt / transitiveAdopt — replace the ε adoption gate with a strict total order (weightedC, lengthL1, crossings, penetrations); ε kept as a feasibility crossing-cap. Opt-in; descent-scoped; gated on the preference-calibration work. Small crossings tradeoff vs converge.",
     },
   },
-  "strata.edgerouting.off": {
-    title: "Route edges around containers · Off",
-    body: "Every dependency arrow stays a straight centre-to-centre segment, even when it passes through a container box (hull frame or resource card) that is unrelated to both endpoints — W7/W8 measured 65–123 such penetrations per preset.",
-    dev: {
-      implements:
-        "strataEdgeRouting=false: the scene build emits the legacy straight chords; the routing module never runs (byte-identical scenes).",
-    },
-  },
-  "strata.edgerouting.on": {
-    title: "Route edges around containers · On — W9 spike",
-    body: "Arrows whose straight line would tunnel through an unrelated card are re-drawn as short forward detours around it (container outlines may be crossed — that reads better than a backward loop; endpoint ancestors stay permeable; everything else keeps its straight line). Bounded bends: an edge that cannot be routed cleanly within the cap, or only via an overlong detour, falls back to its straight chord.",
-    dev: {
-      implements:
-        "strataEdgeRouting=true (Package C / W9 + E1.3 soft router): routeStrataSkeletonEdges detours card-penetrating TFD arrows around clearance-inflated foreign cards; hulls are soft (crossed at γ=40 cost), backtrack penalized (λ=1.5, net-forward edges), detours >1.8× chord capped back to the chord (≤6 waypoints, deterministic right/below-first ties).",
-      refs: [
-        "Wybrow/Marriott/Stuckey 2006 — Incremental Connector Routing",
-        "Bouts & Speckmann 2015 — Clustered Edge Routing",
-      ],
-    },
-  },
-  "strata.borderroute.off": {
-    title: "Exit containers through the nearest side · Off",
-    body: "An arrow from a resource inside a container to a target outside it keeps its straight centre-to-centre line — a long diagonal slashing across the container interior on its way out (the P3-pierce look). Byte-identical scenes.",
-    dev: {
-      implements:
-        "strataBorderRoute=false: the border-exit module never runs; the scene build emits the legacy straight chords (byte-identical).",
-    },
-  },
-  "strata.borderroute.on": {
-    title: "Exit containers through the nearest side · On — P3-pierce",
-    body: "An arrow leaving its own container is re-drawn to exit cleanly at the side facing its target (a single boundary waypoint), so the interior diagonal becomes a short perpendicular exit. The boundary crossing itself cannot be removed (Jordan curve) — only made clean. Endpoints never move; an exit that would not shorten the interior span, or would re-enter a box, keeps its straight line. This is a purely visual win: it changes no scored metric (crossings, penetrations, edge length, and pierce.total all EXCLUDE own-container exits by design).",
-    dev: {
-      implements:
-        "strataBorderRoute=true: routeStrataBorderExits re-emits each TFD arrow whose ancestor exit set is non-empty with an inner→outer facing-side boundary waypoint per exited hull (≤6, clamped to the side inset by PIPELINE_FRAME_PAD/2, strict interior-span decrease + no-re-penetration + no-new-foreign guards, deterministic ties). Post-geometry realization of Sander border-node insertion; disjoint from strataEdgeRouting.",
-      refs: [
-        "Sander 1996 — Layout of Compound Directed Graphs",
-        "Bouts & Speckmann 2015 — Clustered Edge Routing",
-      ],
-    },
-  },
-  "strata.channelroute.off": {
-    title: "Route edges through inter-rank channels · Off",
-    body: "Cross-rank arrows keep their straight centre-to-centre chord — a diagonal that may cut across cards at a shallow angle. Byte-identical scenes (the channel-routing module never runs).",
-    dev: {
-      implements:
-        "strataChannelRoute=false: routeStrataChannelEdges never runs; TFD arrows keep their two-point chords (byte-identical).",
-    },
-  },
-  "strata.channelroute.on": {
-    title: "Route edges through inter-rank channels · On — P1",
-    body: "The owner's dummy-column idea. Each inter-rank arrow is re-drawn as Manhattan geometry: a perpendicular exit stub off the source card, one vertical run per traversed inter-column gap at an assigned track (tracks are interval-coloured and ordered by target-Y to reduce in-channel crossings), then a perpendicular entry stub into the target. All cross-axis displacement happens in the channels at 90°, so shallow near-flat diagonals across cards disappear. Zero-width channels in v1 — NO geometry moves. Endpoints never move; an edge whose channel path would pierce MORE cards than its chord keeps the chord (acceptance guard). Same-rank edges stay chords in v1. Runs first among the edge passes and owns the polyline topology.",
-    dev: {
-      implements:
-        "strataChannelRoute=true: routeStrataChannelEdges derives columns by X-interval merging leafBoxes, routes each inter-rank TFD arrow to exit-stub → per-channel vertical run at a track X (left-edge interval colouring + Sander mean-target-Y ordering, trackGap clamped to channel width, 2px stacking on overflow) → entry-stub, stamps terraformRoutedPolyline, guards on pierce (never emit worse); emits per-channel occupancy. Composes UNDER edgeStyle (softens channel corners with roundness, no double-route).",
-      refs: [
-        "Hashimoto & Stevens 1971 — Wire Routing by Optimizing Channel Assignment",
-        "Sander 1996 — Layout of Compound Directed Graphs",
-        "Raykov 2021 — Orthogonal Edge Routing for Layered Graphs",
-      ],
-    },
-  },
-  "strata.edgeclip.off": {
-    title: "Clip edges to container borders · Off",
-    body: "Cross-container arrows keep their straight centre-to-centre chord and pass through container walls wherever the diagonal happens to cross them. Byte-identical scenes (the clip module never runs).",
-    dev: {
-      implements:
-        "strataEdgeClip=false: routeStrataEdgeClip never runs; TFD arrows keep their two-point chords (byte-identical).",
-    },
-  },
-  "strata.edgeclip.on": {
-    title: "Clip edges to container borders · On — E2",
-    body: "The Graphviz lhead/ltail idea. Each eligible cross-container dataflow arrow is clipped so it starts on the right edge of the source's box and ends on the left edge of the target's box, crossing every container border straight-on (perpendicular) rather than slashing across the interior at an angle. Ports are spread along each face so several arrows sharing a wall don't stack. Runs FIRST among all the edge passes and owns its eligible net-forward edges — the routers only see what it leaves.",
-    dev: {
-      implements:
-        'strataEdgeClip=true: routeStrataEdgeClip clips each eligible net-forward cross-cluster declared arrow to LR frame-border ports (leaf-cluster frames + hull port chains), stamps terraformRoutedPolyline + terraformRoutedBy:"clip" + terraformClipAnchor, and repair validates them through the typed "clip" gate. Runs before channelRoute/edgeRouting/borderRoute/edgeStyle (first-stamper-wins), so they skip its edges; net-backward / same-column edges are left for them.',
-      refs: [
-        "Gansner et al. 1993 — A Technique for Drawing Directed Graphs (dot; lhead/ltail cluster clipping)",
-      ],
-    },
-  },
-  "strata.edgesmooth.off": {
-    title: "Smooth routed edges · Off",
-    body: "Routed and clipped arrows keep their raw waypoint geometry, rendered through Excalidraw's default through-point spline — orthogonal runs can read wavy and long lanes can bow into arcs. Byte-identical scenes (the smoothing module never runs).",
-    dev: {
-      implements:
-        "strataEdgeSmooth=false: smoothStrataRoutedEdges never runs; stamped routed polylines keep their points and inherited roundness:{type:2} (byte-identical).",
-    },
-  },
-  "strata.edgesmooth.on": {
-    title: "Smooth routed edges · On — E3.1",
-    body: "Smooths routed edges: rounds corners, straightens kinks, and draws exactly the computed path. A final finishing pass over every routed/clipped arrow — S-kinks are shortcut where the corridor is clear of cards, collinear points are deduped, remaining corners get a chamfer that escalates until it clears every card by 12px, and the rendered stroke follows the computed polyline exactly (no spline overshoot). Endpoints never move.",
-    dev: {
-      implements:
-        'strataEdgeSmooth=true: smoothStrataRoutedEdges (GLEE refine-straighten-smooth) runs LAST among the edge passes over terraformRoutedBy channel/route/border/clip records ("style" skipped — already exact-path): inflection shortcut to fixpoint (triangle-vs-card-rect clearance), collinear dedupe with the ≥3-point floor, chamfer rounding with k∈{1/2,3/4,7/8} escalation against 12px-inflated card rects, ≤16 points/edge, roundness:null write-back. Endpoints/provenance/clip anchors untouched, so repair keeps every smoothed polyline.',
-      refs: [
-        "Nachmanson, Robertson & Lee 2007 — Drawing Graphs with GLEE (refine-straighten-smooth)",
-      ],
-    },
-  },
   "strata.edgestyle.straight": {
     title: "Edge style · Straight",
     body: "No reshaping — edges are direct lines (default).",
@@ -569,7 +470,7 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
     body: "Right-angle connectors with rounded corners.",
     dev: {
       implements:
-        'strataEdgeStyle="step": applyStrataEdgeStyle rewrites each un-routed TFD chord to a smoothstep polyline (20px stubs clamped to PIPELINE_FRAME_PAD, Z-bend at stepPosition 0.5, roundness type 2), stamping terraformRoutedPolyline; skips arrows already stamped by edgeRouting/borderRoute.',
+        'strataEdgeStyle="step": applyStrataEdgeStyle rewrites each un-routed TFD chord to a smoothstep polyline (20px stubs clamped to PIPELINE_FRAME_PAD, Z-bend at stepPosition 0.5, roundness type 2), stamping terraformRoutedPolyline; skips arrows already carrying a routed polyline.',
       refs: ["React Flow (xyflow) — getSmoothStepPath (MIT)"],
     },
   },
@@ -580,65 +481,6 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       implements:
         'strataEdgeStyle="curve": applyStrataEdgeStyle samples a cubic bezier (control offset 0.5·distance forward / 0.25·25·√|distance| backward) to a 14-point polyline per un-routed TFD chord, stamping terraformRoutedPolyline; skips already-routed arrows.',
       refs: ["React Flow (xyflow) — getBezierPath (MIT)"],
-    },
-  },
-  // Routing PRESETS — the user-facing segmented control's five one-hot choices
-  // (Off / Flow / Around boxes / Through channels / Border exits) plus the
-  // transient "Custom" segment. Each preset maps ONE-HOT onto the four raw
-  // router booleans (strataEdgeClip / strataEdgeRouting / strataChannelRoute /
-  // strataBorderRoute) whose own per-toggle jargon lives in strata.edgeclip.* /
-  // strata.edgerouting.* / strata.channelroute.* / strata.borderroute.* above
-  // (surfaced only in the DEV composition drawer). Bodies are deliberately
-  // plain — the technical detail stays in `dev`.
-  "strata.routing.off": {
-    title: "Routing · Off",
-    body: "Edges connect directly.",
-    dev: {
-      implements:
-        "All four routers off (strataEdgeClip = strataEdgeRouting = strataChannelRoute = strataBorderRoute = false): straight chords, byte-identical scenes.",
-    },
-  },
-  "strata.routing.flow": {
-    title: "Routing · Flow",
-    body: "Flow — edges leave a resource's box on the right and enter the target's box on the left, crossing container borders straight-on. The arrow stops at the box border.",
-    dev: {
-      implements:
-        'One-hot: strataEdgeClip=true only (routeStrataEdgeClip — Graphviz lhead/ltail container-boundary clipping; LR frame-border ports, hull port chains, terraformRoutedBy:"clip"). Runs first among all the edge passes and owns eligible net-forward edges.',
-      refs: [
-        "Gansner et al. 1993 — A Technique for Drawing Directed Graphs (dot; lhead/ltail cluster clipping)",
-      ],
-    },
-  },
-  "strata.routing.around": {
-    title: "Routing · Around boxes",
-    body: "Edges detour around cards in their path.",
-    dev: {
-      implements:
-        "One-hot: strataEdgeRouting=true only (routeStrataSkeletonEdges detours card-penetrating arrows around foreign cards; hulls soft, direction-aware — E1.3).",
-    },
-  },
-  "strata.routing.channels": {
-    title: "Routing · Through channels",
-    body: "Edges travel in shared lanes between columns.",
-    dev: {
-      implements:
-        "One-hot: strataChannelRoute=true only (routeStrataChannelEdges — Manhattan geometry through inter-rank channels).",
-    },
-  },
-  "strata.routing.border": {
-    title: "Routing · Border exits",
-    body: "Edges leave containers through the nearest side.",
-    dev: {
-      implements:
-        "One-hot: strataBorderRoute=true only (routeStrataBorderExits — inner→outer facing-side boundary waypoint per exited hull).",
-    },
-  },
-  "strata.routing.custom": {
-    title: "Routing · Custom",
-    body: "Two or more routing passes are combined (set by this link). Pick any preset to replace it, or keep it as-is.",
-    dev: {
-      implements:
-        "A composed router combination (2+ of strataEdgeClip / strataEdgeRouting / strataChannelRoute / strataBorderRoute true) that no single preset represents. Reachable only from a URL; picking any preset writes the one-hot booleans.",
     },
   },
   "strata.spacing.columngap.default": {

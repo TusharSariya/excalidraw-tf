@@ -230,19 +230,6 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer.
    * Default 0 (strict rule; inert without `strataPackedScoring`). */
   strataPackedScoringEpsilon?: number;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
-   * Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
-  /** Strata probe P1: inter-rank channel routing. Default off. */
-  strataChannelRoute?: boolean;
-  /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail).
-   * Default off. */
-  strataEdgeClip?: boolean;
-  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
-   * Default off. */
-  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: import("./terraformPipelineStrataEdgeStyle").StrataEdgeStyle;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
@@ -346,11 +333,6 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataRankSeparate"
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
-  | "strataEdgeRouting"
-  | "strataBorderRoute"
-  | "strataChannelRoute"
-  | "strataEdgeClip"
-  | "strataEdgeSmooth"
   | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
@@ -404,11 +386,6 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataRankSeparate: session.strataRankSeparate === true,
   strataPackedScoring: session.strataPackedScoring === true,
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
-  strataEdgeRouting: session.strataEdgeRouting === true,
-  strataBorderRoute: session.strataBorderRoute === true,
-  strataChannelRoute: session.strataChannelRoute === true,
-  strataEdgeClip: session.strataEdgeClip === true,
-  strataEdgeSmooth: session.strataEdgeSmooth === true,
   // Raw forward — omit at default ("straight")/absent so a replayed session
   // never re-materializes a default style key. Non-default styles forward.
   ...(session.strataEdgeStyle !== undefined &&
@@ -517,11 +494,6 @@ function buildPipelineFamilyLayoutOptions(
   | "strataRankSeparate"
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
-  | "strataEdgeRouting"
-  | "strataBorderRoute"
-  | "strataChannelRoute"
-  | "strataEdgeClip"
-  | "strataEdgeSmooth"
   | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
@@ -586,11 +558,6 @@ function buildPipelineFamilyLayoutOptions(
     strataRankSeparate: options.strataRankSeparate === true,
     strataPackedScoring: options.strataPackedScoring === true,
     strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
-    strataEdgeRouting: options.strataEdgeRouting === true,
-    strataBorderRoute: options.strataBorderRoute === true,
-    strataChannelRoute: options.strataChannelRoute === true,
-    strataEdgeClip: options.strataEdgeClip === true,
-    strataEdgeSmooth: options.strataEdgeSmooth === true,
     // Raw forward — omit at default ("straight")/absent so neither the engine
     // request nor the persisted session snapshot carries a default style key.
     ...(options.strataEdgeStyle !== undefined &&

@@ -119,19 +119,6 @@ export type RunTerraformImportFromSourcesArgs = {
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
-   * Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
-  /** Strata probe P1: inter-rank channel routing. Default off. */
-  strataChannelRoute?: boolean;
-  /** Strata loop-2 E2: container-boundary clip pass (Graphviz lhead/ltail).
-   * Default off. */
-  strataEdgeClip?: boolean;
-  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
-   * Default off. */
-  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
@@ -206,11 +193,6 @@ export const runTerraformImportWithView = async ({
   strataLeafShiftRankBudget,
   strataLeafShiftRightEdgeGuardPx,
   strataDeBandLevel,
-  strataEdgeRouting,
-  strataBorderRoute,
-  strataChannelRoute,
-  strataEdgeClip,
-  strataEdgeSmooth,
   strataEdgeStyle,
   strataBandCompact,
   strataBandDepth,
@@ -298,11 +280,6 @@ export const runTerraformImportWithView = async ({
             ? { strataLeafShiftRightEdgeGuardPx }
             : {}),
           strataDeBandLevel,
-          strataEdgeRouting,
-          strataBorderRoute,
-          strataChannelRoute,
-          strataEdgeClip,
-          strataEdgeSmooth,
           strataEdgeStyle,
           strataBandCompact,
           strataBandDepth,
@@ -386,17 +363,6 @@ export type RunTerraformPresetImportOptions = {
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
-  /** Strata probe P1: inter-rank channel routing. Default off. */
-  strataChannelRoute?: boolean;
-  /** Strata loop-2 E2: container-boundary clip pass (Graphviz lhead/ltail).
-   * Default off. */
-  strataEdgeClip?: boolean;
-  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
-   * Default off. */
-  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
@@ -494,11 +460,6 @@ export const runTerraformPresetImport = async (
     strataLeafShiftRankBudget: options.strataLeafShiftRankBudget,
     strataLeafShiftRightEdgeGuardPx: options.strataLeafShiftRightEdgeGuardPx,
     strataDeBandLevel: options.strataDeBandLevel,
-    strataEdgeRouting: options.strataEdgeRouting,
-    strataBorderRoute: options.strataBorderRoute,
-    strataChannelRoute: options.strataChannelRoute,
-    strataEdgeClip: options.strataEdgeClip,
-    strataEdgeSmooth: options.strataEdgeSmooth,
     strataEdgeStyle: options.strataEdgeStyle,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,

@@ -202,20 +202,6 @@ export type TerraformPlanParsingOptions = {
   strataPackedScoringEpsilon?: number;
   /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
   strataPackedFrontierMeta?: boolean;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing
-   * ("penetrating-only" scene-build detours). Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
-  /** Strata probe P1: inter-rank channel routing (owner's dummy-column idea).
-   * Default off. */
-  strataChannelRoute?: boolean;
-  /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail).
-   * Default off. */
-  strataEdgeClip?: boolean;
-  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
-   * Default off. */
-  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style (`straight` default | `step` | `curve`).
    * Plain string union (not the engine's `StrataEdgeStyle`) to avoid the
    * planParsing→layout import cycle; mirrors that domain exactly. */

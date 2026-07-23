@@ -10,7 +10,7 @@
  * the parser, the panel IA, the share-URL emitter, the proof-API `?describe`
  * catalog, and the dependency-rule module all still maintain their own hand-kept
  * lists. The panel now DOES implement a basic/advanced disclosure split (the
- * 2026-07-17 declutter: edgeRouting, borderRoute, blockClamp, and heightGate
+ * 2026-07-17 declutter: blockClamp and heightGate
  * moved into collapsed advanced `<details>` disclosures; packedConverge and
  * transitiveAdopt controls removed entirely), but that split is HAND-CODED in
  * `TerraformStrataSettings.tsx` / `TerraformStrataSettingsHeight.tsx` — it merely
@@ -156,56 +156,6 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "owner-decisions.md 2026-07-17: default ε=1 (S1-1 fix makes ε=1 correct); non-default-only emit (absent resolves to 1)",
   },
   {
-    urlParam: "strataEdgeRouting",
-    optionKey: "strataEdgeRouting",
-    kind: "boolean",
-    default: false,
-    surface: "advanced",
-    emitClass: "C2",
-    decidedNow: true,
-    note: "M2 'Route edges' with borderRoute; owner-decisions.md 2026-07-17: ADVANCED-ONLY (SDEC-61 closed-adverse +192cr/−140pierce). SHIPPED: the 'Route edges around boxes' control now renders inside the panel's collapsed 'Advanced: edge routing' <details> disclosure (with borderRoute) — off the always-visible Standard surface",
-  },
-  {
-    urlParam: "strataBorderRoute",
-    optionKey: "strataBorderRoute",
-    kind: "boolean",
-    default: false,
-    surface: "advanced",
-    emitClass: "C2",
-    decidedNow: false,
-    note: "M2 'Route edges'; composes with edgeRouting; owner-decisions.md 2026-07-17 declutter: SHIPPED into the same collapsed 'Advanced: edge routing' <details> disclosure as edgeRouting; parses independently forever",
-  },
-  {
-    urlParam: "strataChannelRoute",
-    optionKey: "strataChannelRoute",
-    kind: "boolean",
-    default: false,
-    surface: "advanced",
-    emitClass: "C2",
-    decidedNow: false,
-    note: "probe P1 (edge-routing-research 2026-07-22, owner's dummy-column idea): inter-rank channel/track orthogonal routing of TFD arrows; runs FIRST among the edge passes and owns the polyline topology (edgeRouting/borderRoute/edgeStyle skip its edges); default off byte-identical (module never runs), truthy-only emit; scored on angle/pierce metrics + eyeball A/B; SHIPPED into the collapsed 'Advanced: edge routing' <details> disclosure",
-  },
-  {
-    urlParam: "strataEdgeClip",
-    optionKey: "strataEdgeClip",
-    kind: "boolean",
-    default: false,
-    surface: "advanced",
-    emitClass: "C2",
-    decidedNow: false,
-    note: "loop-2 E2.1+E2.2 (edge-routing-research 2026-07-22, Graphviz lhead/ltail): container-boundary clip pass — declared dataflow arrows terminate/originate ON the leaf-cluster frame borders with LR port discipline and hull port chains; runs FIRST among ALL the edge passes and owns eligible net-forward cross-cluster edges (stamps terraformRoutedBy:\"clip\", so channelRoute/edgeRouting/borderRoute/edgeStyle skip its edges); default off byte-identical (module never runs), truthy-only emit; surfaced as the 'Flow' segment of the one-hot Routing control + the DEV drawer raw toggle",
-  },
-  {
-    urlParam: "strataEdgeSmooth",
-    optionKey: "strataEdgeSmooth",
-    kind: "boolean",
-    default: false,
-    surface: "advanced",
-    emitClass: "C2",
-    decidedNow: false,
-    note: "loop-3 E3.1 (GLEE refine-straighten-smooth, Nachmanson/Robertson/Lee GD2007): final smoothing pass over every stamped routed polyline (channel/route/border/clip; 'style' records already smooth) — inflection shortcut, collinear dedupe, chamfer corner rounding with 12px inflated-card clearance, roundness:null exact-path rendering; endpoints/provenance/clip anchors untouched (repair keeps every smoothed polyline); default off byte-identical (module never runs), truthy-only emit; DEV drawer raw toggle only (no Routing segment — it composes with every preset)",
-  },
-  {
     urlParam: "strataEdgeStyle",
     optionKey: "strataEdgeStyle",
     kind: "enum",
@@ -214,7 +164,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     surface: "advanced",
     emitClass: "C3",
     decidedNow: false,
-    note: "probe P2 (edge-routing-research 2026-07-22): React-Flow smoothstep/bezier render styles for un-routed TFD chords; composes UNDER edgeRouting/borderRoute; default 'straight' byte-identical (module never runs) and omitted from URLs (non-default-only emit); scored on angle metrics + eyeball A/B",
+    note: "probe P2 (edge-routing-research 2026-07-22): React-Flow smoothstep/bezier render styles for TFD chords; default 'straight' byte-identical (module never runs) and omitted from URLs (non-default-only emit); scored on angle metrics + eyeball A/B",
   },
   {
     urlParam: "strataBandCompact",

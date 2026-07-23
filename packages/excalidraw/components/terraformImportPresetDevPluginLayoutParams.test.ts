@@ -6,7 +6,7 @@
  * /demo URL API (terraformDemoUrlParams.ts) emits but the plugin omits is
  * SILENTLY DROPPED on the proof-API path — the arm no-ops (`applied.<key>=null`)
  * while every headless engine probe still passes. That is exactly how
- * `strataEdgeStyle` / `strataChannelRoute` (and `strataBandCompact` /
+ * `strataEdgeStyle` (and `strataBandCompact` /
  * `strataChainRelocate` / `strataCoordCascade` / `strataLeafShift` /
  * `strataPenW` / `strataCrossW` / `strataEdgeCap`) shipped invisibly.
  *
@@ -74,11 +74,6 @@ const fullStrataSnapshot: TerraformDemoSettingsSnapshot = {
   strataRankSeparate: false,
   strataPackedScoring: true,
   strataPackedScoringEpsilon: 2,
-  strataEdgeRouting: true,
-  strataBorderRoute: true,
-  strataChannelRoute: true,
-  strataEdgeClip: true,
-  strataEdgeSmooth: true,
   strataEdgeStyle: "step",
   strataBandCompact: true,
   strataBandDepth: "root",
@@ -125,9 +120,6 @@ describe("terraform-layout dev API allowlist coverage", () => {
     // above derivation can never silently stop covering them.
     for (const key of [
       "strataEdgeStyle",
-      "strataChannelRoute",
-      "strataEdgeClip",
-      "strataEdgeSmooth",
       "strataBandCompact",
       "strataChainRelocate",
       "strataCoordCascade",

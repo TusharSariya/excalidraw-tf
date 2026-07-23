@@ -281,68 +281,12 @@ export type TerraformStrataSceneOptions = {
    * drops to the default. */
   strataRowGap?: number;
   /**
-   * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
-   * in "penetrating-only" mode — at scene build, TFD arrows whose straight
-   * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
-   * re-emitted as bounded detour polylines
-   * (terraformPipelineStrataEdgeRouting.ts). Placement is untouched; unrouted
-   * arrows are byte-identical; flag-off the routing module never runs.
-   */
-  strataEdgeRouting?: boolean;
-  /**
-   * P3-pierce border-exit routing (default off): a post-geometry pass
-   * (terraformPipelineStrataBorderRoute.ts) that re-emits a TFD arrow leaving
-   * its OWN ancestor container as a long interior diagonal with a clean
-   * single-side exit waypoint. Orthogonal to `strataEdgeRouting` (disjoint edge
-   * sets) and to every SCORED objective — the win is un-scored readability
-   * (`strataBorderRouteInteriorLenSavedL1`). Placement is untouched; flag-off
-   * the module never runs (byte-identical).
-   */
-  strataBorderRoute?: boolean;
-  /**
-   * Probe P1 inter-rank channel routing (default off): a post-geometry pass
-   * (terraformPipelineStrataChannelRoute.ts) that rewrites each inter-rank TFD
-   * arrow to an orthogonal exit-stub → per-channel vertical run → entry-stub
-   * polyline (the owner's dummy-column idea, zero-width channels in the existing
-   * inter-rank gaps — NO geometry moves). Runs FIRST among the ROUTER passes
-   * (after `strataEdgeClip` when both are on) and owns the polyline topology;
-   * edgeRouting/borderRoute/edgeStyle skip its edges. Flag-off the module
-   * never runs (byte-identical).
-   */
-  strataChannelRoute?: boolean;
-  /**
-   * Loop-2 E2.1+E2.2 container-boundary CLIP pass (default off): a
-   * post-geometry pass (terraformPipelineStrataEdgeClip.ts) that rewrites each
-   * eligible net-forward cross-cluster TFD arrow to a Graphviz-lhead/ltail
-   * clip polyline — endpoints ON the source/target leaf-cluster frame borders
-   * (egress R face / ingress L face, never top/bottom), perpendicular hull
-   * port-crossing waypoints between the two clusters, barycenter-ordered port
-   * assignment per face. Runs FIRST among ALL edge passes and owns eligible
-   * edges (first-stamper-wins; net-backward / same-column edges are left for
-   * the style-pass orbit / E2.4 lanes). Survives repair through the typed
-   * "clip" gate (terraformVisibility.ts). Flag-off the module never runs
-   * (byte-identical).
-   */
-  strataEdgeClip?: boolean;
-  /**
    * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
    * a post-geometry pass (terraformPipelineStrataEdgeStyle.ts) that reshapes
-   * un-routed TFD arrow chords with React-Flow smoothstep / bezier geometry.
-   * Composes UNDER edgeRouting/borderRoute (skips arrows they stamped).
+   * TFD arrow chords with React-Flow smoothstep / bezier geometry.
    * `"straight"`/absent the module never runs (byte-identical).
    */
   strataEdgeStyle?: StrataEdgeStyle;
-  /**
-   * Loop-3 E3.1 GLEE smoothing pass (default off): a final post-stamper pass
-   * (terraformPipelineStrataEdgeSmooth.ts) over every stamped routed polyline
-   * (channel/route/border/clip provenance; "style" records are already smooth
-   * and skipped) — inflection shortcut, collinear dedupe, chamfer corner
-   * rounding with a 12px inflated-card clearance test, and `roundness:null`
-   * so the rendered stroke is EXACTLY the computed path. Endpoints,
-   * provenance and clip anchors are never touched, so repair keeps every
-   * smoothed polyline. Flag-off the module never runs (byte-identical).
-   */
-  strataEdgeSmooth?: boolean;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -511,20 +455,10 @@ export async function buildTerraformStrataExcalidrawScene(
     typeof rawRowGap === "number" && rawRowGap > 0
       ? Math.min(3, Math.max(1, rawRowGap))
       : 1;
-  // Package C spike (W9): scene-build edge routing, default off.
-  const strataEdgeRouting = options?.strataEdgeRouting === true;
-  // P3-pierce border-exit routing (scene-build), default off.
-  const strataBorderRoute = options?.strataBorderRoute === true;
-  // Probe P1 inter-rank channel routing (scene-build), default off.
-  const strataChannelRoute = options?.strataChannelRoute === true;
-  // Loop-2 container-boundary clip pass (scene-build), default off.
-  const strataEdgeClip = options?.strataEdgeClip === true;
   // Probe P2 edge render style (scene-build), default "straight" (byte-identical
   // off — the module never runs unless a non-"straight" style is requested).
   const strataEdgeStyle: StrataEdgeStyle =
     options?.strataEdgeStyle ?? "straight";
-  // Loop-3 E3.1 GLEE smoothing pass (scene-build), default off.
-  const strataEdgeSmooth = options?.strataEdgeSmooth === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
   // `strataBandDepth: "root"`; explicit `strataBandDepth` always wins, so the
   // alias only applies when the enum is absent. Default "account" = the frozen
@@ -585,17 +519,9 @@ export async function buildTerraformStrataExcalidrawScene(
     strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
       : {}),
-    ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
-    ...(strataBorderRoute ? { strataBorderRoute } : {}),
-    // Probe P1 channel-route echo — present only when on (byte-identity off).
-    ...(strataChannelRoute ? { strataChannelRoute } : {}),
-    // Loop-2 clip-pass echo — present only when on (byte-identity off).
-    ...(strataEdgeClip ? { strataEdgeClip } : {}),
     // Probe P2 edge style echo — present only for a non-"straight" style so the
     // default/off meta stays byte-identical.
     ...(strataEdgeStyle !== "straight" ? { strataEdgeStyle } : {}),
-    // Loop-3 E3.1 smoothing echo — present only when on (byte-identity off).
-    ...(strataEdgeSmooth ? { strataEdgeSmooth } : {}),
     // OD-15 relocate master flag echo — present only when live (flag-off meta
     // byte-identical).
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),

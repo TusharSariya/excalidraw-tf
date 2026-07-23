@@ -55,11 +55,6 @@ export const TerraformStrataSettings = ({
   strataBlockClamp,
   strataTranspose,
   strataHeightGate,
-  strataEdgeRouting,
-  strataBorderRoute,
-  strataChannelRoute,
-  strataEdgeClip,
-  strataEdgeSmooth,
   strataEdgeStyle,
   strataBandDepth,
   strataDeBandLevel,
@@ -81,11 +76,6 @@ export const TerraformStrataSettings = ({
   setStrataBlockClamp,
   setStrataTranspose,
   setStrataHeightGate,
-  setStrataEdgeRouting,
-  setStrataBorderRoute,
-  setStrataChannelRoute,
-  setStrataEdgeClip,
-  setStrataEdgeSmooth,
   setStrataEdgeStyle,
   setStrataBandDepth,
   setStrataDeBandLevel,
@@ -108,16 +98,6 @@ export const TerraformStrataSettings = ({
   strataBlockClamp: boolean;
   strataTranspose: boolean;
   strataHeightGate: boolean;
-  strataEdgeRouting: boolean;
-  strataBorderRoute: boolean;
-  strataChannelRoute: boolean;
-  /** Loop-2 E2 container-boundary clip pass — declared dataflow arrows
-   * terminate/originate on the leaf-cluster frame borders. Strata-only,
-   * default off; the "Flow" one-hot Routing preset. */
-  strataEdgeClip: boolean;
-  /** Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines —
-   * strata-only, default off; DEV drawer raw toggle only. */
-  strataEdgeSmooth: boolean;
   strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
   strataDeBandLevel: DeBandLevel;
@@ -152,11 +132,6 @@ export const TerraformStrataSettings = ({
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
   setStrataHeightGate: (heightGate: boolean) => void;
-  setStrataEdgeRouting: (edgeRouting: boolean) => void;
-  setStrataBorderRoute: (borderRoute: boolean) => void;
-  setStrataChannelRoute: (channelRoute: boolean) => void;
-  setStrataEdgeClip: (edgeClip: boolean) => void;
-  setStrataEdgeSmooth: (edgeSmooth: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
@@ -674,22 +649,11 @@ export const TerraformStrataSettings = ({
               sibling component (mirroring "Height & packing") to keep this file
               under the max-lines cap; URL params and option semantics unchanged. */}
           <TerraformStrataSettingsEdges
-            option={option}
             setHoverKey={setHoverKey}
             setStickyKey={setStickyKey}
-            strataEdgeRouting={strataEdgeRouting}
-            strataBorderRoute={strataBorderRoute}
-            strataChannelRoute={strataChannelRoute}
-            strataEdgeClip={strataEdgeClip}
-            strataEdgeSmooth={strataEdgeSmooth}
             strataEdgeStyle={strataEdgeStyle}
             strataColumnGap={strataColumnGap}
             strataRowGap={strataRowGap}
-            setStrataEdgeRouting={setStrataEdgeRouting}
-            setStrataBorderRoute={setStrataBorderRoute}
-            setStrataChannelRoute={setStrataChannelRoute}
-            setStrataEdgeClip={setStrataEdgeClip}
-            setStrataEdgeSmooth={setStrataEdgeSmooth}
             setStrataEdgeStyle={setStrataEdgeStyle}
             setStrataColumnGap={setStrataColumnGap}
             setStrataRowGap={setStrataRowGap}

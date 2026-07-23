@@ -183,14 +183,6 @@ describe("TerraformImportModal", () => {
       // strataLeafShift threads for every view (default off); pin was missing it
       // (pre-existing stale full-bag pin, unrelated to the default flip).
       strataLeafShift: false,
-      strataEdgeRouting: false,
-      strataBorderRoute: false,
-      // strataChannelRoute (probe P1) + strataEdgeClip (loop-2 E2 clip) thread
-      // for every view (default off); the pin predated both — strataChannelRoute
-      // was a pre-existing stale gap, strataEdgeClip is this change's addition.
-      strataChannelRoute: false,
-      strataEdgeClip: false,
-      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -254,14 +246,6 @@ describe("TerraformImportModal", () => {
       // strataLeafShift threads for every view (default off); pin was missing it
       // (pre-existing stale full-bag pin, unrelated to the default flip).
       strataLeafShift: false,
-      strataEdgeRouting: false,
-      strataBorderRoute: false,
-      // strataChannelRoute (probe P1) + strataEdgeClip (loop-2 E2 clip) thread
-      // for every view (default off); the pin predated both — strataChannelRoute
-      // was a pre-existing stale gap, strataEdgeClip is this change's addition.
-      strataChannelRoute: false,
-      strataEdgeClip: false,
-      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -1102,7 +1086,6 @@ describe("TerraformImportModal", () => {
         strataRankSeparate: false,
         strataPackedScoring: true,
         strataPackedScoringEpsilon: 1,
-        strataEdgeRouting: false,
         strataBandCompact: false,
         // Private-API regional placement defaults ON in the strata view (the
         // only view wired for it; every other view forces it false — see the

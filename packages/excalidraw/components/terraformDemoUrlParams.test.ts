@@ -42,8 +42,6 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataRankSeparate: false,
   strataPackedScoring: false,
   strataPackedScoringEpsilon: 0,
-  strataEdgeRouting: false,
-  strataBorderRoute: false,
   strataBandCompact: false,
   strataSiftRelocate: false,
   strataCrossWeightPenetration: 1,
@@ -586,166 +584,6 @@ describe("terraformDemoUrlParams", () => {
       ).toBe(2);
     });
 
-    it("parses strataEdgeRouting and omits it when the URL does not carry it", () => {
-      const on = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeRouting=1",
-      );
-      expect(on).toMatchObject({ strataEdgeRouting: true });
-      const off = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeRouting=0",
-      );
-      expect(off).toMatchObject({ strataEdgeRouting: false });
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
-      expect(absent!.strataEdgeRouting).toBeUndefined();
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataEdgeRouting=maybe",
-        ),
-      ).toBeNull();
-    });
-
-    it("parses strataChannelRoute and omits it when the URL does not carry it", () => {
-      const on = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataChannelRoute=1",
-      );
-      expect(on).toMatchObject({ strataChannelRoute: true });
-      const off = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataChannelRoute=0",
-      );
-      expect(off).toMatchObject({ strataChannelRoute: false });
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
-      expect(absent!.strataChannelRoute).toBeUndefined();
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataChannelRoute=maybe",
-        ),
-      ).toBeNull();
-    });
-
-    it("round-trips strataChannelRoute through buildTerraformDemoUrl", () => {
-      const url = buildTerraformDemoUrl({
-        presetId: "demo",
-        view: "strata",
-        strataChannelRoute: true,
-      });
-      expect(url).toContain("strataChannelRoute=1");
-      // Emitted param re-parses to the same value.
-      const query = url.slice(url.indexOf("?"));
-      const parsed = parseTerraformDemoUrlParams(query);
-      expect(parsed).toMatchObject({ strataChannelRoute: true });
-      // Absent ⇒ omitted from the URL entirely.
-      const absentUrl = buildTerraformDemoUrl({
-        presetId: "demo",
-        view: "strata",
-      });
-      expect(absentUrl).not.toContain("strataChannelRoute");
-    });
-
-    it("parses strataEdgeClip and omits it when the URL does not carry it", () => {
-      const on = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeClip=1",
-      );
-      expect(on).toMatchObject({ strataEdgeClip: true });
-      const off = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeClip=0",
-      );
-      expect(off).toMatchObject({ strataEdgeClip: false });
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
-      expect(absent!.strataEdgeClip).toBeUndefined();
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataEdgeClip=maybe",
-        ),
-      ).toBeNull();
-    });
-
-    it("round-trips strataEdgeClip through buildTerraformDemoUrl", () => {
-      const url = buildTerraformDemoUrl({
-        presetId: "demo",
-        view: "strata",
-        strataEdgeClip: true,
-      });
-      expect(url).toContain("strataEdgeClip=1");
-      // Emitted param re-parses to the same value.
-      const query = url.slice(url.indexOf("?"));
-      const parsed = parseTerraformDemoUrlParams(query);
-      expect(parsed).toMatchObject({ strataEdgeClip: true });
-      // Absent ⇒ omitted from the URL entirely.
-      const absentUrl = buildTerraformDemoUrl({
-        presetId: "demo",
-        view: "strata",
-      });
-      expect(absentUrl).not.toContain("strataEdgeClip");
-    });
-
-    it("emits strataEdgeClip from a strata snapshot only when set (truthy-only)", () => {
-      // collectTerraformDemoParams maps the snapshot's strataEdgeClip truthy-only
-      // (like strataChannelRoute), so a default-off scene stays byte-identical.
-      const onUrl = buildTerraformDemoUrlFromSettings({
-        ...baseSnapshot,
-        view: "strata",
-        strataEdgeClip: true,
-      });
-      expect(onUrl).toContain("strataEdgeClip=1");
-      const offUrl = buildTerraformDemoUrlFromSettings({
-        ...baseSnapshot,
-        view: "strata",
-        strataEdgeClip: false,
-      });
-      expect(offUrl).not.toContain("strataEdgeClip");
-    });
-
-    it("parses + round-trips strataEdgeSmooth (loop-3 E3.1) and omits it when absent", () => {
-      const on = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeSmooth=1",
-      );
-      expect(on).toMatchObject({ strataEdgeSmooth: true });
-      const off = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeSmooth=0",
-      );
-      expect(off).toMatchObject({ strataEdgeSmooth: false });
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
-      expect(absent!.strataEdgeSmooth).toBeUndefined();
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataEdgeSmooth=maybe",
-        ),
-      ).toBeNull();
-      // build → parse fixpoint, and absence never emits the param.
-      const url = buildTerraformDemoUrl({
-        presetId: "demo",
-        view: "strata",
-        strataEdgeSmooth: true,
-      });
-      expect(url).toContain("strataEdgeSmooth=1");
-      expect(
-        parseTerraformDemoUrlParams(url.slice(url.indexOf("?"))),
-      ).toMatchObject({ strataEdgeSmooth: true });
-      const absentUrl = buildTerraformDemoUrl({
-        presetId: "demo",
-        view: "strata",
-      });
-      expect(absentUrl).not.toContain("strataEdgeSmooth");
-    });
-
-    it("emits strataEdgeSmooth from a strata snapshot only when set (truthy-only)", () => {
-      // collectTerraformDemoParams maps the snapshot's strataEdgeSmooth
-      // truthy-only (like strataEdgeClip), so a default-off scene stays
-      // byte-identical.
-      const onUrl = buildTerraformDemoUrlFromSettings({
-        ...baseSnapshot,
-        view: "strata",
-        strataEdgeSmooth: true,
-      });
-      expect(onUrl).toContain("strataEdgeSmooth=1");
-      const offUrl = buildTerraformDemoUrlFromSettings({
-        ...baseSnapshot,
-        view: "strata",
-        strataEdgeSmooth: false,
-      });
-      expect(offUrl).not.toContain("strataEdgeSmooth");
-    });
-
     it("omits strataPackedEps when the URL does not carry it", () => {
       const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(params).not.toBeNull();
@@ -1078,20 +916,6 @@ describe("terraformDemoUrlParams", () => {
       });
       expect(on.strataSift).toBe(true);
       expect(on.strataTranspose).toBe(true);
-    });
-
-    it("strataEdgeRouting emits truthy-only (like strataPackedScoring)", () => {
-      const off = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "strata",
-      });
-      expect("strataEdgeRouting" in off).toBe(false);
-      const on = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "strata",
-        strataEdgeRouting: true,
-      });
-      expect(on.strataEdgeRouting).toBe(true);
     });
 
     it("strataBandCompact emits truthy-only (like strataPackedScoring)", () => {

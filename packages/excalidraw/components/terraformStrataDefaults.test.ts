@@ -19,11 +19,6 @@ describe("resolveStrataDemoOptions", () => {
       strataRankSeparate: false,
       strataPackedScoring: true,
       strataPackedScoringEpsilon: 1,
-      strataEdgeRouting: false,
-      strataBorderRoute: false,
-      strataChannelRoute: false,
-      strataEdgeClip: false,
-      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -82,11 +77,6 @@ describe("resolveStrataDemoOptions", () => {
       strataRankSeparate: true,
       strataPackedScoring: true,
       strataPackedScoringEpsilon: 1,
-      strataEdgeRouting: false,
-      strataBorderRoute: false,
-      strataChannelRoute: false,
-      strataEdgeClip: false,
-      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -112,17 +102,6 @@ describe("resolveStrataDemoOptions", () => {
       "?preset=staging-multi-state-expanded&view=strata&strataPackedScoring=0",
     );
     expect(resolveStrataDemoOptions(off!).strataPackedScoring).toBe(false);
-  });
-
-  it("resolves strataEdgeRouting: default false, explicit URL param wins", () => {
-    const bare = parseTerraformDemoUrlParams(
-      "?preset=staging-multi-state-expanded&view=strata",
-    );
-    expect(resolveStrataDemoOptions(bare!).strataEdgeRouting).toBe(false);
-    const on = parseTerraformDemoUrlParams(
-      "?preset=staging-multi-state-expanded&view=strata&strataEdgeRouting=1",
-    );
-    expect(resolveStrataDemoOptions(on!).strataEdgeRouting).toBe(true);
   });
 
   it("resolves strataBandCompact: default false, explicit URL param wins", () => {

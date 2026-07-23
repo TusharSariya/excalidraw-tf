@@ -37,27 +37,6 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * scorer. Owner default flip (owner-decisions.md 2026-07-17): ε=1 — the S1-1
    * fix makes ε=1 behave correctly, and the new default stack measures at ε=1. */
   strataPackedScoringEpsilon: 1,
-  /** Package C spike (W9): post-A7 obstacle-avoiding edge routing — probe
-   * lever, default off pending its gate battery. */
-  strataEdgeRouting: false,
-  /** P3-pierce clean container-exit routing — probe lever, default off /
-   * byte-identical (NOT in the frozen measurement config). */
-  strataBorderRoute: false,
-  /** Probe P1 inter-rank channel routing (owner's dummy-column idea): orthogonal
-   * per-channel track routing of inter-rank TFD arrows — probe lever, default
-   * off / byte-identical (the module never runs). */
-  strataChannelRoute: false,
-  /** Loop-2 E2.1+E2.2 container-boundary clip pass (Graphviz lhead/ltail):
-   * declared dataflow arrows terminate/originate ON the leaf-cluster frame
-   * borders with LR port discipline and hull port chains — probe lever,
-   * default off / byte-identical (the module never runs). */
-  strataEdgeClip: false,
-  /** Loop-3 E3.1 GLEE smoothing pass (refine-straighten-smooth): final
-   * finishing pass over every stamped routed polyline (channel/route/border/
-   * clip; "style" records already smooth) — kink shortcut, collinear dedupe,
-   * chamfer corner rounding, `roundness:null` exact-path rendering — probe
-   * lever, default off / byte-identical (the module never runs). */
-  strataEdgeSmooth: false,
   /** Probe P2 edge render style (React-Flow smoothstep/bezier transplant):
    * `"straight"` default is byte-identical (the style module never runs);
    * `"step"` | `"curve"` reshape un-routed TFD arrow chords. Plain string
@@ -140,14 +119,6 @@ export const resolveStrataDemoOptions = (params: {
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
   strataPackedEps?: number;
-  strataEdgeRouting?: boolean;
-  strataBorderRoute?: boolean;
-  /** Probe P1 inter-rank channel routing (owner's dummy-column idea). */
-  strataChannelRoute?: boolean;
-  /** Loop-2 container-boundary clip pass (Graphviz lhead/ltail). */
-  strataEdgeClip?: boolean;
-  /** Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines. */
-  strataEdgeSmooth?: boolean;
   /** Probe P2 edge render style. Plain string union (not `StrataEdgeStyle`) per
    * the no-layout-import rule above. */
   strataEdgeStyle?: "straight" | "step" | "curve";
@@ -230,20 +201,6 @@ export const resolveStrataDemoOptions = (params: {
     strataPackedScoringEpsilon:
       params.strataPackedEps ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
-    strataEdgeRouting:
-      params.strataEdgeRouting ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
-    strataBorderRoute:
-      params.strataBorderRoute ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute,
-    strataChannelRoute:
-      params.strataChannelRoute ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChannelRoute,
-    strataEdgeClip:
-      params.strataEdgeClip ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeClip,
-    strataEdgeSmooth:
-      params.strataEdgeSmooth ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeSmooth,
     // Forward the style RAW: omit at the default "straight" (never materialize a
     // default own key), matching the band-depth/de-band cuts above. Non-default
     // styles forward and reach the engine.

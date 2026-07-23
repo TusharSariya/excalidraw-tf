@@ -83,16 +83,6 @@ export type TerraformImportSession = {
   strataPackedScoring?: boolean;
   /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
   strataPackedScoringEpsilon?: number;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
-  /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail). */
-  strataEdgeClip?: boolean;
-  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines. */
-  strataEdgeSmooth?: boolean;
-  /** Strata probe P1: inter-rank channel routing. Default off. */
-  strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;

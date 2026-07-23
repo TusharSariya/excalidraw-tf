@@ -137,25 +137,6 @@ export type TerraformDemoUrlParams = {
   /** W8b: ε-constraint crossings budget for the packed scorer (`strataPackedEps`;
    * 0 = strict rule; 0<ε<1 = relative mode). */
   strataPackedEps?: number;
-  /** Package C spike (W9): post-A7 obstacle-avoiding edge routing
-   * (`strataEdgeRouting=1/0`). Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce clean container-exit routing (`strataBorderRoute=1/0`).
-   * Default off. */
-  strataBorderRoute?: boolean;
-  /** Strata probe P1 inter-rank channel routing (`strataChannelRoute=1/0`,
-   * the owner's dummy-column idea). Default off. */
-  strataChannelRoute?: boolean;
-  /** Loop-2 E2 container-boundary clip pass (`strataEdgeClip=1/0`, Graphviz
-   * lhead/ltail): declared dataflow arrows terminate/originate ON the
-   * leaf-cluster frame borders with LR port discipline and hull port chains.
-   * Runs FIRST among the edge passes and owns eligible edges. Default off. */
-  strataEdgeClip?: boolean;
-  /** Loop-3 E3.1 GLEE smoothing pass (`strataEdgeSmooth=1/0`): final
-   * refine-straighten-smooth treatment of every stamped routed polyline
-   * (channel/route/border/clip provenance) + `roundness:null` exact-path
-   * rendering. Default off. */
-  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style
    * (`strataEdgeStyle=straight|step|curve`). Default `"straight"`. */
   strataEdgeStyle?: "straight" | "step" | "curve";
@@ -501,27 +482,6 @@ export const parseTerraformDemoUrlParams = (
   if (strataPackedScoring === null) {
     return null;
   }
-  // W8b ε budget: nonnegative finite number (fractional = relative mode).
-  const strataEdgeRouting = parseBooleanParam("strataEdgeRouting");
-  if (strataEdgeRouting === null) {
-    return null;
-  }
-  const strataBorderRoute = parseBooleanParam("strataBorderRoute");
-  if (strataBorderRoute === null) {
-    return null;
-  }
-  const strataChannelRoute = parseBooleanParam("strataChannelRoute");
-  if (strataChannelRoute === null) {
-    return null;
-  }
-  const strataEdgeClip = parseBooleanParam("strataEdgeClip");
-  if (strataEdgeClip === null) {
-    return null;
-  }
-  const strataEdgeSmooth = parseBooleanParam("strataEdgeSmooth");
-  if (strataEdgeSmooth === null) {
-    return null;
-  }
   // Probe P2 edge style enum. Hard-fail on an invalid value (same contract as
   // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
   // default downstream. Case-insensitive, matching the band-depth parse.
@@ -834,11 +794,6 @@ export const parseTerraformDemoUrlParams = (
     ...(strataRankSeparate != null ? { strataRankSeparate } : {}),
     ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
-    ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
-    ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
-    ...(strataChannelRoute != null ? { strataChannelRoute } : {}),
-    ...(strataEdgeClip != null ? { strataEdgeClip } : {}),
-    ...(strataEdgeSmooth != null ? { strataEdgeSmooth } : {}),
     ...(strataEdgeStyle != null ? { strataEdgeStyle } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
@@ -925,11 +880,6 @@ export const buildTerraformDemoUrl = (
   setBool("strataRankSep", params.strataRankSeparate);
   setBool("strataPackedScoring", params.strataPackedScoring);
   setNum("strataPackedEps", params.strataPackedEps);
-  setBool("strataEdgeRouting", params.strataEdgeRouting);
-  setBool("strataBorderRoute", params.strataBorderRoute);
-  setBool("strataChannelRoute", params.strataChannelRoute);
-  setBool("strataEdgeClip", params.strataEdgeClip);
-  setBool("strataEdgeSmooth", params.strataEdgeSmooth);
   setEnum("strataEdgeStyle", params.strataEdgeStyle);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
@@ -1045,19 +995,6 @@ export type TerraformDemoSettingsSnapshot = {
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
-  strataEdgeRouting: boolean;
-  strataBorderRoute: boolean;
-  /** Probe P1 inter-rank channel routing. Optional (like `strataEdgeStyle`) so a
-   * snapshot literal predating this field still type-checks; absent ⇒ false. */
-  strataChannelRoute?: boolean;
-  /** Loop-2 E2 container-boundary clip pass. Optional (like `strataChannelRoute`)
-   * so a snapshot literal predating this field still type-checks; absent ⇒
-   * false. */
-  strataEdgeClip?: boolean;
-  /** Loop-3 E3.1 GLEE smoothing pass. Optional (like `strataEdgeClip`) so a
-   * snapshot literal predating this field still type-checks; absent ⇒
-   * false. */
-  strataEdgeSmooth?: boolean;
   /** Probe P2 edge render style. Optional (like `strataBandDepth`) so a
    * snapshot literal predating this field still type-checks; absent ⇒
    * "straight". */
@@ -1206,16 +1143,6 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataPackedScoringEpsilon !== 1
         ? { strataPackedEps: snapshot.strataPackedScoringEpsilon }
         : {}),
-      // Package C spike (W9): default-off — truthy-only, like packed scoring.
-      ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
-      ...(snapshot.strataBorderRoute ? { strataBorderRoute: true } : {}),
-      // Probe P1 channel routing: default-off — truthy-only, like border route.
-      ...(snapshot.strataChannelRoute ? { strataChannelRoute: true } : {}),
-      // Loop-2 E2 container-boundary clip: default-off — truthy-only, like the
-      // channel router above (the clip module never runs when absent).
-      ...(snapshot.strataEdgeClip ? { strataEdgeClip: true } : {}),
-      // Loop-3 E3.1 smoothing: default-off — truthy-only, like the clip pass.
-      ...(snapshot.strataEdgeSmooth ? { strataEdgeSmooth: true } : {}),
       // Probe P2 edge style: default "straight" omitted (non-default only),
       // like the band-depth cut.
       ...((snapshot.strataEdgeStyle ?? "straight") !== "straight"

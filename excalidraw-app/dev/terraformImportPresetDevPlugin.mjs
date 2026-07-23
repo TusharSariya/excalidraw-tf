@@ -107,8 +107,6 @@ export const LAYOUT_BOOLEAN_PARAMS = [
   // alias like the other dual-alias entries. All default OFF.
   ["privateApiRegional", "pipelinePrivateApiRegional"],
   ["strataPackedScoring", "strataPackedScoring"],
-  ["strataEdgeRouting", "strataEdgeRouting"],
-  ["strataBorderRoute", "strataBorderRoute"],
   ["strataSift", "strataSiftRelocate"],
   ["strataSiftRelocate", "strataSiftRelocate"],
   ["strataPackedConverge", "strataPackedConverge"],
@@ -122,10 +120,6 @@ export const LAYOUT_BOOLEAN_PARAMS = [
   // the /demo URL exactly; all default OFF. `strataBandCompact` is the legacy
   // boolean alias for `strataBandDepth:"root"` (the engine folds it in).
   ["strataBandCompact", "strataBandCompact"],
-  ["strataChannelRoute", "strataChannelRoute"],
-  ["strataEdgeClip", "strataEdgeClip"],
-  // Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines.
-  ["strataEdgeSmooth", "strataEdgeSmooth"],
   ["strataChainRelocate", "strataChainRelocate"],
   ["strataCoordCascade", "strataCoordCascade"],
   ["strataLeafShift", "strataLeafShift"],
@@ -282,8 +276,6 @@ const LAYOUT_PARAM_CATALOG = {
       "pipelinePrivateApiRegional — private REST APIs bind by account+region (strata-only; forced false on other layoutModes).",
     strataPackedScoring:
       "W8 packed-scorer edge scoring (strataPackedScoring). layoutMode=strata only.",
-    strataEdgeRouting: "Strata edge routing (opt-in).",
-    strataBorderRoute: "Strata P3 clean container-exit routing (opt-in).",
     strataSift:
       "alias of strataSiftRelocate (OD-15) — crossings-≻-length relocate lever.",
     strataSiftRelocate: "OD-15 flag — crossings-≻-length relocate lever.",
@@ -295,12 +287,6 @@ const LAYOUT_PARAM_CATALOG = {
     strataHeightGate: "P5/Lever-C height gate after the block-clamp pass.",
     strataBandCompact:
       "W10 banded row-share compaction — legacy boolean alias for strataBandDepth=root (the engine folds it in). layoutMode=strata.",
-    strataChannelRoute:
-      "Probe P1 inter-rank channel routing (owner's dummy-column idea) — orthogonal per-channel track routing of inter-rank TFD arrows. layoutMode=strata.",
-    strataEdgeClip:
-      'Loop-2 E2 container-boundary clip (Graphviz lhead/ltail) — declared dataflow arrows terminate/originate ON the leaf-cluster frame borders with LR port discipline and hull port chains. Runs FIRST among the edge passes and owns eligible net-forward cross-cluster edges (stamps terraformRoutedBy:"clip"; the other routers skip them). layoutMode=strata.',
-    strataEdgeSmooth:
-      "Loop-3 E3.1 GLEE smoothing (refine-straighten-smooth) — final pass over every stamped routed polyline (channel/route/border/clip): kink shortcut, collinear dedupe, chamfer corner rounding, roundness:null exact-path rendering. Runs LAST among the edge passes; endpoints/provenance/anchors untouched. layoutMode=strata.",
     strataChainRelocate:
       "Exclusive-downstream chain relocate — post-A7 rigid Y co-translation of a unit and its exclusive downstream group. layoutMode=strata.",
     strataCoordCascade:
@@ -963,29 +949,10 @@ const buildLayoutProofPayload = (
       // honestly: a value proves the engine actually ran the toggle.
       strataPackedScoring: meta.strataPackedScoring ?? false,
       strataPackedScoringEpsilon: meta.strataPackedScoringEpsilon ?? 0,
-      strataEdgeRouting: meta.strataEdgeRouting ?? false,
-      strataBorderRoute: meta.strataBorderRoute ?? false,
-      // Loop-2 E2 container-boundary clip echoes — flagMeta writes the flag
-      // present-only-when-active and packs the clip counters only when the pass
-      // ran (scene.edgeClip present), so `?? default`/`?? null` read the applied
-      // state honestly: a non-null `strataEdgeClipClipped` proves the pass owned
-      // eligible net-forward edges end-to-end (mirrors channelRoute's routed
-      // count). Clip runs FIRST among all the edge passes.
-      strataEdgeClip: meta.strataEdgeClip ?? false,
-      strataEdgeClipClipped: meta.strataEdgeClipClipped ?? null,
-      // Loop-3 E3.1 smoothing echoes — flagMeta writes the flag present-only-
-      // when-active and packs the counters only when the pass ran
-      // (scene.edgeSmooth present), so `?? default`/`?? null` read the applied
-      // state honestly: a non-null `strataEdgeSmoothSmoothed` proves the pass
-      // processed the stamped routed polylines end-to-end.
-      strataEdgeSmooth: meta.strataEdgeSmooth ?? false,
-      strataEdgeSmoothSmoothed: meta.strataEdgeSmoothSmoothed ?? null,
-      // Wave-1 edge-routing probe echoes — flagMeta writes each present-only-
-      // when-active, so `?? default` reads the applied state honestly (a value
-      // proves the engine ran the toggle; the routed/styled counts prove
-      // engagement). These arms silently no-op'd before the allowlist fix.
-      strataChannelRoute: meta.strataChannelRoute ?? false,
-      strataChannelRouteRouted: meta.strataChannelRouteRouted ?? null,
+      // Edge-style echo — flagMeta writes the enum present-only-when-non-default
+      // and packs the styled count only when the pass ran, so `?? default`/
+      // `?? null` read the applied state honestly (a value proves the engine ran
+      // the style pass; the styled count proves engagement).
       strataEdgeStyle: meta.strataEdgeStyle ?? "straight",
       strataEdgeStyleStyled: meta.strataEdgeStyleStyled ?? null,
       // M3 curve-flatten telemetry — repair's keep/flatten verdict on the styled
