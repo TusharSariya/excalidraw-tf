@@ -390,6 +390,26 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     decidedNow: true,
     note: "NS-rank all forms NO-GO (W5b); mutual exclusion with rankSeparate engine-suppressed with echo",
   },
+  {
+    urlParam: "strataColumnGap",
+    optionKey: "strataColumnGap",
+    kind: "number",
+    default: 150,
+    surface: "advanced",
+    emitClass: "C3",
+    decidedNow: true,
+    note: "E3.3 spacing knob: inter-column gutter px, clamped [150,400] (default = PIPELINE_COLUMN_GAP=150). Non-default-only emit (absent/150 byte-identical). Widens edge-routing corridors between columns",
+  },
+  {
+    urlParam: "strataRowGap",
+    optionKey: "strataRowGap",
+    kind: "number",
+    default: 1,
+    surface: "advanced",
+    emitClass: "C3",
+    decidedNow: true,
+    note: "E3.3 spacing knob: row-gap scale factor, clamped [1,3]. Scales PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y at the strataGapBetween choke point + banded stack. Non-default-only emit (absent/1 byte-identical)",
+  },
 ];
 
 /** Map from any accepted URL param spelling (canonical or alias) → its entry. */

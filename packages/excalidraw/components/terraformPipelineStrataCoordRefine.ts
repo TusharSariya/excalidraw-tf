@@ -83,10 +83,13 @@ function minGap(
   policy: "banded" | "packed",
   aIsHull: boolean,
   bIsHull: boolean,
+  rowGap: number = 1,
 ): number {
   // Delegates to the SHARED rule (terraformPipelineStrataSeparation.ts) so this
-  // pass, A0 placement, and the post-A7 movers cannot drift apart.
-  return strataGapBetween(policy, aIsHull, bIsHull);
+  // pass, A0 placement, and the post-A7 movers cannot drift apart. The E3.3
+  // `rowGap` factor is the SAME one A0 placement used (both read the resolved
+  // `strataRowGap`), so "minGap mirrors A0 byte-for-byte" holds at any factor.
+  return strataGapBetween(policy, aIsHull, bIsHull, rowGap);
 }
 
 /** Numerical noise floor for feasibility + strict-decrease comparisons. */
@@ -235,6 +238,10 @@ type RefHull = {
    * as a distinct field so those readers stay policy-agnostic.
    */
   constraintPolicy: "banded" | "packed";
+  /** E3.3 row-gap scale factor for this refinement (default 1). Carried on the
+   * hull so `minGap` reads the SAME factor A0 placement used, via params (never a
+   * module-level derived const — the SDEC NaN rule). */
+  rowGap: number;
   topInset: number;
   boxXLeft: number;
   boxWidth: number;
@@ -272,6 +279,7 @@ function blocksConstrain(
 function buildRefHull(
   hull: StrataHullNode,
   placement: StrataPlacementResult,
+  rowGap: number = 1,
 ): RefHull {
   const bh = placement.boxedHulls.get(hull.id);
   if (bh === undefined) {
@@ -298,12 +306,13 @@ function buildRefHull(
   }));
   const childById = new Map<string, RefHull>();
   for (const child of hull.children) {
-    childById.set(child.id, buildRefHull(child, placement));
+    childById.set(child.id, buildRefHull(child, placement, rowGap));
   }
   return {
     hull,
     policy,
     constraintPolicy,
+    rowGap,
     topInset,
     boxXLeft: bh.box.x,
     boxWidth: bh.box.width,
@@ -381,7 +390,12 @@ function seedCompact(rh: RefHull): void {
           floor,
           bj.top +
             bj.height +
-            minGap(rh.constraintPolicy, bj.kind === "hull", bi.kind === "hull"),
+            minGap(
+              rh.constraintPolicy,
+              bj.kind === "hull",
+              bi.kind === "hull",
+              rh.rowGap,
+            ),
         );
       }
     }
@@ -444,6 +458,7 @@ function projectColumn(
           rh.constraintPolicy,
           movable[i]!.kind === "hull",
           movable[i + 1]!.kind === "hull",
+          rh.rowGap,
         ),
     );
   }
@@ -459,6 +474,7 @@ function projectColumn(
         rh.constraintPolicy,
         m.kind === "hull",
         f.kind === "hull",
+        rh.rowGap,
       );
       // Preserve the current relative order against the fixed block (ties
       // broken by the content comparator for determinism).
@@ -798,9 +814,9 @@ export function refineStrataCoordinates(
   placement: StrataPlacementResult,
   model: StrataModel,
   edgesPrime: readonly StrataPrimeEdge[],
-  opts?: { cascade?: boolean },
+  opts?: { cascade?: boolean; rowGap?: number },
 ): StrataPlacementResult {
-  const root = buildRefHull(model.hullRoot, placement);
+  const root = buildRefHull(model.hullRoot, placement, opts?.rowGap ?? 1);
   const chordsByHull = buildChordsByHull(model.hullRoot, edgesPrime);
 
   refineHull(root, chordsByHull, opts?.cascade === true);

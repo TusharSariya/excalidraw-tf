@@ -297,6 +297,10 @@ export type RunTerraformImportFromSourcesOptions = {
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build. Default "none" (byte-identical). */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -367,6 +371,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataLeafShiftRankBudget"
   | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
+  | "strataColumnGap"
+  | "strataRowGap"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -425,6 +431,16 @@ export const terraformPipelineReplayOptionsFromSession = (
   // inherits `strataPackedScoringEpsilon`).
   ...(session.strataEdgeCrossCap !== undefined
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
+    : {}),
+  // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent so a
+  // replayed session never re-materializes a default own key (byte-identity).
+  // The scene-apply totality tripwire (terraformSceneApplyThreading.test.ts)
+  // exercises these with a +1 non-default value, so a dropped forward fails there.
+  ...(session.strataColumnGap !== undefined && session.strataColumnGap !== 150
+    ? { strataColumnGap: session.strataColumnGap }
+    : {}),
+  ...(session.strataRowGap !== undefined && session.strataRowGap !== 1
+    ? { strataRowGap: session.strataRowGap }
     : {}),
   strataPackedConverge: session.strataPackedConverge === true,
   strataTransitiveAdopt: session.strataTransitiveAdopt === true,
@@ -526,6 +542,8 @@ function buildPipelineFamilyLayoutOptions(
   | "strataLeafShiftRankBudget"
   | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
+  | "strataColumnGap"
+  | "strataRowGap"
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -594,6 +612,15 @@ function buildPipelineFamilyLayoutOptions(
     // inherits `strataPackedScoringEpsilon`).
     ...(options.strataEdgeCrossCap !== undefined
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
+    // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent so
+    // neither the engine request nor the persisted session snapshot carries a
+    // default key (byte-identity). Non-default forwards; the engine clamps.
+    ...(options.strataColumnGap !== undefined && options.strataColumnGap !== 150
+      ? { strataColumnGap: options.strataColumnGap }
+      : {}),
+    ...(options.strataRowGap !== undefined && options.strataRowGap !== 1
+      ? { strataRowGap: options.strataRowGap }
       : {}),
     strataPackedConverge: options.strataPackedConverge === true,
     strataTransitiveAdopt: options.strataTransitiveAdopt === true,

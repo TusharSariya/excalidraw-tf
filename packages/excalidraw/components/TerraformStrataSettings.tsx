@@ -71,6 +71,8 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
+  strataColumnGap,
+  strataRowGap,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
@@ -95,6 +97,8 @@ export const TerraformStrataSettings = ({
   setStrataCrossWeightPenetration,
   setStrataCrossWeightEdge,
   setStrataEdgeCrossCap,
+  setStrataColumnGap,
+  setStrataRowGap,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
@@ -136,6 +140,10 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
   strataEdgeCrossCap: number | undefined;
+  /** E3.3 inter-column gutter override (px). `undefined` ⇒ default (150). */
+  strataColumnGap: number | undefined;
+  /** E3.3 row-gap scale factor. `undefined` ⇒ default (1). */
+  strataRowGap: number | undefined;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
@@ -160,6 +168,10 @@ export const TerraformStrataSettings = ({
   setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
   setStrataCrossWeightEdge: (edgeWeight: number) => void;
   setStrataEdgeCrossCap: (cap: number | undefined) => void;
+  /** E3.3 — `undefined` clears back to the default gap. */
+  setStrataColumnGap: (columnGap: number | undefined) => void;
+  /** E3.3 — `undefined` clears back to the default factor. */
+  setStrataRowGap: (rowGap: number | undefined) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -671,12 +683,16 @@ export const TerraformStrataSettings = ({
             strataEdgeClip={strataEdgeClip}
             strataEdgeSmooth={strataEdgeSmooth}
             strataEdgeStyle={strataEdgeStyle}
+            strataColumnGap={strataColumnGap}
+            strataRowGap={strataRowGap}
             setStrataEdgeRouting={setStrataEdgeRouting}
             setStrataBorderRoute={setStrataBorderRoute}
             setStrataChannelRoute={setStrataChannelRoute}
             setStrataEdgeClip={setStrataEdgeClip}
             setStrataEdgeSmooth={setStrataEdgeSmooth}
             setStrataEdgeStyle={setStrataEdgeStyle}
+            setStrataColumnGap={setStrataColumnGap}
+            setStrataRowGap={setStrataRowGap}
           />
           {/* Private API placement is no longer a control. owner-decisions.md
               2026-07-17 (Q9): private REST APIs are ALWAYS regional in strata —

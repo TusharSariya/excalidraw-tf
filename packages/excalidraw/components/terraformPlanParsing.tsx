@@ -283,6 +283,10 @@ export type TerraformPlanParsingOptions = {
    * the Strata model build (structure phase). Default "none" (byte-identical).
    * Suppressed when the absorbing parent stays banded under `strataBandDepth`. */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: import("./terraformPrimaryVisibility").TerraformColorMode;
 };

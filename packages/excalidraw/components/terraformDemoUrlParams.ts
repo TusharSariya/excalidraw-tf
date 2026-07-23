@@ -183,6 +183,12 @@ export type TerraformDemoUrlParams = {
   /** Edge-edge regression cap (`strataEdgeCap`). Optional — absent inherits
    * `strataPackedEps`. */
   strataEdgeCap?: number;
+  /** E3.3 inter-column gutter override in px (`strataColumnGap`). Default off ⇒
+   * 150 (byte-identical); the engine clamps to [150, 400]. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor (`strataRowGap`). Default off ⇒ 1
+   * (byte-identical); the engine clamps to [1, 3]. */
+  strataRowGap?: number;
   /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
    * snapshot instead of the rolling incumbent (`strataPackedConverge=1/0`).
    * Default off; inert at ε=0. */
@@ -640,6 +646,29 @@ export const parseTerraformDemoUrlParams = (
     }
     strataEdgeCap = parsed;
   }
+  // E3.3 inter-column gutter (px). Parse ANY finite positive number here (the
+  // engine owns the [150, 400] clamp — the parser only rejects garbage/negatives,
+  // mirroring strataEdgeCap). Absent ⇒ undefined ⇒ resolves to the default.
+  const strataColumnGapRaw = params.get("strataColumnGap");
+  let strataColumnGap: number | undefined;
+  if (strataColumnGapRaw != null && strataColumnGapRaw.trim() !== "") {
+    const parsed = Number(strataColumnGapRaw.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    strataColumnGap = parsed;
+  }
+  // E3.3 row-gap scale factor (fractional allowed, e.g. 1.25). Engine clamps to
+  // [1, 3]; the parser only rejects garbage/non-positive.
+  const strataRowGapRaw = params.get("strataRowGap");
+  let strataRowGap: number | undefined;
+  if (strataRowGapRaw != null && strataRowGapRaw.trim() !== "") {
+    const parsed = Number(strataRowGapRaw.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    strataRowGap = parsed;
+  }
 
   // ─── Runtime canvas view settings ───
   const lodEnabled = parseBooleanParam("lodEnabled");
@@ -818,6 +847,8 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPenW != null ? { strataPenW } : {}),
     ...(strataCrossW != null ? { strataCrossW } : {}),
     ...(strataEdgeCap != null ? { strataEdgeCap } : {}),
+    ...(strataColumnGap != null ? { strataColumnGap } : {}),
+    ...(strataRowGap != null ? { strataRowGap } : {}),
     ...(strataPackedConverge != null ? { strataPackedConverge } : {}),
     ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
     ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
@@ -907,6 +938,8 @@ export const buildTerraformDemoUrl = (
   setNum("strataPenW", params.strataPenW);
   setNum("strataCrossW", params.strataCrossW);
   setNum("strataEdgeCap", params.strataEdgeCap);
+  setNum("strataColumnGap", params.strataColumnGap);
+  setNum("strataRowGap", params.strataRowGap);
   setBool("strataPackedConverge", params.strataPackedConverge);
   setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
   setBool("strataBlockClamp", params.strataBlockClamp);
@@ -1043,6 +1076,12 @@ export type TerraformDemoSettingsSnapshot = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** E3.3 inter-column gutter override (px). Optional (default off ⇒ 150) so
+   * pre-existing snapshot literals still type-check. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Optional (default off ⇒ 1) so pre-existing
+   * snapshot literals still type-check. */
+  strataRowGap?: number;
   /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
    * snapshot. Optional (no dialog control; default off) so pre-existing
    * snapshot literals still type-check. */
@@ -1204,6 +1243,16 @@ export const collectTerraformDemoParams = (
       // Edge-edge regression cap has no default — emit whenever explicitly set.
       ...(snapshot.strataEdgeCrossCap !== undefined
         ? { strataEdgeCap: snapshot.strataEdgeCrossCap }
+        : {}),
+      // E3.3 spacing knobs: default 150 / 1 — non-default-only emit (absent
+      // resolves to the default in resolveStrataDemoOptions), so a share URL of a
+      // default scene is byte-identical while an explicit gap round-trips. The
+      // `?? default` guards the optional snapshot field (like strataEdgeStyle).
+      ...((snapshot.strataColumnGap ?? 150) !== 150
+        ? { strataColumnGap: snapshot.strataColumnGap }
+        : {}),
+      ...((snapshot.strataRowGap ?? 1) !== 1
+        ? { strataRowGap: snapshot.strataRowGap }
         : {}),
       // G-DESCENT converge: default-off — truthy-only, like packed scoring.
       ...(snapshot.strataPackedConverge ? { strataPackedConverge: true } : {}),

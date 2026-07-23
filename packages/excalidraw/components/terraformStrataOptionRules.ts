@@ -57,6 +57,11 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataHeightGate",
   "strataLeafShift",
   "strataJointNsRank",
+  // E3.3 spacing knobs — always-active (no conflict/implication/inertness), so
+  // they carry no relation rows; listed here to keep the key domain in sync with
+  // the resolver + registry (the anti-drift guard asserts referenced keys exist).
+  "strataColumnGap",
+  "strataRowGap",
 ] as const;
 
 export type StrataRuleOptionKey = typeof STRATA_RULE_OPTION_KEYS[number];

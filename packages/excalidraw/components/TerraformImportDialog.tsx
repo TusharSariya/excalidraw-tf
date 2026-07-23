@@ -91,6 +91,8 @@ export const TerraformImportModal = ({
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
+    strataColumnGap,
+    strataRowGap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -679,6 +681,8 @@ terraform show -json tfplan > plan.json`}</code>
               strataCrossWeightPenetration={strataCrossWeightPenetration}
               strataCrossWeightEdge={strataCrossWeightEdge}
               strataEdgeCrossCap={strataEdgeCrossCap}
+              strataColumnGap={strataColumnGap}
+              strataRowGap={strataRowGap}
               setStrataSweeps={dialog.setStrataSweeps}
               setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
               setStrataRankSeparate={dialog.setStrataRankSeparate}
@@ -707,6 +711,8 @@ terraform show -json tfplan > plan.json`}</code>
               }
               setStrataCrossWeightEdge={dialog.setStrataCrossWeightEdge}
               setStrataEdgeCrossCap={dialog.setStrataEdgeCrossCap}
+              setStrataColumnGap={dialog.setStrataColumnGap}
+              setStrataRowGap={dialog.setStrataRowGap}
             />
           )}
           {view === "module" && (

@@ -117,6 +117,13 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * identical: `"none"` truncates no topology path). Plain string literal (not
    * `DeBandLevel`) per the no-layout-import rule above. */
   strataDeBandLevel: "none",
+  /** E3.3 inter-column gutter override (px). Plain literal (no layout import per
+   * the no-layout-import rule above): 150 mirrors PIPELINE_COLUMN_GAP. Default off
+   * ⇒ 150 (byte-identical); the resolver omits it at the default (raw-forward). */
+  strataColumnGap: 150,
+  /** E3.3 row-gap scale factor. Default off ⇒ 1 (byte-identical); the resolver
+   * omits it at the default (raw-forward). */
+  strataRowGap: 1,
 } as const;
 
 /**
@@ -187,6 +194,10 @@ export const resolveStrataDemoOptions = (params: {
     | "region"
     | "account"
     | "provider";
+  /** E3.3 inter-column gutter override (px). */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. */
+  strataRowGap?: number;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -300,6 +311,19 @@ export const resolveStrataDemoOptions = (params: {
     // `TERRAFORM_STRATA_LAYOUT_DEFAULTS`'s comment above.
     ...(params.strataEdgeCap !== undefined
       ? { strataEdgeCrossCap: params.strataEdgeCap }
+      : {}),
+    // E3.3 spacing knobs: forward RAW and OMIT at the default (150 / 1), so a
+    // bare/explicit-default URL never materializes a default own key (the
+    // resolver-output byte-identity the terraformStrataDefaults tests pin — same
+    // raw-forward discipline as strataBandDepth/strataEdgeStyle). A non-default
+    // value forwards and the engine clamps it.
+    ...(params.strataColumnGap !== undefined &&
+    params.strataColumnGap !== TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataColumnGap
+      ? { strataColumnGap: params.strataColumnGap }
+      : {}),
+    ...(params.strataRowGap !== undefined &&
+    params.strataRowGap !== TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRowGap
+      ? { strataRowGap: params.strataRowGap }
       : {}),
   };
 };

@@ -641,6 +641,54 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "A composed router combination (2+ of strataEdgeClip / strataEdgeRouting / strataChannelRoute / strataBorderRoute true) that no single preset represents. Reachable only from a URL; picking any preset writes the one-hot booleans.",
     },
   },
+  "strata.spacing.columngap.default": {
+    title: "Column gap · Default",
+    body: "The standard horizontal gap between columns of cards (150 px). Leave this on unless arrows between columns look cramped.",
+    dev: {
+      implements:
+        "strataColumnGap absent ⇒ engine uses PIPELINE_COLUMN_GAP (150). Byte-identical: the knob materializes no key anywhere (resolver/meta/URL all omit at the default).",
+    },
+  },
+  "strata.spacing.columngap.wide": {
+    title: "Column gap · Wide",
+    body: "Widens the horizontal gap between columns to 200 px, giving edge-routing more room to run arrows between columns without crowding the cards.",
+    dev: {
+      implements:
+        "strataColumnGap=200 → columnOffsetsFromWidths(columnWidths, 0, 200) in rankStrataClusters (A1). Placement pins X to columnX; the channel router and clip pass re-derive corridors from the placed boxes.",
+    },
+  },
+  "strata.spacing.columngap.extra": {
+    title: "Column gap · Extra",
+    body: "Widens the horizontal gap between columns to 250 px — the roomiest setting, for dense diagrams with many arrows crossing between columns.",
+    dev: {
+      implements:
+        "strataColumnGap=250 → columnOffsetsFromWidths gap arg. Clamped to [150, 400] at the engine; a garbage/≤0 value falls back to 150.",
+    },
+  },
+  "strata.spacing.rowgap.default": {
+    title: "Row gap · Default",
+    body: "The standard vertical gap between stacked cards. Leave this on unless arrows running between rows look cramped.",
+    dev: {
+      implements:
+        "strataRowGap absent ⇒ factor 1 ⇒ PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y unchanged (Math.round(k*1)===k). Byte-identical: no key is materialized.",
+    },
+  },
+  "strata.spacing.rowgap.wide": {
+    title: "Row gap · 1.25×",
+    body: "Adds 25% more vertical space between stacked cards, opening up the horizontal corridors edge routing uses to run arrows between rows.",
+    dev: {
+      implements:
+        "strataRowGap=1.25 scales PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y multiplicatively (rounded to int px) at the single strataGapBetween choke point (placement dropY, coordRefine minGap, movers) AND the banded full-width stack, so placement and coordRefine stay consistent.",
+    },
+  },
+  "strata.spacing.rowgap.extra": {
+    title: "Row gap · 1.5×",
+    body: "Adds 50% more vertical space between stacked cards — the roomiest setting, for dense diagrams with many arrows routing between rows.",
+    dev: {
+      implements:
+        "strataRowGap=1.5 scales the vertical gap constants (rounded to int px). Clamped to [1, 3] at the engine; a garbage/≤0 value falls back to 1.",
+    },
+  },
   "strata.banddepth": {
     title: "Band depth",
     body: "Choose the deepest role that still lays out as a full-width band — Root, Provider, Account, Region, VPC, or Zone. Every role below the cut packs X-disjoint siblings into shared rows instead of stacking one-per-row. Shallower cuts toward Root pack provider and account, which reclaims vertical height when Compact height (rankSeparate) is on. Region, VPC, and Zone cuts are experimental and usually make the canvas wider. Root is always banded — packing it would collapse the top-level providers side-by-side.",

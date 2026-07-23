@@ -1475,4 +1475,86 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );
+
+  // ─── E3.3 spacing knobs (strataColumnGap / strataRowGap) ────────────────────
+
+  it(
+    "threads strataColumnGap end-to-end (URL/dialog → both seams → engine → meta echo), non-default widens + echoes",
+    async () => {
+      const off = await buildStrata();
+      // Default OFF: no echo key (byte-identity meta), like strataBandDepth.
+      expect(off.meta.strataColumnGap).toBeUndefined();
+
+      const wide = await buildStrata({ strataColumnGap: 250 });
+      expect(wide.meta.rcllV2Degraded).toBeUndefined();
+      expect(wide.meta.strataColumnGap).toBe(250);
+      // The wider gutter MUST change geometry (columns pushed apart).
+      expect(geometryTuples(wide.elements)).not.toEqual(
+        geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "threads strataRowGap end-to-end (URL/dialog → both seams → engine → meta echo), non-default widens + echoes",
+    async () => {
+      const off = await buildStrata();
+      expect(off.meta.strataRowGap).toBeUndefined();
+
+      const wide = await buildStrata({ strataRowGap: 1.25 });
+      expect(wide.meta.rcllV2Degraded).toBeUndefined();
+      expect(wide.meta.strataRowGap).toBe(1.25);
+      expect(geometryTuples(wide.elements)).not.toEqual(
+        geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "spacing knobs: knobs ABSENT ≡ explicit-DEFAULT (150 / 1) — byte-identical geometry + no meta key (float-path safe)",
+    async () => {
+      // The gate the task calls out: an explicit-default request must be
+      // byte-identical to omitting the knob — geometry AND the persisted meta.
+      // strataGapBetween rounds (Math.round(k*1)===k) and every seam omits at the
+      // exact default, so this is exact, not approximate.
+      const absent = await buildStrata();
+      const explicitDefaults = await buildStrata({
+        strataColumnGap: 150,
+        strataRowGap: 1,
+      });
+      expect(absent.meta.rcllV2Degraded).toBeUndefined();
+      expect(explicitDefaults.meta.rcllV2Degraded).toBeUndefined();
+      // Meta: explicit-default materializes NO key (normalizes to absent).
+      expect(explicitDefaults.meta.strataColumnGap).toBeUndefined();
+      expect(explicitDefaults.meta.strataRowGap).toBeUndefined();
+      // Geometry: bbox tuples AND full arrow polylines are identical.
+      expect(geometryTuples(explicitDefaults.elements)).toEqual(
+        geometryTuples(absent.elements),
+      );
+      expect(arrowPolySignatures(explicitDefaults.elements)).toEqual(
+        arrowPolySignatures(absent.elements),
+      );
+      expect(frameCount(explicitDefaults.elements)).toBe(
+        frameCount(absent.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "strataColumnGap clamps out-of-range: sub-min (100) normalizes to the default (byte-identical to absent)",
+    async () => {
+      const absent = await buildStrata();
+      const subMin = await buildStrata({ strataColumnGap: 100 });
+      // 100 < 150 clamps to 150 = the default, so meta omits it and geometry is
+      // byte-identical to absent (the guard drops garbage to the current value).
+      expect(subMin.meta.strataColumnGap).toBeUndefined();
+      expect(geometryTuples(subMin.elements)).toEqual(
+        geometryTuples(absent.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
 });

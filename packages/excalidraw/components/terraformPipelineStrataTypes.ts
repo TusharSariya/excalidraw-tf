@@ -263,6 +263,27 @@ export type StrataEngineOptions = {
    * nothing, so the off path is byte-identical by construction, not by guard.
    */
   strataDeBandLevel?: DeBandLevel;
+  /**
+   * E3.3 inter-column gutter override (`strataColumnGap`, default off, opt-in):
+   * the horizontal gap in px inserted between the rank columns. Threaded into the
+   * single `columnOffsetsFromWidths(columnWidths, 0, gap)` call in
+   * `rankStrataClusters` (A1). Absent ⇒ `PIPELINE_COLUMN_GAP` (150),
+   * byte-identical. The orchestrator clamps to a sane [150, 400] window and drops
+   * ≤0/absent. Widens the edge-routing corridors between columns. Optional so
+   * existing option literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataColumnGap?: number;
+  /**
+   * E3.3 row-gap scale factor (`strataRowGap`, default 1, opt-in): multiplies the
+   * vertical stacked-gap constants (`PIPELINE_LANE_GAP_Y` /
+   * `PIPELINE_CLUSTER_GAP_Y`) at the single `strataGapBetween` choke point AND the
+   * banded full-width stack in placement, so A0 placement, A7 coordinate refine,
+   * and the movers stay mutually consistent (the "minGap mirrors A0 byte-for-byte"
+   * invariant). Absent ⇒ 1 (byte-identical). The orchestrator clamps to a sane
+   * [1, 3] window and drops ≤0/absent. Larger row gaps for edge-routing corridors.
+   * Optional so existing option literals (flag-OFF byte-identity) are unaffected.
+   */
+  strataRowGap?: number;
 };
 
 /**

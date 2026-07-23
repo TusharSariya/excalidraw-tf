@@ -173,7 +173,12 @@ export const LAYOUT_ENUM_PARAMS = [
 // Strata (S0a scaffold) — sweep count (K) for the coordinate-refinement pass;
 // 0 = off (M1a default, 4 planned for M1b). Passthrough-only until the strata
 // engine lands; default OFF like the strata booleans above.
-export const LAYOUT_INT_PARAMS = [["strataSweeps", "strataSweeps"]];
+// E3.3 strataColumnGap is a whole-px inter-column gutter — parsed as a pure
+// integer (the engine clamps to [150, 400]). Absent ⇒ engine default 150.
+export const LAYOUT_INT_PARAMS = [
+  ["strataSweeps", "strataSweeps"],
+  ["strataColumnGap", "strataColumnGap"],
+];
 
 // W8b ε-constraint crossings budget for the packed scorer. Parsed apart from the
 // pure integers above because the demo URL API (terraformDemoUrlParams.ts:492-505)
@@ -196,6 +201,9 @@ export const LAYOUT_NUM_PARAMS = [
   ["strataPenW", "strataCrossWeightPenetration"],
   ["strataCrossW", "strataCrossWeightEdge"],
   ["strataEdgeCap", "strataEdgeCrossCap"],
+  // E3.3 row-gap scale factor — fractional allowed (e.g. 1.25); the engine clamps
+  // to [1, 3]. Absent ⇒ engine default 1.
+  ["strataRowGap", "strataRowGap"],
 ];
 
 // Which engine variant `/api/terraform-layout` runs. Parsed separately from
@@ -303,10 +311,14 @@ const LAYOUT_PARAM_CATALOG = {
   ints: {
     strataSweeps:
       "Strata sweep count K for coordinate refinement (0 = off / M1a default, 4 planned for M1b); scaffold-only (passthrough to rcll v2) until the strata engine lands",
+    strataColumnGap:
+      "E3.3 inter-column gutter in px — the horizontal gap between rank columns. Clamped to [150, 400]; ≤0/absent ⇒ engine default (PIPELINE_COLUMN_GAP=150, byte-identical). Widens the edge-routing corridors between columns. layoutMode=strata.",
   },
   numbers: {
     strataPackedEps:
       "alias of strataPackedScoringEpsilon (W8b) — ε-constraint crossings budget for the packed scorer. ABSOLUTE mode (eps >= 1) is a whole-integer budget; RELATIVE mode (0 < eps < 1) is a fractional ratio and accepted (mirrors the /demo URL parser).",
+    strataRowGap:
+      "E3.3 row-gap scale factor — multiplies the vertical stacked-gap constants (PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y) at the strataGapBetween choke point AND the banded stack, each scaled result rounded to integer px. Fractional allowed (e.g. 1.25). Clamped to [1, 3]; ≤0/absent ⇒ 1 (byte-identical). Larger row gaps for edge-routing corridors. layoutMode=strata.",
     strataPackedScoringEpsilon:
       "W8b ε-constraint crossings budget for the packed scorer. Integer for eps >= 1; fractional allowed for 0 < eps < 1.",
     strataPenW:
@@ -1005,6 +1017,11 @@ const buildLayoutProofPayload = (
       strataCrossWeightPenetration: meta.strataCrossWeightPenetration ?? null,
       strataCrossWeightEdge: meta.strataCrossWeightEdge ?? null,
       strataEdgeCrossCap: meta.strataEdgeCrossCap ?? null,
+      // E3.3 spacing knobs — flagMeta echoes each present-only-when-NON-DEFAULT,
+      // so `?? default` reads the applied state honestly: a value that differs
+      // from the default proves the engine ran with the widened gap end-to-end.
+      strataColumnGap: meta.strataColumnGap ?? 150,
+      strataRowGap: meta.strataRowGap ?? 1,
       strataDeBandLevel: meta.strataDeBandLevel ?? "none",
       // privateApiRegional and strataBandDepth are NOT echoed to scene.meta by
       // the engine, so `applied` must REPLICATE core's mode-scoping instead of

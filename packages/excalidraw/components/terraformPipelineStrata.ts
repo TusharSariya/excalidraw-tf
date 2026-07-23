@@ -1,7 +1,10 @@
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
-import { preparePipelineLayout } from "./terraformPipelineLayoutShared";
+import {
+  preparePipelineLayout,
+  PIPELINE_COLUMN_GAP,
+} from "./terraformPipelineLayoutShared";
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
 import { buildStrataModel } from "./terraformPipelineStrataModel";
 import { repairStrataCycles } from "./terraformPipelineStrataCycleRepair";
@@ -271,6 +274,12 @@ export type TerraformStrataSceneOptions = {
    * `engineOptions.strataDeBandLevel` only when non-`"none"` (byte-identity).
    */
   strataDeBandLevel?: DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ PIPELINE_COLUMN_GAP
+   * (150). Clamped to [150, 400]; ≤0/absent drops to the default. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. Clamped to [1, 3]; ≤0/absent
+   * drops to the default. */
+  strataRowGap?: number;
   /**
    * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
    * in "penetrating-only" mode — at scene build, TFD arrows whose straight
@@ -484,6 +493,24 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataLeafShiftRankBudget = options?.strataLeafShiftRankBudget;
   const strataLeafShiftRightEdgeGuardPx =
     options?.strataLeafShiftRightEdgeGuardPx;
+  // E3.3 spacing knobs (default off ⇒ byte-identical). Both clamp to a sane
+  // window and DROP ≤0/absent to the current value, so a garbage/absent input can
+  // never widen the layout: strataColumnGap → [150, 400] (default
+  // PIPELINE_COLUMN_GAP=150), strataRowGap → [1, 3] (default 1, never compress
+  // below the base gap). Integer column-gap (px); the row-gap factor stays
+  // fractional (the engine rounds each scaled constant). These resolved values
+  // ride flagMeta/engineOptions ONLY when non-default, so the off path is
+  // byte-identical.
+  const rawColumnGap = options?.strataColumnGap;
+  const strataColumnGap =
+    typeof rawColumnGap === "number" && rawColumnGap > 0
+      ? Math.min(400, Math.max(150, Math.round(rawColumnGap)))
+      : PIPELINE_COLUMN_GAP;
+  const rawRowGap = options?.strataRowGap;
+  const strataRowGap =
+    typeof rawRowGap === "number" && rawRowGap > 0
+      ? Math.min(3, Math.max(1, rawRowGap))
+      : 1;
   // Package C spike (W9): scene-build edge routing, default off.
   const strataEdgeRouting = options?.strataEdgeRouting === true;
   // P3-pierce border-exit routing (scene-build), default off.
@@ -620,6 +647,12 @@ export async function buildTerraformStrataExcalidrawScene(
             : {}),
         }
       : {}),
+    // E3.3 spacing knob echoes — present only when NON-DEFAULT so the flag-off
+    // (and explicit-default) scene meta stays byte-identical. The resolved values
+    // are already clamped, so an out-of-range input that normalizes to the default
+    // (e.g. strataColumnGap=100 → 150, strataRowGap=0.5 → 1) is correctly omitted.
+    ...(strataColumnGap !== PIPELINE_COLUMN_GAP ? { strataColumnGap } : {}),
+    ...(strataRowGap !== 1 ? { strataRowGap } : {}),
     // OD-15 de-band echo — the EFFECTIVE (post-suppression) level, present only
     // when non-default. `"none"` is a TRUTHY string, so an `&&`-truthy gate here
     // would materialize the key on every default run and break flag-off meta
@@ -680,6 +713,12 @@ export async function buildTerraformStrataExcalidrawScene(
     // truthy-string trap as the cut above — `"none"` is truthy, so the
     // `!== "none"` guard is load-bearing for flag-off byte-identity.
     ...(strataDeBandLevel !== "none" ? { strataDeBandLevel } : {}),
+    // E3.3 spacing knobs: spread ONLY when non-default so the flag-off
+    // engineOptions object shape is byte-identical. strataColumnGap reaches A1
+    // rank via the rank-opts `columnGap` below; strataRowGap reaches placement
+    // (read from `options.strataRowGap`) and coordRefine (threaded into its opts).
+    ...(strataColumnGap !== PIPELINE_COLUMN_GAP ? { strataColumnGap } : {}),
+    ...(strataRowGap !== 1 ? { strataRowGap } : {}),
     // Relocate objective weights/cap: these ride when ANY relocate-family
     // operator is on — the OD-15 sift/vertical-relocate, the block clamp, the
     // transpose, the A01 leaf X-shift, OR the P0.2 transitive adoption —
@@ -808,6 +847,13 @@ export async function buildTerraformStrataExcalidrawScene(
         const cluster = model.clusters.get(id);
         return cluster ? clusterFrameLocalRect(cluster).width : 0;
       },
+      // E3.3 inter-column gutter — passed ONLY when non-default (absent ⇒ rank
+      // falls back to PIPELINE_COLUMN_GAP), so the rank-opts object shape is
+      // byte-identical off. `engineOptions.strataColumnGap` is itself present only
+      // when non-default (rides above).
+      ...(engineOptions.strataColumnGap !== undefined
+        ? { columnGap: engineOptions.strataColumnGap }
+        : {}),
     });
     spanRecord("strata.rank", tRank);
 
@@ -883,13 +929,31 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
-          { cascade: strataCoordCascade },
+          {
+            cascade: strataCoordCascade,
+            // E3.3 row-gap factor — threaded ONLY when non-default (absent ⇒
+            // coordRefine falls back to 1), keeping the opts object byte-identical
+            // off. Reads the SAME resolved factor A0 placement used, so minGap
+            // mirrors A0 byte-for-byte.
+            ...(engineOptions.strataRowGap !== undefined
+              ? { rowGap: engineOptions.strataRowGap }
+              : {}),
+          },
         );
         const legacyFinal = refineStrataCoordinates(
           packedScored.baselinePlacement,
           model,
           repair.edgesPrime,
-          { cascade: strataCoordCascade },
+          {
+            cascade: strataCoordCascade,
+            // E3.3 row-gap factor — threaded ONLY when non-default (absent ⇒
+            // coordRefine falls back to 1), keeping the opts object byte-identical
+            // off. Reads the SAME resolved factor A0 placement used, so minGap
+            // mirrors A0 byte-for-byte.
+            ...(engineOptions.strataRowGap !== undefined
+              ? { rowGap: engineOptions.strataRowGap }
+              : {}),
+          },
         );
         spanRecord("strata.trialRelayout", tTrial);
         // Score = the never-worse selection between the two trial arms.
@@ -942,7 +1006,16 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
-          { cascade: strataCoordCascade },
+          {
+            cascade: strataCoordCascade,
+            // E3.3 row-gap factor — threaded ONLY when non-default (absent ⇒
+            // coordRefine falls back to 1), keeping the opts object byte-identical
+            // off. Reads the SAME resolved factor A0 placement used, so minGap
+            // mirrors A0 byte-for-byte.
+            ...(engineOptions.strataRowGap !== undefined
+              ? { rowGap: engineOptions.strataRowGap }
+              : {}),
+          },
         );
         spanRecord("strata.a7", tA7);
       }

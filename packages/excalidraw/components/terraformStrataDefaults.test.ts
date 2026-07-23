@@ -193,4 +193,68 @@ describe("resolveStrataDemoOptions", () => {
       0.01,
     );
   });
+
+  // ─── E3.3 spacing knobs: default OMITTED (raw-forward), explicit value wins ───
+
+  it("resolves strataColumnGap: default omitted (no default key), explicit URL param wins", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    // The default gap (150) is never materialized as an own key (raw-forward,
+    // like strataBandDepth) — byte-identity for the bare/default URL.
+    expect(resolveStrataDemoOptions(bare!).strataColumnGap).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        resolveStrataDemoOptions(bare!),
+        "strataColumnGap",
+      ),
+    ).toBe(false);
+    const wide = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataColumnGap=250",
+    );
+    expect(resolveStrataDemoOptions(wide!).strataColumnGap).toBe(250);
+  });
+
+  it("resolves strataColumnGap: explicit 150 normalizes to absent (raw-forward at the default)", () => {
+    const explicit = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataColumnGap=150",
+    );
+    // Explicit-default MUST NOT materialize a key — this is what makes an
+    // explicit-150 URL byte-identical to the absent URL.
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        resolveStrataDemoOptions(explicit!),
+        "strataColumnGap",
+      ),
+    ).toBe(false);
+  });
+
+  it("resolves strataRowGap: default omitted, explicit URL param wins (incl. fractional)", () => {
+    const bare = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata",
+    );
+    expect(resolveStrataDemoOptions(bare!).strataRowGap).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        resolveStrataDemoOptions(bare!),
+        "strataRowGap",
+      ),
+    ).toBe(false);
+    const wide = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataRowGap=1.25",
+    );
+    expect(resolveStrataDemoOptions(wide!).strataRowGap).toBe(1.25);
+  });
+
+  it("resolves strataRowGap: explicit 1 normalizes to absent (raw-forward at the default)", () => {
+    const explicit = parseTerraformDemoUrlParams(
+      "?preset=staging-multi-state-expanded&view=strata&strataRowGap=1",
+    );
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        resolveStrataDemoOptions(explicit!),
+        "strataRowGap",
+      ),
+    ).toBe(false);
+  });
 });

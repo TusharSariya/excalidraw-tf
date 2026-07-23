@@ -154,6 +154,10 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -216,6 +220,8 @@ export const runTerraformImportWithView = async ({
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
+  strataColumnGap,
+  strataRowGap,
   importedTfdTexts,
   preset = null,
   signal,
@@ -308,6 +314,14 @@ export const runTerraformImportWithView = async ({
           // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
           // inherits `strataPackedScoringEpsilon`).
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+          // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent
+          // (byte-identity). The engine clamps out-of-range values.
+          ...(strataColumnGap !== undefined && strataColumnGap !== 150
+            ? { strataColumnGap }
+            : {}),
+          ...(strataRowGap !== undefined && strataRowGap !== 1
+            ? { strataRowGap }
+            : {}),
         }
       : {}),
     importedTfdTexts,
@@ -403,6 +417,10 @@ export type RunTerraformPresetImportOptions = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -494,6 +512,10 @@ export const runTerraformPresetImport = async (
     ...(options.strataEdgeCrossCap !== undefined
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
       : {}),
+    // E3.3 spacing knobs — direct passthrough (absent ⇒ undefined); the
+    // downstream `runTerraformImportWithView` literal omits them at the default.
+    strataColumnGap: options.strataColumnGap,
+    strataRowGap: options.strataRowGap,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

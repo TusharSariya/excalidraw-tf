@@ -94,16 +94,27 @@ export type StrataSeparationBlock = {
  * (an earlier revision of this header claimed "a test pins all three equal" —
  * that was FALSE while they were independent private implementations, since a
  * test can only reach this copy). Call-time constant reads only (SDEC NaN rule).
+ *
+ * E3.3 `rowGap` (default 1): a scale factor that widens the vertical stacked gap
+ * for edge-routing corridors. Both base constants are scaled multiplicatively and
+ * rounded to an integer px, at CALL TIME (never a module-level derived const — the
+ * SDEC NaN rule). `rowGap === 1` reproduces the base constants exactly
+ * (`Math.round(k * 1) === k`), so the off path is byte-identical. The factor
+ * threads identically through placement's `dropY`/banded stack and coordRefine's
+ * `minGap`, so "minGap mirrors A0 placement byte-for-byte" holds at any factor.
  */
 export function strataGapBetween(
   policy: "banded" | "packed",
   aIsHull: boolean,
   bIsHull: boolean,
+  rowGap: number = 1,
 ): number {
+  const lane = Math.round(PIPELINE_LANE_GAP_Y * rowGap);
+  const cluster = Math.round(PIPELINE_CLUSTER_GAP_Y * rowGap);
   if (policy === "banded") {
-    return PIPELINE_LANE_GAP_Y;
+    return lane;
   }
-  return aIsHull || bIsHull ? PIPELINE_LANE_GAP_Y : PIPELINE_CLUSTER_GAP_Y;
+  return aIsHull || bIsHull ? lane : cluster;
 }
 
 /**
@@ -170,6 +181,7 @@ export function strataSeparationOk(
   candIsHull: boolean,
   others: readonly StrataSeparationBlock[],
   policy: "banded" | "packed",
+  rowGap: number = 1,
 ): boolean {
   for (const other of others) {
     if (!strataBlocksConstrain(policy, cand, other.box)) {
@@ -177,7 +189,7 @@ export function strataSeparationOk(
     }
     if (
       strataVerticalClearance(cand, other.box) <
-      strataGapBetween(policy, other.isHull, candIsHull)
+      strataGapBetween(policy, other.isHull, candIsHull, rowGap)
     ) {
       return false;
     }
@@ -210,6 +222,7 @@ export function strataSeparatedTops(
   candIsHull: boolean,
   others: readonly StrataSeparationBlock[],
   policy: "banded" | "packed",
+  rowGap: number = 1,
 ): number[] {
   const probe: StrataBox = { x, y: 0, width: w, height: h };
   const tops: number[] = [];
@@ -220,7 +233,7 @@ export function strataSeparatedTops(
       tops.push(other.box.y);
       continue;
     }
-    const gap = strataGapBetween(policy, other.isHull, candIsHull);
+    const gap = strataGapBetween(policy, other.isHull, candIsHull, rowGap);
     tops.push(other.box.y + other.box.height + gap);
     tops.push(other.box.y - gap - h);
   }

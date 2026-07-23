@@ -149,6 +149,15 @@ const sessionToDemoSnapshot = (
   ...(session.strataEdgeCrossCap !== undefined
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
+  // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent so the
+  // demo snapshot (and the URL built from it) never carries a default key,
+  // matching hand-built/legacy snapshots that omit it. Non-default forwards.
+  ...(session.strataColumnGap !== undefined && session.strataColumnGap !== 150
+    ? { strataColumnGap: session.strataColumnGap }
+    : {}),
+  ...(session.strataRowGap !== undefined && session.strataRowGap !== 1
+    ? { strataRowGap: session.strataRowGap }
+    : {}),
   strataPackedConverge: session.strataPackedConverge ?? false,
   strataTransitiveAdopt: session.strataTransitiveAdopt ?? false,
   strataBlockClamp: session.strataBlockClamp ?? false,

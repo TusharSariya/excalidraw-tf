@@ -61,6 +61,8 @@ const baseProps = (): Props => ({
   strataCrossWeightPenetration: 1,
   strataCrossWeightEdge: 1,
   strataEdgeCrossCap: undefined,
+  strataColumnGap: undefined,
+  strataRowGap: undefined,
   setStrataSweeps: vi.fn(),
   setStrataCoordinateRefine: vi.fn(),
   setStrataRankSeparate: vi.fn(),
@@ -85,6 +87,8 @@ const baseProps = (): Props => ({
   setStrataCrossWeightPenetration: vi.fn(),
   setStrataCrossWeightEdge: vi.fn(),
   setStrataEdgeCrossCap: vi.fn(),
+  setStrataColumnGap: vi.fn(),
+  setStrataRowGap: vi.fn(),
 });
 
 const renderPanel = (overrides: Partial<Props> = {}) =>
@@ -772,5 +776,88 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
     } finally {
       hoistedScene.elements = [];
     }
+  });
+});
+
+describe("TerraformStrataSettings — E3.3 spacing controls", () => {
+  // (a) Column gap one-hot: each segment writes its NUMERIC param; Default clears
+  // to undefined (absent). This is the "URL wiring" — the value written is exactly
+  // what the demo-URL layer serializes as strataColumnGap=<n> (or omits at 150).
+  it("Column gap writes the numeric param per segment; Default clears to undefined (one-hot)", () => {
+    const setColumnGap = vi.fn();
+    renderPanel({ setStrataColumnGap: setColumnGap });
+    const group = screen.getByRole("radiogroup", { name: "Strata column gap" });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Wide 200" }));
+    expect(setColumnGap).toHaveBeenLastCalledWith(200);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Extra 250" }));
+    expect(setColumnGap).toHaveBeenLastCalledWith(250);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Default 150" }));
+    expect(setColumnGap).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it("Row gap writes the numeric factor per segment; Default clears to undefined (one-hot)", () => {
+    const setRowGap = vi.fn();
+    renderPanel({ setStrataRowGap: setRowGap });
+    const group = screen.getByRole("radiogroup", { name: "Strata row gap" });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "1.25×" }));
+    expect(setRowGap).toHaveBeenLastCalledWith(1.25);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "1.5×" }));
+    expect(setRowGap).toHaveBeenLastCalledWith(1.5);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Default" }));
+    expect(setRowGap).toHaveBeenLastCalledWith(undefined);
+  });
+
+  // (b) The active segment is derived from the current value (undefined ⇒ Default).
+  it("reflects the current value as the checked segment (undefined ⇒ Default; 200 ⇒ Wide; 1.5 ⇒ 1.5×)", () => {
+    renderPanel();
+    const colGroupDefault = screen.getByRole("radiogroup", {
+      name: "Strata column gap",
+    });
+    expect(
+      within(colGroupDefault)
+        .getByRole("radio", { name: "Default 150" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    renderPanel({ strataColumnGap: 200, strataRowGap: 1.5 });
+    const colGroup = screen.getAllByRole("radiogroup", {
+      name: "Strata column gap",
+    })[1]!;
+    expect(
+      within(colGroup)
+        .getByRole("radio", { name: "Wide 200" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    const rowGroup = screen.getAllByRole("radiogroup", {
+      name: "Strata row gap",
+    })[1]!;
+    expect(
+      within(rowGroup)
+        .getByRole("radio", { name: "1.5×" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  // (c) Both controls are independent radiogroups rendered below Routing.
+  it("renders Column gap and Row gap as separate radiogroups below Routing", () => {
+    renderPanel();
+    expect(
+      screen.getByRole("radiogroup", { name: "Strata column gap" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("radiogroup", { name: "Strata row gap" }),
+    ).toBeTruthy();
+    // Help copy is wired: hovering a segment drives the shared help panel.
+    const rowGroup = screen.getByRole("radiogroup", { name: "Strata row gap" });
+    fireEvent.mouseEnter(within(rowGroup).getByRole("radio", { name: "1.25×" }));
+    expect(screen.getByLabelText("Option explanation").textContent).toContain(
+      "vertical space",
+    );
   });
 });

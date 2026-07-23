@@ -557,6 +557,10 @@ type LayoutSceneContext = {
   /** OD-15 de-band: dissolve this hierarchy level and every deeper one at the
    * Strata model build. Default `"none"` (byte-identical). */
   strataDeBandLevel?: DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   colorMode?: TerraformColorMode;
 };
 
@@ -727,6 +731,16 @@ async function buildPipelineLayoutSceneBody(
         // inherits `strataPackedScoringEpsilon`).
         ...(ctx.strataEdgeCrossCap !== undefined
           ? { strataEdgeCrossCap: ctx.strataEdgeCrossCap }
+          : {}),
+        // E3.3 spacing knobs — SEAM 2 (this builderOptions fan-in; the second
+        // silent-drop point the trap-#4 comment names). Raw forward, omit at the
+        // default (150 / 1)/absent so builderOptions never carries a default into
+        // the engine (byte-identity). Non-default forwards; the engine clamps.
+        ...(ctx.strataColumnGap !== undefined && ctx.strataColumnGap !== 150
+          ? { strataColumnGap: ctx.strataColumnGap }
+          : {}),
+        ...(ctx.strataRowGap !== undefined && ctx.strataRowGap !== 1
+          ? { strataRowGap: ctx.strataRowGap }
           : {}),
       };
       const pipelineScene = await buildPipeline(
@@ -1367,6 +1381,18 @@ export async function layoutTerraformFromSources(
     // inherits `strataPackedScoringEpsilon`).
     ...(options?.strataEdgeCrossCap !== undefined
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
+    // E3.3 spacing knobs — SEAM 1 (this sceneContext literal; trap-#4). Raw
+    // forward, omit at the default (150 / 1) or when absent so the literal never
+    // materializes a default own key (byte-identity). The engine clamps
+    // out-of-range values; here we only gate exact-default so an explicit default
+    // normalizes to absent.
+    ...(options?.strataColumnGap !== undefined &&
+    options?.strataColumnGap !== 150
+      ? { strataColumnGap: options.strataColumnGap }
+      : {}),
+    ...(options?.strataRowGap !== undefined && options?.strataRowGap !== 1
+      ? { strataRowGap: options.strataRowGap }
       : {}),
     colorMode: options?.colorMode,
   };

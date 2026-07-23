@@ -154,12 +154,16 @@ export const TerraformStrataSettingsEdges = ({
   strataEdgeClip,
   strataEdgeSmooth,
   strataEdgeStyle,
+  strataColumnGap,
+  strataRowGap,
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataChannelRoute,
   setStrataEdgeClip,
   setStrataEdgeSmooth,
   setStrataEdgeStyle,
+  setStrataColumnGap,
+  setStrataRowGap,
 }: {
   /** The parent's segmented-button factory — a closure over its hover/sticky
    * help state, reused for the DEV drawer's binary toggles. */
@@ -179,12 +183,20 @@ export const TerraformStrataSettingsEdges = ({
    * composes with every Routing preset, so it is a raw toggle (no segment). */
   strataEdgeSmooth: boolean;
   strataEdgeStyle: StrataEdgeStyle;
+  /** E3.3 inter-column gutter override (px). `undefined` ⇒ default (150). */
+  strataColumnGap: number | undefined;
+  /** E3.3 row-gap scale factor. `undefined` ⇒ default (1). */
+  strataRowGap: number | undefined;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataChannelRoute: (channelRoute: boolean) => void;
   setStrataEdgeClip: (edgeClip: boolean) => void;
   setStrataEdgeSmooth: (edgeSmooth: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
+  /** E3.3 — `undefined` clears back to the default gap. */
+  setStrataColumnGap: (columnGap: number | undefined) => void;
+  /** E3.3 — `undefined` clears back to the default factor. */
+  setStrataRowGap: (rowGap: number | undefined) => void;
 }) => {
   // Live scene for the edge diagnostic — the same non-deleted element array the
   // canvas renders (ExcalidrawElementsContext). Read at render so the stats
@@ -362,6 +374,52 @@ export const TerraformStrataSettingsEdges = ({
     });
   }
 
+  // E3.3 Spacing — two independent one-hot segmented controls. Each writes the
+  // NUMERIC option (or clears to undefined for "Default"). The active segment is
+  // derived from the current value; a URL-seeded off-preset value simply lands on
+  // none-active (Default reads active as the fallback) but still applies — the
+  // controls describe the NEXT import, the value keeps threading regardless.
+  const columnGapSegments: StrataRadioSegment[] = [
+    {
+      label: "Default 150",
+      active: strataColumnGap === undefined,
+      helpKey: "strata.spacing.columngap.default",
+      onSelect: () => setStrataColumnGap(undefined),
+    },
+    {
+      label: "Wide 200",
+      active: strataColumnGap === 200,
+      helpKey: "strata.spacing.columngap.wide",
+      onSelect: () => setStrataColumnGap(200),
+    },
+    {
+      label: "Extra 250",
+      active: strataColumnGap === 250,
+      helpKey: "strata.spacing.columngap.extra",
+      onSelect: () => setStrataColumnGap(250),
+    },
+  ];
+  const rowGapSegments: StrataRadioSegment[] = [
+    {
+      label: "Default",
+      active: strataRowGap === undefined,
+      helpKey: "strata.spacing.rowgap.default",
+      onSelect: () => setStrataRowGap(undefined),
+    },
+    {
+      label: "1.25×",
+      active: strataRowGap === 1.25,
+      helpKey: "strata.spacing.rowgap.wide",
+      onSelect: () => setStrataRowGap(1.25),
+    },
+    {
+      label: "1.5×",
+      active: strataRowGap === 1.5,
+      helpKey: "strata.spacing.rowgap.extra",
+      onSelect: () => setStrataRowGap(1.5),
+    },
+  ];
+
   // Honest live diagnostic (never a fabricated flattened count — the scene
   // can't prove by-design-straight vs. flattened post-hoc). Green when every
   // declared edge is reshaped or the style is Straight (nothing to reshape);
@@ -460,6 +518,20 @@ export const TerraformStrataSettingsEdges = ({
           Routing <span>send edges around or between cards</span>
         </>,
         routingSegments,
+      )}
+      {renderRadioGroup(
+        "Strata column gap",
+        <>
+          Column gap <span>widen the gutters between columns for arrows</span>
+        </>,
+        columnGapSegments,
+      )}
+      {renderRadioGroup(
+        "Strata row gap",
+        <>
+          Row gap <span>widen the vertical space between stacked cards</span>
+        </>,
+        rowGapSegments,
       )}
       {edgeDiagnostic}
       {/* DEV-only composition drawer: the four raw router toggles (and their

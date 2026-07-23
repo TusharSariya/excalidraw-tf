@@ -260,6 +260,15 @@ export const useTerraformImportDialog = ({
   const [strataEdgeCrossCap, setStrataEdgeCrossCap] = useState<
     number | undefined
   >(undefined);
+  // E3.3 spacing knobs — OPTIONAL, no seeded default (absent ⇒ the engine uses
+  // the current gap, byte-identical). The "Default" UI segment clears each back
+  // to undefined so a default import materializes no key anywhere downstream.
+  const [strataColumnGap, setStrataColumnGap] = useState<number | undefined>(
+    undefined,
+  );
+  const [strataRowGap, setStrataRowGap] = useState<number | undefined>(
+    undefined,
+  );
   // Private REST APIs at account+region level instead of nested in a VPC.
   // Strata-only: seeded ON (the strata view is the only one wired for it), but
   // `runTerraformImportWithView` view-scopes the value so it never reaches a
@@ -593,6 +602,10 @@ export const useTerraformImportDialog = ({
         // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
         // inherits `strataPackedScoringEpsilon`).
         ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+        // E3.3 spacing knobs — forward only when set (absent ⇒ current gap). The
+        // downstream layers omit at the exact default, so byte-identity holds.
+        ...(strataColumnGap !== undefined ? { strataColumnGap } : {}),
+        ...(strataRowGap !== undefined ? { strataRowGap } : {}),
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -759,6 +772,9 @@ export const useTerraformImportDialog = ({
           // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
           // inherits `strataPackedScoringEpsilon`).
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+          // E3.3 spacing knobs — forward only when set (absent ⇒ current gap).
+          ...(strataColumnGap !== undefined ? { strataColumnGap } : {}),
+          ...(strataRowGap !== undefined ? { strataRowGap } : {}),
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -890,6 +906,9 @@ export const useTerraformImportDialog = ({
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+        // E3.3 spacing knobs — forward only when set (absent ⇒ current gap).
+        ...(strataColumnGap !== undefined ? { strataColumnGap } : {}),
+        ...(strataRowGap !== undefined ? { strataRowGap } : {}),
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -1141,6 +1160,10 @@ export const useTerraformImportDialog = ({
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         strataEdgeCrossCap,
+        // E3.3 spacing knobs — persisted like strataEdgeCrossCap (undefined when
+        // at the default), so replay/share omit them at the default.
+        strataColumnGap,
+        strataRowGap,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -1190,6 +1213,8 @@ export const useTerraformImportDialog = ({
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
+    strataColumnGap,
+    strataRowGap,
     moduleLayoutOptions.mode,
   ]);
 
@@ -1240,6 +1265,8 @@ export const useTerraformImportDialog = ({
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
+    strataColumnGap,
+    strataRowGap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1312,6 +1339,8 @@ export const useTerraformImportDialog = ({
     setStrataCrossWeightPenetration,
     setStrataCrossWeightEdge,
     setStrataEdgeCrossCap,
+    setStrataColumnGap,
+    setStrataRowGap,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,
