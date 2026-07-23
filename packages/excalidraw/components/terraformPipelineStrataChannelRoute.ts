@@ -737,6 +737,7 @@ export function routeStrataChannelEdges(
       customData: {
         ...(plan.el.customData ?? {}),
         terraformRoutedPolyline: true,
+        terraformRoutedBy: "channel",
       },
     } as ExcalidrawElementSkeleton;
     meta.routed += 1;

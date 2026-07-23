@@ -447,6 +447,7 @@ export function routeStrataBorderExits(
       customData: {
         ...(el.customData ?? {}),
         terraformRoutedPolyline: true,
+        terraformRoutedBy: "border",
       },
     } as ExcalidrawElementSkeleton;
     meta.routed += 1;

@@ -31,6 +31,11 @@ import {
   tripwireCheckConnectorPointFinite,
   tripwireCheckEdgeSpan,
 } from "./terraformEdgeTripwire";
+import {
+  computeTerraformChordAnchors,
+  fixedPointForAbsolutePoint,
+  getCenterClippedBindingPoints,
+} from "./terraformEdgeAnchors";
 
 import type { PointerDownState } from "../types";
 
@@ -103,14 +108,24 @@ const chebyshevDistanceOutsideRect = (
   rh: number,
 ): number => Math.max(0, rx - px, px - (rx + rw), ry - py, py - (ry + rh));
 
-/** Drop a stale `terraformRoutedPolyline` marker, preserving all other customData. */
+/** Drop a stale `terraformRoutedPolyline` marker AND its `terraformRoutedBy`
+ * provenance (written by whichever pass stamped the polyline), preserving all
+ * other customData. */
 const stripRoutedPolylineMarker = (
   customData: ExcalidrawElement["customData"],
 ): ExcalidrawElement["customData"] => {
-  if (!customData || customData.terraformRoutedPolyline === undefined) {
+  if (
+    !customData ||
+    (customData.terraformRoutedPolyline === undefined &&
+      customData.terraformRoutedBy === undefined)
+  ) {
     return customData;
   }
-  const { terraformRoutedPolyline: _drop, ...rest } = customData;
+  const {
+    terraformRoutedPolyline: _drop,
+    terraformRoutedBy: _dropBy,
+    ...rest
+  } = customData;
   return rest;
 };
 
@@ -786,99 +801,6 @@ const deriveLayerState = (
   };
 };
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
-
-const getEdgePointTowardTarget = (
-  pos: { x: number; y: number },
-  w: number,
-  h: number,
-  target: { x: number; y: number },
-) => {
-  const cx = pos.x + w / 2;
-  const cy = pos.y + h / 2;
-  const dx = target.x - cx;
-  const dy = target.y - cy;
-
-  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
-    return {
-      x: cx,
-      y: cy,
-      fixedPoint: [0.5, 0.5] as [number, number],
-    };
-  }
-
-  const halfW = Math.max(w / 2, 1e-6);
-  const halfH = Math.max(h / 2, 1e-6);
-  const scale = 1 / Math.max(Math.abs(dx) / halfW, Math.abs(dy) / halfH);
-  const x = cx + dx * scale;
-  const y = cy + dy * scale;
-
-  return {
-    x,
-    y,
-    fixedPoint: [
-      clamp((x - pos.x) / w, 0, 1),
-      clamp((y - pos.y) / h, 0, 1),
-    ] as [number, number],
-  };
-};
-
-const getCenterClippedBindingPoints = (
-  posA: { x: number; y: number },
-  posB: { x: number; y: number },
-  wA: number,
-  hA: number,
-  wB: number,
-  hB: number,
-) => {
-  const centerA = { x: posA.x + wA / 2, y: posA.y + hA / 2 };
-  const centerB = { x: posB.x + wB / 2, y: posB.y + hB / 2 };
-
-  const start = getEdgePointTowardTarget(posA, wA, hA, centerB);
-  const end = getEdgePointTowardTarget(posB, wB, hB, centerA);
-
-  return {
-    startPoint: { x: start.x, y: start.y },
-    endPoint: { x: end.x, y: end.y },
-    startFixed: [0.5, 0.5] as [number, number],
-    endFixed: [0.5, 0.5] as [number, number],
-  };
-};
-
-const offsetLineSegment = (
-  startPoint: { x: number; y: number },
-  endPoint: { x: number; y: number },
-  offset: number,
-) => {
-  if (!offset) {
-    return { startPoint, endPoint };
-  }
-
-  const dx = endPoint.x - startPoint.x;
-  const dy = endPoint.y - startPoint.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const offsetX = (-dy / length) * offset;
-  const offsetY = (dx / length) * offset;
-
-  return {
-    startPoint: { x: startPoint.x + offsetX, y: startPoint.y + offsetY },
-    endPoint: { x: endPoint.x + offsetX, y: endPoint.y + offsetY },
-  };
-};
-
-const fixedPointForAbsolutePoint = (
-  rect: ExcalidrawBindableElement,
-  point: { x: number; y: number },
-): [number, number] => {
-  const w = rect.width || 1;
-  const h = rect.height || 1;
-  return [
-    clamp((point.x - rect.x) / w, 0, 1),
-    clamp((point.y - rect.y) / h, 0, 1),
-  ];
-};
-
 const isTerraformNetworkingDependencyEdge = (element: ExcalidrawElement) =>
   getTerraformEdgeLayer(element) === "networking" &&
   getCustomData(element).relationship &&
@@ -886,20 +808,31 @@ const isTerraformNetworkingDependencyEdge = (element: ExcalidrawElement) =>
   (getCustomData(element).relationship as { type?: string }).type ===
     "networking_dependency";
 
-/** Unordered pairs that have a DOT structural dependency line (generic or networking-primitive subset). */
-const collectTerraformStructuralDependencyPairKeys = (
-  elements: readonly ExcalidrawElement[],
-) => {
+/**
+ * Pure core of {@link collectTerraformStructuralDependencyPairKeys}: reads only
+ * `customData`, so it runs on element-time elements AND on skeleton-time
+ * skeletons (the strata edge-style pass needs the same pair-key set BEFORE
+ * conversion to match repair's 18px structural-dependency offset). Mirrors
+ * `getTerraformEdgeLayer` + `isTerraformNetworkingDependencyEdge` inline.
+ */
+export const collectTerraformStructuralDependencyPairKeysFromItems = (
+  items: readonly { customData?: Record<string, unknown> | null }[],
+): Set<string> => {
   const keys = new Set<string>();
-  for (const element of elements) {
-    const layer = getTerraformEdgeLayer(element);
-    if (
-      layer !== "dependency" &&
-      !(layer === "networking" && isTerraformNetworkingDependencyEdge(element))
-    ) {
+  for (const item of items) {
+    const cd = item.customData ?? {};
+    const layer = cd.terraformEdgeLayer;
+    const isNetworkingDependency =
+      layer === "networking" &&
+      typeof cd.relationship === "object" &&
+      cd.relationship !== null &&
+      (cd.relationship as { type?: string }).type === "networking_dependency";
+    if (layer !== "dependency" && !isNetworkingDependency) {
       continue;
     }
-    const relationship = getCustomData(element).relationship;
+    const relationship = cd.relationship as
+      | { source?: unknown; target?: unknown }
+      | undefined;
     if (
       typeof relationship?.source === "string" &&
       typeof relationship?.target === "string"
@@ -910,35 +843,57 @@ const collectTerraformStructuralDependencyPairKeys = (
   return keys;
 };
 
-const collectTerraformResourceRects = (
+/** Unordered pairs that have a DOT structural dependency line (generic or networking-primitive subset). */
+const collectTerraformStructuralDependencyPairKeys = (
   elements: readonly ExcalidrawElement[],
-) => {
-  const rects = new Map<string, ExcalidrawBindableElement>();
-  for (const element of elements) {
-    if (element.isDeleted || !isBindableElement(element)) {
+) => collectTerraformStructuralDependencyPairKeysFromItems(elements);
+
+/**
+ * Pure core of {@link collectTerraformResourceRects}: keys resource-role CARD
+ * rectangles (skip AWS icon glyphs, skip non-rectangles), last-wins on duplicate
+ * keys. Generic over `customData`-bearing items so the strata scene build can
+ * key the SKELETON rectangles the same way repair keys the converted elements —
+ * the styled polyline then clips to the SAME body rect repair validates against.
+ * (The original also gated on `isBindableElement`; every terraform card is a
+ * rectangle, and the explicit `type !== "rectangle"` skip below subsumes it, so
+ * the resulting map is identical.)
+ */
+export const collectTerraformResourceRectsByKey = <
+  T extends {
+    type?: string;
+    isDeleted?: boolean;
+    customData?: Record<string, unknown> | null;
+  },
+>(
+  items: readonly T[],
+): Map<string, T> => {
+  const rects = new Map<string, T>();
+  for (const item of items) {
+    if (item.isDeleted || item.type !== "rectangle") {
       continue;
     }
-    const customData = getCustomData(element);
+    const customData = item.customData ?? {};
     if (customData.terraformAwsIconGlyph === true) {
       continue;
     }
     if (customData.terraformVisibilityRole !== "resource") {
       continue;
     }
-    // Detached card labels mirror `terraformVisibilityKey` / role from the rectangle
-    // (`mirrorAndDetachTerraformResourceLabels`). Only **card** shapes may anchor edges;
-    // otherwise the map keeps the last matching element (often text) and bindings
-    // miss drags on the rectangle.
-    if (element.type !== "rectangle") {
-      continue;
-    }
-    const key = getTerraformVisibilityKey(element);
+    const key = getTerraformVisibilityKey(item as unknown as ExcalidrawElement);
     if (key) {
-      rects.set(key, element);
+      rects.set(key, item);
     }
   }
   return rects;
 };
+
+const collectTerraformResourceRects = (
+  elements: readonly ExcalidrawElement[],
+): Map<string, ExcalidrawBindableElement> =>
+  collectTerraformResourceRectsByKey(elements) as Map<
+    string,
+    ExcalidrawBindableElement
+  >;
 
 // --- Arrow geometry (mirrors backend binding math for client-side updates) ---
 
@@ -1085,9 +1040,13 @@ export const repairTerraformEdgeBindings = (
       const pairKey = [relationship.source, relationship.target]
         .sort()
         .join("|||");
-      const offset = structuralDependencyPairKeys.has(pairKey) ? 18 : 0;
-      const raw = getCenterClippedBindingPoints(posA, posB, wA, hA, wB, hB);
-      const shifted = offsetLineSegment(raw.startPoint, raw.endPoint, offset);
+      // Delegates to the SHARED anchor helper the strata edge-style pass also
+      // consumes, so a styled polyline's endpoints and repair's re-derived
+      // anchors are byte-identical (validate-before-trust gate passes by
+      // construction; see terraformEdgeAnchors.ts).
+      const shifted = computeTerraformChordAnchors(rectA, rectB, {
+        structuralPair: structuralDependencyPairKeys.has(pairKey),
+      });
       startPoint = shifted.startPoint;
       endPoint = shifted.endPoint;
       startFixed = fixedPointForAbsolutePoint(rectA, shifted.startPoint);

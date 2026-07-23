@@ -57,8 +57,14 @@ import {
 import {
   applyStrataEdgeStyle,
   type StrataEdgeStyle,
+  type StrataEdgeStyleAnchors,
   type StrataEdgeStyleMeta,
 } from "./terraformPipelineStrataEdgeStyle";
+import {
+  collectTerraformResourceRectsByKey,
+  collectTerraformStructuralDependencyPairKeysFromItems,
+} from "./terraformVisibility";
+import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import {
   isTerraformImportProfilerEnabled,
@@ -195,6 +201,41 @@ function firstLeafOf(
     }
   }
   return undefined;
+}
+
+/**
+ * Build the keyed-anchor inputs `applyStrataEdgeStyle` consumes so a styled
+ * polyline's endpoints coincide with the anchors `repairTerraformEdgeBindings`
+ * re-derives at element time (see terraformEdgeAnchors.ts). Both are collected
+ * from the skeleton BEFORE the frame connectors are appended:
+ *  - `bodyRectByKey`: the resource CARD body rects, keyed EXACTLY as
+ *    `collectTerraformResourceRects` keys the converted elements (same
+ *    last-wins). Icon injection only restacks the card's groupIds and repair
+ *    reads x/y/width/height, so the skeleton rect geometry equals the converted
+ *    body rect repair validates against.
+ *  - `structuralPairKeys`: the 18px structural-dependency offset set (empty in
+ *    strata scenes today — only `topologyFrameFlow`/`declaredDataFlow` edges
+ *    exist — but collected for parity so the offset can never drift from repair).
+ */
+function buildStrataEdgeStyleAnchors(
+  skeleton: readonly ExcalidrawElementSkeleton[],
+): StrataEdgeStyleAnchors {
+  const rectByKey = collectTerraformResourceRectsByKey(skeleton);
+  const bodyRectByKey = new Map<string, EdgeAnchorRect>();
+  for (const [key, rect] of rectByKey) {
+    const r = rect as unknown as EdgeAnchorRect;
+    bodyRectByKey.set(key, {
+      x: r.x,
+      y: r.y,
+      width: r.width,
+      height: r.height,
+    });
+  }
+  return {
+    bodyRectByKey,
+    structuralPairKeys:
+      collectTerraformStructuralDependencyPairKeysFromItems(skeleton),
+  };
 }
 
 /**
@@ -427,7 +468,12 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // ── Probe P2 edge STYLE (flag-gated). Runs LAST of the edge passes and
   // SKIPS any arrow the two routers above already stamped, so routing wins and
   // only un-routed chords get restyled. Absent / "straight" this never runs
-  // (byte-identical). ──
+  // (byte-identical). The styled polyline's endpoints are clipped against the
+  // keyed CARD body rects — the SAME rects `repairTerraformEdgeBindings`
+  // validates against — so repair keeps the stamp instead of flattening the
+  // curve. Both the rect map (keyed exactly as `collectTerraformResourceRects`)
+  // and the structural-dependency pair keys (repair's 18px offset) are collected
+  // from the skeleton HERE, before the frame connectors below are appended. ──
   const edgeStyle =
     input.edgeStyle && input.edgeStyle !== "straight"
       ? applyStrataEdgeStyle(
@@ -435,6 +481,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
           input.model,
           input.placement,
           input.edgeStyle,
+          buildStrataEdgeStyleAnchors(skeleton),
         )
       : undefined;
 

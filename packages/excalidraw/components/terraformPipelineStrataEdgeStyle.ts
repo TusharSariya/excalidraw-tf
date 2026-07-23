@@ -31,10 +31,20 @@
  * chords the routers left straight get styled. So `style="straight"` (default)
  * never runs — byte-identical off — and a routed scene keeps its routing.
  *
- * ENDPOINTS NEVER MOVE. Only interior path shape changes; el.x/el.y and the
- * final absolute point are preserved, so bindings survive the repair pass (the
- * `terraformRoutedPolyline` stamp keeps `repairTerraformEdgeBindings` from
- * flattening the polyline back to a chord).
+ * ENDPOINTS = REPAIR'S CHORD ANCHORS. When the caller supplies the keyed body
+ * rects (the same `terraformVisibilityRole:"resource"` cards
+ * `repairTerraformEdgeBindings` re-keys), each styled polyline's start/end are
+ * derived from `computeTerraformChordAnchors(bodyRectA, bodyRectB)` — the EXACT
+ * centre-clipped anchors repair re-derives at element time. Repair therefore
+ * finds the polyline endpoints already sitting on its recomputed anchors, so its
+ * validate-before-trust gate (`ROUTED_ANCHOR_TOLERANCE`) passes by construction
+ * and never flattens the styled curve. (Historically the endpoints were the
+ * skeleton chord's, which sit on the leaf FRAME border — > 48px outside the
+ * inset card body for tall composite cards — so repair flattened 97/145 curves.)
+ * Only interior path shape plus these body-clipped endpoints change; el.x/el.y
+ * stay put and the polyline is stored el-relative, exactly like the routers.
+ * When a keyed rect is missing (the edges repair itself leaves unchanged), the
+ * pass falls back to the skeleton chord endpoints.
  *
  * Determinism (C4′): no RNG, no clock; pure function of endpoints + style.
  * Clearance is read inside the function, never as a module-level const derived
@@ -47,6 +57,9 @@ import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
 import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
+import { computeTerraformChordAnchors } from "./terraformEdgeAnchors";
+
+import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
 
 import type {
   StrataBox,
@@ -607,10 +620,35 @@ export function removeOneLens(
 }
 
 /**
+ * Optional keyed-anchor inputs so the styled polyline's endpoints coincide with
+ * the anchors `repairTerraformEdgeBindings` re-derives (see the file header's
+ * "ENDPOINTS = REPAIR'S CHORD ANCHORS"). Built at skeleton time by
+ * `assembleStrataSceneSkeleton`:
+ *  - `bodyRectByKey`  — resource `terraformVisibilityKey` → CARD body rect, keyed
+ *    exactly as `collectTerraformResourceRects` keys the converted elements.
+ *  - `structuralPairKeys` — sorted `source|||target` pairs that also carry a
+ *    structural dependency line (drives repair's 18px offset).
+ * Absent (or a per-edge key miss) ⇒ the pass falls back to the skeleton chord
+ * endpoints for that edge, exactly the edges repair leaves unchanged.
+ */
+export type StrataEdgeStyleAnchors = {
+  bodyRectByKey: ReadonlyMap<string, EdgeAnchorRect>;
+  structuralPairKeys: ReadonlySet<string>;
+};
+
+/**
  * Scene-level pass: reshape, IN PLACE in the skeleton array, every un-routed
- * TFD arrow to the requested render style. Endpoints are preserved; only
- * interior path shape changes. Arrows already stamped `terraformRoutedPolyline`
- * (by edgeRouting / borderRoute) are skipped.
+ * TFD arrow to the requested render style. Only interior path shape (plus the
+ * body-clipped endpoints when `anchors` is supplied) changes. Arrows already
+ * stamped `terraformRoutedPolyline` (by channel / edgeRouting / borderRoute) are
+ * skipped, and every arrow this pass stamps additionally records
+ * `terraformRoutedBy:"style"` provenance.
+ *
+ * When `anchors` is supplied and BOTH of an edge's endpoint keys resolve to a
+ * body rect, the styled polyline's start/end are the shared
+ * `computeTerraformChordAnchors` anchors — identical to what repair re-derives,
+ * so repair's validate-before-trust gate passes and never flattens the curve.
+ * Missing anchors ⇒ fall back to the skeleton chord endpoints.
  *
  * `curve` style additionally routes genuine BACK-EDGES (target strictly left of
  * source) as an orbit arc over/under the occupied Y band (W3-1 orbit class),
@@ -624,6 +662,7 @@ export function applyStrataEdgeStyle(
   _model: StrataModel,
   placement: StrataPlacementResult,
   style: Exclude<StrataEdgeStyle, "straight">,
+  anchors?: StrataEdgeStyleAnchors,
 ): StrataEdgeStyleMeta {
   const meta: StrataEdgeStyleMeta = {
     style,
@@ -649,8 +688,6 @@ export function applyStrataEdgeStyle(
   type Rec = {
     i: number;
     el: ArrowSkeleton;
-    sx: number;
-    sy: number;
     start: Pt;
     end: Pt;
     poly: Pt[];
@@ -684,8 +721,26 @@ export function applyStrataEdgeStyle(
     const sx = el.x;
     const sy = el.y;
     const lastPt = pts[pts.length - 1]!;
-    const start: Pt = [sx, sy];
-    const end: Pt = [sx + lastPt[0], sy + lastPt[1]];
+    // Default endpoints = the skeleton chord (clipped against the leaf FRAME).
+    let start: Pt = [sx, sy];
+    let end: Pt = [sx + lastPt[0], sy + lastPt[1]];
+    // Prefer repair's chord anchors when both endpoint keys resolve to a body
+    // rect: the styled polyline then ends exactly where repair re-derives, so
+    // repair's validate-before-trust gate keeps the stamp (never flattens). A
+    // key miss falls back to the skeleton chord — the same edges repair leaves
+    // unchanged (terraformVisibility.ts: `!rectA || !rectB` early return).
+    if (anchors) {
+      const rectA = anchors.bodyRectByKey.get(rel.source);
+      const rectB = anchors.bodyRectByKey.get(rel.target);
+      if (rectA && rectB) {
+        const pairKey = [rel.source, rel.target].sort().join("|||");
+        const chord = computeTerraformChordAnchors(rectA, rectB, {
+          structuralPair: anchors.structuralPairKeys.has(pairKey),
+        });
+        start = [chord.startPoint.x, chord.startPoint.y];
+        end = [chord.endPoint.x, chord.endPoint.y];
+      }
+    }
     if (start[0] === end[0] && start[1] === end[1]) {
       meta.skipped += 1; // self-loop / zero-length — nothing to style
       continue;
@@ -752,8 +807,6 @@ export function applyStrataEdgeStyle(
     records.push({
       i,
       el,
-      sx,
-      sy,
       start,
       end,
       poly,
@@ -885,9 +938,23 @@ export function applyStrataEdgeStyle(
       maxX = Math.max(maxX, px);
       maxY = Math.max(maxY, py);
     }
+    // Origin the element at the polyline's FIRST point so points[0] === [0,0]
+    // and el.x/el.y === the absolute first point. `convertToExcalidrawElements`
+    // re-normalizes linear elements to points[0]=[0,0] anchored at el.x/el.y, so
+    // an element whose first point drifted from el.x/el.y (the anchor-clipped
+    // case) would otherwise be re-anchored back to the OLD frame-clipped origin,
+    // discarding the fix. When endpoints are unchanged (no anchors / fallback)
+    // poly[0] === the original [el.x, el.y], so el.x/el.y and points are
+    // byte-identical to the pre-Stage-C write-back.
+    const originX = poly[0]![0];
+    const originY = poly[0]![1];
     skeleton[r.i] = {
       ...r.el,
-      points: poly.map(([px, py]) => pointFrom<LocalPoint>(px - r.sx, py - r.sy)),
+      x: originX,
+      y: originY,
+      points: poly.map(([px, py]) =>
+        pointFrom<LocalPoint>(px - originX, py - originY),
+      ),
       width: maxX - minX,
       height: maxY - minY,
       // Step: round the orthogonal corners in the renderer (React Flow
@@ -897,6 +964,7 @@ export function applyStrataEdgeStyle(
       customData: {
         ...(r.el.customData ?? {}),
         terraformRoutedPolyline: true,
+        terraformRoutedBy: "style",
       },
     } as ExcalidrawElementSkeleton;
     meta.styled += 1;

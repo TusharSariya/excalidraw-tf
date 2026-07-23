@@ -485,6 +485,7 @@ export function routeStrataSkeletonEdges(
         // 2-point chord (its endpoints are already the centre-clipped chord
         // endpoints; only interior waypoints were added).
         terraformRoutedPolyline: true,
+        terraformRoutedBy: "route",
       },
     } as ExcalidrawElementSkeleton;
     meta.routed += 1;
