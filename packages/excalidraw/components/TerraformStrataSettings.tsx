@@ -59,6 +59,7 @@ export const TerraformStrataSettings = ({
   strataBorderRoute,
   strataChannelRoute,
   strataEdgeClip,
+  strataEdgeSmooth,
   strataEdgeStyle,
   strataBandDepth,
   strataDeBandLevel,
@@ -82,6 +83,7 @@ export const TerraformStrataSettings = ({
   setStrataBorderRoute,
   setStrataChannelRoute,
   setStrataEdgeClip,
+  setStrataEdgeSmooth,
   setStrataEdgeStyle,
   setStrataBandDepth,
   setStrataDeBandLevel,
@@ -109,6 +111,9 @@ export const TerraformStrataSettings = ({
    * terminate/originate on the leaf-cluster frame borders. Strata-only,
    * default off; the "Flow" one-hot Routing preset. */
   strataEdgeClip: boolean;
+  /** Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines —
+   * strata-only, default off; DEV drawer raw toggle only. */
+  strataEdgeSmooth: boolean;
   strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
   strataDeBandLevel: DeBandLevel;
@@ -143,6 +148,7 @@ export const TerraformStrataSettings = ({
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataChannelRoute: (channelRoute: boolean) => void;
   setStrataEdgeClip: (edgeClip: boolean) => void;
+  setStrataEdgeSmooth: (edgeSmooth: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
@@ -663,11 +669,13 @@ export const TerraformStrataSettings = ({
             strataBorderRoute={strataBorderRoute}
             strataChannelRoute={strataChannelRoute}
             strataEdgeClip={strataEdgeClip}
+            strataEdgeSmooth={strataEdgeSmooth}
             strataEdgeStyle={strataEdgeStyle}
             setStrataEdgeRouting={setStrataEdgeRouting}
             setStrataBorderRoute={setStrataBorderRoute}
             setStrataChannelRoute={setStrataChannelRoute}
             setStrataEdgeClip={setStrataEdgeClip}
+            setStrataEdgeSmooth={setStrataEdgeSmooth}
             setStrataEdgeStyle={setStrataEdgeStyle}
           />
           {/* Private API placement is no longer a control. owner-decisions.md

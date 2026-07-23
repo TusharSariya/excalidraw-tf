@@ -323,6 +323,17 @@ export type TerraformStrataSceneOptions = {
    * `"straight"`/absent the module never runs (byte-identical).
    */
   strataEdgeStyle?: StrataEdgeStyle;
+  /**
+   * Loop-3 E3.1 GLEE smoothing pass (default off): a final post-stamper pass
+   * (terraformPipelineStrataEdgeSmooth.ts) over every stamped routed polyline
+   * (channel/route/border/clip provenance; "style" records are already smooth
+   * and skipped) — inflection shortcut, collinear dedupe, chamfer corner
+   * rounding with a 12px inflated-card clearance test, and `roundness:null`
+   * so the rendered stroke is EXACTLY the computed path. Endpoints,
+   * provenance and clip anchors are never touched, so repair keeps every
+   * smoothed polyline. Flag-off the module never runs (byte-identical).
+   */
+  strataEdgeSmooth?: boolean;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -485,6 +496,8 @@ export async function buildTerraformStrataExcalidrawScene(
   // off — the module never runs unless a non-"straight" style is requested).
   const strataEdgeStyle: StrataEdgeStyle =
     options?.strataEdgeStyle ?? "straight";
+  // Loop-3 E3.1 GLEE smoothing pass (scene-build), default off.
+  const strataEdgeSmooth = options?.strataEdgeSmooth === true;
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
   // `strataBandDepth: "root"`; explicit `strataBandDepth` always wins, so the
   // alias only applies when the enum is absent. Default "account" = the frozen
@@ -554,6 +567,8 @@ export async function buildTerraformStrataExcalidrawScene(
     // Probe P2 edge style echo — present only for a non-"straight" style so the
     // default/off meta stays byte-identical.
     ...(strataEdgeStyle !== "straight" ? { strataEdgeStyle } : {}),
+    // Loop-3 E3.1 smoothing echo — present only when on (byte-identity off).
+    ...(strataEdgeSmooth ? { strataEdgeSmooth } : {}),
     // OD-15 relocate master flag echo — present only when live (flag-off meta
     // byte-identical).
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
@@ -1155,6 +1170,9 @@ export async function buildTerraformStrataExcalidrawScene(
       // Probe P2 edge style: key rides only for a non-"straight" style so the
       // default input literal (and the scene build) stay byte-identical.
       ...(strataEdgeStyle !== "straight" ? { edgeStyle: strataEdgeStyle } : {}),
+      // Loop-3 E3.1 smoothing: key rides only when on (byte-identity off).
+      // Runs LAST among the edge passes inside the scene build.
+      ...(strataEdgeSmooth ? { edgeSmooth: true } : {}),
       // OD-15 de-band: the scene build's `topologyPathForCluster` call stamps
       // `customData.terraformTopologyPath`, which T9 slice classification
       // reconstructs the hull tree from. It MUST see the same EFFECTIVE level
@@ -1336,6 +1354,27 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeStyleOrbitReverted: scene.edgeStyle.orbitReverted,
               strataEdgeStyleReentryClamped: scene.edgeStyle.reentryClamped,
               strataEdgeStyleLensSwaps: scene.edgeStyle.lensSwaps,
+            }
+          : {}),
+        // Loop-3 E3.1 smoothing observability — present only when the pass ran.
+        // `Smoothed` is the routed polylines processed (roundness forced off);
+        // the kink/collinear/corner counters attribute the geometry deltas and
+        // `PointsBefore/After` expose the net simplification.
+        ...(scene.edgeSmooth
+          ? {
+              strataEdgeSmoothSmoothed: scene.edgeSmooth.smoothed,
+              strataEdgeSmoothSkippedStyle: scene.edgeSmooth.skippedStyle,
+              strataEdgeSmoothSkippedUnrouted: scene.edgeSmooth.skippedUnrouted,
+              strataEdgeSmoothKinksRemoved: scene.edgeSmooth.kinksRemoved,
+              strataEdgeSmoothCollinearRemoved:
+                scene.edgeSmooth.collinearRemoved,
+              strataEdgeSmoothCornersRounded: scene.edgeSmooth.cornersRounded,
+              strataEdgeSmoothCornersBlocked: scene.edgeSmooth.cornersBlocked,
+              strataEdgeSmoothCornersBudget: scene.edgeSmooth.cornersBudget,
+              strataEdgeSmoothMidpointRetained:
+                scene.edgeSmooth.midpointRetained,
+              strataEdgeSmoothPointsBefore: scene.edgeSmooth.pointsBefore,
+              strataEdgeSmoothPointsAfter: scene.edgeSmooth.pointsAfter,
             }
           : {}),
         // M3 curve-flatten telemetry — the styled-vs-survived gap made permanent.

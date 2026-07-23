@@ -129,6 +129,9 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Strata loop-2 E2: container-boundary clip pass (Graphviz lhead/ltail).
    * Default off. */
   strataEdgeClip?: boolean;
+  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
+   * Default off. */
+  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
@@ -203,6 +206,7 @@ export const runTerraformImportWithView = async ({
   strataBorderRoute,
   strataChannelRoute,
   strataEdgeClip,
+  strataEdgeSmooth,
   strataEdgeStyle,
   strataBandCompact,
   strataBandDepth,
@@ -292,6 +296,7 @@ export const runTerraformImportWithView = async ({
           strataBorderRoute,
           strataChannelRoute,
           strataEdgeClip,
+          strataEdgeSmooth,
           strataEdgeStyle,
           strataBandCompact,
           strataBandDepth,
@@ -375,6 +380,9 @@ export type RunTerraformPresetImportOptions = {
   /** Strata loop-2 E2: container-boundary clip pass (Graphviz lhead/ltail).
    * Default off. */
   strataEdgeClip?: boolean;
+  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
+   * Default off. */
+  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: "straight" | "step" | "curve";
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
@@ -472,6 +480,7 @@ export const runTerraformPresetImport = async (
     strataBorderRoute: options.strataBorderRoute,
     strataChannelRoute: options.strataChannelRoute,
     strataEdgeClip: options.strataEdgeClip,
+    strataEdgeSmooth: options.strataEdgeSmooth,
     strataEdgeStyle: options.strataEdgeStyle,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,

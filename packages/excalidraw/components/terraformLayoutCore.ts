@@ -495,6 +495,9 @@ type LayoutSceneContext = {
   /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail).
    * Default off. */
   strataEdgeClip?: boolean;
+  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
+   * Default off. */
+  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: StrataEdgeStyle;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
@@ -669,6 +672,7 @@ async function buildPipelineLayoutSceneBody(
         strataBorderRoute: ctx.strataBorderRoute,
         strataChannelRoute: ctx.strataChannelRoute,
         strataEdgeClip: ctx.strataEdgeClip,
+        strataEdgeSmooth: ctx.strataEdgeSmooth,
         // Raw forward — omit at default ("straight")/absent so builderOptions
         // never carries a default style into the engine. Non-default forwards.
         ...(ctx.strataEdgeStyle !== undefined &&
@@ -1301,6 +1305,7 @@ export async function layoutTerraformFromSources(
     strataBorderRoute: options?.strataBorderRoute === true,
     strataChannelRoute: options?.strataChannelRoute === true,
     strataEdgeClip: options?.strataEdgeClip === true,
+    strataEdgeSmooth: options?.strataEdgeSmooth === true,
     // Raw forward — omit at default ("straight")/absent so the sceneContext
     // never materializes a default style key. Non-default forwards.
     ...(options?.strataEdgeStyle !== undefined &&

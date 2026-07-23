@@ -47,9 +47,7 @@ const v2Sources = () =>
  * still-hidden) routed polyline slip through. Both sides of every identity
  * comparison carry the same deleted set, so including them is sound. */
 const geometryTuples = (elements: readonly ExcalidrawElement[]): string[] =>
-  elements
-    .map((el) => `${el.x},${el.y},${el.width},${el.height}`)
-    .sort();
+  elements.map((el) => `${el.x},${el.y},${el.width},${el.height}`).sort();
 
 /** Arrow polyline fingerprint: origin + every relative point + the routed
  * marker. Stronger than geometryTuples (which sees only the bbox), so a
@@ -507,7 +505,7 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "threads strataEdgeClip end-to-end (both silent-drop literals -> scene build -> meta echo + clipped counts + terraformRoutedBy:\"clip\" stamps; default-off byte-identical)",
+    'threads strataEdgeClip end-to-end (both silent-drop literals -> scene build -> meta echo + clipped counts + terraformRoutedBy:"clip" stamps; default-off byte-identical)',
     async () => {
       const off = await buildStrata({
         strataSweeps: 4,
@@ -615,6 +613,86 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(composed.meta.strataEdgeRoutingRouted).toBe(0);
       // Clip polylines are never flattened by repair (typed frame-face gate).
       expect(composedFlattenedBy.clip ?? 0).toBe(0);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
+    "threads strataEdgeSmooth end-to-end (both silent-drop literals -> scene build -> meta echo + smoothing counters + roundness:null; default-off byte-identical) — loop-3 E3.1",
+    async () => {
+      // Smoothing only has stamped polylines to work on when a stamper ran, so
+      // both arms ride the clip pass; the off/on delta isolates the smoother.
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default off: no smoothing meta keys emitted (byte-identical off).
+      expect(off.meta.strataEdgeSmooth).toBeUndefined();
+      expect(off.meta.strataEdgeSmoothSmoothed).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: true,
+        strataEdgeSmooth: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH silent-drop literals (sceneContext + builderOptions) →
+      // engine echo, and the pass actually processed stamped routed polylines.
+      expect(on.meta.strataEdgeSmooth).toBe(true);
+      expect(typeof on.meta.strataEdgeSmoothSmoothed).toBe("number");
+      expect(on.meta.strataEdgeSmoothSmoothed as number).toBeGreaterThan(0);
+      expect(typeof on.meta.strataEdgeSmoothPointsBefore).toBe("number");
+      expect(typeof on.meta.strataEdgeSmoothPointsAfter).toBe("number");
+
+      // HARD CONSTRAINTS at the E2E seam: provenance is never restamped and
+      // endpoints never move, so repair's keep/flatten verdict on the clip
+      // population is IDENTICAL with and without smoothing. (This COMPACT
+      // preset has a pre-existing flattened clip subset — the smoother must
+      // not grow OR shrink it; the flattenedBy === {} absolute gate lives on
+      // the owner-full scoreboard arm, where the clip gate keeps all 145.)
+      const offKeptBy = off.meta.strataRoutedPolylinesKeptBy as Record<
+        string,
+        number
+      >;
+      const onKeptBy = on.meta.strataRoutedPolylinesKeptBy as Record<
+        string,
+        number
+      >;
+      const offFlattenedBy = (off.meta.strataRoutedPolylinesFlattenedBy ??
+        {}) as Record<string, number>;
+      const onFlattenedBy = (on.meta.strataRoutedPolylinesFlattenedBy ??
+        {}) as Record<string, number>;
+      expect(onKeptBy.clip).toBe(offKeptBy.clip);
+      expect(onFlattenedBy.clip ?? 0).toBe(offFlattenedBy.clip ?? 0);
+
+      // E3.1 render-fidelity contract: smoothed records draw EXACTLY the
+      // computed polyline — roundness null on every clip-provenance arrow.
+      const clipArrows = on.elements.filter((el) => {
+        const cd = el.customData as Record<string, unknown> | undefined;
+        return el.type === "arrow" && cd?.terraformRoutedBy === "clip";
+      });
+      expect(clipArrows.length).toBeGreaterThan(0);
+      for (const arrow of clipArrows) {
+        expect((arrow as { roundness?: unknown }).roundness).toBeNull();
+      }
+
+      // Explicit false is byte-identical to the flag-off scene (the module
+      // never runs), checked at bbox AND polyline level.
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: true,
+        strataEdgeSmooth: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
+      );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );

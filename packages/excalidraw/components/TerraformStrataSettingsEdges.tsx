@@ -152,11 +152,13 @@ export const TerraformStrataSettingsEdges = ({
   strataBorderRoute,
   strataChannelRoute,
   strataEdgeClip,
+  strataEdgeSmooth,
   strataEdgeStyle,
   setStrataEdgeRouting,
   setStrataBorderRoute,
   setStrataChannelRoute,
   setStrataEdgeClip,
+  setStrataEdgeSmooth,
   setStrataEdgeStyle,
 }: {
   /** The parent's segmented-button factory — a closure over its hover/sticky
@@ -173,11 +175,15 @@ export const TerraformStrataSettingsEdges = ({
   strataBorderRoute: boolean;
   strataChannelRoute: boolean;
   strataEdgeClip: boolean;
+  /** Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines —
+   * composes with every Routing preset, so it is a raw toggle (no segment). */
+  strataEdgeSmooth: boolean;
   strataEdgeStyle: StrataEdgeStyle;
   setStrataEdgeRouting: (edgeRouting: boolean) => void;
   setStrataBorderRoute: (borderRoute: boolean) => void;
   setStrataChannelRoute: (channelRoute: boolean) => void;
   setStrataEdgeClip: (edgeClip: boolean) => void;
+  setStrataEdgeSmooth: (edgeSmooth: boolean) => void;
   setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
 }) => {
   // Live scene for the edge diagnostic — the same non-deleted element array the
@@ -380,11 +386,13 @@ export const TerraformStrataSettingsEdges = ({
     let breakdown = "";
     if (routersPresent) {
       const parts: string[] = [];
-      (["clip", "channel", "route", "border", "style"] as const).forEach((key) => {
-        if (by[key] > 0) {
-          parts.push(`${by[key]} ${STRATA_ROUTED_BY_LABELS[key]}`);
-        }
-      });
+      (["clip", "channel", "route", "border", "style"] as const).forEach(
+        (key) => {
+          if (by[key] > 0) {
+            parts.push(`${by[key]} ${STRATA_ROUTED_BY_LABELS[key]}`);
+          }
+        },
+      );
       const straight = declared - reshaped;
       if (straight > 0) {
         parts.push(`${straight} straight`);
@@ -484,7 +492,9 @@ export const TerraformStrataSettingsEdges = ({
               )}
             </div>
             {strataEdgeClip &&
-              (strataEdgeRouting || strataBorderRoute || strataChannelRoute) && (
+              (strataEdgeRouting ||
+                strataBorderRoute ||
+                strataChannelRoute) && (
                 <div className="TerraformImportModal__couplingHint">
                   <span aria-hidden="true">ⓘ</span>
                   <span>
@@ -568,6 +578,23 @@ export const TerraformStrataSettingsEdges = ({
                 </span>
               </div>
             )}
+          </div>
+          <div role="group" aria-label="Strata edge smoothing">
+            <span className="TerraformImportModal__controlLabel">
+              Smooth routed edges{" "}
+              <span>
+                Smooths routed edges: rounds corners, straightens kinks, and
+                draws exactly the computed path.
+              </span>
+            </span>
+            <div className="TerraformImportModal__segmentedControl">
+              {option("Off", !strataEdgeSmooth, "strata.edgesmooth.off", () =>
+                setStrataEdgeSmooth(false),
+              )}
+              {option("On", strataEdgeSmooth, "strata.edgesmooth.on", () =>
+                setStrataEdgeSmooth(true),
+              )}
+            </div>
           </div>
         </details>
       )}

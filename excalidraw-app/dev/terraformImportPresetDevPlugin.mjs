@@ -124,6 +124,8 @@ export const LAYOUT_BOOLEAN_PARAMS = [
   ["strataBandCompact", "strataBandCompact"],
   ["strataChannelRoute", "strataChannelRoute"],
   ["strataEdgeClip", "strataEdgeClip"],
+  // Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines.
+  ["strataEdgeSmooth", "strataEdgeSmooth"],
   ["strataChainRelocate", "strataChainRelocate"],
   ["strataCoordCascade", "strataCoordCascade"],
   ["strataLeafShift", "strataLeafShift"],
@@ -288,7 +290,9 @@ const LAYOUT_PARAM_CATALOG = {
     strataChannelRoute:
       "Probe P1 inter-rank channel routing (owner's dummy-column idea) — orthogonal per-channel track routing of inter-rank TFD arrows. layoutMode=strata.",
     strataEdgeClip:
-      "Loop-2 E2 container-boundary clip (Graphviz lhead/ltail) — declared dataflow arrows terminate/originate ON the leaf-cluster frame borders with LR port discipline and hull port chains. Runs FIRST among the edge passes and owns eligible net-forward cross-cluster edges (stamps terraformRoutedBy:\"clip\"; the other routers skip them). layoutMode=strata.",
+      'Loop-2 E2 container-boundary clip (Graphviz lhead/ltail) — declared dataflow arrows terminate/originate ON the leaf-cluster frame borders with LR port discipline and hull port chains. Runs FIRST among the edge passes and owns eligible net-forward cross-cluster edges (stamps terraformRoutedBy:"clip"; the other routers skip them). layoutMode=strata.',
+    strataEdgeSmooth:
+      "Loop-3 E3.1 GLEE smoothing (refine-straighten-smooth) — final pass over every stamped routed polyline (channel/route/border/clip): kink shortcut, collinear dedupe, chamfer corner rounding, roundness:null exact-path rendering. Runs LAST among the edge passes; endpoints/provenance/anchors untouched. layoutMode=strata.",
     strataChainRelocate:
       "Exclusive-downstream chain relocate — post-A7 rigid Y co-translation of a unit and its exclusive downstream group. layoutMode=strata.",
     strataCoordCascade:
@@ -348,7 +352,7 @@ const LAYOUT_PARAM_CATALOG = {
   },
   timings: {
     param: "timings",
-    note: 'Set `?timings=1` (alias `?profileTimings=1`) to include a `timings` array (terraformImportProfiler spans, sorted by selfMs). NOTE: the profiler toggle is `timings`, NOT `profile` — `profile` is the layout-profile enum (readable|balanced|compact). All layout requests are serialized through a single queue so the module-global profiler never interleaves spans across concurrent requests.',
+    note: "Set `?timings=1` (alias `?profileTimings=1`) to include a `timings` array (terraformImportProfiler spans, sorted by selfMs). NOTE: the profiler toggle is `timings`, NOT `profile` — `profile` is the layout-profile enum (readable|balanced|compact). All layout requests are serialized through a single queue so the module-global profiler never interleaves spans across concurrent requests.",
   },
   responseShape: [
     "requested",
@@ -633,8 +637,7 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
     computePierceMetrics,
     strataGeometryHash,
     detectEdgeCollapse,
-  } =
-    helpers;
+  } = helpers;
   // W5 finding: headless import pins every edge layer OFF
   // (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false), so the TFD arrows arrive
   // soft-deleted and a metrics pass over visible elements alone is
@@ -958,6 +961,13 @@ const buildLayoutProofPayload = (
       // count). Clip runs FIRST among all the edge passes.
       strataEdgeClip: meta.strataEdgeClip ?? false,
       strataEdgeClipClipped: meta.strataEdgeClipClipped ?? null,
+      // Loop-3 E3.1 smoothing echoes — flagMeta writes the flag present-only-
+      // when-active and packs the counters only when the pass ran
+      // (scene.edgeSmooth present), so `?? default`/`?? null` read the applied
+      // state honestly: a non-null `strataEdgeSmoothSmoothed` proves the pass
+      // processed the stamped routed polylines end-to-end.
+      strataEdgeSmooth: meta.strataEdgeSmooth ?? false,
+      strataEdgeSmoothSmoothed: meta.strataEdgeSmoothSmoothed ?? null,
       // Wave-1 edge-routing probe echoes — flagMeta writes each present-only-
       // when-active, so `?? default` reads the applied state honestly (a value
       // proves the engine ran the toggle; the routed/styled counts prove
@@ -1302,8 +1312,7 @@ export const terraformImportPresetDevPlugin = () => ({
 
             // reset → enable → layout → summary → restore prior enabled-state.
             // Safe because we hold the queue lock (no interleaving possible).
-            const priorEnabled =
-              profilerMod.isTerraformImportProfilerEnabled();
+            const priorEnabled = profilerMod.isTerraformImportProfilerEnabled();
             let timingsSummary = null;
             if (timingsRequested) {
               profilerMod.terraformImportProfilerReset();
@@ -1314,8 +1323,7 @@ export const terraformImportPresetDevPlugin = () => ({
               result = await core.layoutTerraformFromSources(sources, options);
             } finally {
               if (timingsRequested) {
-                timingsSummary =
-                  profilerMod.terraformImportProfilerSummary();
+                timingsSummary = profilerMod.terraformImportProfilerSummary();
                 profilerMod.setTerraformImportProfilerEnabled(priorEnabled);
               }
             }

@@ -83,6 +83,9 @@ describe("canonical audit URL pin (c08 guard 1)", () => {
       // strataChannelRoute = probe P1; strataEdgeClip = loop-2 E2 clip pass.
       strataChannelRoute: false,
       strataEdgeClip: false,
+      // Loop-3 E3.1 smoothing — genuinely-new engine option (default off; not
+      // set by the audit URL, so it resolves false).
+      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataBandDepth: "root",
       strataSiftRelocate: true,

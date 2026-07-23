@@ -213,6 +213,9 @@ export type TerraformPlanParsingOptions = {
   /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail).
    * Default off. */
   strataEdgeClip?: boolean;
+  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
+   * Default off. */
+  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style (`straight` default | `step` | `curve`).
    * Plain string union (not the engine's `StrataEdgeStyle`) to avoid the
    * planParsing→layout import cycle; mirrors that domain exactly. */

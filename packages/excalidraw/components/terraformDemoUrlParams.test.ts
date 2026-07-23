@@ -695,6 +695,57 @@ describe("terraformDemoUrlParams", () => {
       expect(offUrl).not.toContain("strataEdgeClip");
     });
 
+    it("parses + round-trips strataEdgeSmooth (loop-3 E3.1) and omits it when absent", () => {
+      const on = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeSmooth=1",
+      );
+      expect(on).toMatchObject({ strataEdgeSmooth: true });
+      const off = parseTerraformDemoUrlParams(
+        "?preset=demo&view=strata&strataEdgeSmooth=0",
+      );
+      expect(off).toMatchObject({ strataEdgeSmooth: false });
+      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
+      expect(absent!.strataEdgeSmooth).toBeUndefined();
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeSmooth=maybe",
+        ),
+      ).toBeNull();
+      // build → parse fixpoint, and absence never emits the param.
+      const url = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+        strataEdgeSmooth: true,
+      });
+      expect(url).toContain("strataEdgeSmooth=1");
+      expect(
+        parseTerraformDemoUrlParams(url.slice(url.indexOf("?"))),
+      ).toMatchObject({ strataEdgeSmooth: true });
+      const absentUrl = buildTerraformDemoUrl({
+        presetId: "demo",
+        view: "strata",
+      });
+      expect(absentUrl).not.toContain("strataEdgeSmooth");
+    });
+
+    it("emits strataEdgeSmooth from a strata snapshot only when set (truthy-only)", () => {
+      // collectTerraformDemoParams maps the snapshot's strataEdgeSmooth
+      // truthy-only (like strataEdgeClip), so a default-off scene stays
+      // byte-identical.
+      const onUrl = buildTerraformDemoUrlFromSettings({
+        ...baseSnapshot,
+        view: "strata",
+        strataEdgeSmooth: true,
+      });
+      expect(onUrl).toContain("strataEdgeSmooth=1");
+      const offUrl = buildTerraformDemoUrlFromSettings({
+        ...baseSnapshot,
+        view: "strata",
+        strataEdgeSmooth: false,
+      });
+      expect(offUrl).not.toContain("strataEdgeSmooth");
+    });
+
     it("omits strataPackedEps when the URL does not carry it", () => {
       const params = parseTerraformDemoUrlParams("?preset=demo&view=strata");
       expect(params).not.toBeNull();

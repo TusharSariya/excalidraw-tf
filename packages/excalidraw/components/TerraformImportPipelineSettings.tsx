@@ -537,6 +537,25 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
       ],
     },
   },
+  "strata.edgesmooth.off": {
+    title: "Smooth routed edges · Off",
+    body: "Routed and clipped arrows keep their raw waypoint geometry, rendered through Excalidraw's default through-point spline — orthogonal runs can read wavy and long lanes can bow into arcs. Byte-identical scenes (the smoothing module never runs).",
+    dev: {
+      implements:
+        "strataEdgeSmooth=false: smoothStrataRoutedEdges never runs; stamped routed polylines keep their points and inherited roundness:{type:2} (byte-identical).",
+    },
+  },
+  "strata.edgesmooth.on": {
+    title: "Smooth routed edges · On — E3.1",
+    body: "Smooths routed edges: rounds corners, straightens kinks, and draws exactly the computed path. A final finishing pass over every routed/clipped arrow — S-kinks are shortcut where the corridor is clear of cards, collinear points are deduped, remaining corners get a chamfer that escalates until it clears every card by 12px, and the rendered stroke follows the computed polyline exactly (no spline overshoot). Endpoints never move.",
+    dev: {
+      implements:
+        'strataEdgeSmooth=true: smoothStrataRoutedEdges (GLEE refine-straighten-smooth) runs LAST among the edge passes over terraformRoutedBy channel/route/border/clip records ("style" skipped — already exact-path): inflection shortcut to fixpoint (triangle-vs-card-rect clearance), collinear dedupe with the ≥3-point floor, chamfer rounding with k∈{1/2,3/4,7/8} escalation against 12px-inflated card rects, ≤16 points/edge, roundness:null write-back. Endpoints/provenance/clip anchors untouched, so repair keeps every smoothed polyline.',
+      refs: [
+        "Nachmanson, Robertson & Lee 2007 — Drawing Graphs with GLEE (refine-straighten-smooth)",
+      ],
+    },
+  },
   "strata.edgestyle.straight": {
     title: "Edge style · Straight",
     body: "No reshaping — edges are direct lines (default).",

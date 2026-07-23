@@ -240,6 +240,9 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail).
    * Default off. */
   strataEdgeClip?: boolean;
+  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines.
+   * Default off. */
+  strataEdgeSmooth?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
   strataEdgeStyle?: import("./terraformPipelineStrataEdgeStyle").StrataEdgeStyle;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
@@ -343,6 +346,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataBorderRoute"
   | "strataChannelRoute"
   | "strataEdgeClip"
+  | "strataEdgeSmooth"
   | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
@@ -398,6 +402,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataBorderRoute: session.strataBorderRoute === true,
   strataChannelRoute: session.strataChannelRoute === true,
   strataEdgeClip: session.strataEdgeClip === true,
+  strataEdgeSmooth: session.strataEdgeSmooth === true,
   // Raw forward — omit at default ("straight")/absent so a replayed session
   // never re-materializes a default style key. Non-default styles forward.
   ...(session.strataEdgeStyle !== undefined &&
@@ -500,6 +505,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataBorderRoute"
   | "strataChannelRoute"
   | "strataEdgeClip"
+  | "strataEdgeSmooth"
   | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
@@ -566,6 +572,7 @@ function buildPipelineFamilyLayoutOptions(
     strataBorderRoute: options.strataBorderRoute === true,
     strataChannelRoute: options.strataChannelRoute === true,
     strataEdgeClip: options.strataEdgeClip === true,
+    strataEdgeSmooth: options.strataEdgeSmooth === true,
     // Raw forward — omit at default ("straight")/absent so neither the engine
     // request nor the persisted session snapshot carries a default style key.
     ...(options.strataEdgeStyle !== undefined &&

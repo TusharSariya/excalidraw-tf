@@ -52,6 +52,12 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * borders with LR port discipline and hull port chains — probe lever,
    * default off / byte-identical (the module never runs). */
   strataEdgeClip: false,
+  /** Loop-3 E3.1 GLEE smoothing pass (refine-straighten-smooth): final
+   * finishing pass over every stamped routed polyline (channel/route/border/
+   * clip; "style" records already smooth) — kink shortcut, collinear dedupe,
+   * chamfer corner rounding, `roundness:null` exact-path rendering — probe
+   * lever, default off / byte-identical (the module never runs). */
+  strataEdgeSmooth: false,
   /** Probe P2 edge render style (React-Flow smoothstep/bezier transplant):
    * `"straight"` default is byte-identical (the style module never runs);
    * `"step"` | `"curve"` reshape un-routed TFD arrow chords. Plain string
@@ -133,6 +139,8 @@ export const resolveStrataDemoOptions = (params: {
   strataChannelRoute?: boolean;
   /** Loop-2 container-boundary clip pass (Graphviz lhead/ltail). */
   strataEdgeClip?: boolean;
+  /** Loop-3 E3.1 GLEE smoothing pass over stamped routed polylines. */
+  strataEdgeSmooth?: boolean;
   /** Probe P2 edge render style. Plain string union (not `StrataEdgeStyle`) per
    * the no-layout-import rule above. */
   strataEdgeStyle?: "straight" | "step" | "curve";
@@ -222,6 +230,9 @@ export const resolveStrataDemoOptions = (params: {
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataChannelRoute,
     strataEdgeClip:
       params.strataEdgeClip ?? TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeClip,
+    strataEdgeSmooth:
+      params.strataEdgeSmooth ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeSmooth,
     // Forward the style RAW: omit at the default "straight" (never materialize a
     // default own key), matching the band-depth/de-band cuts above. Non-default
     // styles forward and reach the engine.

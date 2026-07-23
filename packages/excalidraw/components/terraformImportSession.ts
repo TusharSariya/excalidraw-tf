@@ -89,6 +89,8 @@ export type TerraformImportSession = {
   strataBorderRoute?: boolean;
   /** Strata loop-2: container-boundary clip pass (Graphviz lhead/ltail). */
   strataEdgeClip?: boolean;
+  /** Strata loop-3 E3.1: GLEE smoothing pass over stamped routed polylines. */
+  strataEdgeSmooth?: boolean;
   /** Strata probe P1: inter-rank channel routing. Default off. */
   strataChannelRoute?: boolean;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */

@@ -190,6 +190,7 @@ describe("TerraformImportModal", () => {
       // was a pre-existing stale gap, strataEdgeClip is this change's addition.
       strataChannelRoute: false,
       strataEdgeClip: false,
+      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -260,6 +261,7 @@ describe("TerraformImportModal", () => {
       // was a pre-existing stale gap, strataEdgeClip is this change's addition.
       strataChannelRoute: false,
       strataEdgeClip: false,
+      strataEdgeSmooth: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,

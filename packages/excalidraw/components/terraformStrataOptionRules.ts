@@ -41,6 +41,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataBorderRoute",
   "strataChannelRoute",
   "strataEdgeClip",
+  "strataEdgeSmooth",
   "strataEdgeStyle",
   "strataBandCompact",
   "strataBandDepth",
@@ -250,6 +251,21 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
   ["strataEdgeClip", "strataEdgeRouting"],
   ["strataEdgeClip", "strataBorderRoute"],
   ["strataEdgeClip", "strataEdgeStyle"],
+  // Loop-3 E3.1 smoothing composes OVER every stamper: it runs LAST among the
+  // edge passes (terraformPipelineStrataSceneBuild.ts — after clip / channel /
+  // edgeRouting / border / style), reads their `terraformRoutedPolyline` +
+  // `terraformRoutedBy` stamps, and only simplifies the stamped polylines'
+  // interior points + forces `roundness:null`. It never restamps provenance
+  // and skips "style" records (already exact-path), so no ordering conflict
+  // exists — declared independent so the totality guard has these pairs on
+  // record. Inert without at least one stamper on (nothing stamped ⇒ nothing
+  // to smooth), but deliberately NOT keyed in STRATA_INERT_UNLESS: the pass
+  // still runs and still emits its meta echo, which the proof API reads.
+  ["strataEdgeSmooth", "strataEdgeClip"],
+  ["strataEdgeSmooth", "strataChannelRoute"],
+  ["strataEdgeSmooth", "strataEdgeRouting"],
+  ["strataEdgeSmooth", "strataBorderRoute"],
+  ["strataEdgeSmooth", "strataEdgeStyle"],
   // NOTE: bandDepth × deBandLevel is NOT independent — it is a declared
   // value-conflict (STRATA_VALUE_CONFLICTS), so it is deliberately absent here.
 ];

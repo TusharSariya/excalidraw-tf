@@ -202,6 +202,16 @@ const armMetrics = (scene: Scene) => {
     },
     crossings: diag.dataflow.crossings,
     ownCardReentry: diag.badPatterns.endpointOcclusion.ownCardReentryCount,
+    smoothMeta: {
+      smoothed: num(meta.strataEdgeSmoothSmoothed),
+      kinksRemoved: num(meta.strataEdgeSmoothKinksRemoved),
+      collinearRemoved: num(meta.strataEdgeSmoothCollinearRemoved),
+      cornersRounded: num(meta.strataEdgeSmoothCornersRounded),
+      cornersBlocked: num(meta.strataEdgeSmoothCornersBlocked),
+      cornersBudget: num(meta.strataEdgeSmoothCornersBudget),
+      pointsBefore: num(meta.strataEdgeSmoothPointsBefore),
+      pointsAfter: num(meta.strataEdgeSmoothPointsAfter),
+    },
     repairMeta: {
       styled: num(meta.strataEdgeStyleStyled),
       routedKept: num(meta.strataRoutedPolylinesKept),
@@ -264,6 +274,14 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       const ownerClip = armMetrics(
         await buildArm(false, { strataEdgeClip: true }),
       );
+      // Sixth arm (loop-3 E3.1): owner config + clip + the GLEE smoothing
+      // pass — the finishing treatment over the clip polylines (kink
+      // shortcut, collinear dedupe, chamfer rounding, roundness:null
+      // exact-path rendering). The critical gate: NOTHING the smoother
+      // touched may get flattened by repair (flattenedBy stays empty).
+      const ownerClipSmooth = armMetrics(
+        await buildArm(false, { strataEdgeClip: true, strataEdgeSmooth: true }),
+      );
 
       for (const [arm, m] of [
         ["owner-full", ownerFull],
@@ -271,6 +289,7 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
         ["owner-routing", ownerRouting],
         ["owner-channel", ownerChannel],
         ["owner-clip", ownerClip],
+        ["owner-clip-smooth", ownerClipSmooth],
       ] as const) {
         // eslint-disable-next-line no-console
         console.log(
@@ -282,6 +301,7 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
             crossings: m.crossings,
             ownCardReentry: m.ownCardReentry,
             repairMeta: m.repairMeta,
+            smoothMeta: m.smoothMeta,
           })}`,
         );
       }
@@ -292,6 +312,7 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       assertScoreboardSane(ownerRouting);
       assertScoreboardSane(ownerChannel);
       assertScoreboardSane(ownerClip);
+      assertScoreboardSane(ownerClipSmooth);
       expect(ownerRouting.scoreboard.edgeCount).toBe(
         ownerFull.scoreboard.edgeCount,
       );
@@ -305,6 +326,29 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       // polyline on the unmoved import geometry — the typed frame-face gate
       // validates them by construction.
       expect(ownerClip.repairMeta.flattenedBy.clip ?? 0).toBe(0);
+
+      // ── Loop-3 E3.1 gates on the owner-clip-smooth arm. ──
+      expect(ownerClipSmooth.scoreboard.edgeCount).toBe(
+        ownerFull.scoreboard.edgeCount,
+      );
+      // THE critical gate: nothing the smoother touched got flattened —
+      // endpoints never move and provenance is never restamped, so repair's
+      // flatten census must be EMPTY on this arm.
+      expect(ownerClipSmooth.repairMeta.flattenedBy).toEqual({});
+      // The smoothed clip population survives repair exactly as un-smoothed.
+      expect(ownerClipSmooth.repairMeta.keptBy.clip ?? 0).toBe(
+        ownerClip.repairMeta.keptBy.clip ?? 0,
+      );
+      // LR port discipline is untouched by smoothing.
+      expect(ownerClipSmooth.scoreboard.wrongFaceCrossings).toBe(0);
+      // Rounding must not ADD card touches (the 12px clearance test should
+      // only ever improve it) — gate against the clip arm's own count.
+      expect(ownerClipSmooth.scoreboard.cardOverlapCount).toBeLessThanOrEqual(
+        ownerClip.scoreboard.cardOverlapCount,
+      );
+      // The pass actually ran and simplified: smoothed > 0 and the point
+      // census moved (or at worst stayed flat — never grew past the budget).
+      expect(ownerClipSmooth.smoothMeta.smoothed ?? 0).toBeGreaterThan(0);
 
       // The declared-dataflow edge set is non-empty and its geometry is measured.
       expect(ownerFull.scoreboard.edgeCount).toBeGreaterThan(0);

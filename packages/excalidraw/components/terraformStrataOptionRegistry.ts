@@ -196,6 +196,16 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "loop-2 E2.1+E2.2 (edge-routing-research 2026-07-22, Graphviz lhead/ltail): container-boundary clip pass — declared dataflow arrows terminate/originate ON the leaf-cluster frame borders with LR port discipline and hull port chains; runs FIRST among ALL the edge passes and owns eligible net-forward cross-cluster edges (stamps terraformRoutedBy:\"clip\", so channelRoute/edgeRouting/borderRoute/edgeStyle skip its edges); default off byte-identical (module never runs), truthy-only emit; surfaced as the 'Flow' segment of the one-hot Routing control + the DEV drawer raw toggle",
   },
   {
+    urlParam: "strataEdgeSmooth",
+    optionKey: "strataEdgeSmooth",
+    kind: "boolean",
+    default: false,
+    surface: "advanced",
+    emitClass: "C2",
+    decidedNow: false,
+    note: "loop-3 E3.1 (GLEE refine-straighten-smooth, Nachmanson/Robertson/Lee GD2007): final smoothing pass over every stamped routed polyline (channel/route/border/clip; 'style' records already smooth) — inflection shortcut, collinear dedupe, chamfer corner rounding with 12px inflated-card clearance, roundness:null exact-path rendering; endpoints/provenance/clip anchors untouched (repair keeps every smoothed polyline); default off byte-identical (module never runs), truthy-only emit; DEV drawer raw toggle only (no Routing segment — it composes with every preset)",
+  },
+  {
     urlParam: "strataEdgeStyle",
     optionKey: "strataEdgeStyle",
     kind: "enum",

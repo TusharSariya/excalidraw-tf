@@ -14,9 +14,9 @@ import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 // a per-test element list from a hoisted holder so the provenance-breakdown test
 // can inject clip-stamped arrows; the default [] leaves every other test in its
 // pre-import (declared 0 → placeholder) state, byte-identical to before.
-const hoistedScene = vi.hoisted(
-  () => ({ elements: [] as NonDeletedExcalidrawElement[] }),
-);
+const hoistedScene = vi.hoisted(() => ({
+  elements: [] as NonDeletedExcalidrawElement[],
+}));
 vi.mock("./App", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./App")>()),
   useExcalidrawElements: () => hoistedScene.elements,
@@ -49,6 +49,7 @@ const baseProps = (): Props => ({
   strataBorderRoute: false,
   strataChannelRoute: false,
   strataEdgeClip: false,
+  strataEdgeSmooth: false,
   strataEdgeStyle: "straight" as const,
   strataBandDepth: "account" as StrataHullRole,
   strataDeBandLevel: "none" as DeBandLevel,
@@ -72,6 +73,7 @@ const baseProps = (): Props => ({
   setStrataBorderRoute: vi.fn(),
   setStrataChannelRoute: vi.fn(),
   setStrataEdgeClip: vi.fn(),
+  setStrataEdgeSmooth: vi.fn(),
   setStrataEdgeStyle: vi.fn(),
   setStrataBandDepth: vi.fn(),
   setStrataDeBandLevel: vi.fn(),
@@ -188,6 +190,29 @@ describe("TerraformStrataSettings DOM identity", () => {
     expect(
       within(disclosure as HTMLElement).getByText(/Developer: routing passes/i),
     ).toBeTruthy();
+  });
+
+  it("exposes the E3.1 smooth toggle in the DEV drawer and wires it to its setter", () => {
+    // Loop-3 E3.1: the smoothing pass composes with every Routing preset, so it
+    // is a RAW toggle beside the router toggles in the DEV drawer — never a
+    // Routing segment. (import.meta.env.DEV is true under vitest.)
+    const setSmooth = vi.fn();
+    renderPanel({ setStrataEdgeSmooth: setSmooth });
+    const smoothGroup = screen.getByRole("group", {
+      name: "Strata edge smoothing",
+    });
+    const disclosure = smoothGroup.closest("details");
+    expect(disclosure).not.toBeNull();
+    expect(
+      within(disclosure as HTMLElement).getByText(/Developer: routing passes/i),
+    ).toBeTruthy();
+    fireEvent.click(within(smoothGroup).getByRole("button", { name: "On" }));
+    expect(setSmooth).toHaveBeenCalledWith(true);
+    // The one-hot Routing radiogroup never grew a smoothing segment.
+    const routing = screen.getByRole("radiogroup", {
+      name: "Strata edge routing preset",
+    });
+    expect(within(routing).queryByText(/smooth/i)).toBeNull();
   });
 
   it("keeps chain relocate + coordinate cascade off the Standard surface (advanced disclosure)", () => {
@@ -367,6 +392,9 @@ const StatefulPanel = (initial: Partial<Props> = {}) => {
     const [edgeClip, setEdgeClip] = React.useState<boolean>(
       initial.strataEdgeClip ?? false,
     );
+    const [edgeSmooth, setEdgeSmooth] = React.useState<boolean>(
+      initial.strataEdgeSmooth ?? false,
+    );
     return (
       <TerraformStrataSettings
         {...baseProps()}
@@ -376,11 +404,13 @@ const StatefulPanel = (initial: Partial<Props> = {}) => {
         strataChannelRoute={channelRoute}
         strataBorderRoute={borderRoute}
         strataEdgeClip={edgeClip}
+        strataEdgeSmooth={edgeSmooth}
         setStrataEdgeStyle={setEdgeStyle}
         setStrataEdgeRouting={setEdgeRouting}
         setStrataChannelRoute={setChannelRoute}
         setStrataBorderRoute={setBorderRoute}
         setStrataEdgeClip={setEdgeClip}
+        setStrataEdgeSmooth={setEdgeSmooth}
       />
     );
   };
@@ -657,9 +687,7 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
         .getAttribute("aria-checked"),
     ).toBe("true");
     // No Custom segment / banner for a single active router.
-    expect(
-      within(routing).queryByRole("radio", { name: "Custom" }),
-    ).toBeNull();
+    expect(within(routing).queryByRole("radio", { name: "Custom" })).toBeNull();
     expect(screen.queryByText(/custom routing combination/i)).toBeNull();
   });
 
