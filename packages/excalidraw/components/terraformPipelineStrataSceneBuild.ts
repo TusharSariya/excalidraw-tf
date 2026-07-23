@@ -431,6 +431,24 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
   );
 
+  // ── Shared body-rect anchor authority. The CARD body rects (+ the structural-
+  // dependency pair keys) `repairTerraformEdgeBindings` re-derives at element
+  // time (terraformEdgeAnchors.ts). Collected ONCE here — BEFORE the channel
+  // router — so BOTH the channel router and the edge-style pass below re-origin
+  // their polyline endpoints onto the SAME anchors repair validates against:
+  // composite cards put the leaf FRAME border >48px from the inset body rect, so
+  // frame-clipped endpoints get flattened back to chords. A pure read of the
+  // card rectangles — the edge passes rewrite only arrow points/x/y/customData,
+  // never card skeletons, so hoisting ahead of them is read-only-safe. Computed
+  // only when a consumer needs it, so the default-off scene skips the collection
+  // and stays byte-identical. ──
+  const needsEdgeAnchors =
+    input.channelRoute === true ||
+    (input.edgeStyle !== undefined && input.edgeStyle !== "straight");
+  const edgeStyleAnchors = needsEdgeAnchors
+    ? buildStrataEdgeStyleAnchors(skeleton)
+    : undefined;
+
   // ── Probe P1 channel routing (flag-gated). Runs FIRST among the edge passes
   // and owns the polyline topology: each inter-rank TFD arrow becomes an
   // orthogonal exit-stub → per-channel vertical run → entry-stub polyline. It
@@ -438,6 +456,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // (all first-stamper-wins) SKIP the edges it routed — no double-routing. When
   // a non-"straight" edgeStyle is requested, its channel polylines are emitted
   // with roundness so the renderer softens their corners (minimal integration).
+  // Its polyline endpoints are re-origined onto `edgeStyleAnchors` (the SAME body
+  // rects repair validates) so the stamped channel polylines survive repair.
   // Absent the flag this never runs (byte-identical). ──
   const channelRoute = input.channelRoute
     ? routeStrataChannelEdges(
@@ -445,6 +465,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
         input.model,
         input.placement,
         input.edgeStyle !== undefined && input.edgeStyle !== "straight",
+        edgeStyleAnchors,
       )
     : undefined;
 
@@ -483,7 +504,9 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
           input.model,
           input.placement,
           input.edgeStyle,
-          buildStrataEdgeStyleAnchors(skeleton),
+          // Same shared anchor authority the channel router above consumed —
+          // hoisted so both passes clip endpoints to the identical body rects.
+          edgeStyleAnchors,
         )
       : undefined;
 

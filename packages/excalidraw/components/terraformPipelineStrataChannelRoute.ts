@@ -60,9 +60,33 @@
  * Same-rank (flat, source-col === target-col) edges are left as chords in v1
  * (they have no channel to traverse; a dot-style same-rank rule is future work).
  *
- * ENDPOINTS NEVER MOVE. `el.x`/`el.y` and the final absolute point equal the
- * centre-clipped chord endpoints, so bindings survive `repairTerraformEdgeBindings`
- * (the `terraformRoutedPolyline` stamp keeps it from flattening the polyline).
+ * ENDPOINTS = REPAIR ANCHORS (wave-4 E1.2). When the shared body-rect anchor
+ * authority (`buildStrataEdgeStyleAnchors`, terraformPipelineStrataSceneBuild.ts)
+ * resolves BOTH of an edge's endpoint keys, `el.x`/`el.y` and the final absolute
+ * point are re-origined onto `computeTerraformChordAnchors(bodyRectA, bodyRectB)`
+ * — the EXACT centre-clipped BODY-rect endpoints `repairTerraformEdgeBindings`
+ * re-derives at element time (terraformEdgeAnchors.ts). Repair therefore finds
+ * the channel polyline's endpoints already sitting on its recomputed anchors and
+ * KEEPS the `terraformRoutedPolyline` stamp instead of flattening the polyline
+ * back to a chord. Previously the endpoints were clipped against the leaf FRAME
+ * box, which for tall composite cards sits >48px (ROUTED_ANCHOR_TOLERANCE) from
+ * the inset body rect — so repair flattened ~107/145 channel edges (full) / 18
+ * (compact). A per-edge key MISS (endpoint not a keyed body rect) falls back to
+ * the frame-clipped chord endpoints — exactly the edges repair leaves unchanged.
+ * `el.x`/`el.y` are re-anchored at `poly[0]` (the absolute first point) because
+ * `convertToExcalidrawElements` re-normalizes `points[0]`→[0,0]; an element whose
+ * first point drifted from `el.x`/`el.y` would otherwise be re-anchored back to
+ * the OLD frame-clipped origin, discarding the fix. Absent the `anchors` argument
+ * every edge takes the chord fallback, byte-identical to the pre-E1.2 pass.
+ *
+ * DEGENERATE ROUTES (E1.2). Body-anchor clipping makes a horizontally-aligned
+ * pair's chord EXACTLY collinear, so its orthogonal route simplifies to a 2-point
+ * straight line — which repair flattens on its `points.length > 2` gate REGARDLESS
+ * of the endpoints (a 2-point routed marker has no route to preserve). To keep
+ * such a genuinely-routed edge from being re-counted as a flatten, the perpendicular
+ * exit stub is retained as an explicit interior waypoint, so every stamped channel
+ * polyline stays >2 points and survives repair; the stub is collinear with the
+ * straight run, so the rendered edge is visually unchanged.
  *
  * Determinism (C4′): no RNG, no clock. Column order = X then content key; edge
  * order = skeleton emission order; track colouring/ordering are pure sorts with
@@ -76,10 +100,15 @@ import { pointFrom } from "@excalidraw/math";
 import type { LocalPoint } from "@excalidraw/math";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
+import { computeTerraformChordAnchors } from "./terraformEdgeAnchors";
 import { PIPELINE_FRAME_PAD } from "./terraformPipelineLayoutShared";
 import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
 import { compareStrataContentKeys } from "./terraformPipelineStrataTypes";
 
+// Type-only: the shared body-rect anchor authority `buildStrataEdgeStyleAnchors`
+// produces (terraformPipelineStrataSceneBuild.ts). edgeStyle does NOT import this
+// module, so there is no runtime import cycle.
+import type { StrataEdgeStyleAnchors } from "./terraformPipelineStrataEdgeStyle";
 import type {
   StrataBox,
   StrataHullNode,
@@ -419,15 +448,27 @@ function edgePlan(
  * Scene-level pass: rewrite, IN PLACE in the skeleton array, every inter-rank
  * TFD arrow into a channel polyline. Two passes: (1) plan every routable edge
  * and collect its vertical runs per channel; (2) colour + order tracks per
- * channel, then build each polyline, apply the pierce guard, and emit. Only
- * `points`/`width`/`height`/`roundness`/`customData` change; endpoints
- * (`el.x`/`el.y` and the final point) never move.
+ * channel, then build each polyline, apply the pierce guard, and emit.
+ * `points`/`width`/`height`/`roundness`/`customData` change, and `el.x`/`el.y`
+ * are re-origined onto the shared repair anchors (`anchors`) when both endpoint
+ * keys resolve to a body rect — else they stay at the frame-clipped chord origin
+ * (see the file header "ENDPOINTS = REPAIR ANCHORS").
+ *
+ * @param anchors The shared body-rect anchor authority
+ *   (`buildStrataEdgeStyleAnchors`). When supplied and BOTH of an edge's endpoint
+ *   keys resolve, each routed edge's start/end are the
+ *   `computeTerraformChordAnchors` body-clipped endpoints — identical to what
+ *   `repairTerraformEdgeBindings` re-derives, so its validate-before-trust gate
+ *   keeps the stamp. Absent (or a per-edge key miss) ⇒ the frame-clipped chord
+ *   endpoints, exactly the edges repair leaves unchanged (byte-identical to the
+ *   pre-E1.2 pass).
  */
 export function routeStrataChannelEdges(
   skeleton: ExcalidrawElementSkeleton[],
   model: StrataModel,
   placement: StrataPlacementResult,
   softenCorners: boolean,
+  anchors?: StrataEdgeStyleAnchors,
 ): StrataChannelRouteMeta {
   const ancestors = leafAncestorsOf(model.hullRoot);
   const { columns, columnOf } = deriveStrataColumns(placement);
@@ -525,11 +566,31 @@ export function routeStrataChannelEdges(
       meta.flat += 1; // same-rank flat edge — chord in v1
       continue;
     }
-    const sx = el.x;
-    const sy = el.y;
     const lastPt = pts[pts.length - 1]!;
-    const start: Pt = [sx, sy];
-    const end: Pt = [sx + lastPt[0], sy + lastPt[1]];
+    // Default endpoints = the skeleton chord, clipped against the leaf FRAME box.
+    // These are the endpoints repair leaves alone when an anchor is missing.
+    let start: Pt = [el.x, el.y];
+    let end: Pt = [el.x + lastPt[0], el.y + lastPt[1]];
+    // Prefer the shared body-rect anchors (the SAME endpoints
+    // `repairTerraformEdgeBindings` re-derives at element time) when BOTH
+    // endpoint keys resolve to a card body rect — keyed exactly as the edge-style
+    // pass keys them (`customData.relationship` source/target). Repair then finds
+    // the routed polyline already sitting on its recomputed anchors and keeps the
+    // stamp instead of flattening the channel polyline back to a chord. A key
+    // miss falls back to the frame-clipped chord — the same edges repair leaves
+    // unchanged (terraformVisibility.ts `!rectA || !rectB` early return).
+    if (anchors) {
+      const rectA = anchors.bodyRectByKey.get(rel.source);
+      const rectB = anchors.bodyRectByKey.get(rel.target);
+      if (rectA && rectB) {
+        const pairKey = [rel.source, rel.target].sort().join("|||");
+        const chord = computeTerraformChordAnchors(rectA, rectB, {
+          structuralPair: anchors.structuralPairKeys.has(pairKey),
+        });
+        start = [chord.startPoint.x, chord.startPoint.y];
+        end = [chord.endPoint.x, chord.endPoint.y];
+      }
+    }
 
     const srcAnc = ancestors.get(rel.source);
     const tgtAnc = ancestors.get(rel.target);
@@ -549,7 +610,7 @@ export function routeStrataChannelEdges(
     const { channels, yLevels } = edgePlan(
       srcCol,
       tgtCol,
-      sy,
+      start[1],
       end[1],
       columnBoxes,
     );
@@ -695,7 +756,28 @@ export function routeStrataChannelEdges(
     }
     poly.push([ex - dir * stub, ey2]);
     poly.push([ex, ey2]);
-    const simplified = simplifyPolyline(poly);
+    let simplified = simplifyPolyline(poly);
+    if (simplified.length < 3) {
+      // Degenerate axis-aligned route: when the (body-anchored) endpoints are
+      // exactly collinear — horizontally-aligned cards clip to the same Y — the
+      // orthogonal detour is geometrically a straight chord and `simplifyPolyline`
+      // reduces it to 2 points. `repairTerraformEdgeBindings` flattens ANY 2-point
+      // routed marker on its `points.length > 2` gate (independent of the
+      // endpoints), stripping the stamp — so a straight channel edge would be
+      // re-counted as flattened even though its endpoints already sit on the body
+      // cards. Keep the perpendicular EXIT STUB as an explicit interior waypoint so
+      // the polyline stays a genuine >2-point routed shape repair preserves; it is
+      // collinear with the straight run, so the rendered edge is visually
+      // unchanged. The stub is clamped to half the span so a short edge never
+      // overshoots its endpoint.
+      const span = Math.abs(ex - sx);
+      const stubX = sx + dir * Math.min(stub, span / 2);
+      simplified = [
+        [sx, sy],
+        [stubX, sy],
+        [ex, ey2],
+      ];
+    }
 
     // Guard ("never emit worse"): accept only if the route pierces FEWER foreign
     // boxes than the chord, OR the same number AND its pierced SET is a subset of
@@ -723,8 +805,18 @@ export function routeStrataChannelEdges(
       maxX = Math.max(maxX, px);
       maxY = Math.max(maxY, py);
     }
+    // Origin the element at the polyline's FIRST point (`plan.start` === poly[0])
+    // so points[0] === [0,0] and el.x/el.y === the absolute first point. When the
+    // anchors resolved, that first point is the body-rect anchor repair re-derives
+    // — `convertToExcalidrawElements` re-normalizes points[0]→[0,0] anchored at
+    // el.x/el.y, so an element whose first point drifted from el.x/el.y (the
+    // anchor-clipped case) would otherwise be re-anchored back to the OLD
+    // frame-clipped origin, discarding the fix. When endpoints fell back to the
+    // chord, [sx, sy] === the original [el.x, el.y], so this is byte-identical.
     skeleton[plan.index] = {
       ...plan.el,
+      x: sx,
+      y: sy,
       points: simplified.map(([px, py]) =>
         pointFrom<LocalPoint>(px - sx, py - sy),
       ),
