@@ -1200,7 +1200,7 @@ describe("routeStrataEdgeClip — lane clears rendered-frame extents (P1b)", () 
     return { root, leafBoxes, boxedHulls };
   };
 
-  it("an over-the-top lane strictly clears every foreign RENDERED leaf + hull frame (0 interior violations)", () => {
+  it("an over-the-top lane strictly clears every foreign leaf frame + the flown-over (tier-1) hull frames — endpoint-host hulls relaxed (0 interior violations)", () => {
     const { root, leafBoxes, boxedHulls } = laneBandFixture();
     // e1 → a1 is net-backward across the whole band: it must lane over m1/m2/m3.
     const skeleton = [tfdArrow("e1", "a1", [800, 60], [80, 60])];

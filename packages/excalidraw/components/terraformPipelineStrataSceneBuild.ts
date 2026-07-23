@@ -67,6 +67,7 @@ import {
 import {
   smoothStrataRoutedEdges,
   type StrataEdgeSmoothMeta,
+  type StrataLeafFrameRect,
 } from "./terraformPipelineStrataEdgeSmooth";
 import {
   collectTerraformResourceRectsByKey,
@@ -306,6 +307,47 @@ function collectStrataHullFrameRects(
     rects.push({ x: r.x, y: r.y, width: r.width, height: r.height });
   }
   return rects;
+}
+
+/** The leaf-cluster frame roles the E3.1 smoothing pass treats as an OBSTACLE
+ * class (loop-3 P0-a) — the frames the clip pass routes AROUND. Both carry a
+ * `terraformPrimaryAddress` (satellite = its parent primary's address), so an
+ * edge's own source/target clusters are exempted by address. */
+const SMOOTH_LEAF_ROLES: ReadonlySet<string> = new Set([
+  "primaryCluster",
+  "satelliteCluster",
+]);
+
+/** Collect the emitted leaf-cluster frame rects (keyed by cluster address) for
+ * the smoothing pass's P0-a obstacle class — read from the SKELETON so the pass
+ * sees exactly the frames the scoreboard's strict-interior walk measures
+ * against. Multiple frames can share an address (a primary + its satellites), so
+ * this is a flat list, not a last-wins map — the per-edge exemption filters by
+ * address regardless of duplicates. */
+function collectStrataLeafFrameRects(
+  skeleton: readonly ExcalidrawElementSkeleton[],
+): StrataLeafFrameRect[] {
+  const out: StrataLeafFrameRect[] = [];
+  for (const el of skeleton) {
+    if ((el as { type?: string }).type !== "frame") {
+      continue;
+    }
+    const cd = (el as { customData?: Record<string, unknown> }).customData;
+    const role = cd?.terraformTopologyRole;
+    if (typeof role !== "string" || !SMOOTH_LEAF_ROLES.has(role)) {
+      continue;
+    }
+    const address = cd?.terraformPrimaryAddress;
+    if (typeof address !== "string") {
+      continue;
+    }
+    const r = el as unknown as EdgeAnchorRect;
+    out.push({
+      address,
+      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+    });
+  }
+  return out;
 }
 
 /**
@@ -630,17 +672,23 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // and clip anchors are NEVER touched, so both repair gates (typed clip face
   // ±2px; card-anchored 48px) validate the smoothed polylines unchanged.
   // Consumes the CARD body rects from `edgeStyleAnchors` (hull interiors
-  // deliberately untested — cheap obstacle class) plus the emitted HULL frame
-  // rects for the LR-discipline guard: a smoothing diagonal must never cross a
-  // hull's top/bottom border (it would re-introduce the wrong-face crossings
-  // the clip discipline eliminated). Absent the flag this never runs
-  // (byte-identical). ──
+  // deliberately untested — cheap obstacle class), the emitted HULL frame
+  // rects for the LR-discipline guard (a smoothing diagonal must never cross a
+  // hull's top/bottom border — it would re-introduce the wrong-face crossings
+  // the clip discipline eliminated), and (P0-a) the emitted LEAF-cluster frame
+  // rects as a third obstacle class so the shortcut/chamfer never re-cuts a
+  // frame the clip pass routed around (each edge exempts its own clusters).
+  // Absent the flag this never runs (byte-identical). ──
   const edgeSmooth =
     input.edgeSmooth && edgeStyleAnchors
       ? smoothStrataRoutedEdges(
           skeleton,
           [...edgeStyleAnchors.bodyRectByKey.values()],
           collectStrataHullFrameRects(skeleton),
+          // P0-a: foreign leaf-cluster frames are a third obstacle class — the
+          // shortcut/chamfer clearance tests must not re-cut a frame the clip
+          // pass routed around (each edge exempts its own source/target).
+          collectStrataLeafFrameRects(skeleton),
         )
       : undefined;
 

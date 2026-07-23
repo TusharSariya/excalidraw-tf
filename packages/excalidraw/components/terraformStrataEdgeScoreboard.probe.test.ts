@@ -220,6 +220,13 @@ const laneQualityCensus = (
     crossings: number;
   }>;
   laneFrameViolations: Array<{ rel: string; frame: string; seg?: number[] }>;
+  /** P1-b (loop-3): the SAME strict-interior frame walk widened to ALL routed
+   * edges (not just lane-stamped) — REPORTED ONLY, no threshold assert. Counts
+   * (routed edge, foreign leaf-cluster frame) strict-interior violation PAIRS
+   * plus the distinct edges responsible; the ~13 non-lane cuts on the clip arm
+   * are wave-next work, so this keeps the number watched run-to-run. */
+  routedFrameCutPairs: number;
+  routedFrameCutEdges: number;
   detourTop: Array<{
     rel: string;
     ratio: number;
@@ -382,6 +389,31 @@ const laneQualityCensus = (
     }
   }
 
+  // P1-b (loop-3): widen the SAME strict-interior frame walk to ALL routed
+  // edges (not just lane-stamped) — REPORTED ONLY. A non-lane routed polyline
+  // that strictly enters a foreign leaf-cluster frame is wave-next work; this
+  // keeps the count observable so a regression (e.g. the smoother re-cutting
+  // frames the clip dodged) is visible even off the lane subset.
+  let routedFrameCutPairs = 0;
+  const routedFrameCutRels = new Set<string>();
+  for (const e of edges) {
+    if (!e.routed) {
+      continue;
+    }
+    for (const [address, rect] of frames) {
+      if (e.ownKeys.has(address)) {
+        continue;
+      }
+      for (let i = 0; i + 1 < e.pts.length; i++) {
+        if (segmentIntersectsRectInterior(e.pts[i]!, e.pts[i + 1]!, rect)) {
+          routedFrameCutPairs += 1;
+          routedFrameCutRels.add(e.rel);
+          break;
+        }
+      }
+    }
+  }
+
   const detourTop = edges
     .filter((e) => e.routed)
     .map((e) => {
@@ -528,6 +560,8 @@ const laneQualityCensus = (
     pairClasses,
     laneTable,
     laneFrameViolations,
+    routedFrameCutPairs,
+    routedFrameCutEdges: routedFrameCutRels.size,
     detourTop: detourTopOut,
     stripGaps,
     wrongFaceEdges,
@@ -632,9 +666,27 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       // shortcut, collinear dedupe, chamfer rounding, roundness:null
       // exact-path rendering). The critical gate: NOTHING the smoother
       // touched may get flattened by repair (flattenedBy stays empty).
-      const ownerClipSmooth = armMetrics(
-        await buildArm(false, { strataEdgeClip: true, strataEdgeSmooth: true }),
+      const ownerClipSmoothScene = await buildArm(false, {
+        strataEdgeClip: true,
+        strataEdgeSmooth: true,
+      });
+      const ownerClipSmooth = armMetrics(ownerClipSmoothScene);
+      const ownerClipSmoothLanes = laneQualityCensus(
+        ownerClipSmoothScene.elements,
       );
+      // Seventh arm (owner-final): clip + smooth + the E3.3 corridor dials the
+      // owner runs — a widened inter-column gutter (strataColumnGap:250) and a
+      // 1.25× row-gap scale (strataRowGap:1.25). Reported so the smoother's
+      // leaf-frame obstacle handling stays watched under the wider corridors,
+      // where the clip dodges have more room and the shortcuts are longer.
+      const ownerFinalScene = await buildArm(false, {
+        strataEdgeClip: true,
+        strataEdgeSmooth: true,
+        strataColumnGap: 250,
+        strataRowGap: 1.25,
+      });
+      const ownerFinal = armMetrics(ownerFinalScene);
+      const ownerFinalLanes = laneQualityCensus(ownerFinalScene.elements);
 
       for (const [arm, m] of [
         ["owner-full", ownerFull],
@@ -643,6 +695,7 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
         ["owner-channel", ownerChannel],
         ["owner-clip", ownerClip],
         ["owner-clip-smooth", ownerClipSmooth],
+        ["owner-final", ownerFinal],
       ] as const) {
         // eslint-disable-next-line no-console
         console.log(
@@ -659,9 +712,16 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
         );
       }
 
-      // E3.2 lane-quality census (owner-clip arm only — lanes exist only there).
+      // E3.2 lane-quality census over the three lane-bearing arms (clip is the
+      // only pass that stamps lanes; smooth/final add the finishing treatment).
       // eslint-disable-next-line no-console
       console.log(`LANES owner-clip ${JSON.stringify(ownerClipLanes)}`);
+      // eslint-disable-next-line no-console
+      console.log(
+        `LANES owner-clip-smooth ${JSON.stringify(ownerClipSmoothLanes)}`,
+      );
+      // eslint-disable-next-line no-console
+      console.log(`LANES owner-final ${JSON.stringify(ownerFinalLanes)}`);
 
       // ── SANITY INVARIANTS (no aspirational thresholds — this IS the baseline).
       assertScoreboardSane(ownerFull);
@@ -670,6 +730,7 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       assertScoreboardSane(ownerChannel);
       assertScoreboardSane(ownerClip);
       assertScoreboardSane(ownerClipSmooth);
+      assertScoreboardSane(ownerFinal);
       expect(ownerRouting.scoreboard.edgeCount).toBe(
         ownerFull.scoreboard.edgeCount,
       );
@@ -688,6 +749,12 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       // violations (the shared-ancestor obstacle-selection gap); the E3.2
       // full-span obstacle union guarantees 0 by construction.
       expect(ownerClipLanes.laneFrameViolations).toEqual([]);
+      // P0-b (loop-3): the SAME permanent lane-vs-frame strict-interior walk on
+      // the SMOOTH arm. The smoother must treat foreign leaf-cluster frames as an
+      // obstacle class, or its inflection shortcuts / chamfer cuts re-cut a frame
+      // the clip pass dodged around (measured RED without P0-a: 2 lane-frame
+      // violations that are 0 pre-smooth). This is the assert that catches P0-a.
+      expect(ownerClipSmoothLanes.laneFrameViolations).toEqual([]);
 
       // ── Loop-3 E3.1 gates on the owner-clip-smooth arm. ──
       expect(ownerClipSmooth.scoreboard.edgeCount).toBe(

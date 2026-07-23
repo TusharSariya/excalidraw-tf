@@ -27,6 +27,7 @@ import {
   smoothStrataRoutedEdges,
 } from "./terraformPipelineStrataEdgeSmooth";
 
+import type { StrataLeafFrameRect } from "./terraformPipelineStrataEdgeSmooth";
 import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
 
 type Pt = readonly [number, number];
@@ -181,6 +182,108 @@ describe("smoothStrataRoutedEdges — LR-discipline hull guard", () => {
       [100, 25],
       [100, 100],
     ]);
+  });
+});
+
+describe("smoothStrataRoutedEdges — foreign leaf-frame obstacle (P0-a)", () => {
+  // The clip pass routes AROUND foreign leaf-cluster frames; the smoother must
+  // not re-cut one. Same clear Z-step as the shortcut test, so ONLY the leaf
+  // frame can veto the deletion — proven by a control with no leaf frames.
+  const zStep: Pt[] = [
+    [0, 0],
+    [100, 0],
+    [100, 50],
+    [200, 50],
+  ];
+
+  it("keeps the kink when a FOREIGN leaf-cluster frame sits inside the shortcut triangle", () => {
+    const control = [arrowOf(zStep, routedData("clip"))];
+    expect(smoothStrataRoutedEdges(control, []).kinksRemoved).toBe(1);
+
+    // address "other" is neither this edge's source ("s") nor target ("t"), so
+    // it is a foreign obstacle: the shortcut triangle (0,0)-(100,0)-(100,50)
+    // contains it, so the deletion is vetoed.
+    const leaf: StrataLeafFrameRect = {
+      address: "other",
+      rect: { x: 40, y: 5, width: 20, height: 20 },
+    };
+    const guarded = [arrowOf(zStep, routedData("clip"))];
+    const meta = smoothStrataRoutedEdges(guarded, [], [], [leaf]);
+    // The inflection shortcut that would drive the chord (0,0)→(100,50)
+    // through the frame is refused (the control took it); the corner rounding
+    // below y=5 is a separate, legal treatment, so kinksRemoved is the metric.
+    expect(meta.kinksRemoved).toBe(0);
+  });
+
+  it("EXEMPTS the edge's OWN source/target cluster frames (endpoint sits on its own frame)", () => {
+    // Same frame geometry, but keyed to this edge's OWN target address "t":
+    // the clip endpoint legitimately sits on it, so it is NOT an obstacle and
+    // the shortcut proceeds exactly as with no leaf frames.
+    const own: StrataLeafFrameRect = {
+      address: "t",
+      rect: { x: 40, y: 5, width: 20, height: 20 },
+    };
+    const skeleton = [arrowOf(zStep, routedData("clip"))];
+    const meta = smoothStrataRoutedEdges(skeleton, [], [], [own]);
+    expect(meta.kinksRemoved).toBe(1);
+  });
+
+  it("leaves a corner sharp when every chamfer k clips a foreign leaf frame", () => {
+    // The card-clearance analogue, but the obstacle is a FOREIGN leaf frame
+    // hugging the corner: no k in the ladder clears it, so the corner stays a
+    // right angle (counted blocked, never forced).
+    const leaf: StrataLeafFrameRect = {
+      address: "other",
+      rect: { x: 92, y: 2, width: 20, height: 20 },
+    };
+    const skeleton = [
+      arrowOf(
+        [
+          [0, 0],
+          [100, 0],
+          [100, 100],
+        ],
+        routedData("clip"),
+      ),
+    ];
+    const meta = smoothStrataRoutedEdges(skeleton, [], [], [leaf]);
+    expect(meta.cornersRounded).toBe(0);
+    expect(meta.cornersBlocked).toBe(1);
+  });
+});
+
+describe("smoothStrataRoutedEdges — self-crossing guard (P1-a)", () => {
+  it("keeps a kink whose shortcut chord would strictly cross a non-adjacent segment", () => {
+    // i=1 kink at (100,0): deleting it makes the chord (0,0)→(100,40). The far
+    // segment (150,40)→(-50,0) strictly crosses that chord at (50,20), so the
+    // deletion would fold the polyline over itself — it must be refused.
+    const selfCross: Pt[] = [
+      [0, 0],
+      [100, 0],
+      [100, 40],
+      [150, 40],
+      [-50, 0],
+    ];
+    const meta = smoothStrataRoutedEdges(
+      [arrowOf(selfCross, routedData("clip"))],
+      [],
+    );
+    expect(meta.kinksRemoved).toBe(0);
+
+    // Control: identical i=1 kink/triangle, but the far segment (150,40)→
+    // (200,40) does NOT cross the chord — so the same shortcut is taken.
+    const clear: Pt[] = [
+      [0, 0],
+      [100, 0],
+      [100, 40],
+      [150, 40],
+      [200, 40],
+    ];
+    const control = smoothStrataRoutedEdges(
+      [arrowOf(clear, routedData("clip"))],
+      [],
+    );
+    expect(control.kinksRemoved).toBe(1);
   });
 });
 

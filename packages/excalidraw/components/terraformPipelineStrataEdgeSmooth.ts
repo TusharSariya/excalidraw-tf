@@ -48,6 +48,20 @@
  * horizontal border segments per hull is still the cheap class — no interior
  * containment tests, no port bookkeeping.
  *
+ * LEAF-FRAME OBSTACLE CLASS (steps 1 and 3, loop-3 P0-a): the clip pass routes
+ * AROUND foreign leaf-cluster (primary/satellite) frames; a hull-blind shortcut
+ * or chamfer could re-cut one. So the shortcut triangle and the chamfer corner
+ * region are cleared against foreign leaf-cluster frame rects too — a THIRD
+ * obstacle class beside cards and the hull-face guard — with each edge's OWN
+ * source/target cluster frames EXEMPT (a clip endpoint sits on its own frame's
+ * border; same exemption the clip census uses). Absent leaf rects this is inert
+ * (byte-identical for card+hull-only callers).
+ *
+ * SELF-CROSSING GUARD (steps 1 and 3, loop-3 P1-a): a shortcut chord a–c or a
+ * chamfer cut m–n is rejected if it STRICTLY crosses any non-adjacent segment of
+ * the SAME polyline — a deletion that would fold the polyline over itself is
+ * refused (the kink/corner is kept instead).
+ *
  * HARD CONSTRAINTS (adversarially verified in loop 2 — violating any gets the
  * edge flattened downstream by `repairTerraformEdgeBindings`):
  *  - ENDPOINTS NEVER MOVE. The clip gate is ±2px on the frame face and the
@@ -123,6 +137,16 @@ export type StrataEdgeSmoothMeta = {
 
 type Pt = readonly [number, number];
 
+/** A foreign leaf-cluster (primary/satellite) frame the smoother must NOT re-cut,
+ * keyed by its cluster `address` (`terraformPrimaryAddress`) so each edge can
+ * EXEMPT its own source/target cluster frames — the identical exemption the clip
+ * census applies (a clip endpoint legitimately sits ON its own frame's border).
+ * See {@link smoothStrataRoutedEdges}. */
+export type StrataLeafFrameRect = {
+  address: string;
+  rect: EdgeAnchorRect;
+};
+
 type ArrowSkeleton = ExcalidrawElementSkeleton & {
   type: "arrow";
   x: number;
@@ -139,6 +163,40 @@ const SMOOTHABLE_PROVENANCE: ReadonlySet<string> = new Set([
   "border",
   "clip",
 ]);
+
+/** Shared empty obstacle list — reused for the leaf-frame default so the
+ * byte-identical (no leaf frames) path allocates nothing per edge. */
+const EMPTY_RECTS: readonly EdgeAnchorRect[] = [];
+
+/** The cluster addresses an edge legitimately touches — its own source/target.
+ * Read from BOTH the typed `terraformClipAnchor` frameKeys and the
+ * `relationship` source/target (the identical keys the clip census exempts by),
+ * so a clip endpoint sitting ON its own leaf frame border is never treated as a
+ * self-cut. Provenances without either simply exempt nothing. */
+const ownClusterAddresses = (
+  cd: Record<string, unknown> | undefined,
+): ReadonlySet<string> => {
+  const own = new Set<string>();
+  const rel = cd?.relationship as
+    | { source?: unknown; target?: unknown }
+    | undefined;
+  if (typeof rel?.source === "string") {
+    own.add(rel.source);
+  }
+  if (typeof rel?.target === "string") {
+    own.add(rel.target);
+  }
+  const anchor = cd?.terraformClipAnchor as
+    | { start?: { frameKey?: unknown }; end?: { frameKey?: unknown } }
+    | undefined;
+  if (typeof anchor?.start?.frameKey === "string") {
+    own.add(anchor.start.frameKey);
+  }
+  if (typeof anchor?.end?.frameKey === "string") {
+    own.add(anchor.end.frameKey);
+  }
+  return own;
+};
 
 /** Signed turn (z of the cross product) at b for the path a→b→c. */
 const orient = (a: Pt, b: Pt, c: Pt): number =>
@@ -199,6 +257,47 @@ const segmentsIntersect = (p1: Pt, p2: Pt, p3: Pt, p4: Pt): boolean => {
     onSeg(p1, p2, p3) ||
     onSeg(p1, p2, p4)
   );
+};
+
+/** STRICT (proper) crossing only: both segments straddle each other's supporting
+ * line with the endpoints on OPPOSITE sides (no collinear-overlap / shared-
+ * endpoint / touching case). Used by the self-crossing guard — a shortcut chord
+ * or chamfer cut that merely shares an endpoint with, or grazes, a neighbouring
+ * segment is fine; only a genuine interior crossing makes the polyline
+ * self-intersect. */
+const segmentsProperlyCross = (p1: Pt, p2: Pt, p3: Pt, p4: Pt): boolean => {
+  const d1 = orient(p3, p4, p1);
+  const d2 = orient(p3, p4, p2);
+  const d3 = orient(p1, p2, p3);
+  const d4 = orient(p1, p2, p4);
+  return (
+    ((d1 > EPS && d2 < -EPS) || (d1 < -EPS && d2 > EPS)) &&
+    ((d3 > EPS && d4 < -EPS) || (d3 < -EPS && d4 > EPS))
+  );
+};
+
+/** Self-crossing guard: does candidate segment [p,q] strictly cross any segment
+ * of `poly` OTHER than those in the inclusive index window [skipLo, skipHi]?
+ * The window skips the segments incident to the candidate's own endpoints (and
+ * the segments the candidate replaces) — those necessarily touch it and are not
+ * self-crossings. Any other proper crossing means the simplification would make
+ * the polyline self-intersect, so the candidate must be rejected. */
+const segmentCrossesOwnPolyline = (
+  p: Pt,
+  q: Pt,
+  poly: readonly Pt[],
+  skipLo: number,
+  skipHi: number,
+): boolean => {
+  for (let k = 0; k + 1 < poly.length; k++) {
+    if (k >= skipLo && k <= skipHi) {
+      continue;
+    }
+    if (segmentsProperlyCross(p, q, poly[k]!, poly[k + 1]!)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 const rectCorners = (r: EdgeAnchorRect): [Pt, Pt, Pt, Pt] => [
@@ -335,6 +434,10 @@ const shortcutInflections = (
   pts: Pt[],
   cardRects: readonly EdgeAnchorRect[],
   hullRects: readonly EdgeAnchorRect[],
+  /** Foreign leaf-cluster frame rects (own source/target already exempted) —
+   * a third obstacle class alongside cards: the shortcut triangle must clear
+   * them too, or the chord re-cuts a frame the clip pass dodged (P0-a). */
+  leafFrameRects: readonly EdgeAnchorRect[],
 ): [Pt[], number] => {
   let removed = 0;
   let out = pts;
@@ -355,9 +458,22 @@ const shortcutInflections = (
       if (!triangleClearOfRects(a, b, c, cardRects)) {
         continue;
       }
+      // P0-a: the shortcut triangle must also clear every FOREIGN leaf-cluster
+      // frame (own source/target frames pre-exempted by the caller). Without
+      // this the chord a–c re-enters a frame the clip pass routed around.
+      if (!triangleClearOfRects(a, b, c, leafFrameRects)) {
+        continue;
+      }
       // LR-discipline guard: the shortcut chord a–c must not cut a hull
       // corner through a horizontal face (see the header).
       if (segmentCrossesHullHorizontalFace(a, c, hullRects)) {
+        continue;
+      }
+      // P1-a self-crossing guard: deleting b makes a–c the new segment. Reject
+      // if it strictly crosses any non-adjacent segment of the polyline — the
+      // skip window covers the two segments incident to a/c (k=i-2, i+1) and
+      // the two removed segments a-b/b-c (k=i-1, i).
+      if (segmentCrossesOwnPolyline(a, c, out, i - 2, i + 1)) {
         continue;
       }
       out = [...out.slice(0, i), ...out.slice(i + 1)];
@@ -406,6 +522,10 @@ const roundCorners = (
   pts: Pt[],
   inflatedRects: readonly EdgeAnchorRect[],
   hullRects: readonly EdgeAnchorRect[],
+  /** Foreign leaf-cluster frame rects (own source/target already exempted) —
+   * the chamfer corner region must clear them too (P0-a). Un-inflated: unlike
+   * cards, a frame is a routed-around obstacle, not a body to keep 12px off. */
+  leafFrameRects: readonly EdgeAnchorRect[],
   meta: StrataEdgeSmoothMeta,
 ): Pt[] => {
   const out: Pt[] = [pts[0]!];
@@ -434,10 +554,18 @@ const roundCorners = (
       const n: Pt = [c[0] + k * (b[0] - c[0]), c[1] + k * (b[1] - c[1])];
       if (
         triangleClearOfRects(m, b, n, inflatedRects) &&
+        // P0-a: the chamfer corner region must also clear every FOREIGN
+        // leaf-cluster frame — otherwise the cut m–n clips a frame the clip
+        // pass routed around (own source/target frames pre-exempted).
+        triangleClearOfRects(m, b, n, leafFrameRects) &&
         // LR-discipline guard: the chamfer cut m–n must not cross a hull's
         // top/bottom border (escalating k shrinks the cut toward b, which
         // sits on the LEGAL path — so a tighter k can clear).
-        !segmentCrossesHullHorizontalFace(m, n, hullRects)
+        !segmentCrossesHullHorizontalFace(m, n, hullRects) &&
+        // P1-a self-crossing guard: the cut m–n replaces corner b; reject if it
+        // strictly crosses any non-adjacent polyline segment (skip the two
+        // segments incident to b at k=i-1/i, whose trims a-m and n-c touch it).
+        !segmentCrossesOwnPolyline(m, n, pts, i - 1, i)
       ) {
         out.push(m, n);
         budgetLeft -= 1;
@@ -473,6 +601,13 @@ export function smoothStrataRoutedEdges(
   /** Hull (topology container) frame rects — used ONLY by the LR-discipline
    * guard (top/bottom border crossing tests), never as interior obstacles. */
   hullRects: readonly EdgeAnchorRect[] = [],
+  /** Leaf-cluster (primary/satellite) frame rects keyed by cluster address —
+   * a THIRD obstacle class for the shortcut/chamfer clearance tests (P0-a).
+   * PER EDGE the caller-supplied set is filtered so the edge's OWN source/target
+   * cluster frames are exempt (a clip endpoint sits ON its own frame border) —
+   * exactly the exemption the clip census uses. Empty ⇒ frames are not tested
+   * (the byte-identical default for callers that pass only card + hull rects). */
+  leafFrameRects: readonly StrataLeafFrameRect[] = [],
 ): StrataEdgeSmoothMeta {
   const meta: StrataEdgeSmoothMeta = {
     smoothed: 0,
@@ -521,10 +656,30 @@ export function smoothStrataRoutedEdges(
     const abs: Pt[] = rel.map((p) => [el.x + p[0], el.y + p[1]] as const);
     meta.pointsBefore += abs.length;
 
+    // P0-a per-edge exemption: the leaf-cluster frames THIS edge legitimately
+    // touches (its own source/target cluster addresses) are not obstacles — a
+    // clip endpoint sits ON its own frame's border. Read both the clip anchor
+    // frameKeys and the relationship source/target (the same keys the clip
+    // census uses); everything else stays an obstacle.
+    const foreignLeafRects =
+      leafFrameRects.length === 0
+        ? EMPTY_RECTS
+        : (() => {
+            const own = ownClusterAddresses(cd);
+            const foreign: EdgeAnchorRect[] = [];
+            for (const f of leafFrameRects) {
+              if (!own.has(f.address)) {
+                foreign.push(f.rect);
+              }
+            }
+            return foreign;
+          })();
+
     const [afterShortcut, kinks] = shortcutInflections(
       abs,
       cardBodyRects,
       hullRects,
+      foreignLeafRects,
     );
     meta.kinksRemoved += kinks;
     const [afterDedupe, collinear, midRetained] =
@@ -533,7 +688,13 @@ export function smoothStrataRoutedEdges(
     if (midRetained) {
       meta.midpointRetained += 1;
     }
-    const finalAbs = roundCorners(afterDedupe, inflatedRects, hullRects, meta);
+    const finalAbs = roundCorners(
+      afterDedupe,
+      inflatedRects,
+      hullRects,
+      foreignLeafRects,
+      meta,
+    );
 
     // Endpoints NEVER move (hard constraint) — assert cheaply and, on the
     // impossible violation, keep the original geometry (fail-safe).
