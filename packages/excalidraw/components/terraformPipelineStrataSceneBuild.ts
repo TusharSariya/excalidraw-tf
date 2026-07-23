@@ -489,6 +489,12 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
+  // NOTE: these aggregated `topologyFrameFlow` hull connectors are intentionally
+  // NOT edge-styled. They are appended AFTER the style pass above, and the style
+  // pass is layer/aggregated-filtered (it only touches per-resource TFD chords),
+  // so it would skip them anyway. Their curvature is whatever hardcoded roundness
+  // this appender emits — the curve-fix track leaves that untouched. Wave-4 owns
+  // the decision on whether hull connectors should participate in edge styling.
   const frameEdgeCount = appendCompoundTopologyFrameEdgeSkeletons(
     prep.collapsedEdges,
     prep.clusters,

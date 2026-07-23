@@ -25,6 +25,15 @@
  * failure). The orbit needs obstacle geometry, so it runs only when real
  * `placement` leaf boxes are supplied.
  *
+ * SAME-Y FORWARD EDGES SAMPLE STRAIGHT — BY DESIGN. When source and target share
+ * a Y (Δy≈0, the common LR same-rank-row case), the x-monotone-clamped forward
+ * bezier's control points are collinear with its endpoints, so the curve samples
+ * to a visually straight segment. It is styled (stamped `terraformRoutedPolyline`,
+ * survives repair) but renders straight — this is React Flow parity (`getBezierPath`
+ * degenerates identically on a flat chord), NOT a missed/flattened curve. Do not
+ * "fix" it by bowing same-Y edges: an off-axis control arm would reintroduce the
+ * against-flow excursion the monotone clamp exists to prevent.
+ *
  * COMPOSES UNDER THE ROUTERS. Runs AFTER edgeRouting + borderRoute in the
  * scene-build seam and SKIPS any arrow already stamped `terraformRoutedPolyline`
  * (first-stamper-wins): routed edges keep their obstacle-aware detour; only the

@@ -75,3 +75,37 @@
 **Context:** Three entries exist today: `graph-rag-contextual-rejected.md`, `graph-rag-rerank-retest-rejected.md`, `graph-rag-graphrag-rejected.md`. Not urgent at this count — worth doing if a 4th-5th technique gets rejected on this corpus in the future.
 
 **Depends on:** Nothing blocking — can be done anytime.
+
+---
+
+## Deferred from curve-fix + edge-routing UI redesign (2026-07-22)
+
+### TODO-6: Author a DESIGN.md for the import-dialog design system
+
+**What:** Run `/design-consultation` over the Terraform import dialog UI and capture the result as a committed `DESIGN.md` — the tokens, component idioms, and layout conventions that the import-dialog SCSS already encodes but nowhere documents (segmented-control factory, `dependencyHint`/`couplingHint`, the help `<aside>`, the depth slider, spacing/color scales).
+
+**Why:** Two design-sensitive reviews on 2026-07-22 each had to reverse-engineer these tokens and idioms straight out of `TerraformImportDialog.scss` before they could review or extend the UI. A written design system pays that reverse-engineering cost once; every future UI milestone (edge-routing controls, new strata toggles, layout-profile pickers) then reads the doc instead of re-deriving it from the stylesheet.
+
+**Pros:** Compounds across every future import-dialog UI change — reviewers and implementers share one vocabulary. Makes design regressions visible (a new control that ignores the segmented-control factory or the hint idiom is now an obvious deviation, not an unknowable one). Cheap: `/design-consultation` generates most of it.
+
+**Cons:** A design doc drifts from the code if not maintained; needs a light "update DESIGN.md" discipline when the SCSS changes. One-time authoring effort competing with feature work.
+
+**Context:** The reverse-engineered surfaces were the segmented-control factory, `dependencyHint`/`couplingHint`, the help aside, and the depth slider — all defined only in `TerraformImportDialog.scss`. Surfaced by two 2026-07-22 reviews on the curve-fix / edge-routing UI work.
+
+**Depends on:** Nothing.
+
+---
+
+### TODO-7: Router shared-anchor fix (wave-4) — reuse `computeTerraformChordAnchors` in the routers
+
+**What:** Make `channelRoute` (and probably `edgeRouting`/`borderRoute`) derive and clip their polyline endpoints from `computeTerraformChordAnchors` (`terraformEdgeAnchors.ts`) — the same shared-anchor module M2 introduced for the style pass — instead of clipping against frame boxes while `repairTerraformEdgeBindings` validates against keyed body rects.
+
+**Why:** The routers clip their polylines against leaf FRAME boxes, but repair validates endpoints against the keyed CARD body rects (the 48px gate). This is the exact rect-identity mismatch M2 fixed for the style pass, still live in the routers: repair flattens the routed polylines whose frame-clipped endpoints sit outside the body rect. M3 telemetry quantifies the signature — FULL mode curve+channelRoute: kept 38 / flattened 107 of 145 routed (`flattenedBy={channel:107}`); compact mode self-flattens 18. Reusing the shared anchors makes repair find the endpoints already on its recomputed anchors, so it keeps the routed polyline instead of straightening it.
+
+**Pros:** Reuses an already-landed, byte-identity-frozen module — no new geometry math, same mechanism proven correct for the style pass. Turns the largest remaining flatten source (107 edges on the full-mode preset) into survivors. Named, quantified target from M3 telemetry, so the fix is measurable against a known baseline.
+
+**Cons:** Touches three routers, each with its own waypoint topology (the channel router inserts intermediate rank transfers, not just endpoints) — the shared-anchor reuse is only guaranteed correct at the two terminal endpoints; interior waypoints still need their own audit. Risk of shifting crossing/pierce counts under the frozen per-metric ceilings.
+
+**Context:** M2 landed `terraformEdgeAnchors.ts` (`computeTerraformChordAnchors`) and wired the style pass to it (145/145 curves survive repair). M3 added the kept/flattened telemetry that exposed the routers' residual flatten signature. Both on `perf-loop-exp` (curve-fix M1–M3, commits `53ff2df1b`/`465fa419b`/`1a724ceab`).
+
+**Depends on:** M2's `terraformEdgeAnchors` module (landed).
