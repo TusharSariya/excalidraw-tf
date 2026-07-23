@@ -1043,6 +1043,18 @@ const parseClipAnchor = (v: unknown): TerraformClipAnchor | null => {
  * finalize's id rewrite — so the address is the ONLY frame key that is stable
  * at element time across both modes (frame element ids are NOT: the finalize
  * re-derives them).
+ *
+ * SKELETON-SIDE TWIN: `collectStrataPrimaryClusterRectsByAddress`
+ * (terraformPipelineStrataSceneBuild.ts) collects the SAME address→rect map
+ * from the scene SKELETON for the M6 box-endpoints style pass. The two MUST
+ * STAY IN LOCKSTEP (same frame/role/address predicate, same last-wins
+ * duplicate policy) — the styler stamps clip endpoints against that map and
+ * this gate validates them against this one; any predicate drift flattens
+ * every clip-stamped edge. The twin carries ONE deliberate extra exclusion
+ * (frames at coordinate exactly 0 on either axis — the conversion falsy-zero
+ * trap re-derives that axis from children, so the skeleton rect is not the
+ * final rect this gate sees; see the twin's doc comment). Parity is pinned by
+ * terraformStrataBoxEndpoints.test.ts.
  */
 export const collectTerraformClusterFrameRectsByAddress = (
   elements: readonly ExcalidrawElement[],

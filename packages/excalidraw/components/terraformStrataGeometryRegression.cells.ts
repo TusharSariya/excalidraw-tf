@@ -143,6 +143,16 @@ export const STRATA_REGRESSION_CONFIGS: readonly StrataRegressionConfig[] = [
     note: "v3.2 band-depth cut = root on otherwise-default",
     options: { strataBandDepth: "root" },
   },
+  {
+    name: "boxEndpoints",
+    note: "M6 box-endpoint anchoring on the owner-baseline curve + spacing set",
+    options: {
+      strataEdgeStyle: "curve",
+      strataColumnGap: 250,
+      strataRowGap: 1.5,
+      strataBoxEndpoints: true,
+    },
+  },
 ];
 
 /** Roles that mark a topology hull frame (mirrors the private set in the pierce

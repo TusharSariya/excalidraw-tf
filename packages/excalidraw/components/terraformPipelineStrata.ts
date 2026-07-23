@@ -428,9 +428,11 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataAncillaryAllocator = options?.strataAncillaryAllocator !== false;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
-  // M5 box-endpoint anchoring, default off. Inert today (no consumer); echoed
-  // truthy-only in flagMeta so the proof API can observe it end-to-end. M6 wires
-  // the endpoint geometry.
+  // M6 box-endpoint anchoring, default off: declared-dataflow edge endpoints
+  // terminate on the labeled leaf-cluster FRAME border instead of the resource
+  // card (scene-build edge-style pass clip-stamps them; repair's typed clip
+  // gate validates against the live frame faces). Echoed truthy-only in
+  // flagMeta so the proof API can observe it end-to-end.
   const strataBoxEndpoints = options?.strataBoxEndpoints === true;
   // Exclusive-downstream chain relocate (post-A7), default off.
   const strataChainRelocate = options?.strataChainRelocate === true;
@@ -1173,6 +1175,9 @@ export async function buildTerraformStrataExcalidrawScene(
       // Probe P2 edge style: key rides only for a non-"straight" style so the
       // default input literal (and the scene build) stay byte-identical.
       ...(strataEdgeStyle !== "straight" ? { edgeStyle: strataEdgeStyle } : {}),
+      // M6 box endpoints: key rides only when on (the flag-off input literal
+      // and the scene build stay byte-identical).
+      ...(strataBoxEndpoints ? { boxEndpoints: true } : {}),
       // OD-15 de-band: the scene build's `topologyPathForCluster` call stamps
       // `customData.terraformTopologyPath`, which T9 slice classification
       // reconstructs the hull tree from. It MUST see the same EFFECTIVE level
@@ -1280,6 +1285,14 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeStyleOrbitReverted: scene.edgeStyle.orbitReverted,
               strataEdgeStyleReentryClamped: scene.edgeStyle.reentryClamped,
               strataEdgeStyleLensSwaps: scene.edgeStyle.lensSwaps,
+              // M6: clip-stamped (frame-border) edge count — present only when
+              // nonzero, so box-endpoints-off scenes' meta stays byte-identical.
+              ...(scene.edgeStyle.boxEndpointsStamped > 0
+                ? {
+                    strataEdgeStyleBoxEndpoints:
+                      scene.edgeStyle.boxEndpointsStamped,
+                  }
+                : {}),
             }
           : {}),
         // M3 curve-flatten telemetry — the styled-vs-survived gap made permanent.

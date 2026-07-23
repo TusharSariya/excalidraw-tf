@@ -14,8 +14,13 @@ import {
   clampOwnCardReentry,
   removeOneLens,
   smoothStepPolyline,
+  type StrataBoxEndpointsOptions,
+  type StrataEdgeStyleAnchors,
 } from "./terraformPipelineStrataEdgeStyle";
+import { computeTerraformChordAnchors } from "./terraformEdgeAnchors";
 import { segmentIntersectsStrataBoxInterior } from "./terraformPipelineStrataPackedScoring";
+
+import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
 import type { StrataBox } from "./terraformPipelineStrataTypes";
 import type {
   StrataModel,
@@ -233,6 +238,235 @@ describe("applyStrataEdgeStyle", () => {
     const meta = applyStrataEdgeStyle(skeleton, model, placement, "curve");
     expect(meta.styled).toBe(0);
     expect(JSON.stringify(skeleton[0])).toBe(before);
+  });
+});
+
+// ── M6 strataBoxEndpoints — clip stamps on leaf-cluster frame borders ────────
+describe("applyStrataEdgeStyle — strataBoxEndpoints (M6 clip stamps)", () => {
+  // Cards inset inside labeled leaf-cluster frames; both pairs share a center
+  // Y (70), so the frame-to-frame chord is horizontal: it exits frame A's
+  // RIGHT face at (200, 70) and enters frame B's LEFT face at (600, 70).
+  const bodyA: EdgeAnchorRect = { x: 40, y: 40, width: 120, height: 60 };
+  const bodyB: EdgeAnchorRect = { x: 640, y: 40, width: 120, height: 60 };
+  const frameA: EdgeAnchorRect = { x: 0, y: 0, width: 200, height: 140 };
+  const frameB: EdgeAnchorRect = { x: 600, y: 0, width: 200, height: 140 };
+
+  const mkAnchors = (structural = false): StrataEdgeStyleAnchors => ({
+    bodyRectByKey: new Map<string, EdgeAnchorRect>([
+      ["A", bodyA],
+      ["B", bodyB],
+    ]),
+    structuralPairKeys: structural
+      ? new Set<string>([["A", "B"].sort().join("|||")])
+      : new Set<string>(),
+  });
+
+  const mkBox = (
+    entries: ReadonlyArray<readonly [string, EdgeAnchorRect]>,
+  ): StrataBoxEndpointsOptions => ({
+    frameRectByAddress: new Map<string, EdgeAnchorRect>(entries),
+  });
+
+  type StyledArrow = ExcalidrawElementSkeleton & {
+    x: number;
+    y: number;
+    points: [number, number][];
+    roundness: unknown;
+    customData: Record<string, unknown>;
+  };
+
+  const absEndpoints = (el: StyledArrow) => {
+    const last = el.points[el.points.length - 1]!;
+    return {
+      start: [el.x + el.points[0]![0], el.y + el.points[0]![1]] as const,
+      end: [el.x + last[0], el.y + last[1]] as const,
+    };
+  };
+
+  it("curve: terminates BOTH ends on the frame faces and stamps clip provenance + anchors exactly", () => {
+    const skeleton = [tfdArrow(50, 70, [600, 0])];
+    const meta = applyStrataEdgeStyle(
+      skeleton,
+      model,
+      placement,
+      "curve",
+      mkAnchors(),
+      mkBox([
+        ["A", frameA],
+        ["B", frameB],
+      ]),
+    );
+    expect(meta.styled).toBe(1);
+    expect(meta.skipped).toBe(0);
+    expect(meta.boxEndpointsStamped).toBe(1);
+
+    const el = skeleton[0] as StyledArrow;
+    const { start, end } = absEndpoints(el);
+    const expected = computeTerraformChordAnchors(frameA, frameB, {
+      structuralPair: false,
+    });
+    // Endpoints sit EXACTLY on the frame faces (styler precision contract:
+    // the face coordinate is kept, never rounded toward card values).
+    expect(Math.abs(start[0] - (frameA.x + frameA.width))).toBeLessThan(1e-6);
+    expect(Math.abs(end[0] - frameB.x)).toBeLessThan(1e-6);
+    expect(Math.abs(start[0] - expected.startPoint.x)).toBeLessThan(1e-6);
+    expect(Math.abs(start[1] - expected.startPoint.y)).toBeLessThan(1e-6);
+    expect(Math.abs(end[0] - expected.endPoint.x)).toBeLessThan(1e-6);
+    expect(Math.abs(end[1] - expected.endPoint.y)).toBeLessThan(1e-6);
+    // Curve polyline (dense samples) + literal-path roundness.
+    expect(el.points.length).toBeGreaterThan(2);
+    expect(el.roundness).toBeNull();
+    // Provenance + serialized anchor stamps, exact.
+    expect(el.customData.terraformRoutedPolyline).toBe(true);
+    expect(el.customData.terraformRoutedBy).toBe("clip");
+    expect(el.customData.terraformClipAnchor).toEqual({
+      start: { frameKey: "A", side: "right" },
+      end: { frameKey: "B", side: "left" },
+    });
+  });
+
+  it("straight: emits 3 COLLINEAR points between the frame faces (render-identical chord that passes repair's points.length>2 gate)", () => {
+    const skeleton = [tfdArrow(50, 70, [600, 0])];
+    const meta = applyStrataEdgeStyle(
+      skeleton,
+      model,
+      placement,
+      "straight",
+      mkAnchors(),
+      mkBox([
+        ["A", frameA],
+        ["B", frameB],
+      ]),
+    );
+    expect(meta.styled).toBe(1);
+    expect(meta.boxEndpointsStamped).toBe(1);
+
+    const el = skeleton[0] as StyledArrow;
+    expect(el.points.length).toBe(3);
+    const { start, end } = absEndpoints(el);
+    const mid: [number, number] = [
+      el.x + el.points[1]![0],
+      el.y + el.points[1]![1],
+    ];
+    // Exact midpoint ⇒ collinear by construction.
+    expect(mid[0]).toBeCloseTo((start[0] + end[0]) / 2, 6);
+    expect(mid[1]).toBeCloseTo((start[1] + end[1]) / 2, 6);
+    // Endpoints on the frame faces.
+    expect(Math.abs(start[0] - (frameA.x + frameA.width))).toBeLessThan(1e-6);
+    expect(Math.abs(end[0] - frameB.x)).toBeLessThan(1e-6);
+    // Literal segments (no re-splining) + clip stamps.
+    expect(el.roundness).toBeNull();
+    expect(el.customData.terraformRoutedBy).toBe("clip");
+    expect(el.customData.terraformClipAnchor).toEqual({
+      start: { frameKey: "A", side: "right" },
+      end: { frameKey: "B", side: "left" },
+    });
+  });
+
+  it("straight: an edge with NO resolvable frame is left byte-identical (skipped, not stamped)", () => {
+    const skeleton = [tfdArrow(50, 70, [600, 0])];
+    const before = JSON.stringify(skeleton[0]);
+    const meta = applyStrataEdgeStyle(
+      skeleton,
+      model,
+      placement,
+      "straight",
+      mkAnchors(),
+      mkBox([]), // neither A nor B resolves a frame
+    );
+    expect(meta.styled).toBe(0);
+    expect(meta.skipped).toBe(1);
+    expect(meta.boxEndpointsStamped).toBe(0);
+    expect(JSON.stringify(skeleton[0])).toBe(before);
+  });
+
+  it("same-frame pair: NO clip stamp — keeps today's card-to-card style chord", () => {
+    const skeleton = [tfdArrow(50, 70, [600, 0])];
+    // Both addresses resolve to the SAME frame rect object.
+    const meta = applyStrataEdgeStyle(
+      skeleton,
+      model,
+      placement,
+      "curve",
+      mkAnchors(),
+      mkBox([
+        ["A", frameA],
+        ["B", frameA],
+      ]),
+    );
+    expect(meta.styled).toBe(1);
+    expect(meta.boxEndpointsStamped).toBe(0);
+
+    const el = skeleton[0] as StyledArrow;
+    expect(el.customData.terraformRoutedBy).toBe("style");
+    expect(el.customData.terraformClipAnchor).toBeUndefined();
+    const { start, end } = absEndpoints(el);
+    const expected = computeTerraformChordAnchors(bodyA, bodyB, {
+      structuralPair: false,
+    });
+    expect(start[0]).toBeCloseTo(expected.startPoint.x, 6);
+    expect(start[1]).toBeCloseTo(expected.startPoint.y, 6);
+    expect(end[0]).toBeCloseTo(expected.endPoint.x, 6);
+    expect(end[1]).toBeCloseTo(expected.endPoint.y, 6);
+  });
+
+  it("structural-pair edge: NO clip stamp — card rects + the 18px offset (off-face endpoints would fail the ±2px gate)", () => {
+    const skeleton = [tfdArrow(50, 70, [600, 0])];
+    const meta = applyStrataEdgeStyle(
+      skeleton,
+      model,
+      placement,
+      "curve",
+      mkAnchors(true),
+      mkBox([
+        ["A", frameA],
+        ["B", frameB],
+      ]),
+    );
+    expect(meta.styled).toBe(1);
+    expect(meta.boxEndpointsStamped).toBe(0);
+
+    const el = skeleton[0] as StyledArrow;
+    expect(el.customData.terraformRoutedBy).toBe("style");
+    expect(el.customData.terraformClipAnchor).toBeUndefined();
+    const { start, end } = absEndpoints(el);
+    const expected = computeTerraformChordAnchors(bodyA, bodyB, {
+      structuralPair: true, // the 18px perpendicular offset — repair's own path
+    });
+    expect(start[0]).toBeCloseTo(expected.startPoint.x, 6);
+    expect(start[1]).toBeCloseTo(expected.startPoint.y, 6);
+    expect(end[0]).toBeCloseTo(expected.endPoint.x, 6);
+    expect(end[1]).toBeCloseTo(expected.endPoint.y, 6);
+  });
+
+  it("mixed end: frame face on the resolving end + side:\"card\" fallback on the missing end", () => {
+    const skeleton = [tfdArrow(50, 70, [600, 0])];
+    const meta = applyStrataEdgeStyle(
+      skeleton,
+      model,
+      placement,
+      "curve",
+      mkAnchors(),
+      mkBox([["A", frameA]]), // B (satellite / bare card) has no frame
+    );
+    expect(meta.styled).toBe(1);
+    expect(meta.boxEndpointsStamped).toBe(1);
+
+    const el = skeleton[0] as StyledArrow;
+    expect(el.customData.terraformRoutedBy).toBe("clip");
+    expect(el.customData.terraformClipAnchor).toEqual({
+      start: { frameKey: "A", side: "right" },
+      end: { frameKey: "B", side: "card" },
+    });
+    const { start, end } = absEndpoints(el);
+    const expected = computeTerraformChordAnchors(frameA, bodyB, {
+      structuralPair: false,
+    });
+    // Start on frame A's right face; end on card B's body (its left face here).
+    expect(Math.abs(start[0] - (frameA.x + frameA.width))).toBeLessThan(1e-6);
+    expect(Math.abs(end[0] - bodyB.x)).toBeLessThan(1e-6);
+    expect(start[1]).toBeCloseTo(expected.startPoint.y, 6);
+    expect(end[1]).toBeCloseTo(expected.endPoint.y, 6);
   });
 });
 

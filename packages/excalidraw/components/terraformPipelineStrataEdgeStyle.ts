@@ -72,6 +72,22 @@
  * `{type:2}` to round those corners; only the true bezier sample is dense
  * enough to fall prey to the re-splining bow.
  *
+ * BOX ENDPOINTS (M6, `strataBoxEndpoints`). When the caller supplies
+ * {@link StrataBoxEndpointsOptions} (the labeled leaf-cluster FRAME rects keyed
+ * by cluster address), each eligible declared-dataflow chord terminates ON the
+ * border of its endpoint's frame instead of the card body: the SAME
+ * `computeTerraformChordAnchors` center-ray clip runs against the substituted
+ * FRAME rect (per end — card fallback when an address has no frame), and the
+ * arrow is stamped `terraformRoutedBy:"clip"` + `terraformClipAnchor` so
+ * repair's typed clip gate (terraformVisibility.ts) validates the endpoints
+ * against the LIVE frame faces (rigid ±2px) instead of the card rule.
+ * Structural-pair chords are exempt (their 18px perpendicular offset would push
+ * endpoints off-face and fail the gate), as are same-frame pairs (both ends in
+ * one frame — the card-to-card "style" chord is kept). In this mode the pass
+ * also runs for `style:"straight"`, where ONLY clip-stamped edges are touched
+ * (3 collinear points — repair's routed marker needs points.length > 2);
+ * un-clipped straight chords stay byte-identical.
+ *
  * Determinism (C4′): no RNG, no clock; pure function of endpoints + style.
  * Clearance is read inside the function, never as a module-level const derived
  * from a layout import (SDEC-34 NaN hazard).
@@ -109,7 +125,10 @@ export const STRATA_EDGE_STYLE_CURVATURE = 0.25;
 export const STRATA_EDGE_STYLE_CURVE_SAMPLES = 24;
 
 export type StrataEdgeStyleMeta = {
-  style: Exclude<StrataEdgeStyle, "straight">;
+  /** The requested render style. `"straight"` appears here ONLY in the M6
+   * box-endpoints mode (the pass then runs solely to clip-stamp declared
+   * chords on their leaf-cluster frame borders). */
+  style: StrataEdgeStyle;
   /** TFD arrows reshaped to the styled polyline. */
   styled: number;
   /** Eligible arrows left untouched (already routed / degenerate / < 2 pts). */
@@ -127,6 +146,10 @@ export type StrataEdgeStyleMeta = {
   reentryClamped: number;
   /** W3-4: lens (empty-bigon) swaps applied — each removes exactly 2 crossings. */
   lensSwaps: number;
+  /** M6 `strataBoxEndpoints`: declared edges whose endpoints were terminated on
+   * a labeled leaf-cluster FRAME border and stamped `terraformRoutedBy:"clip"`
+   * + `terraformClipAnchor` (subset of `styled`; 0 when the flag is off). */
+  boxEndpointsStamped: number;
 };
 
 type Pt = readonly [number, number];
@@ -154,6 +177,61 @@ const relationshipOf = (
     return null;
   }
   return { source: rel.source, target: rel.target };
+};
+
+/** M6 `strataBoxEndpoints` — the four frame faces a clip endpoint can land on.
+ * Mirrors `TerraformClipAnchorEnd` in terraformVisibility.ts (kept LOCAL —
+ * SDEC-34 self-containment; repair's `parseClipAnchorEnd` is the single
+ * consumer and accepts exactly this shape, incl. the per-end `"card"`
+ * fallback). */
+type StrataClipFaceSide = "left" | "right" | "top" | "bottom";
+
+type StrataClipAnchorEndStamp = {
+  frameKey: string;
+  side: StrataClipFaceSide | "card";
+};
+
+type StrataClipAnchorStamp = {
+  start: StrataClipAnchorEndStamp;
+  end: StrataClipAnchorEndStamp;
+};
+
+/**
+ * M6 box-endpoint inputs: labeled LEAF-CLUSTER frame rects keyed by cluster
+ * address (`terraformPrimaryAddress` === `relationship.source`/`.target`),
+ * collected skeleton-side by `collectStrataPrimaryClusterRectsByAddress`
+ * (terraformPipelineStrataSceneBuild.ts). Presence of this object IS the
+ * `strataBoxEndpoints` flag: when supplied, eligible declared-dataflow chords
+ * terminate on their endpoint frames' borders instead of the card bodies.
+ */
+export type StrataBoxEndpointsOptions = {
+  frameRectByAddress: ReadonlyMap<string, EdgeAnchorRect>;
+};
+
+/** The face of `rect` an ON-BOUNDARY point lies on, by min |delta| to each of
+ * the four face coordinates (deterministic tie-break left→right→top→bottom; a
+ * corner point ties two faces and either declared side passes the repair
+ * gate's parallel-extent check). The chord anchors are exact center-ray
+ * boundary clips, so the winning delta is float noise only. */
+const nearestClipFaceSide = (
+  pt: Pt,
+  rect: EdgeAnchorRect,
+): StrataClipFaceSide => {
+  const dLeft = Math.abs(pt[0] - rect.x);
+  const dRight = Math.abs(pt[0] - (rect.x + rect.width));
+  const dTop = Math.abs(pt[1] - rect.y);
+  const dBottom = Math.abs(pt[1] - (rect.y + rect.height));
+  const min = Math.min(dLeft, dRight, dTop, dBottom);
+  if (min === dLeft) {
+    return "left";
+  }
+  if (min === dRight) {
+    return "right";
+  }
+  if (min === dTop) {
+    return "top";
+  }
+  return "bottom";
 };
 
 /**
@@ -679,6 +757,12 @@ export type StrataEdgeStyleAnchors = {
  * so repair's validate-before-trust gate passes and never flattens the curve.
  * Missing anchors ⇒ fall back to the skeleton chord endpoints.
  *
+ * With `boxEndpoints` supplied (M6 `strataBoxEndpoints`), eligible edges
+ * terminate on their leaf-cluster FRAME borders and are stamped
+ * `terraformRoutedBy:"clip"` + `terraformClipAnchor` instead of the "style"
+ * stamp (see the file-header BOX ENDPOINTS section); `style:"straight"` is
+ * then a legal input and touches ONLY clip-stamped edges.
+ *
  * `curve` style additionally routes genuine BACK-EDGES (target strictly left of
  * source) as an orbit arc over/under the occupied Y band (W3-1 orbit class),
  * guard-gated against foreign-card pierce (revert to chord on failure). That
@@ -690,8 +774,9 @@ export function applyStrataEdgeStyle(
   skeleton: ExcalidrawElementSkeleton[],
   _model: StrataModel,
   placement: StrataPlacementResult,
-  style: Exclude<StrataEdgeStyle, "straight">,
+  style: StrataEdgeStyle,
   anchors?: StrataEdgeStyleAnchors,
+  boxEndpoints?: StrataBoxEndpointsOptions,
 ): StrataEdgeStyleMeta {
   const meta: StrataEdgeStyleMeta = {
     style,
@@ -702,6 +787,7 @@ export function applyStrataEdgeStyle(
     orbitReverted: 0,
     reentryClamped: 0,
     lensSwaps: 0,
+    boxEndpointsStamped: 0,
   };
   const stub = Math.min(STRATA_EDGE_STYLE_STUB_PX, PIPELINE_FRAME_PAD);
   // Card catalogue for the orbit pierce guard (curve style only). Null-safe:
@@ -725,6 +811,9 @@ export function applyStrataEdgeStyle(
     bezier: boolean;
     srcBox: StrataBox | null;
     tgtBox: StrataBox | null;
+    /** M6: non-null ⇒ endpoints terminate on frame borders; Phase 3 stamps
+     * "clip" provenance + this serialized anchor instead of "style". */
+    clip: StrataClipAnchorStamp | null;
   };
   const records: Rec[] = [];
 
@@ -758,20 +847,98 @@ export function applyStrataEdgeStyle(
     // repair's validate-before-trust gate keeps the stamp (never flattens). A
     // key miss falls back to the skeleton chord — the same edges repair leaves
     // unchanged (terraformVisibility.ts: `!rectA || !rectB` early return).
+    let clipStamp: StrataClipAnchorStamp | null = null;
     if (anchors) {
       const rectA = anchors.bodyRectByKey.get(rel.source);
       const rectB = anchors.bodyRectByKey.get(rel.target);
       if (rectA && rectB) {
         const pairKey = [rel.source, rel.target].sort().join("|||");
-        const chord = computeTerraformChordAnchors(rectA, rectB, {
-          structuralPair: anchors.structuralPairKeys.has(pairKey),
-        });
-        start = [chord.startPoint.x, chord.startPoint.y];
-        end = [chord.endPoint.x, chord.endPoint.y];
+        const structuralPair = anchors.structuralPairKeys.has(pairKey);
+        // M6 box endpoints: resolve each end's labeled leaf-cluster frame.
+        // Structural-pair chords are EXCLUDED — their 18px perpendicular
+        // offset would push the endpoints off the frame face and fail the
+        // rigid ±2px clip gate. Same-frame pairs (both addresses resolving to
+        // one frame) keep today's card-to-card "style" chord.
+        const frameA = structuralPair
+          ? undefined
+          : boxEndpoints?.frameRectByAddress.get(rel.source);
+        const frameB = structuralPair
+          ? undefined
+          : boxEndpoints?.frameRectByAddress.get(rel.target);
+        const sameFrame =
+          frameA !== undefined &&
+          frameB !== undefined &&
+          (frameA === frameB ||
+            (frameA.x === frameB.x &&
+              frameA.y === frameB.y &&
+              frameA.width === frameB.width &&
+              frameA.height === frameB.height));
+        if ((frameA || frameB) && !sameFrame) {
+          // Per-end rect SUBSTITUTION: frame rect where the address resolves,
+          // card body rect otherwise (mixed edges — bare card / satellite end
+          // whose own address has no primaryCluster frame). The shared
+          // center-ray clip then terminates the chord ON the substituted
+          // rect's border, and the endpoint is kept EXACTLY on the face
+          // coordinate — repair's typed clip gate is rigid (±2px) on the
+          // declared face of the LIVE frame.
+          const chord = computeTerraformChordAnchors(
+            frameA ?? rectA,
+            frameB ?? rectB,
+            { structuralPair: false },
+          );
+          start = [chord.startPoint.x, chord.startPoint.y];
+          end = [chord.endPoint.x, chord.endPoint.y];
+          clipStamp = {
+            start: {
+              frameKey: rel.source,
+              side: frameA ? nearestClipFaceSide(start, frameA) : "card",
+            },
+            end: {
+              frameKey: rel.target,
+              side: frameB ? nearestClipFaceSide(end, frameB) : "card",
+            },
+          };
+        } else {
+          const chord = computeTerraformChordAnchors(rectA, rectB, {
+            structuralPair,
+          });
+          start = [chord.startPoint.x, chord.startPoint.y];
+          end = [chord.endPoint.x, chord.endPoint.y];
+        }
       }
     }
     if (start[0] === end[0] && start[1] === end[1]) {
       meta.skipped += 1; // self-loop / zero-length — nothing to style
+      continue;
+    }
+
+    // M6 "straight" mode (reachable only with box endpoints on): ONLY
+    // clip-stamped edges are touched — an un-clipped straight chord stays
+    // byte-identical to today's 2-point skeleton chord. A clip-stamped straight
+    // chord must carry repair's routed marker, which requires points.length >
+    // 2, so emit 3 COLLINEAR points [start, midpoint, end] (render-identical
+    // to the 2-point chord).
+    if (style === "straight") {
+      if (!clipStamp) {
+        meta.skipped += 1;
+        continue;
+      }
+      records.push({
+        i,
+        el,
+        start,
+        end,
+        poly: [
+          start,
+          [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2],
+          end,
+        ],
+        orbit: false,
+        bezier: false,
+        srcBox: leafBoxes?.get(rel.source) ?? null,
+        tgtBox: leafBoxes?.get(rel.target) ?? null,
+        clip: clipStamp,
+      });
       continue;
     }
 
@@ -839,6 +1006,7 @@ export function applyStrataEdgeStyle(
       bezier: style === "curve" && orbitPoly == null,
       srcBox: leafBoxes?.get(rel.source) ?? null,
       tgtBox: leafBoxes?.get(rel.target) ?? null,
+      clip: clipStamp,
     });
   }
 
@@ -1010,11 +1178,21 @@ export function applyStrataEdgeStyle(
       customData: {
         ...prevCustomData,
         terraformRoutedPolyline: true,
-        terraformRoutedBy: "style",
+        // M6: a clip record carries "clip" provenance + the serialized per-end
+        // anchors repair's typed clip gate validates against the LIVE frame
+        // rects; everything else keeps the "style" stamp. The stale-marker
+        // strip above ran FIRST (destructure), so it can never strip the
+        // anchor being written here.
+        ...(r.clip
+          ? { terraformRoutedBy: "clip", terraformClipAnchor: r.clip }
+          : { terraformRoutedBy: "style" }),
       },
     } as ExcalidrawElementSkeleton;
     meta.styled += 1;
     meta.pointsTotal += poly.length;
+    if (r.clip) {
+      meta.boxEndpointsStamped += 1;
+    }
   }
 
   return meta;

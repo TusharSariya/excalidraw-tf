@@ -640,15 +640,17 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "threads strataBoxEndpoints end-to-end (sceneContext + builderOptions literals -> engine -> meta echo) and is INERT (M5: no geometry change)",
+    "threads strataBoxEndpoints end-to-end (sceneContext + builderOptions literals -> engine -> meta echo) and is ACTIVE (M6: clip-stamps declared edges on frame borders)",
     async () => {
       // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading
       // boundary'): the flag must survive the sceneContext literal AND the
       // builderOptions fan-in in terraformLayoutCore.ts, or it is dropped on the
       // real `layoutTerraformFromSources` app path while looking wired in the
       // dialog. The engine echoes `strataBoxEndpoints: true` in flagMeta only when
-      // on, so the meta echo is the app-observable end-to-end proof. M5 ships the
-      // flag INERT: turning it on must NOT move any geometry (M6 lands that).
+      // on, so the meta echo is the app-observable end-to-end proof. M6 wired the
+      // consumer: the scene-build edge-style pass terminates declared-dataflow
+      // chords on the labeled leaf-cluster FRAME borders and stamps them with
+      // "clip" provenance, which repair's typed clip gate KEEPS (not flattens).
       const off = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
@@ -656,6 +658,7 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(off.meta.rcllV2Degraded).toBeUndefined();
       // Default-off: the echo key is ABSENT (not present-with-false).
       expect(off.meta.strataBoxEndpoints).toBeUndefined();
+      expect(off.meta.strataEdgeStyleBoxEndpoints).toBeUndefined();
 
       const on = await buildStrata({
         strataSweeps: 4,
@@ -666,10 +669,38 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       // The flag threaded all the way to the engine's flagMeta echo.
       expect(on.meta.strataBoxEndpoints).toBe(true);
       expect(on.elements.length).toBeGreaterThan(0);
-      // INERT: the ON build is byte-identical to the OFF build (no consumer yet).
-      expect(geometryTuples(on.elements)).toEqual(geometryTuples(off.elements));
+      // M6 ACTIVE: the pass clip-stamped edges (meta count echo), repair kept
+      // them (by-provenance census), and the declared arrows' polylines moved
+      // off the card-clipped chords — while every NON-arrow element (cards,
+      // frames, labels) is byte-identical to the OFF build.
+      const stamped = on.meta.strataEdgeStyleBoxEndpoints as number;
+      expect(stamped).toBeGreaterThan(0);
+      const keptBy = on.meta.strataRoutedPolylinesKeptBy as Record<
+        string,
+        number
+      >;
+      const flattenedBy = on.meta.strataRoutedPolylinesFlattenedBy as Record<
+        string,
+        number
+      >;
+      expect(keptBy.clip).toBe(stamped);
+      expect(flattenedBy.clip ?? 0).toBe(0);
+      expect(arrowPolySignatures(on.elements)).not.toEqual(
+        arrowPolySignatures(off.elements),
+      );
+      expect(
+        geometryTuples(on.elements.filter((el) => el.type !== "arrow")),
+      ).toEqual(
+        geometryTuples(off.elements.filter((el) => el.type !== "arrow")),
+      );
+      expect(on.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
 
-      // Explicit-false is likewise byte-identical to today's baseline.
+      // Explicit-false is byte-identical to today's baseline (default-off
+      // byte-identity survives M6 — the pass does not run at all).
       const explicitFalse = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
@@ -677,6 +708,9 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       });
       expect(geometryTuples(explicitFalse.elements)).toEqual(
         geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
       );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,

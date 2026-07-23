@@ -4,7 +4,8 @@
     "2026-07-17 — W0-I4 initial freeze from pre-overnight tip e962579f9 (fast cells; audit/vpc-deband rows SKIPPED-SLOW)",
     "2026-07-17 — W0-I1 fix round — geometryHash canonicalization change (drop element id + integer-pixel rounding, keep points/count:length:fnv64); orchestrator-mandated. Layout geometry unchanged; only the per-cell fingerprint changes.",
     "2026-07-17 — owner default flip 2026-07-17: transpose/sift/packedScoring ON, rankSeparate OFF (mutual-excl), privateApiRegional always-on — default geometry improves cr273->252 pierce226->139",
-    "2026-07-23 — E1.3 soft-hull router + E1.4 entry chains, owner-ruled trade (aesthetic-edges loop 1)"
+    "2026-07-23 — E1.3 soft-hull router + E1.4 entry chains, owner-ruled trade (aesthetic-edges loop 1)",
+    "2026-07-23 — M6 strataBoxEndpoints: new boxEndpoints cell (owner-baseline curve+spacing set), first freeze"
   ],
   "cells": {
     "P2::strata-default": {
@@ -235,6 +236,26 @@
       "geometryHash": "731:25855:792caea6fcedfc39",
       "elementCount": 731,
       "renderedCrossings": 26,
+      "pierce": 49,
+      "topoFrames": 18,
+      "piercePerTopoFrame": 2.7222
+    },
+    "P2::boxEndpoints": {
+      "status": "measured",
+      "ok": true,
+      "geometryHash": "1328:47517:d58278eb22192a7f",
+      "elementCount": 1328,
+      "renderedCrossings": 224,
+      "pierce": 134,
+      "topoFrames": 33,
+      "piercePerTopoFrame": 4.0606
+    },
+    "P1::boxEndpoints": {
+      "status": "measured",
+      "ok": true,
+      "geometryHash": "731:25896:b8b289853ef59508",
+      "elementCount": 731,
+      "renderedCrossings": 7,
       "pierce": 49,
       "topoFrames": 18,
       "piercePerTopoFrame": 2.7222

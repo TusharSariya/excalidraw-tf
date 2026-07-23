@@ -122,10 +122,15 @@ export type StrataSceneBuildInput = {
    */
   ancillaryBands?: ReadonlyMap<string, StrataAncillaryBand>;
   /**
-   * M5 box-endpoint anchoring (default off): when set, edge endpoints terminate
-   * on the labeled leaf-cluster frame border instead of the resource card.
-   * Accepted here so the flag threads into the scene build input; M6 consumes it
-   * (the endpoint re-anchor pass). Inert today — no code reads it yet.
+   * M6 box-endpoint anchoring (default off): when set, declared-dataflow edge
+   * endpoints terminate on the labeled leaf-cluster frame border instead of the
+   * resource card. Consumed by the edge-STYLE pass below: the styler substitutes
+   * the frame rect (collected by
+   * {@link collectStrataPrimaryClusterRectsByAddress}) for the card body rect
+   * in the shared chord-anchor clip and stamps `terraformRoutedBy:"clip"` +
+   * `terraformClipAnchor`, which repair's typed clip gate validates against the
+   * LIVE frame faces. Also forces the style pass to run at the default
+   * `"straight"` style (clip-stamped edges only — 3 collinear points).
    */
   boxEndpoints?: boolean;
 };
@@ -211,6 +216,78 @@ function buildStrataEdgeStyleAnchors(
 }
 
 /**
+ * M6 `strataBoxEndpoints` — labeled LEAF-CLUSTER frame rects by cluster
+ * address, collected from the SKELETON: every `type:"frame"` skeleton whose
+ * customData carries `terraformTopologyRole:"primaryCluster"` and a string
+ * `terraformPrimaryAddress`, keyed by that address, LAST-WINS on duplicates.
+ *
+ * DELIBERATE SKELETON-SIDE TWIN of `collectTerraformClusterFrameRectsByAddress`
+ * (terraformVisibility.ts) — the element-time collector repair's typed clip
+ * gate resolves LIVE frame rects from. The two MUST STAY IN LOCKSTEP (same
+ * frame/role/address predicate, same last-wins duplicate policy): the style
+ * pass stamps clip endpoints against THIS map at skeleton time and repair
+ * validates them against THAT map at element time — any predicate drift
+ * flattens every clip-stamped edge. Parity is pinned by
+ * terraformStrataBoxEndpoints.test.ts.
+ *
+ * ONE deliberate skeleton-side EXTRA exclusion — the conversion FALSY-ZERO
+ * TRAP: `convertToExcalidrawElements` re-derives a frame's x (or y) from its
+ * children whenever the skeleton value is falsy (`frame?.x || minX`,
+ * packages/element/src/transform.ts) — so a frame sitting at coordinate
+ * EXACTLY 0 on either axis lands at a children-derived coordinate at element
+ * time (+28px observed on compact scenes) and its skeleton rect is NOT the
+ * final rect. A clip endpoint stamped on that skeleton face would be
+ * flattened by the gate's rigid ±2px check against the LIVE frame. Such
+ * frames are therefore NOT resolvable here — the styler falls back to the
+ * per-end `side:"card"` stamp for them, which validates against the card rect
+ * and survives. The element-time twin has no such exclusion (its input IS the
+ * final geometry).
+ */
+export function collectStrataPrimaryClusterRectsByAddress(
+  skeleton: readonly ExcalidrawElementSkeleton[],
+): Map<string, EdgeAnchorRect> {
+  const rects = new Map<string, EdgeAnchorRect>();
+  for (const el of skeleton) {
+    const item = el as {
+      type?: string;
+      isDeleted?: boolean;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+      customData?: Record<string, unknown> | null;
+    };
+    if (item.isDeleted || item.type !== "frame") {
+      continue;
+    }
+    const cd = item.customData ?? {};
+    if (cd.terraformTopologyRole !== "primaryCluster") {
+      continue;
+    }
+    const address = cd.terraformPrimaryAddress;
+    if (typeof address !== "string") {
+      continue;
+    }
+    const x = item.x ?? 0;
+    const y = item.y ?? 0;
+    // Conversion falsy-zero trap (see the doc comment above): a frame at
+    // coordinate exactly 0 on either axis gets that axis re-derived from its
+    // children at conversion time, so this skeleton rect is not final — skip
+    // it (the styler's per-end card fallback covers its edges).
+    if (x === 0 || y === 0) {
+      continue;
+    }
+    rects.set(address, {
+      x,
+      y,
+      width: item.width ?? 0,
+      height: item.height ?? 0,
+    });
+  }
+  return rects;
+}
+
+/**
  * Assemble the Strata scene skeleton + the id→box map the shared edge/frame
  * emission reads. Split out from {@link buildStrataScene} so tests can assert
  * on pure geometry without the async icon-injection / z-stack passes.
@@ -219,7 +296,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
-  /** Present only when a non-"straight" `edgeStyle` was requested. */
+  /** Present only when a non-"straight" `edgeStyle` was requested OR
+   * `boxEndpoints` is on (the style pass runs in both cases). */
   edgeStyle?: StrataEdgeStyleMeta;
 } {
   const { prep, model, placement, nodes } = input;
@@ -405,9 +483,13 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // rewrites only arrow points/x/y/customData, never card skeletons, so hoisting
   // ahead of it is read-only-safe. Computed only when a non-"straight" style is
   // requested, so the default-off scene skips the collection and stays
-  // byte-identical. ──
+  // byte-identical. M6: box endpoints ALSO needs the anchors (per-end card
+  // fallback + the structural-pair exclusion), even at the default "straight"
+  // style. ──
+  const boxEndpointsOn = input.boxEndpoints === true;
   const needsEdgeAnchors =
-    input.edgeStyle !== undefined && input.edgeStyle !== "straight";
+    (input.edgeStyle !== undefined && input.edgeStyle !== "straight") ||
+    boxEndpointsOn;
   const edgeStyleAnchors = needsEdgeAnchors
     ? buildStrataEdgeStyleAnchors(skeleton)
     : undefined;
@@ -419,19 +501,31 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   // validates against — so repair keeps the stamp instead of flattening the
   // curve. Both the rect map (keyed exactly as `collectTerraformResourceRects`)
   // and the structural-dependency pair keys (repair's 18px offset) are collected
-  // from the skeleton HERE, before the frame connectors below are appended. ──
-  const edgeStyle =
-    input.edgeStyle && input.edgeStyle !== "straight"
-      ? applyStrataEdgeStyle(
-          skeleton,
-          input.model,
-          input.placement,
-          input.edgeStyle,
-          // The shared body-rect anchor authority hoisted above, so the styled
-          // polyline endpoints clip to the identical rects repair validates.
-          edgeStyleAnchors,
-        )
-      : undefined;
+  // from the skeleton HERE, before the frame connectors below are appended.
+  //
+  // M6 `strataBoxEndpoints`: the pass ALSO runs (even at the default
+  // "straight" style) to terminate declared chords on their labeled
+  // leaf-cluster FRAME borders — the styler substitutes the frame rects
+  // collected by `collectStrataPrimaryClusterRectsByAddress` (the skeleton-side
+  // twin of repair's element-time collector) and stamps "clip" provenance +
+  // `terraformClipAnchor` for repair's typed clip gate. ──
+  const edgeStyle = needsEdgeAnchors
+    ? applyStrataEdgeStyle(
+        skeleton,
+        input.model,
+        input.placement,
+        input.edgeStyle ?? "straight",
+        // The shared body-rect anchor authority hoisted above, so the styled
+        // polyline endpoints clip to the identical rects repair validates.
+        edgeStyleAnchors,
+        boxEndpointsOn
+          ? {
+              frameRectByAddress:
+                collectStrataPrimaryClusterRectsByAddress(skeleton),
+            }
+          : undefined,
+      )
+    : undefined;
 
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
@@ -472,7 +566,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
-  /** Present only when a non-"straight" `edgeStyle` was requested. */
+  /** Present only when a non-"straight" `edgeStyle` was requested OR
+   * `boxEndpoints` is on (the style pass runs in both cases). */
   edgeStyle?: StrataEdgeStyleMeta;
   /** M3 telemetry: repair's keep/flatten/strip census over the stamped routed
    * polylines this scene fed it. Always present (repair always runs); zeroed on
