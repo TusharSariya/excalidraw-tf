@@ -531,10 +531,13 @@ describe("routeStrataEdgeClip — E2.4 lanes + E2.3 gutter nudging", () => {
     }
   });
 
-  it("routes a cross-band X-OVERLAP forward edge over an ABOVE lane when the Z-detour would transit a sibling band", () => {
+  it("routes a cross-band X-OVERLAP forward edge through the INTER-BAND strip (E3.2 — no longer over the whole union)", () => {
     // hull-a is a wide top band whose X-extent overlaps hull-b's (the bottom
     // band); sibling band hull-c sits exactly where the Z-detour's first
-    // vertical would run — the edge must lane over the union instead.
+    // vertical would run — the edge must lane instead. E3.2 strip selection
+    // finds the genuine inter-band gap between hull-a's bottom (60) and
+    // hull-c's top (90) — closer to both ports than E2.4's over-the-top
+    // settle (laneY −44) and equally crossing-free.
     const root = hull("__root__", [], []);
     const a = hull("hull-a", ["vpc-a"], ["a1"]);
     const c = hull("hull-c", ["vpc-c"], ["c1"]);
@@ -570,9 +573,19 @@ describe("routeStrataEdgeClip — E2.4 lanes + E2.3 gutter nudging", () => {
     expect(isAxisAligned(abs)).toBe(true);
     expect(abs[0]![0]).toBe(80); // a1 R face
     expect(abs[abs.length - 1]![0]).toBe(400); // b1 L face
-    // Lane above the union of the bands (unionTop = −20).
-    const minY = Math.min(...abs.map((p) => p[1]));
-    expect(minY).toBe(-20 - STRATA_CLIP_LANE_CLEARANCE_PX);
+    // E3.2: the lane's travel sits INSIDE the inter-band strip (60, 90) —
+    // centred at 75 — and the polyline never flies above the union (the old
+    // E2.4 settle put it at unionTop − 24 = −44).
+    const horizontalYs = new Set<number>();
+    for (let i = 0; i + 1 < abs.length; i++) {
+      const [x0, y0] = abs[i]!;
+      const [x1, y1] = abs[i + 1]!;
+      if (Math.abs(y1 - y0) < 1e-6 && Math.abs(x1 - x0) > 1) {
+        horizontalYs.add(y0);
+      }
+    }
+    expect(horizontalYs.has(75)).toBe(true);
+    expect(Math.min(...abs.map((p) => p[1]))).toBeGreaterThan(-20);
     // No top/bottom border crossing on any band, and the sibling band the
     // Z-detour would have pierced is never entered.
     for (const key of ["hull-a", "hull-b", "hull-c"] as const) {
@@ -586,10 +599,12 @@ describe("routeStrataEdgeClip — E2.4 lanes + E2.3 gutter nudging", () => {
   });
 
   it("ORBITS the shared top-level unit when an in-hull lane is impossible: legal side-face exit/re-entry, staircase offsets, no hull entered", () => {
-    // Both endpoints live under one top-level hull P; sibling band hull-c is
-    // wider than both endpoint bands, so no in-place Z or corridor clears it.
-    // The lane must ride AROUND P: out its RIGHT face, over its top, back in
-    // its LEFT face.
+    // Both endpoints live under one top-level hull P whose three bands TILE
+    // its interior gaplessly in Y and span nearly its full width — no
+    // inter-band strip exists inside P and the open strips above/below sit
+    // OUTSIDE P (laneFits rejects them), so E3.2 strip placement fails. The
+    // lane must ride AROUND P: out its RIGHT face, over its top, back in its
+    // LEFT face.
     const root = hull("__root__", [], []);
     const p = hull("P", ["prov"], []);
     const a = hull("hull-a", ["prov", "band-a"], ["a1"]);
@@ -604,9 +619,9 @@ describe("routeStrataEdgeClip — E2.4 lanes + E2.3 gutter nudging", () => {
     ]);
     const boxedHulls = new Map([
       ["P", { hull: p, box: box(-40, -40, 700, 340) }],
-      ["hull-a", { hull: a, box: box(-20, -20, 520, 80) }],
-      ["hull-c", { hull: c, box: box(-30, 90, 680, 90) }],
-      ["hull-b", { hull: b, box: box(-20, 200, 600, 80) }],
+      ["hull-a", { hull: a, box: box(-36, -36, 692, 112) }],
+      ["hull-c", { hull: c, box: box(-36, 76, 692, 112) }],
+      ["hull-b", { hull: b, box: box(-36, 188, 692, 108) }],
     ]);
     const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 240])];
     const meta = routeStrataEdgeClip(
@@ -1150,9 +1165,10 @@ describe("repairTerraformEdgeBindings — typed clip gate", () => {
 // terraformPipelineStrataSceneBuild.ts; verified on the owner preset the
 // emitted+converted rect equals the placement box to the pixel). So when a
 // foreign frame is inside the lane's obstacle context, the settled lane clears
-// its FULL rendered extent — 0 strict-interior violations. (On the real preset
-// the residual grazes are frames OUTSIDE the lane's shared-ancestor obstacle
-// set — an obstacle-SELECTION concern deferred to loop-3, not an extent one.)
+// its FULL rendered extent — 0 strict-interior violations. (E3.2 closed the
+// remaining obstacle-SELECTION gap: lane strips, orbit pieces and dirty
+// gutter columns all clear against the FULL box set now; the real-preset
+// scoreboard probe asserts zero lane-vs-leaf-frame violations permanently.)
 describe("routeStrataEdgeClip — lane clears rendered-frame extents (P1b)", () => {
   /** One band of five single-leaf hulls of VARYING height. A backward edge
    * e1→a1 must fly an above-lane over m1/m2/m3 — every one an in-context foreign
@@ -1226,6 +1242,113 @@ describe("routeStrataEdgeClip — lane clears rendered-frame extents (P1b)", () 
       }
     }
     expect(violations).toBe(0);
+  });
+});
+
+// ── E3.2: full-span obstacle union + crossing-aware strip selection ──────────
+describe("routeStrataEdgeClip — E3.2 strip selection + full-span union", () => {
+  it("a backward lane takes the INTER-BAND strip nearest its ports instead of flying over the whole union", () => {
+    // Top band: three single-leaf hulls (ports at y=40); a second full-width
+    // band hz sits below at y[110,190]. The gap (60,110) between the bands is
+    // a genuine strip and is CLOSER to the ports (dist 90) than the
+    // over-the-top strip at −44 (dist 168) — E3.2 picks it; E2.4's settle
+    // fixpoint could only escape past the whole stack.
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const m = hull("hull-m", ["vpc-m"], ["m1"]);
+    const b = hull("hull-b", ["vpc-b"], ["b1"]);
+    const z = hull("hull-z", ["vpc-z"], ["z1"]);
+    root.children = [a, m, b, z];
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 20, 80, 40)],
+      ["m1", box(200, 20, 80, 40)],
+      ["b1", box(400, 20, 80, 40)],
+      ["z1", box(0, 120, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["hull-a", { hull: a, box: box(-20, -20, 120, 80) }],
+      ["hull-m", { hull: m, box: box(180, -20, 120, 80) }],
+      ["hull-b", { hull: b, box: box(380, -20, 120, 80) }],
+      ["hull-z", { hull: z, box: box(-20, 110, 520, 80) }],
+    ]);
+    const skeleton = [tfdArrow("b1", "a1", [400, 40], [80, 40])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.laneEdges).toBe(1);
+    expect(meta.laneBackward).toBe(1);
+    expect(meta.laneFallback).toBe(0);
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    // The strip at (60,110) sits below the port midline → attributed "below".
+    expect(el.customData.terraformClipLane).toBe("below");
+
+    const abs = absPointsOf(skeleton[0]!);
+    expect(isAxisAligned(abs)).toBe(true);
+    // Lane travel at the strip centre y=85 …
+    const horizontalYs = new Set<number>();
+    for (let i = 0; i + 1 < abs.length; i++) {
+      const [x0, y0] = abs[i]!;
+      const [x1, y1] = abs[i + 1]!;
+      if (Math.abs(y1 - y0) < 1e-6 && Math.abs(x1 - x0) > 1) {
+        horizontalYs.add(y0);
+      }
+    }
+    expect(horizontalYs.has(85)).toBe(true);
+    // … the polyline never flies over the top band (E2.4 settled at −44) …
+    expect(Math.min(...abs.map((p) => p[1]))).toBeGreaterThanOrEqual(0);
+    // … and the FULL-SPAN union holds: no foreign rendered frame is entered —
+    // in particular not the second band the strip is adjacent to.
+    for (const key of ["hull-m", "hull-z"] as const) {
+      expect(polylineEntersBox(abs, boxedHulls.get(key)!.box)).toBe(false);
+    }
+    for (const key of ["m1", "z1"] as const) {
+      expect(polylineEntersBox(abs, leafBoxes.get(key)!)).toBe(false);
+    }
+  });
+
+  it("a DIRTY chain gutter stops its entry-level run SHORT of a deep sibling frame instead of hopping past it (loop-2 violation mechanism)", () => {
+    // a1 sits in tall hull SA with a deep sibling leaf k1 straddling a1's
+    // port level between a1's R face (x=80) and SA's R face (x=300). The old
+    // corridor walk treated k1 as a plain blocker and HOPPED PAST it — the
+    // entry-level horizontal at y=30 then cut straight through k1 (the
+    // loop-2 lane-vs-leaf-frame deep-violation mechanism). E3.2 caps the
+    // column at k1's left edge instead.
+    const root = hull("__root__", [], []);
+    const sa = hull("hull-sa", ["vpc-sa"], ["a1", "k1"]);
+    const hb = hull("hull-b", ["vpc-b"], ["b1"]);
+    root.children = [sa, hb];
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 0, 80, 40)],
+      ["k1", box(120, 10, 80, 40)],
+      ["b1", box(400, 680, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["hull-sa", { hull: sa, box: box(-20, -20, 320, 820) }],
+      ["hull-b", { hull: hb, box: box(380, 660, 120, 80) }],
+    ]);
+    const skeleton = [tfdArrow("a1", "b1", [80, 20], [400, 700])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.staircaseRelieved).toBe(0); // monotone L-route, ratio < 2
+
+    const abs = absPointsOf(skeleton[0]!);
+    expect(isAxisAligned(abs)).toBe(true);
+    // The deep sibling frame is never entered — neither by the entry-level
+    // run nor by the corridor vertical.
+    expect(polylineEntersBox(abs, leafBoxes.get("k1")!)).toBe(false);
+    // And the route still crosses SA's RIGHT face perpendicular (port
+    // discipline unchanged).
+    const saFaceX = -20 + 320;
+    expect(horizontalCrossingsAt(abs, saFaceX).length).toBeGreaterThan(0);
   });
 });
 

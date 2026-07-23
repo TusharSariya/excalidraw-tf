@@ -43,6 +43,39 @@
  *     variable-width siblings make the naive stub X land inside a wider box.
  * Departure/arrival tangents stay horizontal by construction in both shapes.
  *
+ * E3.2 LANE STRIP SELECTION (reworking E2.4's `settleLaneY` fixpoint): lane
+ * Y placement is now a FULL-SPAN, CROSSING-AWARE strip search —
+ *   • the clearance union for a lane candidate includes EVERY rendered
+ *     leaf-cluster frame and hull box whose X-interval intersects the lane's
+ *     span (not just the deepest-shared-ancestor children — the loop-2
+ *     obstacle-SELECTION gap that produced 4 lane-vs-leaf-frame strict-
+ *     interior violations). Boxes containing BOTH endpoint ports are the
+ *     enclosing shared-ancestor stack, not obstacles;
+ *   • candidate laneYs are the feasible horizontal STRIPS, enumerated in two
+ *     tiers: TIER 1 = gaps in the Y-interval union of the full obstacle set
+ *     over the span (the lane sits outside every frame) plus the two
+ *     unbounded gaps past the stack; TIER 2 = leaf-free rows (gaps in the
+ *     union of the LEAF frames + every hull's horizontal-border band) — on
+ *     band-tiled scenes the only inter-band strips lie INSIDE hulls, and the
+ *     lane HORIZONTAL may transit hull interiors through their vertical
+ *     faces (it cannot cross a horizontal border, so wrongFace stays 0; the
+ *     riser/descender verticals and port-level stubs stay strict against
+ *     everything). Tier 2 is taken only when it saves crossings;
+ *   • each feasible candidate (strip slot + riser/descender corridors + a
+ *     strict-interior verification of all five lane pieces against the full
+ *     box set) is scored by PAIR-ONCE crossings against every already-placed
+ *     edge (the shared `segmentsCross` kernel over approximate polylines)
+ *     with a mild distance tie-break (|laneY−exitY|+|laneY−entryY|, then
+ *     laneY) — minimal wins. Deterministic: lane candidates are processed
+ *     HEAVIEST-FIRST by X-span (stable by edge id); the 16px multi-lane
+ *     stagger within a strip is kept (first conflict-free slot vs the
+ *     already-placed lane segments).
+ * E3.2 STAIRCASE RELIEF: a non-lane clip route whose emitted polyline exceeds
+ * {@link STRATA_CLIP_STAIRCASE_RATIO}× its chord (the api7-class corridor
+ * staircases) attempts the same lane machinery and adopts the lane when it
+ * lowers the ratio (counted in `staircaseRelieved`). Side discipline and port
+ * faces are unchanged in both reworks.
+ *
  * E2.4 OVER-THE-TOP LANES (Spönemann routing slots / TSE93 flat-edge
  * lineage): two edge classes cannot run the plain L→R mid-gutter —
  *   (a) CROSS-BAND edges (Y-disjoint outermost containers — the mid vertical
@@ -77,8 +110,10 @@
  *      every orbit piece is verified clear before adoption;
  *   4. fallback (counted in `laneFallback`): class (a) keeps the Z-detour,
  *      class (b) stays unstamped (style orbit).
- * Lanes never enter any hull: obstacle sets are the child unit boxes of the
- * relevant ancestor context (every nested hull/leaf lies inside one). Lane
+ * A lane never enters a LEAF frame, never crosses a horizontal hull border,
+ * and its verticals never enter any frame (E3.2: verified against the FULL
+ * box set; a tier-2 lane horizontal may transit hull interiors via their
+ * vertical faces — see the E3.2 section above). Lane
  * edges stamp `terraformClipLane: "above"|"below"` so scoreboard backwardXPx
  * on them is attributable (sanctioned lane travel, not a goofy detour). Side
  * discipline stays absolute: lane edges still terminate on the same R-egress
@@ -123,6 +158,7 @@ import type { LocalPoint } from "@excalidraw/math";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 
 import { deriveStrataColumns } from "./terraformPipelineStrataChannelRoute";
+import { segmentsCross } from "./terraformPipelineCollisionDiagnostics";
 
 import type {
   StrataBox,
@@ -149,6 +185,14 @@ export const STRATA_CLIP_LANE_SEPARATION_PX = 16;
 /** E2.4: margin kept between a lane riser/descender and any obstacle box or
  * shared-hull border. */
 const STRATA_CLIP_LANE_MARGIN_PX = 4;
+/** E3.2: a non-lane clip polyline whose length exceeds this ratio × its chord
+ * is a corridor STAIRCASE — it attempts lane relief (adopted only when the
+ * lane's ratio is lower). */
+export const STRATA_CLIP_STAIRCASE_RATIO = 2;
+/** E3.2: X-pad around the lane's face-to-face extent when estimating the
+ * strip obstacle span (corridors sit within a stub + stagger of the faces;
+ * the final lane pieces are verified against the full box set regardless). */
+const STRATA_CLIP_LANE_SPAN_PAD_PX = 128;
 
 export type StrataEdgeClipMeta = {
   /** Eligible cross-cluster edges rewritten to a clip polyline (net-forward
@@ -180,6 +224,10 @@ export type StrataEdgeClipMeta = {
    * slot inside the shared hull). Class (a) fell back to the E2.1 Z-detour,
    * class (b) stayed unstamped (also counted in `skippedBackward`). */
   laneFallback: number;
+  /** E3.2: non-lane clip routes whose polyline exceeded
+   * {@link STRATA_CLIP_STAIRCASE_RATIO}× the chord and adopted a lane that
+   * lowered the ratio (also counted in `laneEdges`). */
+  staircaseRelieved: number;
 };
 
 type Pt = readonly [number, number];
@@ -455,6 +503,7 @@ export function routeStrataEdgeClip(
     laneBelow: 0,
     laneBackward: 0,
     laneFallback: 0,
+    staircaseRelieved: 0,
   };
 
   const chains = leafHullChainsOf(model.hullRoot);
@@ -500,9 +549,6 @@ export function routeStrataEdgeClip(
       dir: "above" | "below";
       riserX: number;
       descX: number;
-      uTop: number;
-      uBot: number;
-      laneIndex: number;
       laneY: number;
     };
   };
@@ -741,13 +787,10 @@ export function routeStrataEdgeClip(
     // emission — terraformPipelineStrataSceneBuild.ts header; verified: the
     // emitted+converted frame rect equals the placement box to the pixel for
     // every leaf on the owner preset). So there is NO placement-vs-rendered inset
-    // to correct here. A lane that grazes a foreign frame's INTERIOR is therefore
-    // never an obstacle-extent problem — it is an obstacle-SELECTION problem:
-    // the grazed frame was not in the deepest-shared-ancestor obstacle set this
-    // lane's `settleLaneY` cleared against (a wide horizontal lane segment can
-    // span X past frames outside its shared-ancestor context). Widening lane
-    // strip selection to those frames is loop-3 scope — deliberately NOT done
-    // here.
+    // to correct here. Loop-2's obstacle-SELECTION gap (this shared-ancestor
+    // child set omitted far-flung frames a lane's X-span crossed) is CLOSED by
+    // E3.2: lane STRIP placement clears against the full `allBoxes` set. This
+    // context now serves the ORBIT machinery + the shared-hull `bounds` only.
     const obstacles: StrataBox[] = [];
     if (node) {
       for (const child of node.children) {
@@ -768,75 +811,74 @@ export function routeStrataEdgeClip(
     return ctx;
   };
 
-  /**
-   * Settle a lane Y by clearance FIXPOINT: seed the union from the two
-   * endpoints' outer boxes plus every obstacle the Z-detour's vertical travel
-   * would transit (Y-intersecting the open exit↔entry interval), place the
-   * lane CLEARANCE + SEPARATION·k past the union's top (above) / bottom
-   * (below), then, while the candidate Y still cuts ANY obstacle's open
-   * Y-interval, absorb that obstacle into the union and re-place. X is
-   * deliberately ignored (bands are effectively full-width; the conservatism
-   * costs nothing there and guarantees the lane segment cannot cut a hull no
-   * matter the final span). Converges in ≤ |obstacles| steps — each
-   * absorption strictly grows the union. The result lands in the nearest
-   * clear horizontal strip: an inter-band gap when one fits, else past the
-   * whole stack.
-   */
-  const settleLaneY = (
-    dir: "above" | "below",
-    laneIndex: number,
-    seedTop: number,
-    seedBot: number,
-    obstacles: readonly StrataBox[],
-  ): number => {
-    let top = seedTop;
-    let bot = seedBot;
-    const offset =
-      STRATA_CLIP_LANE_CLEARANCE_PX +
-      STRATA_CLIP_LANE_SEPARATION_PX * laneIndex;
-    let laneY = dir === "above" ? top - offset : bot + offset;
-    for (let guard = 0; guard <= obstacles.length; guard++) {
-      const hit = obstacles.find(
-        (b) => b.y + 0.5 < laneY && laneY < b.y + b.height - 0.5,
-      );
-      if (!hit) {
-        return laneY;
-      }
-      top = Math.min(top, hit.y);
-      bot = Math.max(bot, hit.y + hit.height);
-      laneY = dir === "above" ? top - offset : bot + offset;
-    }
-    return laneY;
-  };
+  // ── E3.2 full-span obstacle set: EVERY rendered leaf-cluster frame + hull
+  // box (placement boxes ARE the rendered extents — see `laneContextOf`).
+  // Shared by lane strip placement, the run verifications, and the E2.3
+  // gutter clearance below. Hull and leaf boxes are kept distinguishable:
+  // LEAF frames are HARD obstacles for every lane piece, while a lane's
+  // HORIZONTAL travel may transit hull interiors through their vertical
+  // faces (tier-2 strips — on band-tiled scenes the only leaf-free rows lie
+  // INSIDE hulls; a horizontal run cannot cross a horizontal border, so
+  // wrongFace stays 0 by construction and the crossings drop massively).
+  // Vertical pieces stay strict against everything (a vertical entering a
+  // hull would cross its top/bottom border). ──
+  const hullBoxesAll: StrataBox[] = [...placement.boxedHulls.values()].map(
+    (b) => b.box,
+  );
+  const leafBoxesAll: StrataBox[] = [...placement.leafBoxes.values()];
+  const leafBoxSet = new Set<StrataBox>(leafBoxesAll);
+  const allBoxes: StrataBox[] = [...hullBoxesAll, ...leafBoxesAll];
 
-  /** Clear corridor X beside one endpoint's outermost face: vertical blockers
-   * are the obstacles the riser's ACTUAL Y-span (laneY ↔ exit level) would
-   * hit; the wall is the first obstacle strictly containing the exit level in
-   * the walk direction (the horizontal approach at exitY cannot pass it),
-   * capped by the shared hull's own border. */
-  const laneCorridorX = (
+  /** Closed containment of a point in a box (±0.5px tolerance — a port ON a
+   * face counts as contained by that frame and all its ancestors). */
+  const containsPointTol = (b: StrataBox, px: number, py: number): boolean =>
+    px >= b.x - 0.5 &&
+    px <= b.x + b.width + 0.5 &&
+    py >= b.y - 0.5 &&
+    py <= b.y + b.height + 0.5;
+
+  /** Closed containment of an axis-aligned segment in a box (±0.5px): the box
+   * is an ENCLOSING container of the run, not an obstacle. */
+  const boxContainsSeg = (
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    b: StrataBox,
+  ): boolean =>
+    Math.min(x0, x1) >= b.x - 0.5 &&
+    Math.max(x0, x1) <= b.x + b.width + 0.5 &&
+    Math.min(y0, y1) >= b.y - 0.5 &&
+    Math.max(y0, y1) <= b.y + b.height + 0.5;
+
+  /** E3.2 corridor X against the FULL box set: vertical blockers are every
+   * box the riser's actual Y-span (laneY ↔ anchor level) would hit; boxes
+   * containing the anchor point are the endpoint's own ancestor stack (the
+   * run starts ON their face) and are exempt. The wall is the first box
+   * strictly containing the anchor level in the walk direction (the
+   * horizontal approach cannot pass it), capped by the shared hull's border. */
+  const corridorXFull = (
     startX: number,
-    exitY: number,
+    anchorY: number,
     laneY: number,
     dir: 1 | -1,
-    ctx: LaneContext,
-    ownBox: StrataBox,
+    bounds: StrataBox | null,
     desired: number,
   ): number | null => {
-    const yLo = Math.min(exitY, laneY);
-    const yHi = Math.max(exitY, laneY);
+    const yLo = Math.min(anchorY, laneY);
+    const yHi = Math.max(anchorY, laneY);
     const blockers: XInterval[] = [];
     let wall = dir === 1 ? Infinity : -Infinity;
-    for (const b of ctx.obstacles) {
-      if (sameBox(b, ownBox)) {
+    for (const b of allBoxes) {
+      if (containsPointTol(b, startX, anchorY)) {
         continue;
       }
       if (b.y < yHi - 0.5 && b.y + b.height > yLo + 0.5) {
         blockers.push({ x0: b.x, x1: b.x + b.width });
       }
-      const containsExitLevel =
-        b.y < exitY - 0.5 && b.y + b.height > exitY + 0.5;
-      if (containsExitLevel) {
+      const containsAnchorLevel =
+        b.y < anchorY - 0.5 && b.y + b.height > anchorY + 0.5;
+      if (containsAnchorLevel) {
         if (dir === 1 && b.x >= startX - 0.5) {
           wall = Math.min(wall, b.x);
         } else if (dir === -1 && b.x + b.width <= startX + 0.5) {
@@ -846,26 +888,17 @@ export function routeStrataEdgeClip(
     }
     const limit =
       dir === 1
-        ? Math.min(
-            wall,
-            ctx.bounds ? ctx.bounds.x + ctx.bounds.width : Infinity,
-          )
-        : Math.max(wall, ctx.bounds ? ctx.bounds.x : -Infinity);
+        ? Math.min(wall, bounds ? bounds.x + bounds.width : Infinity)
+        : Math.max(wall, bounds ? bounds.x : -Infinity);
     return chooseCorridorX(startX, desired, dir, blockers, limit);
   };
 
   /** Lane must stay INSIDE the shared hull's own box (when the shared
    * ancestor is a real hull) — a lane past its border would cross a face the
    * edge owns no port on. Border-hugging is fine (only crossing is not). */
-  const laneFits = (
-    laneY: number,
-    dir: "above" | "below",
-    bounds: StrataBox | null,
-  ): boolean =>
+  const laneFits = (laneY: number, bounds: StrataBox | null): boolean =>
     !bounds ||
-    (dir === "above"
-      ? laneY > bounds.y + 0.5
-      : laneY < bounds.y + bounds.height - 0.5);
+    (laneY > bounds.y + 0.5 && laneY < bounds.y + bounds.height - 0.5);
 
   /** Strict-interior intersection of an AXIS-ALIGNED segment with a box. */
   const axisSegEntersBox = (
@@ -946,37 +979,506 @@ export function routeStrataEdgeClip(
       exitY,
       entryY,
     );
-    const ctx = laneContextOf(plan.sharedId);
-    for (const b of ctx.obstacles) {
+    // E3.2: the Z is measured against the FULL box set (the same
+    // obstacle-selection fix the lanes got) — enclosing containers (a box
+    // holding the whole run) are exempt, the endpoints' outer boxes likewise.
+    const pieces = [
+      [lastSrcFace.x, exitY, ax, exitY],
+      [ax, exitY, ax, my],
+      [Math.min(ax, bx), my, Math.max(ax, bx), my],
+      [bx, my, bx, entryY],
+      [bx, entryY, firstTgtFace.x, entryY],
+    ] as const;
+    for (const b of allBoxes) {
       if (sameBox(b, plan.srcOuterBox) || sameBox(b, plan.tgtOuterBox)) {
         continue;
       }
-      if (
-        axisSegEntersBox(ax, exitY, ax, my, b) ||
-        axisSegEntersBox(Math.min(ax, bx), my, Math.max(ax, bx), my, b) ||
-        axisSegEntersBox(bx, my, bx, entryY, b) ||
-        axisSegEntersBox(lastSrcFace.x, exitY, ax, exitY, b) ||
-        axisSegEntersBox(bx, entryY, firstTgtFace.x, entryY, b)
-      ) {
-        return false;
+      for (const [x0, y0, x1, y1] of pieces) {
+        if (boxContainsSeg(x0, y0, x1, y1, b)) {
+          continue;
+        }
+        if (axisSegEntersBox(x0, y0, x1, y1, b)) {
+          return false;
+        }
       }
     }
     return true;
   };
 
-  type LaneDraft = {
-    plan: Plan;
-    dir: "above" | "below";
-    lastSrcFace: FaceRef;
-    firstTgtFace: FaceRef;
-    exitY: number;
-    entryY: number;
-    seedTop: number;
-    seedBot: number;
-    spanLo: number;
-    spanHi: number;
+  /** The edge's full crossing sequence on each side (leaf face included). */
+  const sideCrossings = (
+    plan: Plan,
+  ): {
+    src: Array<{ face: FaceRef; y: number }>;
+    tgt: Array<{ face: FaceRef; y: number }>;
+  } => {
+    const srcCenterY = plan.srcBox.y + plan.srcBox.height / 2;
+    const tgtCenterY = plan.tgtBox.y + plan.tgtBox.height / 2;
+    const src = [plan.srcLeafFace, ...plan.srcFaces].map((face) => ({
+      face,
+      y: portY(face, plan.edgeId, tgtCenterY),
+    }));
+    const tgt = [...plan.tgtFaces, plan.tgtLeafFace].map((face) => ({
+      face,
+      y: portY(face, plan.edgeId, srcCenterY),
+    }));
+    return { src, tgt };
   };
-  const laneDrafts: LaneDraft[] = [];
+
+  // ── E3.2 approximate-geometry registry (crossing-aware scoring): every
+  // plan's polyline approximated as its face-crossing chain points plus a mid
+  // connection (implicit straight chord / Z-detour / lane). Lane candidates
+  // stay PENDING (excluded from scoring) until their placement resolves;
+  // failed backward candidates leave the registry (they end unstamped).
+  // Deterministic: insertion follows `plans` (skeleton emission) order. ──
+  const approxGeom = new Map<string, Pt[]>();
+  const pendingLane = new Set<string>();
+  const approxPtsOf = (plan: Plan, mid: Pt[] | null): Pt[] => {
+    const { src, tgt } = sideCrossings(plan);
+    const pts: Pt[] = src.map((c) => [c.face.x, c.y] as const);
+    if (mid) {
+      pts.push(...mid);
+    }
+    pts.push(...tgt.map((c) => [c.face.x, c.y] as const));
+    return pts;
+  };
+  const zMidOf = (
+    plan: Plan,
+    lastSrcFace: FaceRef,
+    firstTgtFace: FaceRef,
+    exitY: number,
+    entryY: number,
+  ): Pt[] => {
+    const { ax, bx, my } = zShapeOf(
+      plan,
+      lastSrcFace,
+      firstTgtFace,
+      exitY,
+      entryY,
+    );
+    return [
+      [ax, exitY],
+      [ax, my],
+      [bx, my],
+      [bx, entryY],
+    ];
+  };
+  const laneMidOf = (
+    p: { riserX: number; descX: number; laneY: number },
+    exitY: number,
+    entryY: number,
+  ): Pt[] => [
+    [p.riserX, exitY],
+    [p.riserX, p.laneY],
+    [p.descX, p.laneY],
+    [p.descX, entryY],
+  ];
+  for (const plan of plans) {
+    approxGeom.set(plan.edgeId, approxPtsOf(plan, null));
+    if (plan.laneClass) {
+      pendingLane.add(plan.edgeId);
+    }
+  }
+  const resolveApprox = (edgeId: string, pts: Pt[]): void => {
+    approxGeom.set(edgeId, pts);
+    pendingLane.delete(edgeId);
+  };
+  const dropApprox = (edgeId: string): void => {
+    approxGeom.delete(edgeId);
+    pendingLane.delete(edgeId);
+  };
+
+  /** Pair-once crossings of a candidate polyline against every RESOLVED edge
+   * (the shared `segmentsCross` kernel — endpoint-sharing within 1px is
+   * non-crossing, matching the diagnostics' crossing census). */
+  const scoreCandidate = (edgeId: string, cand: Pt[]): number => {
+    let n = 0;
+    for (const [id, geom] of approxGeom) {
+      if (id === edgeId || pendingLane.has(id)) {
+        continue;
+      }
+      let crossed = false;
+      for (let i = 0; i + 1 < cand.length && !crossed; i++) {
+        for (let j = 0; j + 1 < geom.length; j++) {
+          if (
+            segmentsCross(
+              {
+                x1: cand[i]![0],
+                y1: cand[i]![1],
+                x2: cand[i + 1]![0],
+                y2: cand[i + 1]![1],
+              },
+              {
+                x1: geom[j]![0],
+                y1: geom[j]![1],
+                x2: geom[j + 1]![0],
+                y2: geom[j + 1]![1],
+              },
+            )
+          ) {
+            crossed = true;
+            break;
+          }
+        }
+      }
+      if (crossed) {
+        n += 1;
+      }
+    }
+    return n;
+  };
+
+  /** Already-committed lane travel segments (strips + orbits) — the source of
+   * the 16px multi-lane stagger within a strip. */
+  const placedLaneSegs: Array<{ y: number; x0: number; x1: number }> = [];
+
+  /** E3.2: the four SIDE pieces (port-level stubs + riser/descender
+   * verticals) must strictly clear the FULL box set — a vertical entering a
+   * hull would cross its horizontal border (wrongFace). A box containing a
+   * whole piece is an ENCLOSING container (the shared-ancestor stack —
+   * legal); a box containing a piece's anchor point is that endpoint's own
+   * ancestor stack (the run starts ON its face — legal). The LANE horizontal
+   * itself must strictly avoid every LEAF frame and stay LANE_MARGIN clear
+   * of every hull's horizontal border, but MAY transit hull interiors
+   * through their vertical faces (tier-2 strips). */
+  const laneRunsClear = (
+    lastSrcFace: FaceRef,
+    firstTgtFace: FaceRef,
+    exitY: number,
+    entryY: number,
+    riserX: number,
+    descX: number,
+    laneY: number,
+  ): boolean => {
+    const pieces: Array<{
+      x0: number;
+      y0: number;
+      x1: number;
+      y1: number;
+      ax: number;
+      ay: number;
+    }> = [
+      {
+        x0: lastSrcFace.x,
+        y0: exitY,
+        x1: riserX,
+        y1: exitY,
+        ax: lastSrcFace.x,
+        ay: exitY,
+      },
+      {
+        x0: riserX,
+        y0: exitY,
+        x1: riserX,
+        y1: laneY,
+        ax: lastSrcFace.x,
+        ay: exitY,
+      },
+      {
+        x0: descX,
+        y0: laneY,
+        x1: descX,
+        y1: entryY,
+        ax: firstTgtFace.x,
+        ay: entryY,
+      },
+      {
+        x0: descX,
+        y0: entryY,
+        x1: firstTgtFace.x,
+        y1: entryY,
+        ax: firstTgtFace.x,
+        ay: entryY,
+      },
+    ];
+    for (const b of allBoxes) {
+      for (const p of pieces) {
+        if (boxContainsSeg(p.x0, p.y0, p.x1, p.y1, b)) {
+          continue;
+        }
+        if (containsPointTol(b, p.ax, p.ay)) {
+          continue;
+        }
+        if (axisSegEntersBox(p.x0, p.y0, p.x1, p.y1, b)) {
+          return false;
+        }
+      }
+    }
+    const lx0 = Math.min(riserX, descX);
+    const lx1 = Math.max(riserX, descX);
+    for (const b of leafBoxesAll) {
+      if (axisSegEntersBox(lx0, laneY, lx1, laneY, b)) {
+        return false;
+      }
+    }
+    for (const b of hullBoxesAll) {
+      if (b.x >= lx1 - 0.5 || b.x + b.width <= lx0 + 0.5) {
+        continue;
+      }
+      if (
+        Math.abs(laneY - b.y) < STRATA_CLIP_LANE_MARGIN_PX - 0.5 ||
+        Math.abs(laneY - (b.y + b.height)) < STRATA_CLIP_LANE_MARGIN_PX - 0.5
+      ) {
+        return false; // lane hugging / grazing a hull's horizontal border
+      }
+    }
+    return true;
+  };
+
+  /**
+   * E3.2 CROSSING-AWARE STRIP SELECTION. Candidate laneYs are the gaps in the
+   * Y-interval union of the FULL obstacle set over the lane's estimated
+   * X-span (every leaf/hull box whose X-interval intersects it — boxes
+   * containing BOTH ports are the enclosing shared-ancestor stack, exempt),
+   * plus the two unbounded gaps past the stack. Within a strip, the first
+   * conflict-free 16px slot against already-placed lanes is taken (bounded
+   * strips alternate around the centre; open strips walk away from the
+   * stack). Each feasible candidate — slot, corridors (nested outward by
+   * slot), full five-piece verification — is scored by pair-once crossings
+   * against every already-placed edge, then |laneY−exitY|+|laneY−entryY|,
+   * then laneY (all ascending); minimal wins. Returns null when no strip
+   * admits a verified lane.
+   */
+  const lanePlacementFor = (
+    plan: Plan,
+    lastSrcFace: FaceRef,
+    firstTgtFace: FaceRef,
+    exitY: number,
+    entryY: number,
+  ): { laneY: number; riserX: number; descX: number } | null => {
+    const bounds = laneContextOf(plan.sharedId).bounds;
+    const estLo =
+      Math.min(lastSrcFace.x, firstTgtFace.x) - STRATA_CLIP_LANE_SPAN_PAD_PX;
+    const estHi =
+      Math.max(lastSrcFace.x, firstTgtFace.x) + STRATA_CLIP_LANE_SPAN_PAD_PX;
+    type Gap = { lo: number; hi: number };
+    const gapsOf = (intervals: Array<[number, number]>): Gap[] => {
+      intervals.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const merged: Array<[number, number]> = [];
+      for (const [lo, hi] of intervals) {
+        const last = merged[merged.length - 1];
+        if (last && lo <= last[1] + 1) {
+          last[1] = Math.max(last[1], hi);
+        } else {
+          merged.push([lo, hi]);
+        }
+      }
+      const gaps: Gap[] = [];
+      if (merged.length === 0) {
+        gaps.push({ lo: -Infinity, hi: Infinity });
+      } else {
+        gaps.push({ lo: -Infinity, hi: merged[0]![0] });
+        for (let i = 0; i + 1 < merged.length; i++) {
+          gaps.push({ lo: merged[i]![1], hi: merged[i + 1]![0] });
+        }
+        gaps.push({ lo: merged[merged.length - 1]![1], hi: Infinity });
+      }
+      return gaps;
+    };
+    const inSpan = (b: StrataBox): boolean =>
+      !(b.x + b.width <= estLo + 0.5 || b.x >= estHi - 0.5);
+    const containsBothPorts = (b: StrataBox): boolean =>
+      containsPointTol(b, lastSrcFace.x, exitY) &&
+      containsPointTol(b, firstTgtFace.x, entryY);
+    // TIER 1 — strict full-union strips: gaps in the Y-union of EVERY
+    // leaf/hull box over the span (both-port containers = the enclosing
+    // shared-ancestor stack, exempt). The lane sits OUTSIDE every frame.
+    const t1Intervals: Array<[number, number]> = [];
+    for (const b of allBoxes) {
+      if (!inSpan(b) || containsBothPorts(b)) {
+        continue;
+      }
+      t1Intervals.push([b.y, b.y + b.height]);
+    }
+    const t1Gaps = gapsOf(t1Intervals);
+    // TIER 2 — hull-transit strips: leaf-free rows. Obstacles are the LEAF
+    // frames plus every hull's horizontal-BORDER band (±LANE_MARGIN — the
+    // lane may transit a hull's interior via its vertical faces but must
+    // neither cross nor hug a horizontal border). Preferred only when it
+    // saves crossings (the score tuple ranks tier AFTER crossings).
+    const t2Intervals: Array<[number, number]> = [];
+    for (const b of leafBoxesAll) {
+      if (!inSpan(b)) {
+        continue;
+      }
+      t2Intervals.push([b.y, b.y + b.height]);
+    }
+    for (const b of hullBoxesAll) {
+      if (!inSpan(b)) {
+        continue;
+      }
+      t2Intervals.push([
+        b.y - STRATA_CLIP_LANE_MARGIN_PX,
+        b.y + STRATA_CLIP_LANE_MARGIN_PX,
+      ]);
+      t2Intervals.push([
+        b.y + b.height - STRATA_CLIP_LANE_MARGIN_PX,
+        b.y + b.height + STRATA_CLIP_LANE_MARGIN_PX,
+      ]);
+    }
+    const sameEdgeY = (a: number, b: number): boolean =>
+      a === b || Math.abs(a - b) < 0.5;
+    const t2Gaps = gapsOf(t2Intervals).filter(
+      (g) =>
+        !t1Gaps.some((t) => sameEdgeY(t.lo, g.lo) && sameEdgeY(t.hi, g.hi)),
+    );
+    const slotY = (g: Gap, base: number, k: number): number | null => {
+      if (g.lo === -Infinity) {
+        return base - k * STRATA_CLIP_LANE_SEPARATION_PX;
+      }
+      if (g.hi === Infinity) {
+        return base + k * STRATA_CLIP_LANE_SEPARATION_PX;
+      }
+      const step = Math.ceil(k / 2) * STRATA_CLIP_LANE_SEPARATION_PX;
+      if (step > g.hi - g.lo) {
+        return null; // strip exhausted
+      }
+      return k % 2 === 1 ? base - step : base + step;
+    };
+
+    let best: {
+      crossings: number;
+      tier: number;
+      dist: number;
+      laneY: number;
+      riserX: number;
+      descX: number;
+    } | null = null;
+    const tiers: Array<[number, Gap[]]> = [
+      [0, t1Gaps],
+      [1, t2Gaps],
+    ];
+    for (const [tier, gaps] of tiers) {
+      for (const g of gaps) {
+        const usableLo =
+          g.lo === -Infinity ? -Infinity : g.lo + STRATA_CLIP_LANE_MARGIN_PX;
+        const usableHi =
+          g.hi === Infinity ? Infinity : g.hi - STRATA_CLIP_LANE_MARGIN_PX;
+        const base =
+          g.lo === -Infinity && g.hi === Infinity
+            ? (exitY + entryY) / 2
+            : g.lo === -Infinity
+            ? g.hi - STRATA_CLIP_LANE_CLEARANCE_PX
+            : g.hi === Infinity
+            ? g.lo + STRATA_CLIP_LANE_CLEARANCE_PX
+            : (g.lo + g.hi) / 2;
+        if (base < usableLo || base > usableHi) {
+          continue; // strip too thin for a lane
+        }
+        let laneY: number | null = null;
+        let slot = 0;
+        for (let k = 0; k < 64; k++) {
+          const cand = slotY(g, base, k);
+          if (cand === null) {
+            break;
+          }
+          if (cand < usableLo || cand > usableHi) {
+            continue;
+          }
+          const conflict = placedLaneSegs.some(
+            (s) =>
+              Math.abs(s.y - cand) < STRATA_CLIP_LANE_SEPARATION_PX - 0.5 &&
+              s.x0 < estHi &&
+              estLo < s.x1,
+          );
+          if (!conflict) {
+            laneY = cand;
+            slot = k;
+            break;
+          }
+        }
+        if (laneY === null || !laneFits(laneY, bounds)) {
+          continue;
+        }
+        const desired = plan.outStub + slot * STRATA_CLIP_LANE_SEPARATION_PX;
+        const riserX = corridorXFull(
+          lastSrcFace.x,
+          exitY,
+          laneY,
+          1,
+          bounds,
+          desired,
+        );
+        if (riserX === null) {
+          continue;
+        }
+        const descX = corridorXFull(
+          firstTgtFace.x,
+          entryY,
+          laneY,
+          -1,
+          bounds,
+          desired,
+        );
+        if (descX === null) {
+          continue;
+        }
+        if (
+          !laneRunsClear(
+            lastSrcFace,
+            firstTgtFace,
+            exitY,
+            entryY,
+            riserX,
+            descX,
+            laneY,
+          )
+        ) {
+          continue;
+        }
+        const candPts = approxPtsOf(
+          plan,
+          laneMidOf({ riserX, descX, laneY }, exitY, entryY),
+        );
+        const crossings = scoreCandidate(plan.edgeId, candPts);
+        const dist = Math.abs(laneY - exitY) + Math.abs(laneY - entryY);
+        // Lexicographic (crossings, tier, dist, laneY) — crossings dominate;
+        // an outside-all-frames tier-1 strip is preferred over a hull-transit
+        // tier-2 strip that saves nothing; distance is the mild final term.
+        if (
+          !best ||
+          crossings < best.crossings ||
+          (crossings === best.crossings &&
+            (tier < best.tier ||
+              (tier === best.tier &&
+                (dist < best.dist ||
+                  (dist === best.dist && laneY < best.laneY)))))
+        ) {
+          best = { crossings, tier, dist, laneY, riserX, descX };
+        }
+      }
+    }
+    return best
+      ? { laneY: best.laneY, riserX: best.riserX, descX: best.descX }
+      : null;
+  };
+
+  /** Commit a strip placement: stamp `plan.lane` (direction attributed by the
+   * lane's side of the port midline), record the lane segment for the strip
+   * stagger, resolve the edge's scoring geometry. */
+  const commitLane = (
+    plan: Plan,
+    placed: { laneY: number; riserX: number; descX: number },
+    exitY: number,
+    entryY: number,
+  ): void => {
+    plan.lane = {
+      dir: placed.laneY <= (exitY + entryY) / 2 ? "above" : "below",
+      riserX: placed.riserX,
+      descX: placed.descX,
+      laneY: placed.laneY,
+    };
+    placedLaneSegs.push({
+      y: placed.laneY,
+      x0: Math.min(placed.riserX, placed.descX),
+      x1: Math.max(placed.riserX, placed.descX),
+    });
+    resolveApprox(
+      plan.edgeId,
+      approxPtsOf(plan, laneMidOf(placed, exitY, entryY)),
+    );
+  };
+
   type OrbitDraft = {
     plan: Plan;
     dir: "above" | "below";
@@ -986,10 +1488,6 @@ export function routeStrataEdgeClip(
     entryY: number;
     orbit: StrataBox;
     orbitKey: string;
-    /** Try the in-place machinery when this orbit is blocked (first-choice
-     * orbits only — an edge whose in-place attempt already failed retries
-     * nothing). */
-    retryInPlace: boolean;
   };
   const orbitDrafts: OrbitDraft[] = [];
 
@@ -1001,7 +1499,6 @@ export function routeStrataEdgeClip(
     firstTgtFace: FaceRef,
     exitY: number,
     entryY: number,
-    retryInPlace: boolean,
   ): boolean => {
     const orbitBoxed = plan.topAncestorId
       ? placement.boxedHulls.get(plan.topAncestorId)
@@ -1022,98 +1519,24 @@ export function routeStrataEdgeClip(
       entryY,
       orbit: O,
       orbitKey: plan.topAncestorId!,
-      retryInPlace,
     });
     return true;
   };
 
-  /** Draft the IN-PLACE lane (nearest-gutter, inside the shared hull); false
-   * when no direction fits inside the shared hull or no clear riser/descender
-   * corridor exists at index 0. */
-  const draftInPlace = (
-    plan: Plan,
-    lastSrcFace: FaceRef,
-    firstTgtFace: FaceRef,
-    exitY: number,
-    entryY: number,
-  ): boolean => {
-    const ctx = laneContextOf(plan.sharedId);
-    const s = plan.srcOuterBox;
-    const t = plan.tgtOuterBox;
-    // Union seed: the two outer boxes + every obstacle the Z-detour's
-    // vertical travel would transit (Y-intersecting the open exit↔entry
-    // interval — "every hull the edge would otherwise transit").
-    let seedTop = Math.min(s.y, t.y);
-    let seedBot = Math.max(s.y + s.height, t.y + t.height);
-    const tLo = Math.min(exitY, entryY);
-    const tHi = Math.max(exitY, entryY);
-    for (const b of ctx.obstacles) {
-      if (b.y < tHi - 0.5 && b.y + b.height > tLo + 0.5) {
-        seedTop = Math.min(seedTop, b.y);
-        seedBot = Math.max(seedBot, b.y + b.height);
-      }
-    }
-    // Below-the-union lane iff the union's bottom is closer to BOTH endpoints
-    // (deterministic per edge); above otherwise. When the preferred direction
-    // cannot fit inside the shared hull, try the other before giving up.
-    const below =
-      seedBot - exitY < exitY - seedTop && seedBot - entryY < entryY - seedTop;
-    let dir: "above" | "below" = below ? "below" : "above";
-    let laneY0 = settleLaneY(dir, 0, seedTop, seedBot, ctx.obstacles);
-    if (!laneFits(laneY0, dir, ctx.bounds)) {
-      const flipped: "above" | "below" = dir === "above" ? "below" : "above";
-      const flippedY0 = settleLaneY(
-        flipped,
-        0,
-        seedTop,
-        seedBot,
-        ctx.obstacles,
-      );
-      if (!laneFits(flippedY0, flipped, ctx.bounds)) {
-        return false;
-      }
-      dir = flipped;
-      laneY0 = flippedY0;
-    }
-    const riserX = laneCorridorX(
-      lastSrcFace.x,
-      exitY,
-      laneY0,
-      1,
-      ctx,
-      plan.srcOuterBox,
-      plan.outStub,
-    );
-    const descX =
-      riserX !== null
-        ? laneCorridorX(
-            firstTgtFace.x,
-            entryY,
-            laneY0,
-            -1,
-            ctx,
-            plan.tgtOuterBox,
-            plan.outStub,
-          )
-        : null;
-    if (riserX === null || descX === null) {
-      return false;
-    }
-    laneDrafts.push({
-      plan,
-      dir,
-      lastSrcFace,
-      firstTgtFace,
-      exitY,
-      entryY,
-      seedTop,
-      seedBot,
-      spanLo: Math.min(riserX, descX),
-      spanHi: Math.max(riserX, descX),
-    });
-    return true;
+  // ── E3.2 lane candidate flow: clean Zs opt out first; the rest are
+  // processed HEAVIEST-FIRST by face-to-face X-span (stable by edge id) so
+  // the heavy full-span lanes get first pick of the best strips. A candidate
+  // no strip admits falls back to the ORBIT queue, then to the E2.1
+  // Z-detour (class a) / unstamped (class b). ──
+  type LaneCandidate = {
+    plan: Plan;
+    lastSrcFace: FaceRef;
+    firstTgtFace: FaceRef;
+    exitY: number;
+    entryY: number;
+    spanEst: number;
   };
-
+  const laneCandidates: LaneCandidate[] = [];
   for (const plan of plans) {
     if (!plan.laneClass) {
       continue;
@@ -1144,22 +1567,53 @@ export function routeStrataEdgeClip(
       zIsClean(plan, lastSrcFace, firstTgtFace, exitY, entryY)
     ) {
       plan.zClean = true;
+      resolveApprox(
+        plan.edgeId,
+        approxPtsOf(
+          plan,
+          zMidOf(plan, lastSrcFace, firstTgtFace, exitY, entryY),
+        ),
+      );
       continue;
     }
-    // X-OVERLAP edges are canvas-scale detours — the ORBIT's nested
-    // staircases are crossing-free, so it goes first (a blocked orbit retries
-    // in place). Everything else prefers the nearest-gutter in-place lane.
+    laneCandidates.push({
+      plan,
+      lastSrcFace,
+      firstTgtFace,
+      exitY,
+      entryY,
+      spanEst: Math.abs(firstTgtFace.x - lastSrcFace.x),
+    });
+  }
+  laneCandidates.sort(
+    (a, b) => b.spanEst - a.spanEst || cmpStr(a.plan.edgeId, b.plan.edgeId),
+  );
+  for (const c of laneCandidates) {
+    const placed = lanePlacementFor(
+      c.plan,
+      c.lastSrcFace,
+      c.firstTgtFace,
+      c.exitY,
+      c.entryY,
+    );
+    if (placed) {
+      commitLane(c.plan, placed, c.exitY, c.entryY);
+      continue;
+    }
     if (
-      plan.xOverlap &&
-      enqueueOrbit(plan, lastSrcFace, firstTgtFace, exitY, entryY, true)
+      !enqueueOrbit(c.plan, c.lastSrcFace, c.firstTgtFace, c.exitY, c.entryY)
     ) {
-      continue;
-    }
-    if (!draftInPlace(plan, lastSrcFace, firstTgtFace, exitY, entryY)) {
-      if (
-        !enqueueOrbit(plan, lastSrcFace, firstTgtFace, exitY, entryY, false)
-      ) {
-        meta.laneFallback += 1; // class (a) → Z-detour; class (b) → skip
+      meta.laneFallback += 1; // class (a) → Z-detour; class (b) → skip
+      if (c.plan.laneClass === "cross") {
+        resolveApprox(
+          c.plan.edgeId,
+          approxPtsOf(
+            c.plan,
+            zMidOf(c.plan, c.lastSrcFace, c.firstTgtFace, c.exitY, c.entryY),
+          ),
+        );
+      } else {
+        dropApprox(c.plan.edgeId);
       }
     }
   }
@@ -1211,194 +1665,58 @@ export function routeStrataEdgeClip(
     if (riserX === null || descX === null) {
       return false;
     }
-    const containsPoint = (b: StrataBox, px: number, py: number): boolean =>
-      px >= b.x - 0.5 &&
-      px <= b.x + b.width + 0.5 &&
-      py >= b.y - 0.5 &&
-      py <= b.y + b.height + 0.5;
-    // Exit/entry runs vs sibling obstacles inside the shared + orbit
-    // contexts (an obstacle CONTAINING the run's own anchor point is the
-    // endpoint's ancestor stack — not an obstacle).
-    for (const ctxId of new Set([d.plan.sharedId, d.plan.topAncestorId])) {
-      for (const b of laneContextOf(ctxId).obstacles) {
-        const exitRun =
-          !containsPoint(b, d.lastSrcFace.x, d.exitY) &&
-          axisSegEntersBox(d.lastSrcFace.x, d.exitY, riserX, d.exitY, b);
-        const entryRun =
-          !containsPoint(b, d.firstTgtFace.x, d.entryY) &&
-          axisSegEntersBox(descX, d.entryY, d.firstTgtFace.x, d.entryY, b);
-        if (exitRun || entryRun) {
-          return false;
-        }
-      }
-    }
-    // Outside pieces vs the OTHER top-level units.
-    for (const b of rootObstacles) {
-      if (sameBox(b, O)) {
-        continue;
-      }
-      if (
-        axisSegEntersBox(riserX, laneY, riserX, d.exitY, b) ||
-        axisSegEntersBox(descX, laneY, descX, d.entryY, b) ||
-        axisSegEntersBox(descX, laneY, riserX, laneY, b) ||
-        axisSegEntersBox(d.lastSrcFace.x, d.exitY, riserX, d.exitY, b) ||
-        axisSegEntersBox(descX, d.entryY, d.firstTgtFace.x, d.entryY, b)
-      ) {
-        return false;
-      }
+    // E3.2: ALL five orbit pieces are verified against the FULL box set (the
+    // loop-2 hole: only the sharedId/topAncestorId context LEVELS were
+    // checked, so a long exit run at port level could cut frames nested at
+    // unchecked depths). Enclosing containers + each side's own anchor stack
+    // are exempt exactly as for the in-place lanes.
+    if (
+      !laneRunsClear(
+        d.lastSrcFace,
+        d.firstTgtFace,
+        d.exitY,
+        d.entryY,
+        riserX,
+        descX,
+        laneY,
+      )
+    ) {
+      return false;
     }
     orbitCounts.set(key, k + 1);
-    d.plan.lane = {
-      dir: d.dir,
-      riserX,
-      descX,
-      uTop: O.y,
-      uBot: O.y + O.height,
-      laneIndex: k,
-      laneY,
-    };
+    d.plan.lane = { dir: d.dir, riserX, descX, laneY };
     return true;
   };
 
-  // ── Phase 1: first-choice orbits (X-overlap canvas detours). A blocked
-  // orbit retries the in-place machinery. ──
-  const firstOrbits = [...orbitDrafts].sort((a, b) =>
+  // ── Orbit fallback (strip-placement misses), stable by edge id. ──
+  const orbitQueue = [...orbitDrafts].sort((a, b) =>
     cmpStr(a.plan.edgeId, b.plan.edgeId),
   );
-  orbitDrafts.length = 0; // phase-2 misses re-fill the queue for phase 3
-  for (const d of firstOrbits) {
+  for (const d of orbitQueue) {
     if (allocateOrbit(d)) {
-      continue;
-    }
-    if (
-      !d.retryInPlace ||
-      !draftInPlace(d.plan, d.lastSrcFace, d.firstTgtFace, d.exitY, d.entryY)
-    ) {
+      const L = d.plan.lane!;
+      placedLaneSegs.push({
+        y: L.laneY,
+        x0: Math.min(L.riserX, L.descX),
+        x1: Math.max(L.riserX, L.descX),
+      });
+      resolveApprox(
+        d.plan.edgeId,
+        approxPtsOf(d.plan, laneMidOf(L, d.exitY, d.entryY)),
+      );
+    } else {
       meta.laneFallback += 1;
-    }
-  }
-
-  // ── Phase 2: in-place lane allocation (the spec's "nearest gutter"
-  // default): greedy interval coloring over X-overlapping lane edges of the
-  // same direction, stable by edge id; then settle each lane's FINAL Y at
-  // its allocated index (the fixpoint may cross further bands at deeper
-  // indexes) and re-derive the corridors against the final riser spans. A
-  // final-stage miss retries as a phase-3 ORBIT. ──
-  const drafted = [...laneDrafts].sort((a, b) =>
-    cmpStr(a.plan.edgeId, b.plan.edgeId),
-  );
-  const allocated: Array<{
-    draft: LaneDraft;
-    dir: "above" | "below";
-    laneIndex: number;
-  }> = [];
-  const tryPlaceInPlace = (
-    d: LaneDraft,
-    dir: "above" | "below",
-  ): {
-    laneIndex: number;
-    laneY: number;
-    riserX: number;
-    descX: number;
-  } | null => {
-    const used = new Set<number>();
-    for (const prev of allocated) {
-      if (
-        prev.dir === dir &&
-        prev.draft.plan.sharedId === d.plan.sharedId &&
-        prev.draft.spanLo < d.spanHi &&
-        d.spanLo < prev.draft.spanHi
-      ) {
-        used.add(prev.laneIndex);
+      if (d.plan.laneClass === "cross") {
+        resolveApprox(
+          d.plan.edgeId,
+          approxPtsOf(
+            d.plan,
+            zMidOf(d.plan, d.lastSrcFace, d.firstTgtFace, d.exitY, d.entryY),
+          ),
+        );
+      } else {
+        dropApprox(d.plan.edgeId);
       }
-    }
-    let laneIndex = 0;
-    while (used.has(laneIndex)) {
-      laneIndex += 1;
-    }
-    const ctx = laneContextOf(d.plan.sharedId);
-    const laneY = settleLaneY(
-      dir,
-      laneIndex,
-      d.seedTop,
-      d.seedBot,
-      ctx.obstacles,
-    );
-    const riserX = laneFits(laneY, dir, ctx.bounds)
-      ? laneCorridorX(
-          d.lastSrcFace.x,
-          d.exitY,
-          laneY,
-          1,
-          ctx,
-          d.plan.srcOuterBox,
-          d.plan.outStub,
-        )
-      : null;
-    const descX =
-      riserX !== null
-        ? laneCorridorX(
-            d.firstTgtFace.x,
-            d.entryY,
-            laneY,
-            -1,
-            ctx,
-            d.plan.tgtOuterBox,
-            d.plan.outStub,
-          )
-        : null;
-    if (riserX === null || descX === null) {
-      return null;
-    }
-    return { laneIndex, laneY, riserX, descX };
-  };
-  for (const d of drafted) {
-    // Preferred direction first; when its slots/corridors are exhausted (a
-    // full top pad), overflow to the opposite side before giving up.
-    const flipped: "above" | "below" = d.dir === "above" ? "below" : "above";
-    let dir = d.dir;
-    let placed = tryPlaceInPlace(d, dir);
-    if (!placed) {
-      const alt = tryPlaceInPlace(d, flipped);
-      if (alt) {
-        dir = flipped;
-        placed = alt;
-      }
-    }
-    if (!placed) {
-      if (
-        !enqueueOrbit(
-          d.plan,
-          d.lastSrcFace,
-          d.firstTgtFace,
-          d.exitY,
-          d.entryY,
-          false,
-        )
-      ) {
-        meta.laneFallback += 1;
-      }
-      continue;
-    }
-    allocated.push({ draft: d, dir, laneIndex: placed.laneIndex });
-    d.plan.lane = {
-      dir,
-      riserX: placed.riserX,
-      descX: placed.descX,
-      uTop: d.seedTop,
-      uBot: d.seedBot,
-      laneIndex: placed.laneIndex,
-      laneY: placed.laneY,
-    };
-  }
-
-  // ── Phase 3: second-chance orbits (in-place allocation misses). ──
-  const secondOrbits = [...orbitDrafts].sort((a, b) =>
-    cmpStr(a.plan.edgeId, b.plan.edgeId),
-  );
-  for (const d of secondOrbits) {
-    if (!allocateOrbit(d)) {
-      meta.laneFallback += 1;
     }
   }
 
@@ -1411,13 +1729,8 @@ export function routeStrataEdgeClip(
   // DIRTY run keeps the E2.1 stub-hug shape (vertical adjustment immediately
   // past the exited face / at mid-gutter). Tracks are then spread per gutter
   // like face ports, clamped to each edge's verified-clear strip. ──
-  // Gutter-clearance obstacle set. As with `laneContextOf`, these placement
-  // boxes ARE the rendered frame extents (byte-identical emission — see that
-  // helper's note), so no inset correction is needed.
-  const allBoxes: StrataBox[] = [
-    ...[...placement.boxedHulls.values()].map((b) => b.box),
-    ...placement.leafBoxes.values(),
-  ];
+  // (Gutter clearance measures against the shared `allBoxes` full-span set —
+  // placement boxes ARE the rendered frame extents; see `laneContextOf`.)
   /** Half-height of the strip a clear gutter run may occupy (and the track
    * clamp range): the run's own y-extent padded by this. */
   const GUTTER_STRIP_PAD_PX = 24;
@@ -1480,26 +1793,6 @@ export function routeStrataEdgeClip(
       gutters.set(key, rec);
     }
     rec.entries.push({ edgeId, desiredY: (yIn + yOut) / 2 });
-  };
-
-  /** The edge's full crossing sequence on each side (leaf face included). */
-  const sideCrossings = (
-    plan: Plan,
-  ): {
-    src: Array<{ face: FaceRef; y: number }>;
-    tgt: Array<{ face: FaceRef; y: number }>;
-  } => {
-    const srcCenterY = plan.srcBox.y + plan.srcBox.height / 2;
-    const tgtCenterY = plan.tgtBox.y + plan.tgtBox.height / 2;
-    const src = [plan.srcLeafFace, ...plan.srcFaces].map((face) => ({
-      face,
-      y: portY(face, plan.edgeId, tgtCenterY),
-    }));
-    const tgt = [...plan.tgtFaces, plan.tgtLeafFace].map((face) => ({
-      face,
-      y: portY(face, plan.edgeId, srcCenterY),
-    }));
-    return { src, tgt };
   };
 
   const emittable = plans.filter(
@@ -1582,20 +1875,21 @@ export function routeStrataEdgeClip(
     // edge's nudged TRACK between them (clamped to the verified-clear strip).
     // A DIRTY run (foreign boxes inside the gutter) keeps the E2.1 stub-hug
     // shape. Collinear columns collapse in simplifyPolyline.
-    const pts: Pt[] = [];
-    /** Vertical-adjustment X for a DIRTY gutter run: the E2.1 stub-hug X
-     * (chain) / mid-gutter X (mid) when its vertical span already clears
+    /** Interior route of a DIRTY gutter run: the E2.1 stub-hug column
+     * (chain) / mid-gutter column (mid) when its vertical span already clears
      * every foreign box, else the nearest clear column rightward of it
      * (variable-width siblings make the naive X land INSIDE a wider box —
-     * the corridor walk jumps past it). Best-effort: the naive X when no
-     * column in the gutter clears. */
-    const dirtyGutterVX = (
+     * the corridor walk jumps past it). When no single column satisfies the
+     * port-level constraints, a TWO-COLUMN dodge along a leaf-free row is
+     * tried (pass C). Best-effort: the naive single column when everything
+     * fails. */
+    const dirtyGutterRoute = (
       from: FaceRef,
       to: FaceRef,
       yIn: number,
       yOut: number,
       kind: "chain" | "mid",
-    ): number => {
+    ): Pt[] => {
       const w = to.x - from.x;
       const base =
         (kind === "chain" ? from.x + stubFor(w) : from.x + w / 2) +
@@ -1603,7 +1897,29 @@ export function routeStrataEdgeClip(
       const yLo = Math.min(yIn, yOut);
       const yHi = Math.max(yIn, yOut);
       const blockers: XInterval[] = [];
+      // E3.2: the dirty run is THREE segments — [from.x→vx] at the ENTRY port
+      // level yIn, the vertical at vx, and [vx→to.x] at the EXIT level yOut.
+      // Both port-level horizontals must clear too (the loop-2 lane-vs-frame
+      // deep violations were exactly these runs cutting frames the old walk
+      // ignored):
+      //   • a box straddling yIn CAPS vx — the entry run must stop short of
+      //     it (the old walk hopped past, leaving the entry horizontal
+      //     cutting through);
+      //   • a box straddling yOut FORCES vx past its right edge (blocker
+      //     extended to from.x so the walk cannot settle left of it — the
+      //     exit horizontal would cut it there);
+      //   • boxes on the open vertical span stay plain column blockers.
+      // Two passes: HARD honours the port-level constraints for every box;
+      // when infeasible, the LEAF-HARD retry keeps them only for LEAF frames
+      // (a port-level run through a hull's interior is a legal vertical-face
+      // transit; through a leaf frame it is the gated violation). The
+      // vertical's column blockers stay strict in both passes. Only then the
+      // naive base (best-effort).
+      let vxMaxHard = to.x;
+      let vxMaxLeaf = to.x;
+      const leafHard: XInterval[] = [];
       for (const b of allBoxes) {
+        const isLeaf = leafBoxSet.has(b);
         const bx1 = b.x + b.width;
         const by1 = b.y + b.height;
         if (bx1 <= from.x + 0.5 || b.x >= to.x - 0.5) {
@@ -1621,86 +1937,424 @@ export function routeStrataEdgeClip(
         ) {
           continue;
         }
-        blockers.push({ x0: b.x, x1: bx1 });
+        const straddlesIn = b.y < yIn - 0.5 && by1 > yIn + 0.5;
+        const straddlesOut = b.y < yOut - 0.5 && by1 > yOut + 0.5;
+        if (straddlesIn && b.x > from.x + 0.5) {
+          vxMaxHard = Math.min(vxMaxHard, b.x);
+          if (isLeaf) {
+            vxMaxLeaf = Math.min(vxMaxLeaf, b.x);
+          }
+        }
+        blockers.push(
+          straddlesOut ? { x0: from.x, x1: bx1 } : { x0: b.x, x1: bx1 },
+        );
+        leafHard.push(
+          straddlesOut && isLeaf
+            ? { x0: from.x, x1: bx1 }
+            : { x0: b.x, x1: bx1 },
+        );
       }
-      return chooseCorridorX(from.x, base - from.x, 1, blockers, to.x) ?? base;
-    };
-    const pushGutterRun = (
-      from: { face: FaceRef; y: number },
-      to: { face: FaceRef; y: number },
-      kind: "chain" | "mid",
-    ): void => {
-      const w = to.face.x - from.face.x;
-      if (!gutterRunIsClear(from.face, to.face, from.y, to.y)) {
-        const vx = dirtyGutterVX(from.face, to.face, from.y, to.y, kind);
-        pts.push([vx, from.y], [vx, to.y]);
-        return;
+      // Crossing-scored column selection (E3.2): rather than first-fit, the
+      // feasible clear columns (the naive seed + each blocker's right edge,
+      // capped at 8) are scored pair-once against the resolved geometry —
+      // ties broken by distance from the naive base, then x. Deterministic.
+      const scoredColumn = (
+        blks: XInterval[],
+        limit: number,
+      ): number | null => {
+        const M = STRATA_CLIP_LANE_MARGIN_PX;
+        const hi = Math.min(to.x, limit) - M;
+        const cands: number[] = [];
+        const pushCand = (c: number): void => {
+          if (!(c > from.x + 1) || c > hi) {
+            return;
+          }
+          if (blks.some((b) => c > b.x0 - M && c < b.x1 + M)) {
+            return;
+          }
+          if (!cands.some((x) => Math.abs(x - c) < 0.5)) {
+            cands.push(c);
+          }
+        };
+        pushCand(Math.min(from.x + Math.max(2, base - from.x), hi));
+        const rightEdges = blks.map((b) => b.x1 + M).sort((a, b) => a - b);
+        for (const c of rightEdges) {
+          if (cands.length >= 8) {
+            break;
+          }
+          pushCand(c);
+        }
+        if (cands.length === 0) {
+          return null;
+        }
+        let bestCol: { score: number; d: number; c: number } | null = null;
+        for (const c of cands) {
+          const score = scoreCandidate(edgeId, [
+            [from.x, yIn],
+            [c, yIn],
+            [c, yOut],
+            [to.x, yOut],
+          ]);
+          const dd = Math.abs(c - base);
+          if (
+            !bestCol ||
+            score < bestCol.score ||
+            (score === bestCol.score &&
+              (dd < bestCol.d || (dd === bestCol.d && c < bestCol.c)))
+          ) {
+            bestCol = { score, d: dd, c };
+          }
+        }
+        return bestCol!.c;
+      };
+      const single =
+        scoredColumn(blockers, vxMaxHard) ?? scoredColumn(leafHard, vxMaxLeaf);
+      if (single !== null) {
+        return [
+          [single, yIn],
+          [single, yOut],
+        ];
       }
-      const raw = gutterTrack(from.face, to.face, edgeId, (from.y + to.y) / 2);
-      const lo = Math.min(from.y, to.y) - GUTTER_STRIP_PAD_PX;
-      const hi = Math.max(from.y, to.y) + GUTTER_STRIP_PAD_PX;
-      const track = Math.min(hi, Math.max(lo, raw));
-      // Waypoint columns: rank·separation past the 25%/75% marks (mean-y
-      // order, nested), clamped to stay inside the middle half of the gutter
-      // on crowded/narrow gutters.
-      const rank = gutterRank(from.face, to.face, edgeId);
-      const stagger = Math.min(
-        rank * STRATA_CLIP_PORT_SEPARATION_PX,
-        Math.max(0, 0.2 * w),
-      );
-      const gxA = from.face.x + 0.25 * w + stagger;
-      const gxB = from.face.x + 0.75 * w - stagger;
-      if (gxB <= gxA) {
-        const mid = from.face.x + 0.5 * w;
-        pts.push([mid, from.y], [mid, to.y]);
-        return;
-      }
-      pts.push([gxA, from.y], [gxA, track], [gxB, track], [gxB, to.y]);
-    };
-    const emitSide = (crossings: Array<{ face: FaceRef; y: number }>): void => {
-      for (let i = 0; i < crossings.length; i++) {
-        const cur = crossings[i]!;
-        pts.push([cur.face.x, cur.y]);
-        const next = crossings[i + 1];
-        if (next) {
-          pushGutterRun(cur, next, "chain");
+      // ── pass C — TWO-COLUMN dodge (E3.2): both port levels are obstructed
+      // in incompatible X-ranges (e.g. a leaf frame straddling the exit level
+      // forces the column right while one straddling the entry level caps it
+      // left). Drop early at vx1, cross the blocked stretch along a LEAF-FREE
+      // row yMid (leaf boxes + hull horizontal-border bands leave a gap),
+      // rise at vx2 past the exit-level obstruction. Deterministic: rows
+      // nearest the port midline first; both column walks are monotone. ──
+      const rows: Array<[number, number]> = [];
+      for (const b of allBoxes) {
+        const bx1 = b.x + b.width;
+        if (bx1 <= from.x + 0.5 || b.x >= to.x - 0.5) {
+          continue;
+        }
+        if (leafBoxSet.has(b)) {
+          rows.push([b.y, b.y + b.height]);
+        } else {
+          rows.push([
+            b.y - STRATA_CLIP_LANE_MARGIN_PX,
+            b.y + STRATA_CLIP_LANE_MARGIN_PX,
+          ]);
+          rows.push([
+            b.y + b.height - STRATA_CLIP_LANE_MARGIN_PX,
+            b.y + b.height + STRATA_CLIP_LANE_MARGIN_PX,
+          ]);
         }
       }
+      rows.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const mergedRows: Array<[number, number]> = [];
+      for (const [lo, hi] of rows) {
+        const last = mergedRows[mergedRows.length - 1];
+        if (last && lo <= last[1] + 1) {
+          last[1] = Math.max(last[1], hi);
+        } else {
+          mergedRows.push([lo, hi]);
+        }
+      }
+      const midLevel = (yIn + yOut) / 2;
+      // Candidate rows may OVERSHOOT the port interval by a few clearances —
+      // when every row between the ports is packed, a short backtrack to a
+      // row just past a port level (e.g. the band gap right below the exit
+      // port) still beats cutting a leaf frame. Verticals stay blocker-
+      // checked, so an overshoot can never cross a border.
+      const overshoot = 3 * STRATA_CLIP_LANE_CLEARANCE_PX;
+      const yMids: number[] = [];
+      for (let i = 0; i + 1 < mergedRows.length; i++) {
+        const gLo = mergedRows[i]![1];
+        const gHi = mergedRows[i + 1]![0];
+        if (gHi - gLo < 2) {
+          continue;
+        }
+        const c = (gLo + gHi) / 2;
+        if (c > yLo - overshoot && c < yHi + overshoot) {
+          yMids.push(c);
+        }
+      }
+      yMids.sort(
+        (a, b) => Math.abs(a - midLevel) - Math.abs(b - midLevel) || a - b,
+      );
+      /** One dodge column: clear vertical over (yA↔yB) inside (startX, to.x);
+       * leaf boxes straddling `capLeafAt` cap it, leaf boxes straddling
+       * `forceLeafAt` force it past their right edge. Hull port-level cuts
+       * stay soft (legal vertical-face transits). */
+      const dodgeColumn = (
+        yA: number,
+        yB: number,
+        startX: number,
+        capLeafAt: number | null,
+        forceLeafAt: number | null,
+        desired: number,
+      ): number | null => {
+        const lo2 = Math.min(yA, yB);
+        const hi2 = Math.max(yA, yB);
+        const blockers2: XInterval[] = [];
+        let cap = to.x;
+        for (const b of allBoxes) {
+          const bx1 = b.x + b.width;
+          const by1 = b.y + b.height;
+          if (bx1 <= startX + 0.5 || b.x >= to.x - 0.5) {
+            continue;
+          }
+          const isLeaf = leafBoxSet.has(b);
+          if (
+            isLeaf &&
+            capLeafAt !== null &&
+            b.y < capLeafAt - 0.5 &&
+            by1 > capLeafAt + 0.5 &&
+            b.x > startX + 0.5
+          ) {
+            cap = Math.min(cap, b.x);
+          }
+          const forced =
+            isLeaf &&
+            forceLeafAt !== null &&
+            b.y < forceLeafAt - 0.5 &&
+            by1 > forceLeafAt + 0.5;
+          if (by1 <= lo2 + 0.5 || b.y >= hi2 - 0.5) {
+            if (forced) {
+              blockers2.push({ x0: startX, x1: bx1 });
+            }
+            continue;
+          }
+          if (
+            b.x <= startX + 0.5 &&
+            bx1 >= to.x - 0.5 &&
+            b.y <= lo2 &&
+            by1 >= hi2
+          ) {
+            continue; // enclosing ancestor
+          }
+          blockers2.push(
+            forced ? { x0: startX, x1: bx1 } : { x0: b.x, x1: bx1 },
+          );
+        }
+        return chooseCorridorX(
+          startX,
+          desired,
+          1,
+          blockers2,
+          Math.min(to.x, cap),
+        );
+      };
+      // Crossing-aware dodge selection: every feasible (yMid, vx1, vx2) is
+      // scored pair-once against the resolved geometry (same kernel as the
+      // lane strips) with |yMid − midline| then yMid as tie-breaks — a dodge
+      // that threads a quiet row wins over one crossing a busy column.
+      let bestDodge: {
+        score: number;
+        distMid: number;
+        yMid: number;
+        route: Pt[];
+      } | null = null;
+      for (const yMid of yMids) {
+        const vx1 = dodgeColumn(yIn, yMid, from.x, yIn, null, base - from.x);
+        if (vx1 === null) {
+          continue;
+        }
+        const vx2 = dodgeColumn(
+          yMid,
+          yOut,
+          vx1,
+          null,
+          yOut,
+          stubFor(to.x - vx1),
+        );
+        if (vx2 === null) {
+          continue;
+        }
+        const route: Pt[] = [
+          [vx1, yIn],
+          [vx1, yMid],
+          [vx2, yMid],
+          [vx2, yOut],
+        ];
+        const score = scoreCandidate(edgeId, [
+          [from.x, yIn],
+          ...route,
+          [to.x, yOut],
+        ]);
+        const distMid = Math.abs(yMid - midLevel);
+        if (
+          !bestDodge ||
+          score < bestDodge.score ||
+          (score === bestDodge.score &&
+            (distMid < bestDodge.distMid ||
+              (distMid === bestDodge.distMid && yMid < bestDodge.yMid)))
+        ) {
+          bestDodge = { score, distMid, yMid, route };
+        }
+      }
+      if (bestDodge) {
+        return bestDodge.route;
+      }
+      // ── pass D — vertical-clear column only (the pre-E3.2 semantics): the
+      // port-level constraints are unsatisfiable even with a dodge, so keep
+      // at least the VERTICAL clear of every box (a vertical through a hull
+      // would cross its horizontal border — wrongFace — strictly worse than
+      // the residual port-level cut this accepts). ──
+      const plain: XInterval[] = [];
+      for (const b of allBoxes) {
+        const bx1 = b.x + b.width;
+        const by1 = b.y + b.height;
+        if (bx1 <= from.x + 0.5 || b.x >= to.x - 0.5) {
+          continue;
+        }
+        if (by1 <= yLo + 0.5 || b.y >= yHi - 0.5) {
+          continue;
+        }
+        if (
+          b.x <= from.x + 0.5 &&
+          bx1 >= to.x - 0.5 &&
+          b.y <= yLo &&
+          by1 >= yHi
+        ) {
+          continue;
+        }
+        plain.push({ x0: b.x, x1: bx1 });
+      }
+      const vd = scoredColumn(plain, to.x) ?? base;
+      return [
+        [vd, yIn],
+        [vd, yOut],
+      ];
     };
-
-    emitSide(src);
     const lastSrc = src[src.length - 1]!;
     const firstTgt = tgt[0]!;
-    if (plan.lane) {
-      // E2.4 lane: rise in the clear corridor beside the source's outermost
-      // face, travel the lane, descend beside the target's outermost face.
-      const { riserX, descX, laneY } = plan.lane;
-      pts.push([riserX, lastSrc.y]);
-      pts.push([riserX, laneY]);
-      pts.push([descX, laneY]);
-      pts.push([descX, firstTgt.y]);
-    } else if (plan.laneClass === "cross") {
-      // Clean-Z cross edge (or lane fallback): the E2.1 Z-detour — a vertical
-      // run right of every source-side face, a horizontal run at a Y BETWEEN
-      // the two outer boxes when a gap exists, then a vertical run left of
-      // every target-side face.
-      const { ax, bx, my } = zShapeOf(
-        plan,
-        lastSrc.face,
-        firstTgt.face,
-        lastSrc.y,
-        firstTgt.y,
-      );
-      pts.push([ax, lastSrc.y]);
-      pts.push([ax, my]);
-      pts.push([bx, my]);
-      pts.push([bx, firstTgt.y]);
-    } else {
-      pushGutterRun(lastSrc, firstTgt, "mid");
-    }
-    emitSide(tgt);
+    /** Build the full polyline — the mid section is a lane (when given), the
+     * Z-detour (cross class without a lane), or the plain nudged mid-gutter.
+     * Parameterized so E3.2 staircase relief can compare both variants. */
+    const buildPts = (
+      lane: { riserX: number; descX: number; laneY: number } | null,
+    ): Pt[] => {
+      const pts: Pt[] = [];
+      const pushGutterRun = (
+        from: { face: FaceRef; y: number },
+        to: { face: FaceRef; y: number },
+        kind: "chain" | "mid",
+      ): void => {
+        const w = to.face.x - from.face.x;
+        if (!gutterRunIsClear(from.face, to.face, from.y, to.y)) {
+          pts.push(...dirtyGutterRoute(from.face, to.face, from.y, to.y, kind));
+          return;
+        }
+        const raw = gutterTrack(
+          from.face,
+          to.face,
+          edgeId,
+          (from.y + to.y) / 2,
+        );
+        const lo = Math.min(from.y, to.y) - GUTTER_STRIP_PAD_PX;
+        const hi = Math.max(from.y, to.y) + GUTTER_STRIP_PAD_PX;
+        const track = Math.min(hi, Math.max(lo, raw));
+        // Waypoint columns: rank·separation past the 25%/75% marks (mean-y
+        // order, nested), clamped to stay inside the middle half of the gutter
+        // on crowded/narrow gutters.
+        const rank = gutterRank(from.face, to.face, edgeId);
+        const stagger = Math.min(
+          rank * STRATA_CLIP_PORT_SEPARATION_PX,
+          Math.max(0, 0.2 * w),
+        );
+        const gxA = from.face.x + 0.25 * w + stagger;
+        const gxB = from.face.x + 0.75 * w - stagger;
+        if (gxB <= gxA) {
+          const mid = from.face.x + 0.5 * w;
+          pts.push([mid, from.y], [mid, to.y]);
+          return;
+        }
+        pts.push([gxA, from.y], [gxA, track], [gxB, track], [gxB, to.y]);
+      };
+      const emitSide = (
+        crossings: Array<{ face: FaceRef; y: number }>,
+      ): void => {
+        for (let i = 0; i < crossings.length; i++) {
+          const cur = crossings[i]!;
+          pts.push([cur.face.x, cur.y]);
+          const next = crossings[i + 1];
+          if (next) {
+            pushGutterRun(cur, next, "chain");
+          }
+        }
+      };
 
-    let simplified = simplifyPolyline(pts);
+      emitSide(src);
+      if (lane) {
+        // E2.4 lane: rise in the clear corridor beside the source's outermost
+        // face, travel the lane, descend beside the target's outermost face.
+        const { riserX, descX, laneY } = lane;
+        pts.push([riserX, lastSrc.y]);
+        pts.push([riserX, laneY]);
+        pts.push([descX, laneY]);
+        pts.push([descX, firstTgt.y]);
+      } else if (plan.laneClass === "cross") {
+        // Clean-Z cross edge (or lane fallback): the E2.1 Z-detour — a
+        // vertical run right of every source-side face, a horizontal run at a
+        // Y BETWEEN the two outer boxes when a gap exists, then a vertical
+        // run left of every target-side face.
+        const { ax, bx, my } = zShapeOf(
+          plan,
+          lastSrc.face,
+          firstTgt.face,
+          lastSrc.y,
+          firstTgt.y,
+        );
+        pts.push([ax, lastSrc.y]);
+        pts.push([ax, my]);
+        pts.push([bx, my]);
+        pts.push([bx, firstTgt.y]);
+      } else {
+        pushGutterRun(lastSrc, firstTgt, "mid");
+      }
+      emitSide(tgt);
+      return pts;
+    };
+    /** polylineLength / chordLength of a built polyline (1 when degenerate). */
+    const detourRatioOf = (poly: readonly Pt[]): number => {
+      if (poly.length < 2) {
+        return 1;
+      }
+      const first = poly[0]!;
+      const last = poly[poly.length - 1]!;
+      const chord = Math.hypot(last[0] - first[0], last[1] - first[1]);
+      if (chord < 1) {
+        return 1;
+      }
+      let len = 0;
+      for (let i = 0; i + 1 < poly.length; i++) {
+        len += Math.hypot(
+          poly[i + 1]![0] - poly[i]![0],
+          poly[i + 1]![1] - poly[i]![1],
+        );
+      }
+      return len / chord;
+    };
+
+    let simplified = simplifyPolyline(buildPts(plan.lane ?? null));
+
+    // ── E3.2 STAIRCASE RELIEF: a non-lane route (plain mid-gutter or a
+    // clean-Z that never attempted a lane) whose polyline exceeds
+    // STAIRCASE_RATIO × its chord attempts the same strip machinery; the lane
+    // is adopted only when it strictly lowers the ratio. Cross-class edges
+    // that already FAILED a lane attempt are not retried. ──
+    if (!plan.lane && (plan.laneClass === null || plan.zClean === true)) {
+      const ratio = detourRatioOf(simplified);
+      if (ratio > STRATA_CLIP_STAIRCASE_RATIO) {
+        const placed = lanePlacementFor(
+          plan,
+          lastSrc.face,
+          firstTgt.face,
+          lastSrc.y,
+          firstTgt.y,
+        );
+        if (placed) {
+          const laneSimplified = simplifyPolyline(buildPts(placed));
+          if (detourRatioOf(laneSimplified) < ratio) {
+            commitLane(plan, placed, lastSrc.y, firstTgt.y);
+            simplified = laneSimplified;
+            meta.staircaseRelieved += 1;
+          }
+        }
+      }
+    }
     if (simplified.length < 3) {
       // Degenerate exactly-straight clip (same port y throughout): keep the
       // exit stub as an explicit collinear interior waypoint so the stamped

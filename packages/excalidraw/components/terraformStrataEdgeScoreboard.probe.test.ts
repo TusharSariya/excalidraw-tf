@@ -29,10 +29,19 @@ import { STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS } from "../test-fixtures/terraf
 
 import { layoutTerraformFromSources } from "./terraformLayoutCore";
 import { resolveStrataDemoOptions } from "./terraformStrataDefaults";
-import { getTerraformEdgeLayer } from "./terraformVisibility";
+import {
+  collectTerraformClusterFrameRectsByAddress,
+  getTerraformEdgeLayer,
+} from "./terraformVisibility";
 import { computeStrataEdgeScoreboard } from "./terraformStrataEdgeScoreboard";
-import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
-import { diagnosePipelineScene } from "./terraformPipelineCollisionDiagnostics";
+import {
+  computePierceMetrics,
+  segmentIntersectsRectInterior,
+} from "./terraformPipelineStrataPierceMetrics";
+import {
+  diagnosePipelineScene,
+  segmentsCross,
+} from "./terraformPipelineCollisionDiagnostics";
 
 import type { TerraformPlanParsingSources } from "./terraformPlanParsing";
 
@@ -181,6 +190,350 @@ const laneCensus = (
   };
 };
 
+/**
+ * E3.2 lane-quality census over the final scene:
+ *   • pair-once edge crossings via the SHARED `segmentsCross` kernel (the same
+ *     pair-once semantics as `diagnosePipelineScene`'s `dataflow.crossings`),
+ *     broken down into lane×lane / lane×plain / plain×plain pair classes;
+ *   • a PER-LANE table (laneY, X-span, crossing count) — the loop-2 verdict's
+ *     "five heavy full-span lanes" become visible and comparable run-to-run;
+ *   • the PERMANENT lane-vs-leaf-frame walk: no lane-stamped polyline segment
+ *     may strictly enter a FOREIGN leaf-cluster frame's interior (the loop-2
+ *     obstacle-selection gap — 4 violations before E3.2, asserted 0 after);
+ *   • the top detour ratios over routed edges with relationship attribution
+ *     (the api7-class staircases bracket detourRatioP95).
+ */
+type LanePairClasses = {
+  laneLane: number;
+  lanePlain: number;
+  plainPlain: number;
+};
+const laneQualityCensus = (
+  elements: readonly ExcalidrawElement[],
+): {
+  crossingPairs: number;
+  pairClasses: LanePairClasses;
+  laneTable: Array<{
+    rel: string;
+    laneY: number;
+    spanX: readonly [number, number];
+    crossings: number;
+  }>;
+  laneFrameViolations: Array<{ rel: string; frame: string; seg?: number[] }>;
+  detourTop: Array<{
+    rel: string;
+    ratio: number;
+    poly: number;
+    chord: number;
+    /** Rounded absolute polyline — logged for the top-2 staircases only. */
+    pts?: number[][];
+  }>;
+  /** Y-gaps (≥8px) of the rendered frame union over the widest lane span —
+   * the candidate inter-band strips available to E3.2 lane placement. */
+  stripGaps: Array<number[]>;
+  /** Edges whose polyline crosses a hull frame's TOP/BOTTOM border, with the
+   * crossing coordinates (debug attribution for the scoreboard wrongFace). */
+  wrongFaceEdges: Array<{ rel: string; at: number[] }>;
+} => {
+  type Pt = readonly [number, number];
+  type CensusEdge = {
+    id: string;
+    rel: string;
+    ownKeys: Set<string>;
+    pts: Pt[];
+    lane: boolean;
+    routed: boolean;
+  };
+  const edges: CensusEdge[] = [];
+  for (const el of elements) {
+    if (
+      el.type !== "arrow" ||
+      getTerraformEdgeLayer(el) !== "declaredDataFlow"
+    ) {
+      continue;
+    }
+    const raw = (el as { points?: ReadonlyArray<readonly [number, number]> })
+      .points;
+    if (!Array.isArray(raw) || raw.length < 2) {
+      continue;
+    }
+    const pts = raw.map(([px, py]) => [el.x + px, el.y + py] as const);
+    const cd = (el.customData ?? {}) as Record<string, unknown>;
+    const rel = cd.relationship as
+      | { source?: unknown; target?: unknown }
+      | undefined;
+    const src = typeof rel?.source === "string" ? rel.source : "";
+    const tgt = typeof rel?.target === "string" ? rel.target : "";
+    const lane =
+      cd.terraformClipLane === "above" || cd.terraformClipLane === "below";
+    edges.push({
+      id: String(el.id),
+      rel: `${src}→${tgt}`,
+      ownKeys: new Set([src, tgt]),
+      pts,
+      lane,
+      routed: cd.terraformRoutedPolyline === true && pts.length > 2,
+    });
+  }
+  edges.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+
+  const crossesOnce = (a: CensusEdge, b: CensusEdge): boolean => {
+    for (let i = 0; i + 1 < a.pts.length; i++) {
+      for (let j = 0; j + 1 < b.pts.length; j++) {
+        if (
+          segmentsCross(
+            {
+              x1: a.pts[i]![0],
+              y1: a.pts[i]![1],
+              x2: a.pts[i + 1]![0],
+              y2: a.pts[i + 1]![1],
+            },
+            {
+              x1: b.pts[j]![0],
+              y1: b.pts[j]![1],
+              x2: b.pts[j + 1]![0],
+              y2: b.pts[j + 1]![1],
+            },
+          )
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const perEdge = new Map<string, number>();
+  const pairClasses: LanePairClasses = {
+    laneLane: 0,
+    lanePlain: 0,
+    plainPlain: 0,
+  };
+  let crossingPairs = 0;
+  for (let i = 0; i < edges.length; i++) {
+    for (let j = i + 1; j < edges.length; j++) {
+      if (!crossesOnce(edges[i]!, edges[j]!)) {
+        continue;
+      }
+      crossingPairs += 1;
+      const lanes = (edges[i]!.lane ? 1 : 0) + (edges[j]!.lane ? 1 : 0);
+      if (lanes === 2) {
+        pairClasses.laneLane += 1;
+      } else if (lanes === 1) {
+        pairClasses.lanePlain += 1;
+      } else {
+        pairClasses.plainPlain += 1;
+      }
+      perEdge.set(edges[i]!.rel, (perEdge.get(edges[i]!.rel) ?? 0) + 1);
+      perEdge.set(edges[j]!.rel, (perEdge.get(edges[j]!.rel) ?? 0) + 1);
+    }
+  }
+
+  const laneTable = edges
+    .filter((e) => e.lane)
+    .map((e) => {
+      // The lane travel = the longest horizontal run of the polyline.
+      let laneY = e.pts[0]![1];
+      let spanLo = e.pts[0]![0];
+      let spanHi = e.pts[0]![0];
+      let best = -1;
+      for (let i = 0; i + 1 < e.pts.length; i++) {
+        const [x0, y0] = e.pts[i]!;
+        const [x1, y1] = e.pts[i + 1]!;
+        if (Math.abs(y1 - y0) < 1e-6 && Math.abs(x1 - x0) > best) {
+          best = Math.abs(x1 - x0);
+          laneY = Math.round(y0 * 10) / 10;
+          spanLo = Math.round(Math.min(x0, x1));
+          spanHi = Math.round(Math.max(x0, x1));
+        }
+      }
+      return {
+        rel: e.rel,
+        laneY,
+        spanX: [spanLo, spanHi] as const,
+        crossings: perEdge.get(e.rel) ?? 0,
+      };
+    });
+
+  const frames = collectTerraformClusterFrameRectsByAddress(elements);
+  const laneFrameViolations: Array<{
+    rel: string;
+    frame: string;
+    seg?: number[];
+  }> = [];
+  for (const e of edges) {
+    if (!e.lane) {
+      continue;
+    }
+    for (const [address, rect] of frames) {
+      if (e.ownKeys.has(address)) {
+        continue;
+      }
+      for (let i = 0; i + 1 < e.pts.length; i++) {
+        if (segmentIntersectsRectInterior(e.pts[i]!, e.pts[i + 1]!, rect)) {
+          laneFrameViolations.push({
+            rel: e.rel,
+            frame: address,
+            seg: [...e.pts[i]!, ...e.pts[i + 1]!].map((v) => Math.round(v)),
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  const detourTop = edges
+    .filter((e) => e.routed)
+    .map((e) => {
+      const first = e.pts[0]!;
+      const last = e.pts[e.pts.length - 1]!;
+      const chord = Math.hypot(last[0] - first[0], last[1] - first[1]);
+      let poly = 0;
+      for (let i = 0; i + 1 < e.pts.length; i++) {
+        poly += Math.hypot(
+          e.pts[i + 1]![0] - e.pts[i]![0],
+          e.pts[i + 1]![1] - e.pts[i]![1],
+        );
+      }
+      return {
+        rel: e.rel,
+        ratio: chord >= 1 ? Math.round((poly / chord) * 1000) / 1000 : 1,
+        poly: Math.round(poly),
+        chord: Math.round(chord),
+        pts: e.pts.map(([px, py]) => [Math.round(px), Math.round(py)]),
+      };
+    })
+    .sort((a, b) => b.ratio - a.ratio || (a.rel < b.rel ? -1 : 1));
+  // The loop-2 verdict's staircase bracket (api7 ECS → api9 API) tracked by
+  // name, plus the top-5 with the top-2 polylines.
+  const api7 = detourTop.filter(
+    (d) => d.rel.includes("api7") && d.rel.includes("api9"),
+  );
+  const detourTopOut = detourTop
+    .slice(0, 5)
+    .map((d, i) => (i < 2 ? d : { ...d, pts: undefined }))
+    .concat(api7.map((d) => ({ ...d, pts: undefined })));
+
+  // Diagnostic: the TIER-2 strip gaps over the widest lane's X-span — the
+  // Y-union of the LEAF-cluster frames plus every hull frame's
+  // horizontal-border band (±4px). These are the leaf-free rows E3.2 lane
+  // placement can transit (a hull interior is passable via vertical faces;
+  // measured 2026-07-23: the FULL union incl. hull interiors has NO gaps on
+  // this preset — bands tile — so tier-2 rows are the only inter-band
+  // strips).
+  const TOPOLOGY_ROLES = new Set([
+    "provider",
+    "account",
+    "region",
+    "vpc",
+    "subnetZone",
+  ]);
+  const widest = laneTable.reduce(
+    (acc, t) => (t.spanX[1] - t.spanX[0] > acc[1] - acc[0] ? t.spanX : acc),
+    [0, 0] as readonly [number, number],
+  );
+  const stripGaps: Array<number[]> = [];
+  if (widest[1] > widest[0]) {
+    const intervals: Array<[number, number]> = [];
+    for (const el of elements) {
+      if (el.type !== "frame" || el.isDeleted) {
+        continue;
+      }
+      const cd = (el.customData ?? {}) as Record<string, unknown>;
+      const isHull =
+        typeof cd.terraformTopologyRole === "string" &&
+        TOPOLOGY_ROLES.has(cd.terraformTopologyRole);
+      const isLeaf = cd.terraformTopologyRole === "primaryCluster";
+      if (!isHull && !isLeaf) {
+        continue;
+      }
+      if (el.x + el.width <= widest[0] || el.x >= widest[1]) {
+        continue;
+      }
+      if (isLeaf) {
+        intervals.push([el.y, el.y + el.height]);
+      } else {
+        intervals.push([el.y - 4, el.y + 4]);
+        intervals.push([el.y + el.height - 4, el.y + el.height + 4]);
+      }
+    }
+    intervals.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const merged: Array<[number, number]> = [];
+    for (const [lo, hi] of intervals) {
+      const last = merged[merged.length - 1];
+      if (last && lo <= last[1] + 1) {
+        last[1] = Math.max(last[1], hi);
+      } else {
+        merged.push([lo, hi]);
+      }
+    }
+    for (let i = 0; i + 1 < merged.length; i++) {
+      const gap = merged[i + 1]![0] - merged[i]![1];
+      if (gap >= 8) {
+        stripGaps.push([
+          Math.round(merged[i]![1]),
+          Math.round(merged[i + 1]![0]),
+        ]);
+      }
+    }
+  }
+
+  // wrongFace attribution: which edges cross a hull frame's TOP/BOTTOM
+  // border, and where (mirrors the scoreboard's crossing detection closely
+  // enough for debugging — proper line intersection on horizontal borders).
+  const wrongFaceEdges: Array<{ rel: string; at: number[] }> = [];
+  {
+    const hullRects: Array<{ x: number; y: number; w: number; h: number }> = [];
+    for (const el of elements) {
+      if (el.type !== "frame" || el.isDeleted) {
+        continue;
+      }
+      const cd = (el.customData ?? {}) as Record<string, unknown>;
+      if (
+        typeof cd.terraformTopologyRole === "string" &&
+        TOPOLOGY_ROLES.has(cd.terraformTopologyRole)
+      ) {
+        hullRects.push({ x: el.x, y: el.y, w: el.width, h: el.height });
+      }
+    }
+    for (const e of edges) {
+      const hits: number[] = [];
+      for (const r of hullRects) {
+        for (const by of [r.y, r.y + r.h]) {
+          for (let i = 0; i + 1 < e.pts.length; i++) {
+            const [x0, y0] = e.pts[i]!;
+            const [x1, y1] = e.pts[i + 1]!;
+            if (Math.abs(y1 - y0) < 1e-9) {
+              continue; // horizontal segment cannot cross a horizontal border
+            }
+            const t = (by - y0) / (y1 - y0);
+            if (t < 0 || t > 1) {
+              continue;
+            }
+            const cx = x0 + t * (x1 - x0);
+            if (cx >= r.x && cx <= r.x + r.w) {
+              hits.push(Math.round(cx), Math.round(by));
+            }
+          }
+        }
+      }
+      if (hits.length > 0) {
+        wrongFaceEdges.push({ rel: e.rel, at: hits.slice(0, 8) });
+      }
+    }
+  }
+
+  return {
+    crossingPairs,
+    pairClasses,
+    laneTable,
+    laneFrameViolations,
+    detourTop: detourTopOut,
+    stripGaps,
+    wrongFaceEdges,
+  };
+};
+
 const armMetrics = (scene: Scene) => {
   const els = scene.elements;
   const scoreboard = computeStrataEdgeScoreboard(els);
@@ -271,9 +624,9 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       // discipline, so clipped edges contribute ≈0 wrong-face crossings and
       // survive repair via the typed clip gate (flattenedBy must not contain
       // "clip").
-      const ownerClip = armMetrics(
-        await buildArm(false, { strataEdgeClip: true }),
-      );
+      const ownerClipScene = await buildArm(false, { strataEdgeClip: true });
+      const ownerClip = armMetrics(ownerClipScene);
+      const ownerClipLanes = laneQualityCensus(ownerClipScene.elements);
       // Sixth arm (loop-3 E3.1): owner config + clip + the GLEE smoothing
       // pass — the finishing treatment over the clip polylines (kink
       // shortcut, collinear dedupe, chamfer rounding, roundness:null
@@ -306,6 +659,10 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
         );
       }
 
+      // E3.2 lane-quality census (owner-clip arm only — lanes exist only there).
+      // eslint-disable-next-line no-console
+      console.log(`LANES owner-clip ${JSON.stringify(ownerClipLanes)}`);
+
       // ── SANITY INVARIANTS (no aspirational thresholds — this IS the baseline).
       assertScoreboardSane(ownerFull);
       assertScoreboardSane(compact);
@@ -326,6 +683,11 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       // polyline on the unmoved import geometry — the typed frame-face gate
       // validates them by construction.
       expect(ownerClip.repairMeta.flattenedBy.clip ?? 0).toBe(0);
+      // E3.2 PERMANENT lane walk: a sanctioned lane polyline never strictly
+      // enters a FOREIGN leaf-cluster frame's interior. Loop-2 measured 4 such
+      // violations (the shared-ancestor obstacle-selection gap); the E3.2
+      // full-span obstacle union guarantees 0 by construction.
+      expect(ownerClipLanes.laneFrameViolations).toEqual([]);
 
       // ── Loop-3 E3.1 gates on the owner-clip-smooth arm. ──
       expect(ownerClipSmooth.scoreboard.edgeCount).toBe(
