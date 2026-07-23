@@ -959,8 +959,58 @@ const arrowGeometryEqual = (
   return true;
 };
 
+/** Provenance of a stamped routed polyline, mirrored from the four edge
+ * stampers' `customData.terraformRoutedBy`: the style pass ("style") + the three
+ * router passes ("channel"/"route"/"border"). */
+export type TerraformRoutedBy = "style" | "channel" | "route" | "border";
+
+/**
+ * M3 curve-flatten telemetry (opt-in). `repairTerraformEdgeBindings` accepts an
+ * optional mutable out-object it accumulates into, so the styled-vs-survived gap
+ * is PERMANENTLY observable: the M2 bug shipped invisibly because
+ * `strataEdgeStyleStyled` counted styling ATTEMPTS while repair silently
+ * flattened 62% of them downstream. This records how many stamped routed
+ * polylines repair SAW, KEPT (honoured the detour geometry), or FLATTENED back
+ * to a straight chord, plus the stale markers it stripped — each with a
+ * per-provenance (`terraformRoutedBy`) breakdown. Passing no object is
+ * byte-identical to before (a handful of skipped increments otherwise).
+ */
+export type TerraformEdgeRepairStats = {
+  /** Stamped routed polylines (`terraformRoutedPolyline === true`) repair saw. */
+  routedSeen: number;
+  /** Routed polylines whose detour geometry repair KEPT (endpoints on cards). */
+  routedKept: number;
+  /** Routed polylines repair FLATTENED to a straight chord (gate mismatch). */
+  routedFlattened: number;
+  /** Stale/foreign routed markers repair stripped so an arrow self-heals. */
+  staleMarkersStripped: number;
+  /** `routedKept` broken down by `terraformRoutedBy` provenance. */
+  keptBy: Record<string, number>;
+  /** `routedFlattened` broken down by `terraformRoutedBy` provenance. */
+  flattenedBy: Record<string, number>;
+  /**
+   * Stamped routed polylines repair could NOT evaluate (invalid relationship
+   * or unresolved source/target rect) — the arrow keeps its stamp untouched
+   * but contributes to neither `routedKept` nor `routedFlattened`. Nonzero
+   * means the headline pair understates the stamped population.
+   */
+  routedUnresolved: number;
+};
+
+/** A fresh, zeroed {@link TerraformEdgeRepairStats} accumulator. */
+export const createTerraformEdgeRepairStats = (): TerraformEdgeRepairStats => ({
+  routedSeen: 0,
+  routedKept: 0,
+  routedFlattened: 0,
+  staleMarkersStripped: 0,
+  keptBy: {},
+  flattenedBy: {},
+  routedUnresolved: 0,
+});
+
 export const repairTerraformEdgeBindings = (
   elements: readonly ExcalidrawElement[],
+  stats?: TerraformEdgeRepairStats,
 ): ExcalidrawElement[] => {
   /** Legacy scenes used `line`; Excalidraw binding updates only run for `arrow`. */
   const normalizedElements = elements.map((element) => {
@@ -1006,12 +1056,18 @@ export const repairTerraformEdgeBindings = (
       typeof relationship?.source !== "string" ||
       typeof relationship?.target !== "string"
     ) {
+      if (stats && getCustomData(element).terraformRoutedPolyline === true) {
+        stats.routedUnresolved += 1;
+      }
       return element;
     }
 
     const rectA = resourceRects.get(relationship.source);
     const rectB = resourceRects.get(relationship.target);
     if (!rectA || !rectB) {
+      if (stats && getCustomData(element).terraformRoutedPolyline === true) {
+        stats.routedUnresolved += 1;
+      }
       return element;
     }
 
@@ -1108,6 +1164,28 @@ export const repairTerraformEdgeBindings = (
     // arrow (no route to preserve), else the stale flag could resurrect later.
     const stripStaleMarker =
       hasRoutedFlag && !(hasRoutedMarker && routedEndpointsOnCards);
+
+    // M3 curve-flatten telemetry (opt-in): observe repair's keep/flatten/strip
+    // verdict on every stamped routed polyline so the styled-vs-survived gap can
+    // never go invisible again (the M2 bug: a styling count with no downstream
+    // survival count). `stats` is undefined on every call that does not ask for
+    // it → this whole block is skipped and the emitted geometry is unchanged.
+    if (stats && hasRoutedFlag) {
+      const routedBy = getCustomData(element).terraformRoutedBy;
+      const provenance = typeof routedBy === "string" ? routedBy : "unknown";
+      stats.routedSeen += 1;
+      if (isRoutedPolyline) {
+        stats.routedKept += 1;
+        stats.keptBy[provenance] = (stats.keptBy[provenance] ?? 0) + 1;
+      } else {
+        stats.routedFlattened += 1;
+        stats.flattenedBy[provenance] =
+          (stats.flattenedBy[provenance] ?? 0) + 1;
+      }
+    }
+    if (stats && stripStaleMarker) {
+      stats.staleMarkersStripped += 1;
+    }
 
     const patch = {
       ...(isRoutedPolyline

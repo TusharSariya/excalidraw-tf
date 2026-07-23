@@ -17,6 +17,7 @@ import {
   repairTerraformEdgeBindings,
   TERRAFORM_IMPORT_EDGE_LAYER_PINS,
 } from "./terraformVisibility";
+import type { TerraformEdgeRepairStats } from "./terraformVisibility";
 import { injectTerraformAwsIconsIntoElements } from "./terraformAwsIcons";
 import { detectEdgeCollapse } from "./terraformEdgeCollapse";
 import {
@@ -100,6 +101,11 @@ export function appendPipelineEdgeSkeletons(
 
 export async function convertPipelineSkeletonToElements(
   skeleton: ExcalidrawElementSkeleton[],
+  // M3 telemetry: an optional accumulator the internal `repairTerraformEdgeBindings`
+  // call forwards to, so a caller (the Strata engine) can observe how many styled
+  // routed polylines repair kept vs flattened. Omitting it is byte-identical to
+  // before — repair does no extra work and returns the same elements.
+  repairStats?: TerraformEdgeRepairStats,
 ): Promise<ExcalidrawElement[]> {
   let elements = convertToExcalidrawElements(skeleton, {
     regenerateIds: true,
@@ -107,7 +113,7 @@ export async function convertPipelineSkeletonToElements(
   elements = mirrorAndDetachTerraformResourceLabels(elements);
   elements = await injectTerraformAwsIconsIntoElements(elements);
   elements = reconcileTerraformVisibility(
-    repairTerraformEdgeBindings(elements),
+    repairTerraformEdgeBindings(elements, repairStats),
     {
       pins: TERRAFORM_IMPORT_EDGE_LAYER_PINS,
       hoverPeekKey: null,

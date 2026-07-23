@@ -364,6 +364,14 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       // Default "straight": no style meta keys emitted (byte-identical off).
       expect(off.meta.strataEdgeStyle).toBeUndefined();
       expect(off.meta.strataEdgeStyleStyled).toBeUndefined();
+      // M3 curve-flatten telemetry: the routed keep/flatten keys are ABSENT on
+      // the default/"straight" scene (nothing stamped ⇒ routedSeen 0 ⇒ meta
+      // byte-identical to pre-M3), including the by-provenance breakdowns.
+      expect(off.meta.strataRoutedPolylinesKept).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesFlattened).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesKeptBy).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesFlattenedBy).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesUnresolved).toBeUndefined();
 
       const step = await buildStrata({
         strataSweeps: 4,
@@ -399,6 +407,24 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(curve.meta.strataEdgeStyle).toBe("curve");
       expect(curve.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
 
+      // M3 curve-flatten telemetry: under "curve" the scene meta carries both
+      // numeric routed keys, and repair KEEPS every styled polyline (M2 fix) —
+      // kept === styled, flattened === 0. This is the permanent, app-observable
+      // proof of the styled-vs-survived gap the M2 bug shipped blind. The clean
+      // scene also carries the by-provenance breakdown, all under "style".
+      expect(typeof curve.meta.strataRoutedPolylinesKept).toBe("number");
+      expect(typeof curve.meta.strataRoutedPolylinesFlattened).toBe("number");
+      expect(curve.meta.strataRoutedPolylinesKept).toBe(
+        curve.meta.strataEdgeStyleStyled,
+      );
+      expect(curve.meta.strataRoutedPolylinesFlattened).toBe(0);
+      expect(curve.meta.strataRoutedPolylinesKeptBy).toEqual({
+        style: curve.meta.strataEdgeStyleStyled,
+      });
+      expect(curve.meta.strataRoutedPolylinesFlattenedBy).toEqual({});
+      // Unresolved is packed only when nonzero — a clean import has none.
+      expect(curve.meta.strataRoutedPolylinesUnresolved).toBeUndefined();
+
       // Explicit "straight" is byte-identical to the flag-off scene (the module
       // never runs), checked at bbox AND polyline level.
       const explicitStraight = await buildStrata({
@@ -412,6 +438,12 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(arrowPolySignatures(explicitStraight.elements)).toEqual(
         arrowPolySignatures(off.elements),
       );
+      // Explicit "straight" also emits none of the M3 routed keys (byte-identical
+      // meta): the pass never runs, so routedSeen stays 0.
+      expect(explicitStraight.meta.strataRoutedPolylinesKept).toBeUndefined();
+      expect(
+        explicitStraight.meta.strataRoutedPolylinesFlattened,
+      ).toBeUndefined();
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );

@@ -374,6 +374,12 @@ async function probeArm(
   realDeclared: number;
   realSurvivor: number;
   realFlattened: number;
+  /** M3 threaded telemetry read straight off the REAL engine's scene.meta:
+   * repair's keep/flatten census, packed by terraformPipelineStrata.ts. Pinned
+   * against this probe's OWN survivor/flatten counts so the shipped counters can
+   * never silently drift from the ground truth this test measures. */
+  metaRoutedKept: number | undefined;
+  metaRoutedFlattened: number | undefined;
   dupKeys: number;
   dupEdgesTouching: number;
   dupAllDeterministic: boolean;
@@ -601,6 +607,17 @@ async function probeArm(
   ).length;
   const realFlattened = realArrows.length - realSurvivor;
 
+  // M3 threaded telemetry: the repair keep/flatten counts the engine packed into
+  // scene.meta for this same real build. Read here so PART 1 can pin them to the
+  // probe's own ground-truth survivor/flatten counts (counters-can't-drift gate).
+  const realMeta = (real.meta ?? {}) as Record<string, unknown>;
+  const metaRoutedKept = realMeta.strataRoutedPolylinesKept as
+    | number
+    | undefined;
+  const metaRoutedFlattened = realMeta.strataRoutedPolylinesFlattened as
+    | number
+    | undefined;
+
   return {
     declaredA: arrowsA.length,
     styledA,
@@ -612,6 +629,8 @@ async function probeArm(
     realDeclared: realArrows.length,
     realSurvivor,
     realFlattened,
+    metaRoutedKept,
+    metaRoutedFlattened,
     dupKeys: dupKeySet.size,
     dupEdgesTouching,
     dupAllDeterministic,
@@ -703,6 +722,24 @@ describe("strata repair-flatten probe — curve edges on the pinned preset", () 
       expect(secondary.gateFlattened).toBe(0);
       expect(primary.survivorB).toBe(primary.styledA);
       expect(secondary.survivorB).toBe(secondary.styledA);
+
+      // ── M3 TELEMETRY GATE: the counters shipped in scene.meta
+      // (strataRoutedPolylinesKept / …Flattened, threaded from
+      // `repairTerraformEdgeBindings` → buildStrataScene → engine meta) equal
+      // THIS probe's independently-measured ground truth on BOTH arms — so the
+      // observability numbers can never drift from what repair actually did.
+      // kept === styled === survivor (145 on the primary arm), flattened === 0. ──
+      // eslint-disable-next-line no-console
+      console.log(
+        `\nM3 telemetry gate: primary meta kept=${primary.metaRoutedKept} flattened=${primary.metaRoutedFlattened} (styled=${primary.styledA} survivor=${primary.survivorB}); ` +
+          `secondary meta kept=${secondary.metaRoutedKept} flattened=${secondary.metaRoutedFlattened} (styled=${secondary.styledA} survivor=${secondary.survivorB})`,
+      );
+      expect(primary.metaRoutedKept).toBe(primary.styledA);
+      expect(primary.metaRoutedKept).toBe(primary.survivorB);
+      expect(primary.metaRoutedFlattened).toBe(0);
+      expect(secondary.metaRoutedKept).toBe(secondary.styledA);
+      expect(secondary.metaRoutedKept).toBe(secondary.survivorB);
+      expect(secondary.metaRoutedFlattened).toBe(0);
 
       // Diagnostic-only mechanism census (kept from the M1 probe; now the
       // flattened set is empty, so `finite` prints 0 — a non-empty set here means
@@ -956,6 +993,23 @@ describe("curve + router combos — provenance + first-stamper-wins + repair kee
         if (preRepairStamps > 0) {
           expect(prov[by] ?? 0).toBeGreaterThan(0);
         }
+
+        // ── M3 failure-path ATTRIBUTION (codex HIGH): the by-provenance
+        // breakdowns ride on EVERY scene with stamped polylines — precisely so
+        // that when flattens exist (channel arm: 18) the responsible stamper is
+        // named in meta, not just a bare headline count.
+        const keptBy = (meta.strataRoutedPolylinesKeptBy ?? {}) as Record<
+          string,
+          number
+        >;
+        const flattenedBy = (meta.strataRoutedPolylinesFlattenedBy ??
+          {}) as Record<string, number>;
+        expect(keptBy.style ?? 0).toBe(styledMeta);
+        expect(keptBy[by] ?? 0).toBe(routedMeta - selfFlatten);
+        expect(flattenedBy[by] ?? 0).toBe(selfFlatten);
+        expect(Number(meta.strataRoutedPolylinesFlattened ?? 0)).toBe(
+          selfFlatten,
+        );
 
         // ── Consistency checks on the post-repair scene's internal integrity. ──
         // No stamp lingers on a flattened 2-pt chord.

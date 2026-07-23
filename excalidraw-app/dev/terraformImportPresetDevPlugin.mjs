@@ -955,6 +955,20 @@ const buildLayoutProofPayload = (
       strataChannelRouteRouted: meta.strataChannelRouteRouted ?? null,
       strataEdgeStyle: meta.strataEdgeStyle ?? "straight",
       strataEdgeStyleStyled: meta.strataEdgeStyleStyled ?? null,
+      // M3 curve-flatten telemetry — repair's keep/flatten verdict on the styled
+      // routed polylines. The engine packs these into scene.meta only when a
+      // routing/style pass stamped a polyline (routedSeen>0), so `?? null` reads
+      // the applied state honestly: a NON-NULL kept/flattened pair proves
+      // repair's downstream survival count reached scene.meta end-to-end (the M2
+      // curve-flatten bug shipped invisibly BECAUSE this number did not exist).
+      strataRoutedPolylinesKept: meta.strataRoutedPolylinesKept ?? null,
+      strataRoutedPolylinesFlattened:
+        meta.strataRoutedPolylinesFlattened ?? null,
+      strataRoutedPolylinesKeptBy: meta.strataRoutedPolylinesKeptBy ?? null,
+      strataRoutedPolylinesFlattenedBy:
+        meta.strataRoutedPolylinesFlattenedBy ?? null,
+      strataRoutedPolylinesUnresolved:
+        meta.strataRoutedPolylinesUnresolved ?? null,
       strataSiftRelocate: meta.strataSiftRelocate ?? false,
       strataPackedConverge: meta.strataPackedConverge ?? false,
       strataTransitiveAdopt: meta.strataTransitiveAdopt ?? false,

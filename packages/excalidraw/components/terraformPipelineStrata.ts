@@ -1285,6 +1285,32 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeStyleLensSwaps: scene.edgeStyle.lensSwaps,
             }
           : {}),
+        // M3 curve-flatten telemetry — the styled-vs-survived gap made permanent.
+        // `strataEdgeStyleStyled` above counts styling ATTEMPTS; these count how
+        // many of those stamped routed polylines repair actually KEPT vs
+        // FLATTENED downstream (the M2 bug shipped invisibly because this pair
+        // did not exist). Packed ONLY when a routing/style pass actually stamped
+        // a polyline (`routedSeen > 0`), so every default/"straight" scene stays
+        // meta byte-identical. The by-provenance breakdowns (keyed by
+        // `terraformRoutedBy`) ALWAYS ride along with the headline pair —
+        // attribution matters most on the failure path (which stamper's edges
+        // got flattened). `Unresolved` appears only when nonzero: stamped
+        // arrows repair could not evaluate, meaning the headline pair
+        // understates the stamped population.
+        ...(scene.repair.routedSeen > 0
+          ? {
+              strataRoutedPolylinesKept: scene.repair.routedKept,
+              strataRoutedPolylinesFlattened: scene.repair.routedFlattened,
+              strataRoutedPolylinesKeptBy: scene.repair.keptBy,
+              strataRoutedPolylinesFlattenedBy: scene.repair.flattenedBy,
+              ...(scene.repair.routedUnresolved > 0
+                ? {
+                    strataRoutedPolylinesUnresolved:
+                      scene.repair.routedUnresolved,
+                  }
+                : {}),
+            }
+          : {}),
         // R2 evidence (all-zero on the success path).
         strataStructural: structure,
         ...flagMeta,

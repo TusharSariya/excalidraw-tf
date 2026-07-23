@@ -63,7 +63,9 @@ import {
 import {
   collectTerraformResourceRectsByKey,
   collectTerraformStructuralDependencyPairKeysFromItems,
+  createTerraformEdgeRepairStats,
 } from "./terraformVisibility";
+import type { TerraformEdgeRepairStats } from "./terraformVisibility";
 import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import {
@@ -529,6 +531,10 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   borderRoute?: StrataBorderRouteMeta;
   /** Present only when a non-"straight" `edgeStyle` was requested. */
   edgeStyle?: StrataEdgeStyleMeta;
+  /** M3 telemetry: repair's keep/flatten/strip census over the stamped routed
+   * polylines this scene fed it. Always present (repair always runs); zeroed on
+   * a default/"straight" scene that stamped nothing. */
+  repair: TerraformEdgeRepairStats;
 }> {
   // Closure-free stage timing (see terraformPipelineStrata.ts): zero overhead
   // when the profiler is disabled, and the async span is timed around its await
@@ -552,7 +558,12 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   } = assembleStrataSceneSkeleton(input);
   spanRecord("strata.sceneBuild.skeleton", tSkeleton);
   const tConvert = spanNow();
-  const converted = await convertPipelineSkeletonToElements(skeleton);
+  // M3 telemetry: the shared kernel's `repairTerraformEdgeBindings` accumulates
+  // its keep/flatten/strip verdict here, so the scene can report how many styled
+  // routed polylines actually survived repair (vs the styling COUNT the M2 bug
+  // exposed a gap against). Zeroed on a default/"straight" scene (nothing stamped).
+  const repair = createTerraformEdgeRepairStats();
+  const converted = await convertPipelineSkeletonToElements(skeleton, repair);
   spanRecord("strata.sceneBuild.convert", tConvert);
   const tFinalize = spanNow();
   const elements = finalizeStrataScene(converted, {
@@ -562,6 +573,7 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   return {
     elements,
     frameEdgeCount,
+    repair,
     ...(channelRoute ? { channelRoute } : {}),
     ...(edgeRouting ? { edgeRouting } : {}),
     ...(borderRoute ? { borderRoute } : {}),
