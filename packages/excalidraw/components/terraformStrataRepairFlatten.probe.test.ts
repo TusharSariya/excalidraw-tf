@@ -913,7 +913,10 @@ describe("curve + router combos — provenance + first-stamper-wins + repair kee
       flag: "strataEdgeRouting",
       by: "route",
       routedMetaKey: "strataEdgeRoutingRouted",
-      preRepairStamps: 68,
+      // E1.3 narrowed eligibility to card-penetrating chords (hull-only pierces
+      // now skip early — they'd route to the chord anyway), so the pre-repair
+      // stamp count dropped 68 → 59 on this preset (measured 2026-07-23).
+      preRepairStamps: 59,
       selfFlatten: 0,
     },
     {
