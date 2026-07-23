@@ -138,8 +138,8 @@ export type TerraformDemoUrlParams = {
    * 0 = strict rule; 0<ε<1 = relative mode). */
   strataPackedEps?: number;
   /** Strata probe P2 edge render style
-   * (`strataEdgeStyle=straight|step|curve`). Default `"straight"`. */
-  strataEdgeStyle?: "straight" | "step" | "curve";
+   * (`strataEdgeStyle=straight|curve`). Default `"straight"`. */
+  strataEdgeStyle?: "straight" | "curve";
   /** W10 (SDEC-63): banded row-share compaction lever
    * (`strataBandCompact=1/0`). Default off; primarily effective with
    * rankSeparate. LEGACY ALIAS for `strataBandDepth: "root"` — kept for old
@@ -486,14 +486,10 @@ export const parseTerraformDemoUrlParams = (
   // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
   // default downstream. Case-insensitive, matching the band-depth parse.
   const strataEdgeStyleRaw = params.get("strataEdgeStyle");
-  let strataEdgeStyle: "straight" | "step" | "curve" | undefined;
+  let strataEdgeStyle: "straight" | "curve" | undefined;
   if (strataEdgeStyleRaw != null && strataEdgeStyleRaw.trim() !== "") {
     const normalized = strataEdgeStyleRaw.trim().toLowerCase();
-    if (
-      normalized !== "straight" &&
-      normalized !== "step" &&
-      normalized !== "curve"
-    ) {
+    if (normalized !== "straight" && normalized !== "curve") {
       return null;
     }
     strataEdgeStyle = normalized;
@@ -998,7 +994,7 @@ export type TerraformDemoSettingsSnapshot = {
   /** Probe P2 edge render style. Optional (like `strataBandDepth`) so a
    * snapshot literal predating this field still type-checks; absent ⇒
    * "straight". */
-  strataEdgeStyle?: "straight" | "step" | "curve";
+  strataEdgeStyle?: "straight" | "curve";
   strataBandCompact: boolean;
   /** v3.2 band-depth slider. Optional (unlike the other Strata flags above)
    * so a snapshot literal that predates this field still type-checks;

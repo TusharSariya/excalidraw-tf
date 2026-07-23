@@ -179,14 +179,13 @@ export const useTerraformImportDialog = ({
   const [strataHeightGate, setStrataHeightGate] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate as boolean,
   );
-  // Strata probe P2 (strata-only): edge render style (straight | step | curve).
+  // Strata probe P2 (strata-only): edge render style (straight | curve).
   // Default "straight" / byte-identical (the style module never runs).
   const [strataEdgeStyle, setStrataEdgeStyle] = useState<
-    "straight" | "step" | "curve"
+    "straight" | "curve"
   >(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle as
       | "straight"
-      | "step"
       | "curve",
   );
   // Strata band-depth slider (v3.2, strata-only): the deepest role still

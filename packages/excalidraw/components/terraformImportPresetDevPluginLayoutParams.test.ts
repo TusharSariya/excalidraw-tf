@@ -74,7 +74,7 @@ const fullStrataSnapshot: TerraformDemoSettingsSnapshot = {
   strataRankSeparate: false,
   strataPackedScoring: true,
   strataPackedScoringEpsilon: 2,
-  strataEdgeStyle: "step",
+  strataEdgeStyle: "curve",
   strataBandCompact: true,
   strataBandDepth: "root",
   strataSiftRelocate: true,

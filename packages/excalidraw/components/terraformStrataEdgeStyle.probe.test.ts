@@ -1,5 +1,5 @@
 /**
- * Probe P2 A/B: baseline (straight) vs step vs curve `strataEdgeStyle` on the
+ * Probe P2 A/B: baseline (straight) vs curve `strataEdgeStyle` on the
  * pinned preset, through the REAL app path (`layoutTerraformFromSources`).
  * Prints the new angle metrics + crossings/pierce so the owner can eyeball the
  * numbers alongside the rendered scene. This is an instrument, not a gate — the
@@ -29,7 +29,7 @@ import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
 const PRESET = "staging-extended-localstack-v2";
 
 const buildScene = async (
-  edgeStyle: "straight" | "step" | "curve",
+  edgeStyle: "straight" | "curve",
 ): Promise<ExcalidrawElement[]> => {
   clearTerraformImportPrepCache();
   const sources = getTerraformImportPresetSourcesFromDb(
@@ -91,30 +91,24 @@ const rowOf = (style: string, els: ExcalidrawElement[]): Row => {
   };
 };
 
-describe("strataEdgeStyle probe — baseline vs step vs curve", () => {
+describe("strataEdgeStyle probe — baseline vs curve", () => {
   it(
     "prints angle/crossing/pierce metrics for each style on the pinned preset",
     async () => {
       const baseline = await buildScene("straight");
-      const step = await buildScene("step");
       const curve = await buildScene("curve");
 
-      const rows = [
-        rowOf("straight", baseline),
-        rowOf("step", step),
-        rowOf("curve", curve),
-      ];
+      const rows = [rowOf("straight", baseline), rowOf("curve", curve)];
       // eslint-disable-next-line no-console
       console.table(rows);
 
       // Structural guards (not metric gates):
-      // straight == baseline topology; step/curve reshaped ≥1 edge (more bends
+      // straight == baseline topology; curve reshaped ≥1 edge (more bends
       // than baseline, which is all straight chords → 0 bends).
       expect(rows[0]!.bendTotal).toBe(0);
-      expect(rows[1]!.bendTotal).toBeGreaterThan(0); // step: orthogonal corners
       // curve segments are gentle; assert the pass ran via near-flat/crossings
       // staying finite and endpoint resolution being reported.
-      expect(rows[2]!.endpointSides).toBeGreaterThanOrEqual(0);
+      expect(rows[1]!.endpointSides).toBeGreaterThanOrEqual(0);
       // sharpShare70 ≥ sharpShare30 by definition (70° is the wider net).
       for (const r of rows) {
         expect(r.sharpShare70).toBeGreaterThanOrEqual(r.sharpShare30);

@@ -11,8 +11,8 @@
  * ORIENTATION-AWARE. Strata is LR, but a backward or predominantly-vertical
  * edge would look wrong forced horizontal, so each edge picks its major axis
  * from |Δx| vs |Δy|: horizontal-major departs L/R, vertical-major departs T/B.
- * The bezier control points travel TOWARD the target along the chord sign (like
- * the step branch's `dir`), NOT React Flow's fixed Right-port push — a Δx<0 or
+ * The bezier control points travel TOWARD the target along the chord sign,
+ * NOT React Flow's fixed Right-port push — a Δx<0 or
  * Δy<0 edge no longer loops its control arm out through the source card. Forward
  * edges keep the classic 0.5·distance offset (byte-identical), and are additionally
  * x-monotone-clamped (Fritsch–Carlson analog: control coords stay in [x0,x3], so
@@ -68,7 +68,7 @@
  * between the sampled points instead, and the raised sample count keeps that
  * literal polyline visually smooth. The orbit class is exempt — it shares
  * `smoothStepPolyline`'s coarse rectilinear shape (a handful of points with
- * genuine right-angle corners, see `orbitPolyline`), so like `step` it keeps
+ * genuine right-angle corners, see `orbitPolyline`), so it keeps
  * `{type:2}` to round those corners; only the true bezier sample is dense
  * enough to fall prey to the re-splining bow.
  *
@@ -93,7 +93,7 @@ import type {
   StrataPlacementResult,
 } from "./terraformPipelineStrataTypes";
 
-export type StrataEdgeStyle = "straight" | "step" | "curve";
+export type StrataEdgeStyle = "straight" | "curve";
 
 /** Perpendicular escape-stub length (px), clamped to the hull padding so the
  * stub never protrudes past a container's inner margin. React Flow's default. */
@@ -434,7 +434,7 @@ function polyReentersBox(
  * i.e. the anchor sits >1 stub inside its own card — a placement artifact this
  * pass leaves untouched rather than distorting the curve to chase).
  *
- * Only meaningful for FORWARD bezier edges (the monotone-clamped family); step /
+ * Only meaningful for FORWARD bezier edges (the monotone-clamped family);
  * orbit / back-edge polylines are handled by their own construction.
  */
 export function clampOwnCardReentry(
@@ -823,11 +823,7 @@ export function applyStrataEdgeStyle(
       }
     }
 
-    const poly =
-      orbitPoly ??
-      (style === "step"
-        ? smoothStepPolyline(start, end, stub)
-        : bezierPolyline(start, end));
+    const poly = orbitPoly ?? bezierPolyline(start, end);
 
     if (poly.length < 2) {
       meta.skipped += 1;
@@ -996,11 +992,10 @@ export function applyStrataEdgeStyle(
       ),
       width: maxX - minX,
       height: maxY - minY,
-      // Step (and the orbit class, which shares step's coarse rectilinear
-      // shape — see `orbitPolyline`: start/[startX,orbitY]/[endX,orbitY]/end,
-      // 2 right-angle corners) round their orthogonal corners in the renderer
-      // (React Flow smoothstep look) while the polyline stays clean 2-bend
-      // geometry for the bend metric.
+      // The orbit class (see `orbitPolyline`: start/[startX,orbitY]/[endX,
+      // orbitY]/end, 2 right-angle corners) rounds its orthogonal corners in
+      // the renderer (React Flow smoothstep look) while the polyline stays
+      // clean 2-bend geometry for the bend metric.
       //
       // Render fidelity (E1.1): a true (non-orbit) curve record's polyline IS
       // the finely-sampled shape (`STRATA_EDGE_STYLE_CURVE_SAMPLES` points) —
@@ -1011,9 +1006,7 @@ export function applyStrataEdgeStyle(
       // them, bowing outside the computed polyline into adjacent cards. So
       // curve (non-orbit) records force roundness OFF (`null`) here; the
       // dense sampling then reads as smooth on its own.
-      ...(style === "step" || r.orbit
-        ? { roundness: { type: 2 } }
-        : { roundness: null }),
+      ...(r.orbit ? { roundness: { type: 2 } } : { roundness: null }),
       customData: {
         ...prevCustomData,
         terraformRoutedPolyline: true,

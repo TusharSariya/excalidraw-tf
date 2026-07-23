@@ -27,7 +27,7 @@ describe("terraformSceneApply option threading", () => {
   // variant per enum key must be supplied explicitly.
   const ENUM_NON_DEFAULT: Record<string, string> = {
     strataBandDepth: "root", // default "account"
-    strataEdgeStyle: "step", // default "straight"
+    strataEdgeStyle: "curve", // default "straight"
     strataDeBandLevel: "subnet", // default "none"
   };
 

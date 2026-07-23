@@ -237,18 +237,18 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       expect(off.meta.strataRoutedPolylinesFlattenedBy).toBeUndefined();
       expect(off.meta.strataRoutedPolylinesUnresolved).toBeUndefined();
 
-      const step = await buildStrata({
+      const curve = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
-        strataEdgeStyle: "step",
+        strataEdgeStyle: "curve",
       });
-      expect(step.meta.rcllV2Degraded).toBeUndefined();
+      expect(curve.meta.rcllV2Degraded).toBeUndefined();
       // Survived BOTH literals (sceneContext + builderOptions) → engine echo.
-      expect(step.meta.strataEdgeStyle).toBe("step");
-      expect(typeof step.meta.strataEdgeStyleStyled).toBe("number");
-      expect(step.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
+      expect(curve.meta.strataEdgeStyle).toBe("curve");
+      expect(typeof curve.meta.strataEdgeStyleStyled).toBe("number");
+      expect(curve.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
       // Styled arrows carry a multi-point routed polyline in the final scene.
-      const styledArrows = step.elements.filter((el) => {
+      const styledArrows = curve.elements.filter((el) => {
         if (el.type !== "arrow") {
           return false;
         }
@@ -262,14 +262,6 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
         );
       });
       expect(styledArrows.length).toBeGreaterThan(0);
-
-      const curve = await buildStrata({
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataEdgeStyle: "curve",
-      });
-      expect(curve.meta.strataEdgeStyle).toBe("curve");
-      expect(curve.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
 
       // M3 curve-flatten telemetry: under "curve" the scene meta carries both
       // numeric routed keys, and repair KEEPS every styled polyline (M2 fix) —

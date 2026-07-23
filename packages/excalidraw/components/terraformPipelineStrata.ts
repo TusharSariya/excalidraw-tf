@@ -281,9 +281,9 @@ export type TerraformStrataSceneOptions = {
    * drops to the default. */
   strataRowGap?: number;
   /**
-   * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
+   * Probe P2 edge render style (`"straight"` default | `"curve"`):
    * a post-geometry pass (terraformPipelineStrataEdgeStyle.ts) that reshapes
-   * TFD arrow chords with React-Flow smoothstep / bezier geometry.
+   * TFD arrow chords with React-Flow bezier geometry.
    * `"straight"`/absent the module never runs (byte-identical).
    */
   strataEdgeStyle?: StrataEdgeStyle;

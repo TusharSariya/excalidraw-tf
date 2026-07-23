@@ -205,7 +205,7 @@ export type TerraformPlanParsingOptions = {
   /** Strata probe P2 edge render style (`straight` default | `step` | `curve`).
    * Plain string union (not the engine's `StrataEdgeStyle`) to avoid the
    * planParsing→layout import cycle; mirrors that domain exactly. */
-  strataEdgeStyle?: "straight" | "step" | "curve";
+  strataEdgeStyle?: "straight" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */

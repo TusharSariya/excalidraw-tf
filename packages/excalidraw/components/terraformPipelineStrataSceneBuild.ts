@@ -97,8 +97,8 @@ export type StrataSceneBuildInput = {
    */
   generation?: number;
   /**
-   * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
-   * reshape un-routed TFD arrow chords with React-Flow smoothstep / bezier
+   * Probe P2 edge render style (`"straight"` default | `"curve"`):
+   * reshape un-routed TFD arrow chords with React-Flow bezier
    * geometry (terraformPipelineStrataEdgeStyle.ts). Absent / `"straight"`
    * the module never runs (byte-identical).
    */
@@ -406,7 +406,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     : undefined;
 
   // ── Probe P2 edge STYLE (flag-gated). Reshapes un-routed TFD arrow chords
-  // with smoothstep / bezier geometry. Absent / "straight" this never runs
+  // with bezier geometry. Absent / "straight" this never runs
   // (byte-identical). The styled polyline's endpoints are clipped against the
   // keyed CARD body rects — the SAME rects `repairTerraformEdgeBindings`
   // validates against — so repair keeps the stamp instead of flattening the

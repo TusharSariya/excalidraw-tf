@@ -160,7 +160,7 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     optionKey: "strataEdgeStyle",
     kind: "enum",
     default: "straight",
-    domain: ["straight", "step", "curve"],
+    domain: ["straight", "curve"],
     surface: "advanced",
     emitClass: "C3",
     decidedNow: false,

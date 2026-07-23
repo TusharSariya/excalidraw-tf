@@ -391,10 +391,9 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
     const straight = within(styleGroup).getByRole("radio", {
       name: "Straight",
     });
-    const step = within(styleGroup).getByRole("radio", { name: "Step" });
     const curve = within(styleGroup).getByRole("radio", { name: "Curve" });
     expect(straight.getAttribute("aria-checked")).toBe("true");
-    expect(step.getAttribute("aria-checked")).toBe("false");
+    expect(curve.getAttribute("aria-checked")).toBe("false");
 
     // Focus + arrow move both selection and focus; the programmatic focus()
     // inside the handler drives an onFocus state update, so wrap in act().
@@ -402,14 +401,14 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
     act(() => {
       fireEvent.keyDown(straight, { key: "ArrowRight" });
     });
-    expect(step.getAttribute("aria-checked")).toBe("true");
+    expect(curve.getAttribute("aria-checked")).toBe("true");
     expect(straight.getAttribute("aria-checked")).toBe("false");
     expect(document.activeElement).toBe(
-      within(styleGroup).getByRole("radio", { name: "Step" }),
+      within(styleGroup).getByRole("radio", { name: "Curve" }),
     );
 
     act(() => {
-      fireEvent.keyDown(step, { key: "ArrowLeft" });
+      fireEvent.keyDown(curve, { key: "ArrowLeft" });
     });
     expect(
       within(styleGroup)
@@ -433,13 +432,13 @@ describe("TerraformStrataSettings — M5 edge routing & style", () => {
   });
 
   it("uses roving tabindex so only the checked radio is tab-reachable", () => {
-    renderPanel({ strataEdgeStyle: "step" });
+    renderPanel({ strataEdgeStyle: "curve" });
     const styleGroup = screen.getByRole("radiogroup", {
       name: "Strata edge style",
     });
     expect(
       within(styleGroup)
-        .getByRole("radio", { name: "Step" })
+        .getByRole("radio", { name: "Curve" })
         .getAttribute("tabindex"),
     ).toBe("0");
     expect(

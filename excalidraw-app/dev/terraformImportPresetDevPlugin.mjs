@@ -157,10 +157,10 @@ export const LAYOUT_ENUM_PARAMS = [
   ],
   // Outcome-first "Layout" profile — expands into the RCLL flags in the core.
   ["profile", "pipelineLayoutProfile", ["readable", "balanced", "compact"]],
-  // Probe P2 edge render style (straight|step|curve). Case-INSENSITIVE like the
+  // Probe P2 edge render style (straight|curve). Case-INSENSITIVE like the
   // /demo parser (terraformDemoUrlParams.ts:497-509); default "straight" is
   // byte-identical (the style module never runs). Mirrors the /demo URL param.
-  ["strataEdgeStyle", "strataEdgeStyle", ["straight", "step", "curve"]],
+  ["strataEdgeStyle", "strataEdgeStyle", ["straight", "curve"]],
 ];
 
 // Integer (non-boolean, non-enum) layout params: [paramName, optionKey].
@@ -235,7 +235,7 @@ const LAYOUT_PARAM_CATALOG = {
       "vpc",
       "subnetZone",
     ],
-    strataEdgeStyle: ["straight", "step", "curve"],
+    strataEdgeStyle: ["straight", "curve"],
   },
   enumNotes: {
     deBandLevel:
@@ -315,7 +315,7 @@ const LAYOUT_PARAM_CATALOG = {
       "alias of strataEdgeCrossCap — edge-edge regression cap (non-negative finite, fractional allowed). Absent ⇒ inherits strataPackedScoringEpsilon.",
   },
   enumNotesEdgeStyle:
-    "Probe P2 edge render style (React-Flow smoothstep/bezier transplant). `straight` (default) is byte-identical; `step`/`curve` reshape un-routed TFD arrow chords. Case-insensitive (mirrors the /demo URL parser).",
+    "Probe P2 edge render style (React-Flow bezier transplant). `straight` (default) is byte-identical; `curve` reshapes un-routed TFD arrow chords. Case-insensitive (mirrors the /demo URL parser).",
   metrics: {
     note: "Always present (additive). Rendered metrics, NOT chord proxies (trap #2). The dataflow crossings/pierce metrics measure VISIBLE + REVEALED edges: the headless import pins every edge layer OFF (TERRAFORM_IMPORT_EDGE_LAYER_PINS all-false) so TFD arrows arrive soft-deleted, and computePierceMetrics/diagnosePipelineScene read customData.relationship ENDPOINTS — so on a visible-only set those scalars go quiet even though visible ROUTED geometry may still be present (the healthy branch's visible-only geometryHash carries the ~1.18M-char edge-connector points). geometryHash stays visible-only for baseline comparability; edgeGeometryHash is the edge-inclusive fingerprint; the edge-collapse fields below measure the visible spanning geometry directly.",
     renderedCrossings:

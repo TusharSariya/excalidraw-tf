@@ -54,8 +54,8 @@ import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
 
 const PRESET = "staging-extended-localstack-v2";
 
-type Arm = "straight" | "step" | "curve";
-const ARMS: Arm[] = ["straight", "step", "curve"];
+type Arm = "straight" | "curve";
+const ARMS: Arm[] = ["straight", "curve"];
 
 const buildScene = async (
   arm: Arm,
@@ -70,8 +70,7 @@ const buildScene = async (
   if (!sources) {
     throw new Error(`preset ${PRESET} not found`);
   }
-  const edgeStyle: "step" | "curve" | null =
-    arm === "step" ? "step" : arm === "curve" ? "curve" : null;
+  const edgeStyle: "curve" | null = arm === "curve" ? "curve" : null;
   const result = await layoutTerraformFromSources(sources, {
     layoutMode: "strata",
     pipelineCompact: true,
@@ -143,7 +142,7 @@ const edgeStyleMetaOf = (arm: string, meta: Record<string, unknown>) => ({
   lensSwaps: meta.strataEdgeStyleLensSwaps ?? "—",
 });
 
-describe("badPatterns validation probe — 3 arms, owner-theory decision rule", () => {
+describe("badPatterns validation probe — 2 arms, owner-theory decision rule", () => {
   it(
     "prints predicted vs actual orderings + offenders + SUPPORTED/REFUTED verdict",
     async () => {
@@ -215,25 +214,25 @@ describe("badPatterns validation probe — 3 arms, owner-theory decision rule", 
         "\n=== ACTUAL ORDERINGS (decision metrics; lower=better) ===",
       );
       let curveBest = 0;
-      let stepOrChannelBeats = 0;
+      let rivalBeats = 0;
       const perMetricVerdict: Record<string, string> = {};
       for (const [name, m] of Object.entries(decisionMetrics)) {
         const ordering = orderingOf(m);
         const min = ordering[0]![1];
         const curveVal = m.get("curve")!;
         const curveIsBest = curveVal <= min + 1e-9;
-        const rivalMin = m.get("step")!;
+        const rivalMin = m.get("straight")!;
         const beaten = rivalMin < curveVal - 1e-9;
         if (curveIsBest) {
           curveBest += 1;
         }
         if (beaten) {
-          stepOrChannelBeats += 1;
+          rivalBeats += 1;
         }
         perMetricVerdict[name] = curveIsBest
           ? "curve BEST/tied"
           : beaten
-          ? "curve BEATEN by step"
+          ? "curve BEATEN by straight"
           : "curve mid";
         // eslint-disable-next-line no-console
         console.log(
@@ -244,14 +243,10 @@ describe("badPatterns validation probe — 3 arms, owner-theory decision rule", 
       }
 
       const verdict =
-        curveBest >= 3
-          ? "SUPPORTED"
-          : stepOrChannelBeats >= 2
-          ? "REFUTED"
-          : "MIXED";
+        curveBest >= 3 ? "SUPPORTED" : rivalBeats >= 2 ? "REFUTED" : "MIXED";
       // eslint-disable-next-line no-console
       console.log(
-        `\n=== DECISION RULE: curveBest=${curveBest}/4, stepOrChannelBeats=${stepOrChannelBeats}/4 → THEORY ${verdict} ===`,
+        `\n=== DECISION RULE: curveBest=${curveBest}/4, rivalBeats=${rivalBeats}/4 → THEORY ${verdict} ===`,
       );
 
       // ── Owner's 5 claims, on-scene.
@@ -272,16 +267,16 @@ describe("badPatterns validation probe — 3 arms, owner-theory decision rule", 
       );
       // Claim 1 (near-perpendicular is the driver): REFUTED-on-scene iff curve —
       // the owner's favorite — is NOT the most perpendicular (higher sharp70
-      // than step). i.e. curve looks best DESPITE worse angles.
+      // than straight). i.e. curve looks best DESPITE worse angles.
       const curvePerpBest =
-        sharp70.get("curve")! <= sharp70.get("step")! + 1e-9;
+        sharp70.get("curve")! <= sharp70.get("straight")! + 1e-9;
       // eslint-disable-next-line no-console
       console.log(`\n=== OWNER'S 5 CLAIMS (on-scene) ===`);
       claim(
         "1 near-perpendicular",
         curvePerpBest,
-        `curve sharp70=${sharp70.get("curve")} vs step sharp70=${sharp70.get(
-          "step",
+        `curve sharp70=${sharp70.get("curve")} vs straight sharp70=${sharp70.get(
+          "straight",
         )} — if curve worse, perpendicularity is NOT the eyeball driver`,
       );
       claim(
@@ -333,7 +328,7 @@ describe("badPatterns validation probe — 3 arms, owner-theory decision rule", 
       }
       // The curve arm actually produced polylines (edge length > straight chords
       // is not guaranteed, but length must be positive).
-      expect(badRows[2]!.edgeLenPx).toBeGreaterThan(0);
+      expect(badRows[1]!.edgeLenPx).toBeGreaterThan(0);
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 20,
   );

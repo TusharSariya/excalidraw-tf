@@ -207,7 +207,7 @@ describe("applyStrataEdgeStyle â€” anchor fallback on a missing keyed rect (M2 Â
       skeleton,
       model,
       placement,
-      "step",
+      "curve",
       anchors,
     );
     expect(meta.styled).toBe(2);

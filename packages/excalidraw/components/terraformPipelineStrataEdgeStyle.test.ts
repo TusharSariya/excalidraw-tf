@@ -125,7 +125,7 @@ describe("bezierPolyline", () => {
 describe("applyStrataEdgeStyle", () => {
   it("reshapes an un-routed TFD chord and stamps the routed-polyline marker", () => {
     const skeleton = [tfdArrow(0, 0, [100, 40])];
-    const meta = applyStrataEdgeStyle(skeleton, model, placement, "step");
+    const meta = applyStrataEdgeStyle(skeleton, model, placement, "curve");
     expect(meta.styled).toBe(1);
     expect(meta.skipped).toBe(0);
     const el = skeleton[0] as ExcalidrawElementSkeleton & {
@@ -230,7 +230,7 @@ describe("applyStrataEdgeStyle", () => {
     } as unknown as ExcalidrawElementSkeleton;
     const skeleton = [plain];
     const before = JSON.stringify(skeleton[0]);
-    const meta = applyStrataEdgeStyle(skeleton, model, placement, "step");
+    const meta = applyStrataEdgeStyle(skeleton, model, placement, "curve");
     expect(meta.styled).toBe(0);
     expect(JSON.stringify(skeleton[0])).toBe(before);
   });

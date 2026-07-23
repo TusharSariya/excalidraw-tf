@@ -198,12 +198,6 @@ export const TerraformStrataSettingsEdges = ({
       onSelect: () => setStrataEdgeStyle("straight"),
     },
     {
-      label: "Step",
-      active: strataEdgeStyle === "step",
-      helpKey: "strata.edgestyle.step",
-      onSelect: () => setStrataEdgeStyle("step"),
-    },
-    {
       label: "Curve",
       active: strataEdgeStyle === "curve",
       helpKey: "strata.edgestyle.curve",

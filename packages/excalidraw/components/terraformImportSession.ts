@@ -84,7 +84,7 @@ export type TerraformImportSession = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
   strataPackedScoringEpsilon?: number;
   /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
-  strataEdgeStyle?: "straight" | "step" | "curve";
+  strataEdgeStyle?: "straight" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */

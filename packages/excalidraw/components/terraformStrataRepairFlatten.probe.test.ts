@@ -868,23 +868,6 @@ describe("strata repair-flatten probe — curve edges on the pinned preset", () 
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 20,
   );
-
-  it(
-    "PART 1b — step style also survives repair (survivors === styled, primary arm)",
-    async () => {
-      const { nodes, plan } = loadNodes(PRESET);
-      const step = await probeArm(nodes, plan, false, "step");
-      // eslint-disable-next-line no-console
-      console.log(
-        `\n=== step (compact:false) === styled=${step.styledA} survivors=${step.survivorB} flattened=${step.gateFlattened} realSurvivor=${step.realSurvivor}`,
-      );
-      expect(step.styledA).toBeGreaterThan(0);
-      expect(step.gateFlattened).toBe(0);
-      expect(step.survivorB).toBe(step.styledA);
-      expect(step.survivorB).toBe(step.realSurvivor);
-    },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 20,
-  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

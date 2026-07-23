@@ -465,15 +465,6 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         'strataEdgeStyle="straight" (default): the terraformPipelineStrataEdgeStyle module never runs; TFD arrows keep their two-point chords (byte-identical).',
     },
   },
-  "strata.edgestyle.step": {
-    title: "Edge style · Step",
-    body: "Right-angle connectors with rounded corners.",
-    dev: {
-      implements:
-        'strataEdgeStyle="step": applyStrataEdgeStyle rewrites each un-routed TFD chord to a smoothstep polyline (20px stubs clamped to PIPELINE_FRAME_PAD, Z-bend at stepPosition 0.5, roundness type 2), stamping terraformRoutedPolyline; skips arrows already carrying a routed polyline.',
-      refs: ["React Flow (xyflow) — getSmoothStepPath (MIT)"],
-    },
-  },
   "strata.edgestyle.curve": {
     title: "Edge style · Curve",
     body: "Draws each data-flow edge as a smooth curve that keeps its direction easy to follow. Edges that would cut through a card stay straight.",

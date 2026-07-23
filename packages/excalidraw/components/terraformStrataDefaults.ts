@@ -39,7 +39,7 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
   strataPackedScoringEpsilon: 1,
   /** Probe P2 edge render style (React-Flow smoothstep/bezier transplant):
    * `"straight"` default is byte-identical (the style module never runs);
-   * `"step"` | `"curve"` reshape un-routed TFD arrow chords. Plain string
+   * `"curve"` reshapes un-routed TFD arrow chords. Plain string
    * literal (not `StrataEdgeStyle`) per the no-layout-import rule above. */
   strataEdgeStyle: "straight",
   /** W10 (SDEC-63): banded row-share compaction lever — probe lever, default
@@ -121,7 +121,7 @@ export const resolveStrataDemoOptions = (params: {
   strataPackedEps?: number;
   /** Probe P2 edge render style. Plain string union (not `StrataEdgeStyle`) per
    * the no-layout-import rule above. */
-  strataEdgeStyle?: "straight" | "step" | "curve";
+  strataEdgeStyle?: "straight" | "curve";
   strataBandCompact?: boolean;
   /** Plain string union (not `StrataHullRole`) per the no-layout-import rule
    * above — mirrors the engine's `StrataHullRole` domain exactly. */
