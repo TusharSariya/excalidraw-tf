@@ -654,6 +654,16 @@ export function routeStrataBorderExits(
       maxX = Math.max(maxX, px);
       maxY = Math.max(maxY, py);
     }
+    // Defense-in-depth: drop any clip-pass markers before re-stamping (the
+    // first-stamper skip above means a clip edge never reaches here, but a stale
+    // `terraformClipAnchor`/`terraformClipLane` is inert to the repair gate yet
+    // serializes as garbage / inflates the lane census — strip so a "border"
+    // stamp is self-consistent).
+    const {
+      terraformClipAnchor: _staleClipAnchor,
+      terraformClipLane: _staleClipLane,
+      ...prevCustomData
+    } = el.customData ?? {};
     skeleton[i] = {
       ...el,
       x: ox,
@@ -662,7 +672,7 @@ export function routeStrataBorderExits(
       width: maxX - minX,
       height: maxY - minY,
       customData: {
-        ...(el.customData ?? {}),
+        ...prevCustomData,
         terraformRoutedPolyline: true,
         terraformRoutedBy: "border",
       },
@@ -676,7 +686,8 @@ export function routeStrataBorderExits(
       meta.interiorLenSavedL1 += exitChain.straightSpan - exitChain.routedSpan;
     }
     if (entryChain.kind === "waypoints") {
-      meta.interiorLenSavedL1 += entryChain.straightSpan - entryChain.routedSpan;
+      meta.interiorLenSavedL1 +=
+        entryChain.straightSpan - entryChain.routedSpan;
     }
     for (const w of waypoints) {
       meta.maxWaypointPerpDev = Math.max(

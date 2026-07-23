@@ -656,6 +656,16 @@ export function routeStrataSkeletonEdges(
     if (!rel) {
       continue;
     }
+    // First-stamper-wins: an arrow already routed by an earlier pass (clip /
+    // channel) keeps its geometry and provenance. Without this skip a composed
+    // `strataEdgeClip=1&strataEdgeRouting=1` (or `strataChannelRoute`) run
+    // silently RE-ROUTES clip/channel-stamped edges here — overwriting
+    // `terraformRoutedBy` and leaving a stale `terraformClipAnchor` behind (the
+    // clip pass runs FIRST in assembleStrataSceneSkeleton). Mirror the idiom the
+    // channel (:550) / border (:414) / style (:741) passes already use.
+    if (el.customData?.terraformRoutedPolyline === true) {
+      continue;
+    }
     const pts = el.points;
     if (!Array.isArray(pts) || pts.length < 2) {
       continue;
@@ -794,6 +804,16 @@ export function routeStrataSkeletonEdges(
       maxX = Math.max(maxX, px);
       maxY = Math.max(maxY, py);
     }
+    // Defense-in-depth: drop any clip-pass markers before re-stamping. The
+    // first-stamper skip above means we never actually re-route a clip edge, but
+    // if one ever reached here its stale `terraformClipAnchor`/`terraformClipLane`
+    // are inert to the repair gate yet serialize as garbage (and would inflate
+    // the lane census); strip them so a "route" stamp is self-consistent.
+    const {
+      terraformClipAnchor: _staleClipAnchor,
+      terraformClipLane: _staleClipLane,
+      ...prevCustomData
+    } = el.customData ?? {};
     skeleton[i] = {
       ...el,
       x: ox,
@@ -802,7 +822,7 @@ export function routeStrataSkeletonEdges(
       width: maxX - minX,
       height: maxY - minY,
       customData: {
-        ...(el.customData ?? {}),
+        ...prevCustomData,
         // Consumed by repairTerraformEdgeBindings: the repair re-anchors
         // bindings but MUST NOT flatten this arrow back to a straight
         // 2-point chord (its endpoints are already the centre-clipped chord

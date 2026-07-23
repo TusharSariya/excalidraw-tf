@@ -239,8 +239,13 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
   // edgeRouting / border / style), stamps terraformRoutedPolyline +
   // terraformRoutedBy:"clip", and owns its eligible net-forward cross-cluster
   // edges, so the four passes below each SKIP the edges it clipped (they only
-  // touch what it left). No conflict — declared independent so the totality
-  // guard has these pairs on record.
+  // touch what it left). Each of the four honours it with the identical
+  // `customData.terraformRoutedPolyline === true` first-stamper guard at the
+  // top of its per-edge loop — channel, border and style always had it;
+  // edgeRouting's was ADDED in the loop-2 adversarial fix round (it previously
+  // re-routed clip/channel-stamped edges, silently overwriting provenance).
+  // No conflict — declared independent so the totality guard has these pairs on
+  // record.
   ["strataEdgeClip", "strataChannelRoute"],
   ["strataEdgeClip", "strataEdgeRouting"],
   ["strataEdgeClip", "strataBorderRoute"],

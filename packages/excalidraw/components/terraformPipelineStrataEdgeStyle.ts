@@ -977,6 +977,16 @@ export function applyStrataEdgeStyle(
     // byte-identical to the pre-Stage-C write-back.
     const originX = poly[0]![0];
     const originY = poly[0]![1];
+    // Defense-in-depth: drop any clip-pass markers before re-stamping (the
+    // first-stamper skip means a clip edge never reaches here, but a stale
+    // `terraformClipAnchor`/`terraformClipLane` is inert to the repair gate yet
+    // serializes as garbage / inflates the lane census — strip so a "style"
+    // stamp is self-consistent).
+    const {
+      terraformClipAnchor: _staleClipAnchor,
+      terraformClipLane: _staleClipLane,
+      ...prevCustomData
+    } = r.el.customData ?? {};
     skeleton[r.i] = {
       ...r.el,
       x: originX,
@@ -1005,7 +1015,7 @@ export function applyStrataEdgeStyle(
         ? { roundness: { type: 2 } }
         : { roundness: null }),
       customData: {
-        ...(r.el.customData ?? {}),
+        ...prevCustomData,
         terraformRoutedPolyline: true,
         terraformRoutedBy: "style",
       },

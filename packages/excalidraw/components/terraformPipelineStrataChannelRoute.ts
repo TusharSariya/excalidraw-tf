@@ -813,6 +813,16 @@ export function routeStrataChannelEdges(
     // anchor-clipped case) would otherwise be re-anchored back to the OLD
     // frame-clipped origin, discarding the fix. When endpoints fell back to the
     // chord, [sx, sy] === the original [el.x, el.y], so this is byte-identical.
+    // Defense-in-depth: drop any clip-pass markers before re-stamping (the
+    // first-stamper skip above means a clip edge never reaches here, but a stale
+    // `terraformClipAnchor`/`terraformClipLane` is inert to the repair gate yet
+    // serializes as garbage / inflates the lane census — strip so a "channel"
+    // stamp is self-consistent).
+    const {
+      terraformClipAnchor: _staleClipAnchor,
+      terraformClipLane: _staleClipLane,
+      ...prevCustomData
+    } = plan.el.customData ?? {};
     skeleton[plan.index] = {
       ...plan.el,
       x: sx,
@@ -827,7 +837,7 @@ export function routeStrataChannelEdges(
       // SKIPS these arrows — no double-route).
       ...(softenCorners ? { roundness: { type: 2 } } : {}),
       customData: {
-        ...(plan.el.customData ?? {}),
+        ...prevCustomData,
         terraformRoutedPolyline: true,
         terraformRoutedBy: "channel",
       },

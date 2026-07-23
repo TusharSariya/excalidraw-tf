@@ -110,9 +110,11 @@ const chebyshevDistanceOutsideRect = (
 
 /** Drop a stale `terraformRoutedPolyline` marker AND its `terraformRoutedBy`
  * provenance (written by whichever pass stamped the polyline) AND any
- * `terraformClipAnchor` the clip pass stamped alongside — a flattened edge
- * must fully self-heal, or the stale anchors could revalidate a later
- * re-stamp against the wrong frame. All other customData is preserved. */
+ * `terraformClipAnchor` / `terraformClipLane` the clip pass stamped alongside —
+ * a flattened edge must fully self-heal, or the stale anchors could revalidate a
+ * later re-stamp against the wrong frame and the stale lane tag would inflate the
+ * lane census on an edge that is no longer a lane. All other customData is
+ * preserved. */
 const stripRoutedPolylineMarker = (
   customData: ExcalidrawElement["customData"],
 ): ExcalidrawElement["customData"] => {
@@ -120,7 +122,8 @@ const stripRoutedPolylineMarker = (
     !customData ||
     (customData.terraformRoutedPolyline === undefined &&
       customData.terraformRoutedBy === undefined &&
-      customData.terraformClipAnchor === undefined)
+      customData.terraformClipAnchor === undefined &&
+      customData.terraformClipLane === undefined)
   ) {
     return customData;
   }
@@ -128,6 +131,7 @@ const stripRoutedPolylineMarker = (
     terraformRoutedPolyline: _drop,
     terraformRoutedBy: _dropBy,
     terraformClipAnchor: _dropClip,
+    terraformClipLane: _dropLane,
     ...rest
   } = customData;
   return rest;
@@ -1262,10 +1266,27 @@ export const repairTerraformEdgeBindings = (
     //     frame carries `terraformPrimaryAddress` === that address in both
     //     compact and full modes), so a pasted/foreign anchor naming any other
     //     frame fails closed;
-    //   • the endpoint must sit ON the declared face of that live rect
-    //     (perpendicular axis within TERRAFORM_CLIP_FACE_TOLERANCE, Y inside
-    //     the face's extent) — a frame that moved since stamping (the
-    //     stale-route threat above) misses by far more than 2px;
+    //   • the endpoint must sit ON the declared face of that live rect. The
+    //     check is deliberately ASYMMETRIC (`clipEndpointOnDeclaredFace`):
+    //       – X-RIGID on the perpendicular axis: |px − faceX| ≤
+    //         TERRAFORM_CLIP_FACE_TOLERANCE (2px). The port is stamped EXACTLY on
+    //         the face X at skeleton time and the frame is emitted at the
+    //         identical box, so the only legitimate slack is the ≤0.5px layout
+    //         quantization (half-pixel band coords) plus ~1.5px float headroom.
+    //         A frame that MOVED in X (the stale-route threat above) misses by
+    //         far more than 2px, so the tight bound fails it closed.
+    //       – Y-FREE within the face extent: py may sit anywhere in
+    //         [rect.y, rect.y+height] (±2px). This is INTENTIONAL, not laxness —
+    //         the clip pass assigns per-face barycenter port Y by opposite-
+    //         endpoint order and re-spreads them across the face height, so a
+    //         legit endpoint's Y is NOT pinned to its skeleton value; a live
+    //         frame whose ports legitimately re-spread must still validate. The
+    //         face EXTENT (top/bottom) is the invariant we can check; the exact
+    //         Y within it is not. (Loop-3 option to tighten this without
+    //         rejecting re-spread: serialize the port's relative-Y FRACTION
+    //         alongside the anchor and validate py against rect.y + frac·height.)
+    //     A frame that moved so far its whole extent no longer covers the port's
+    //     Y still fails via the extent bound.
     //   • the declared sides must be the pass's LR discipline (start "right",
     //     end "left") — any other stamp is not ours.
     // On ANY failure — missing/malformed anchors, unresolved frame, moved

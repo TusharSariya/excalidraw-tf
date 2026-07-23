@@ -565,6 +565,61 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
+    "COMPOSED strataEdgeClip + strataEdgeRouting: edgeRouting yields to the clip first-stamper (keptBy.clip===145, no route re-stamp) — loop-2 P0",
+    async () => {
+      // Loop-2 P0 protocol at the E2E seam. Clip runs FIRST and owns its
+      // eligible edges; when strataEdgeRouting is ALSO on, edgeRouting must SKIP
+      // every clip-stamped edge (the `terraformRoutedPolyline` first-stamper
+      // guard added in the loop-2 fix round). Without that guard, edgeRouting
+      // silently RE-ROUTED 46/145 clip edges — repair then attributed them to
+      // "route" (keptBy.clip drops to ~99, keptBy.route appears), overwriting the
+      // clip provenance and stranding stale clip anchors.
+      // compact:false = the owner-full arm where the whole 145-edge declared
+      // population is clip-owned (compact packs to 135; the P0 invariant below
+      // holds under both, but 145 is the owner arm the loop-2 measurement used).
+      const clipAlone = await buildStrata({
+        pipelineCompact: false,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: true,
+      });
+      const composed = await buildStrata({
+        pipelineCompact: false,
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataEdgeClip: true,
+        strataEdgeRouting: true,
+      });
+      expect(clipAlone.meta.rcllV2Degraded).toBeUndefined();
+      expect(composed.meta.rcllV2Degraded).toBeUndefined();
+      // Both flags survived their silent-drop literals.
+      expect(composed.meta.strataEdgeClip).toBe(true);
+      expect(composed.meta.strataEdgeRouting).toBe(true);
+
+      const clipAloneKeptBy = clipAlone.meta
+        .strataRoutedPolylinesKeptBy as Record<string, number>;
+      const composedKeptBy = composed.meta
+        .strataRoutedPolylinesKeptBy as Record<string, number>;
+      const composedFlattenedBy = (composed.meta
+        .strataRoutedPolylinesFlattenedBy ?? {}) as Record<string, number>;
+
+      // The whole declared-dataflow population (145) is owned by clip, and
+      // composing edgeRouting does NOT reduce that — edgeRouting re-stamps none
+      // of them (the P0 pin).
+      expect(clipAloneKeptBy.clip).toBe(145);
+      expect(composedKeptBy.clip).toBe(145);
+      expect(composedKeptBy.clip).toBe(clipAloneKeptBy.clip);
+      // edgeRouting stamped nothing (it skipped every clip edge): no "route"
+      // provenance survives repair, and its own routed count is 0.
+      expect(composedKeptBy.route ?? 0).toBe(0);
+      expect(composed.meta.strataEdgeRoutingRouted).toBe(0);
+      // Clip polylines are never flattened by repair (typed frame-face gate).
+      expect(composedFlattenedBy.clip ?? 0).toBe(0);
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  it(
     "threads strataBandCompact through the sceneContext literal (WP2 — threading-only; engine consumption + meta echo is WP1's parallel build)",
     async () => {
       // Both literals in terraformLayoutCore.ts (LayoutSceneContext +

@@ -303,8 +303,13 @@ const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
  * (forward pass, then a backward clamp against the top, then a final forward
  * clamp against the bottom — the standard 1-D label-spread). The E2.3 gutter
  * tracks reuse this verbatim with the gutter's Y-bounds as the "face".
+ *
+ * Exported for unit tests (crowded-face containment/order): on a face that
+ * cannot hold `n` ports at the ideal `sep`, the separation degrades to the
+ * feasibility bound `(hi-lo)/(n-1)` and every port still stays inside the inset
+ * interval `[lo, hi]` — the ports never escape the face extent.
  */
-const assignFacePorts = (
+export const assignFacePorts = (
   face: { y0: number; y1: number },
   entries: ReadonlyArray<{ edgeId: string; desiredY: number }>,
 ): Map<string, number> => {
@@ -730,6 +735,19 @@ export function routeStrataEdgeClip(
       node = boxed?.hull ?? null;
       bounds = boxed?.box ?? null;
     }
+    // Obstacle EXTENTS are the RENDERED frame extents already: sceneBuild emits
+    // every hull frame DIRECTLY at its `placement.boxedHulls` box and every
+    // leaf-cluster frame at its `placement.leafBoxes` box (byte-identical
+    // emission — terraformPipelineStrataSceneBuild.ts header; verified: the
+    // emitted+converted frame rect equals the placement box to the pixel for
+    // every leaf on the owner preset). So there is NO placement-vs-rendered inset
+    // to correct here. A lane that grazes a foreign frame's INTERIOR is therefore
+    // never an obstacle-extent problem — it is an obstacle-SELECTION problem:
+    // the grazed frame was not in the deepest-shared-ancestor obstacle set this
+    // lane's `settleLaneY` cleared against (a wide horizontal lane segment can
+    // span X past frames outside its shared-ancestor context). Widening lane
+    // strip selection to those frames is loop-3 scope — deliberately NOT done
+    // here.
     const obstacles: StrataBox[] = [];
     if (node) {
       for (const child of node.children) {
@@ -1393,6 +1411,9 @@ export function routeStrataEdgeClip(
   // DIRTY run keeps the E2.1 stub-hug shape (vertical adjustment immediately
   // past the exited face / at mid-gutter). Tracks are then spread per gutter
   // like face ports, clamped to each edge's verified-clear strip. ──
+  // Gutter-clearance obstacle set. As with `laneContextOf`, these placement
+  // boxes ARE the rendered frame extents (byte-identical emission — see that
+  // helper's note), so no inset correction is needed.
   const allBoxes: StrataBox[] = [
     ...[...placement.boxedHulls.values()].map((b) => b.box),
     ...placement.leafBoxes.values(),

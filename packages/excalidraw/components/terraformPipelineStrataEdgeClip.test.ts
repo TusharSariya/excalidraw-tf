@@ -27,7 +27,9 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import {
   STRATA_CLIP_LANE_CLEARANCE_PX,
   STRATA_CLIP_LANE_SEPARATION_PX,
+  STRATA_CLIP_PORT_INSET_PX,
   STRATA_CLIP_PORT_SEPARATION_PX,
+  assignFacePorts,
   routeStrataEdgeClip,
 } from "./terraformPipelineStrataEdgeClip";
 import {
@@ -1137,5 +1139,171 @@ describe("repairTerraformEdgeBindings — typed clip gate", () => {
     expect(stats.keptBy.clip).toBe(1);
     expect(arrow.points.length).toBe(routed.points.length);
     expect(arrow.customData?.terraformRoutedBy).toBe("clip");
+  });
+});
+
+// ── Loop-2 P1b: lane vs RENDERED-frame extents (strict interior) ─────────────
+//
+// The clip pass's lane clearance obstacles ARE the rendered frame extents: the
+// scene emits every leaf-cluster / hull frame DIRECTLY at its
+// `placement.leafBoxes` / `placement.boxedHulls` box (byte-identical emission —
+// terraformPipelineStrataSceneBuild.ts; verified on the owner preset the
+// emitted+converted rect equals the placement box to the pixel). So when a
+// foreign frame is inside the lane's obstacle context, the settled lane clears
+// its FULL rendered extent — 0 strict-interior violations. (On the real preset
+// the residual grazes are frames OUTSIDE the lane's shared-ancestor obstacle
+// set — an obstacle-SELECTION concern deferred to loop-3, not an extent one.)
+describe("routeStrataEdgeClip — lane clears rendered-frame extents (P1b)", () => {
+  /** One band of five single-leaf hulls of VARYING height. A backward edge
+   * e1→a1 must fly an above-lane over m1/m2/m3 — every one an in-context foreign
+   * frame whose full rendered extent (== its placement leafBox) the lane clears. */
+  const laneBandFixture = () => {
+    const root = hull("__root__", [], []);
+    const a = hull("hull-a", ["vpc-a"], ["a1"]);
+    const m1h = hull("hull-m1", ["vpc-m1"], ["m1"]);
+    const m2h = hull("hull-m2", ["vpc-m2"], ["m2"]);
+    const m3h = hull("hull-m3", ["vpc-m3"], ["m3"]);
+    const e = hull("hull-e", ["vpc-e"], ["e1"]);
+    root.children = [a, m1h, m2h, m3h, e];
+    // Leaf frames at varying heights so the lane must clear a non-uniform
+    // skyline (its union top drives laneY).
+    const leafBoxes = new Map<string, StrataBox>([
+      ["a1", box(0, 40, 80, 40)],
+      ["m1", box(200, 0, 80, 120)], // tallest
+      ["m2", box(400, 30, 80, 60)],
+      ["m3", box(600, 10, 80, 100)],
+      ["e1", box(800, 40, 80, 40)],
+    ]);
+    const boxedHulls = new Map([
+      ["hull-a", { hull: a, box: box(-20, 20, 120, 80) }],
+      ["hull-m1", { hull: m1h, box: box(180, -20, 120, 160) }],
+      ["hull-m2", { hull: m2h, box: box(380, 10, 120, 100) }],
+      ["hull-m3", { hull: m3h, box: box(580, -10, 120, 140) }],
+      ["hull-e", { hull: e, box: box(780, 20, 120, 80) }],
+    ]);
+    return { root, leafBoxes, boxedHulls };
+  };
+
+  it("an over-the-top lane strictly clears every foreign RENDERED leaf + hull frame (0 interior violations)", () => {
+    const { root, leafBoxes, boxedHulls } = laneBandFixture();
+    // e1 → a1 is net-backward across the whole band: it must lane over m1/m2/m3.
+    const skeleton = [tfdArrow("e1", "a1", [800, 60], [80, 60])];
+    const meta = routeStrataEdgeClip(
+      skeleton,
+      modelOf(root),
+      placementOf(leafBoxes, boxedHulls),
+    );
+    expect(meta.clipped).toBe(1);
+    expect(meta.laneEdges).toBe(1);
+    expect(meta.laneFallback).toBe(0);
+
+    const el = skeleton[0] as unknown as {
+      customData: Record<string, unknown>;
+    };
+    expect(el.customData.terraformClipLane).toBe("above");
+    const abs = absPointsOf(skeleton[0]!);
+
+    // The endpoints legitimately sit ON the a1 / e1 faces; every OTHER foreign
+    // rendered frame — leaf boxes AND hull boxes — must be strictly clear.
+    const endpoints = new Set(["a1", "e1"]);
+    let violations = 0;
+    for (const [id, r] of leafBoxes) {
+      if (endpoints.has(id)) {
+        continue;
+      }
+      if (polylineEntersBox(abs, r)) {
+        violations += 1;
+      }
+    }
+    for (const [id, v] of boxedHulls) {
+      // hull-a / hull-e host the endpoints; the lane egresses/ingresses through
+      // their side faces, so only the FLOWN-OVER hulls are asserted here.
+      if (id === "hull-a" || id === "hull-e") {
+        continue;
+      }
+      if (polylineEntersBox(abs, v.box)) {
+        violations += 1;
+      }
+    }
+    expect(violations).toBe(0);
+  });
+});
+
+// ── Loop-2 P1b/E2.2: crowded-face port containment + monotone order ──────────
+describe("assignFacePorts — crowded-face containment + barycenter order", () => {
+  it("12 ports on a 100px face span the inset interval at the feasibility bound, monotone by desiredY", () => {
+    const face = { y0: 0, y1: 100 };
+    // Deliberately shuffled input order; wide-spread desiredY (some outside the
+    // face) to force the full span.
+    const entries = [
+      { edgeId: "e07", desiredY: 70 },
+      { edgeId: "e00", desiredY: -50 },
+      { edgeId: "e11", desiredY: 200 },
+      { edgeId: "e03", desiredY: 30 },
+      { edgeId: "e09", desiredY: 90 },
+      { edgeId: "e01", desiredY: 5 },
+      { edgeId: "e05", desiredY: 50 },
+      { edgeId: "e10", desiredY: 120 },
+      { edgeId: "e02", desiredY: 20 },
+      { edgeId: "e08", desiredY: 80 },
+      { edgeId: "e04", desiredY: 40 },
+      { edgeId: "e06", desiredY: 60 },
+    ];
+    const out = assignFacePorts(face, entries);
+    expect(out.size).toBe(12);
+
+    // Usable interval after the 20px corner inset (H/4=25 ≥ 20 ⇒ inset 20).
+    const lo = 20;
+    const hi = 80;
+    const feasSep = (hi - lo) / (entries.length - 1); // 60/11 ≈ 5.4545
+    expect(feasSep).toBeLessThan(STRATA_CLIP_PORT_SEPARATION_PX);
+
+    // In barycenter (desiredY) order the assigned ys are strictly increasing and
+    // EVERY port sits inside [lo, hi] (never escapes the face extent).
+    const byDesired = [...entries].sort((a, b) => a.desiredY - b.desiredY);
+    const ys = byDesired.map((e) => out.get(e.edgeId)!);
+    for (let i = 0; i < ys.length; i++) {
+      expect(ys[i]!).toBeGreaterThanOrEqual(lo - 1e-6);
+      expect(ys[i]!).toBeLessThanOrEqual(hi + 1e-6);
+    }
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i]! - ys[i - 1]!).toBeGreaterThanOrEqual(feasSep - 1e-6);
+    }
+    // Feasibility bound: the ports fully span [lo, hi] at the uniform sep.
+    expect(ys[0]!).toBeCloseTo(lo, 3);
+    expect(ys[ys.length - 1]!).toBeCloseTo(hi, 3);
+  });
+
+  it("14 ports on a 30px face degrade separation but NEVER escape the face extent", () => {
+    const face = { y0: 0, y1: 30 };
+    const entries = Array.from({ length: 14 }, (_, i) => ({
+      edgeId: `p${String(i).padStart(2, "0")}`,
+      desiredY: i * 3 - 5, // spread beyond the face on both ends
+    }));
+    const out = assignFacePorts(face, entries);
+    expect(out.size).toBe(14);
+
+    // inset = min(20, 30/4=7.5) = 7.5 ⇒ usable [7.5, 22.5].
+    const inset = Math.min(STRATA_CLIP_PORT_INSET_PX, face.y1 / 4);
+    const lo = face.y0 + inset;
+    const hi = face.y1 - inset;
+    const ys = [...entries]
+      .sort((a, b) => a.desiredY - b.desiredY)
+      .map((e) => out.get(e.edgeId)!);
+
+    // Separation has DEGRADED well below the 12px ideal (crowded) ...
+    const feasSep = (hi - lo) / (entries.length - 1);
+    expect(feasSep).toBeLessThan(STRATA_CLIP_PORT_SEPARATION_PX);
+    // ... yet no port ESCAPES the face extent [y0, y1] — nor even the inset
+    // interval — and order stays monotone non-decreasing.
+    for (let i = 0; i < ys.length; i++) {
+      expect(ys[i]!).toBeGreaterThanOrEqual(face.y0 - 1e-6);
+      expect(ys[i]!).toBeLessThanOrEqual(face.y1 + 1e-6);
+      expect(ys[i]!).toBeGreaterThanOrEqual(lo - 1e-6);
+      expect(ys[i]!).toBeLessThanOrEqual(hi + 1e-6);
+    }
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i]!).toBeGreaterThanOrEqual(ys[i - 1]! - 1e-6);
+    }
   });
 });

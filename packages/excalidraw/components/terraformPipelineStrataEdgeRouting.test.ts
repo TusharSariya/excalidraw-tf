@@ -345,6 +345,46 @@ describe("routeStrataSkeletonEdges (scene pass)", () => {
     expect(JSON.stringify(m1)).toBe(JSON.stringify(m2));
     expect(JSON.stringify(s1)).toBe(JSON.stringify(s2));
   });
+
+  // Loop-2 P0 first-stamper protocol: the a1→a2 chord penetrates hull-b/b1 and
+  // is normally ROUTED here — but when an earlier pass (clip/channel) already
+  // stamped `terraformRoutedPolyline`, this pass MUST leave it byte-identical
+  // and keep its provenance + clip anchors. Without the skip, edgeRouting
+  // re-routes it, overwriting `terraformRoutedBy` and stranding a stale
+  // `terraformClipAnchor` (RED before the P0 fix, GREEN after).
+  it("first-stamper-wins: skips an arrow already stamped terraformRoutedPolyline", () => {
+    const { model, placement } = fixture();
+    const stamped = tfdArrow("a1", "a2", [80, 20], [400, 20]) as unknown as {
+      customData: Record<string, unknown>;
+    };
+    stamped.customData.terraformRoutedPolyline = true;
+    stamped.customData.terraformRoutedBy = "clip";
+    stamped.customData.terraformClipAnchor = {
+      start: { frameKey: "a1", side: "right" },
+      end: { frameKey: "a2", side: "left" },
+    };
+    stamped.customData.terraformClipLane = "above";
+    const arrow = stamped as unknown as ExcalidrawElementSkeleton;
+    const frozen = JSON.stringify(arrow);
+    const skeleton = [arrow];
+    const meta = routeStrataSkeletonEdges(skeleton, model, placement);
+    // Not re-routed, not counted unroutable — simply skipped.
+    expect(meta.routed).toBe(0);
+    expect(meta.unroutable).toBe(0);
+    expect(meta.waypointsTotal).toBe(0);
+    // Same reference, byte-identical geometry, provenance + anchors preserved.
+    expect(skeleton[0]).toBe(arrow);
+    expect(JSON.stringify(skeleton[0])).toBe(frozen);
+    const cd = (
+      skeleton[0] as unknown as { customData: Record<string, unknown> }
+    ).customData;
+    expect(cd.terraformRoutedBy).toBe("clip");
+    expect(cd.terraformClipAnchor).toEqual({
+      start: { frameKey: "a1", side: "right" },
+      end: { frameKey: "a2", side: "left" },
+    });
+    expect(cd.terraformClipLane).toBe("above");
+  });
 });
 
 // ── E1.3 direction-aware soft router ─────────────────────────────────────────
