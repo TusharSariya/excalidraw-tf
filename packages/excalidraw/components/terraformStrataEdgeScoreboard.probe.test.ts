@@ -56,7 +56,10 @@ type Scene = { elements: ExcalidrawElement[]; meta: Record<string, unknown> };
  * `strataSift` (→ engine `strataSiftRelocate`) and `strataDeBandLevel` (URL
  * `strataDeBand`). All other strata param names match the URL verbatim.
  */
-const buildArm = async (compact: boolean): Promise<Scene> => {
+const buildArm = async (
+  compact: boolean,
+  extraStrata: Record<string, unknown> = {},
+): Promise<Scene> => {
   const res = await layoutTerraformFromSources(v2Sources(), {
     layoutMode: "strata",
     pipelineCompact: compact,
@@ -75,6 +78,7 @@ const buildArm = async (compact: boolean): Promise<Scene> => {
       strataBlockClamp: true,
       strataTranspose: true,
       strataHeightGate: true,
+      ...extraStrata,
     }),
   } as Record<string, unknown>);
   if (!res.ok) {
@@ -171,10 +175,16 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
     async () => {
       const ownerFull = armMetrics(await buildArm(false));
       const compact = armMetrics(await buildArm(true));
+      // Third arm: owner config + the around-boxes router — the pass whose
+      // backward-loop detours E1.3 reworks; backwardXPx is only exercisable here.
+      const ownerRouting = armMetrics(
+        await buildArm(false, { strataEdgeRouting: true }),
+      );
 
       for (const [arm, m] of [
         ["owner-full", ownerFull],
         ["compact", compact],
+        ["owner-routing", ownerRouting],
       ] as const) {
         // eslint-disable-next-line no-console
         console.log(
@@ -192,6 +202,10 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       // ── SANITY INVARIANTS (no aspirational thresholds — this IS the baseline).
       assertScoreboardSane(ownerFull);
       assertScoreboardSane(compact);
+      assertScoreboardSane(ownerRouting);
+      expect(ownerRouting.scoreboard.edgeCount).toBe(
+        ownerFull.scoreboard.edgeCount,
+      );
 
       // The declared-dataflow edge set is non-empty and its geometry is measured.
       expect(ownerFull.scoreboard.edgeCount).toBeGreaterThan(0);
