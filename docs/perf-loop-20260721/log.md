@@ -336,3 +336,14 @@ Default view (no new flags): byte-identical throughout (30/30 freeze matrix ever
 **Wave-next queue:** 13 non-lane clip frame cuts (metric watches); 5 heavy-lane self-crossings + 8-13× lane detours (3.4% of edges; spacing knobs help); tier-2 in-hull |Δy| scoreboard metric + placement refinement; crowding-aware port assignment (giant-lane funnels); 3 unthreaded rowGap consumers (ordering band-cost, leafShift dropY, ancillary re-stack); E1.3 hygiene-vs-budget unroutable telemetry split; orbit corner ~22px render bulge; pre-existing gate ordering holes (reveal repair-before-reconcile, conditional scene-apply repair); base vitest config nested-worktree resolution.
 
 Loop 3 CLOSED — aesthetic-edges 3-loop program COMPLETE. New URL/UI surface: strataEdgeClip (Flow preset), strataEdgeSmooth (DEV drawer), strataColumnGap + strataRowGap (Spacing row).
+
+## 2026-07-23 — edge simplification (owner decision: plain-curve look locked)
+
+The owner reviewed the 3-loop aesthetic-edges program and locked in the **plain-curve** strata edge look. The whole routing suite the loops built is now **deleted** and box-endpoint anchoring replaces it as a single opt-in flag.
+
+- **Deletion (M1–M3):** `29f9601fe` deletes the routing/channel/border/clip/smooth pass modules; `4b049beab` removes the options `strataEdgeRouting`, `strataChannelRoute`, `strataBorderRoute`, `strataEdgeClip` (Flow preset) and `strataEdgeSmooth` from the defaults/resolver/threading/UI surface; `206965725` drops the `step` value of `strataEdgeStyle` (now narrowed to `straight`\|`curve`). `strataColumnGap` and `strataRowGap` are KEPT.
+- **strataBoxEndpoints (M5/M6, opt-in):** `5f023b907` adds the option (default OFF, inert); `9fa51e920` lands the geometry — when on, declared-dataflow edges chord-clip so they terminate on the labeled leaf-cluster frame border instead of the resource card. URL param `strataBoxEndpoints=1/0`; "Endpoints" row (Card ↔ Box) in `TerraformStrataSettingsEdges.tsx`.
+- **Gate widening (M7, this commit):** `terraformStrataEdgeScoreboard.probe.test.ts` gains a second `owner-box` arm (owner-baseline + `strataBoxEndpoints:true`) and a permanent cross-arm gate `cardOverlapCount(owner-box) <= cardOverlapCount(owner-baseline)`. `wrongFaceCrossings` is printed for both arms but INFORMATIONAL only — any-face frame-border termination is legal by design and never gated.
+- **Scoreboard delta (owner config, compact:false, curve, colGap 250, rowGap 1.5):** cardOverlap **267 → 134** (−49.8%), hullBoundaryCrossings 140 → 138, dataflow crossings 125 → 109, detourRatioP95 1.056 → 1.056, wrongFaceCrossings 34 → 34 (informational). Gate passes with a wide margin.
+
+Records: [`strata-view-changelog.md`](../strata-view-changelog.md) row + [`strata-view-decision-log.md`](../strata-view-decision-log.md) SDEC-72.

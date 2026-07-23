@@ -7,18 +7,25 @@
  *   yarn vitest run --config vitest.probe.config.mts \
  *     packages/excalidraw/components/terraformStrataEdgeScoreboard.probe.test.ts
  *
- * ONE ARM — the REAL app path (`layoutTerraformFromSources`) on preset
+ * TWO ARMS — the REAL app path (`layoutTerraformFromSources`) on preset
  * staging-extended-localstack-v2 with the owner's URL options resolved through
  * `resolveStrataDemoOptions` (the same demo→engine resolver the share URL uses),
  * at compact:false:
  *   • owner-baseline — the owner's nightly plain-curve config
+ *   • owner-box      — the same config + `strataBoxEndpoints:true` (M5/M6 opt-in:
+ *                      declared edges terminate on the labeled leaf-cluster frame
+ *                      border instead of the resource card)
  *
- * The arm logs ONE `SCOREBOARD owner-baseline {json}` line: the edge scoreboard
+ * Each arm logs ONE `SCOREBOARD <arm> {json}` line: the edge scoreboard
  * ({@link computeStrataEdgeScoreboard}) + the existing pierce / crossing
  * diagnostics (`computePierceMetrics`, `diagnosePipelineScene`) + the repair
- * keep/flatten provenance packed into `scene.meta`. Assertions are SANITY
- * INVARIANTS only — THIS run IS the baseline, so no aspirational thresholds. A
- * later milestone adds a second arm.
+ * keep/flatten provenance packed into `scene.meta`.
+ *
+ * GATE (permanent, cross-arm): box endpoints must not increase card overlaps —
+ * `cardOverlapCount(owner-box) <= cardOverlapCount(owner-baseline)`. Everything
+ * else is a SANITY INVARIANT (per-arm internal consistency). `wrongFaceCrossings`
+ * is computed + printed for BOTH arms but INFORMATIONAL ONLY: any-face
+ * termination on the frame border is legal by design, so it is never gated.
  */
 import { describe, expect, it } from "vitest";
 
@@ -56,7 +63,11 @@ type Scene = { elements: ExcalidrawElement[]; meta: Record<string, unknown> };
  * `strataSift` (→ engine `strataSiftRelocate`) and `strataDeBandLevel` (URL
  * `strataDeBand`). All other strata param names match the URL verbatim.
  */
-const buildArm = async (): Promise<Scene> => {
+const buildArm = async ({
+  boxEndpoints,
+}: {
+  boxEndpoints: boolean;
+}): Promise<Scene> => {
   const res = await layoutTerraformFromSources(v2Sources(), {
     layoutMode: "strata",
     pipelineCompact: false,
@@ -75,6 +86,8 @@ const buildArm = async (): Promise<Scene> => {
       strataTranspose: true,
       strataColumnGap: 250,
       strataRowGap: 1.5,
+      // owner-box arm: the ONLY delta vs owner-baseline.
+      strataBoxEndpoints: boxEndpoints,
     }),
   } as Record<string, unknown>);
   if (!res.ok) {
@@ -165,44 +178,62 @@ const assertScoreboardSane = (arm: ReturnType<typeof armMetrics>): void => {
   expect(s.wrongFaceCrossings).toBeLessThanOrEqual(s.hullBoundaryCrossings);
 };
 
-describe("strata edge-quality scoreboard — owner-config baseline", () => {
+const logScoreboard = (
+  arm: string,
+  m: ReturnType<typeof armMetrics>,
+): void => {
+  // eslint-disable-next-line no-console
+  console.log(
+    `SCOREBOARD ${arm} ${JSON.stringify({
+      ...m.scoreboard,
+      declared: m.declared,
+      pierce: m.pierce,
+      crossings: m.crossings,
+      ownCardReentry: m.ownCardReentry,
+      repairMeta: m.repairMeta,
+    })}`,
+  );
+};
+
+/** Per-arm internal-consistency checks (no cross-arm / aspirational thresholds).
+ * Note: `wrongFaceCrossings <= hullBoundaryCrossings` here is a structural
+ * SUBSET invariant (wrong-face crossings are a subset of all boundary
+ * crossings), NOT a legality gate on wrong-face termination — that is
+ * informational only and never gated across arms. */
+const assertArmSane = (m: ReturnType<typeof armMetrics>): void => {
+  assertScoreboardSane(m);
+  expect(m.scoreboard.edgeCount).toBeGreaterThan(0);
+  expect(m.scoreboard.routedCount).toBeGreaterThan(0);
+  // The scoreboard's edge set == the FULL declared-dataflow census. The shipped
+  // scene soft-hides the whole declared layer (nonDeleted === 0), so the
+  // scoreboard counts every declared arrow regardless of isDeleted.
+  expect(m.declared.nonDeleted).toBe(0);
+  expect(m.scoreboard.edgeCount).toBe(m.declared.total);
+  // Both metric modules see the same declared-edge population.
+  expect(m.scoreboard.edgeCount).toBe(m.pierce.edgeCount);
+  expect(m.pierce.edgeCount).toBeGreaterThan(0);
+};
+
+describe("strata edge-quality scoreboard — owner-config baseline + box endpoints", () => {
   it(
-    "captures the baseline (owner-baseline arm)",
+    "captures both arms and gates box endpoints on card overlap",
     async () => {
-      const ownerBaseline = armMetrics(await buildArm());
+      const ownerBaseline = armMetrics(await buildArm({ boxEndpoints: false }));
+      const ownerBox = armMetrics(await buildArm({ boxEndpoints: true }));
 
-      // eslint-disable-next-line no-console
-      console.log(
-        `SCOREBOARD owner-baseline ${JSON.stringify({
-          ...ownerBaseline.scoreboard,
-          declared: ownerBaseline.declared,
-          pierce: ownerBaseline.pierce,
-          crossings: ownerBaseline.crossings,
-          ownCardReentry: ownerBaseline.ownCardReentry,
-          repairMeta: ownerBaseline.repairMeta,
-        })}`,
+      logScoreboard("owner-baseline", ownerBaseline);
+      logScoreboard("owner-box", ownerBox);
+
+      // ── SANITY INVARIANTS (per-arm internal consistency).
+      assertArmSane(ownerBaseline);
+      assertArmSane(ownerBox);
+
+      // ── PERMANENT GATE (cross-arm): box endpoints must not increase card
+      // overlaps. `wrongFaceCrossings` stays INFORMATIONAL (printed above, never
+      // asserted) — any-face termination on the frame border is legal by design.
+      expect(ownerBox.scoreboard.cardOverlapCount).toBeLessThanOrEqual(
+        ownerBaseline.scoreboard.cardOverlapCount,
       );
-
-      // ── SANITY INVARIANTS (no aspirational thresholds — this IS the baseline).
-      assertScoreboardSane(ownerBaseline);
-
-      // The declared-dataflow edge set is non-empty and its geometry is measured;
-      // the plain-curve style stamps routed polylines, so routedCount > 0.
-      expect(ownerBaseline.scoreboard.edgeCount).toBeGreaterThan(0);
-      expect(ownerBaseline.scoreboard.routedCount).toBeGreaterThan(0);
-
-      // The scoreboard's edge set == the FULL declared-dataflow census. The
-      // shipped scene soft-hides the whole declared layer (nonDeleted === 0), so
-      // the scoreboard counts every declared arrow regardless of isDeleted.
-      expect(ownerBaseline.declared.nonDeleted).toBe(0);
-      expect(ownerBaseline.scoreboard.edgeCount).toBe(
-        ownerBaseline.declared.total,
-      );
-      // Both metric modules see the same declared-edge population.
-      expect(ownerBaseline.scoreboard.edgeCount).toBe(
-        ownerBaseline.pierce.edgeCount,
-      );
-      expect(ownerBaseline.pierce.edgeCount).toBeGreaterThan(0);
     },
     TIMEOUT,
   );
