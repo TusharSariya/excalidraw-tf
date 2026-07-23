@@ -70,7 +70,11 @@ describe("mergeDotAdjacency fast path", () => {
         0,
       );
       expect(edgeCount).toBeGreaterThan(0);
-    });
+      // Parses the largest preset DOT (~5.3MB) TWICE — fast path + the graphlib
+      // baseline it's compared against — which under CI coverage-v8 instrumentation
+      // runs ~6s, past vitest's 5000ms default. Generous timeout keeps the fast-lane
+      // byte-identity check honest without moving it to the slow lane.
+    }, 30000);
 
     it(`is byte-identical under stack namespacing on ${preset}`, () => {
       const dotTexts = dotTextsOf(preset);
@@ -79,7 +83,9 @@ describe("mergeDotAdjacency fast path", () => {
       expect(JSON.stringify(fast)).toBe(JSON.stringify(orig));
       expect(bails).toBe(0);
       expect(hits).toBe(dotTexts.length);
-    });
+      // Same large-preset double-parse as above — needs headroom over the 5s
+      // default under CI coverage instrumentation.
+    }, 30000);
   }
 
   it("bails to graphlib on DOT shapes outside the strict edge form", () => {
