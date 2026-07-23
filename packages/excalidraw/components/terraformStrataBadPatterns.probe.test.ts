@@ -54,8 +54,8 @@ import { computePierceMetrics } from "./terraformPipelineStrataPierceMetrics";
 
 const PRESET = "staging-extended-localstack-v2";
 
-type Arm = "straight" | "step" | "curve" | "channel" | "channel+step";
-const ARMS: Arm[] = ["straight", "step", "curve", "channel", "channel+step"];
+type Arm = "straight" | "step" | "curve";
+const ARMS: Arm[] = ["straight", "step", "curve"];
 
 const buildScene = async (
   arm: Arm,
@@ -70,19 +70,13 @@ const buildScene = async (
   if (!sources) {
     throw new Error(`preset ${PRESET} not found`);
   }
-  const channel = arm === "channel" || arm === "channel+step";
   const edgeStyle: "step" | "curve" | null =
-    arm === "step" || arm === "channel+step"
-      ? "step"
-      : arm === "curve"
-      ? "curve"
-      : null;
+    arm === "step" ? "step" : arm === "curve" ? "curve" : null;
   const result = await layoutTerraformFromSources(sources, {
     layoutMode: "strata",
     pipelineCompact: true,
     strataSweeps: 4,
     strataCoordinateRefine: true,
-    ...(channel ? { strataChannelRoute: true } : {}),
     ...(edgeStyle ? { strataEdgeStyle: edgeStyle } : {}),
   });
   if (!result.ok) {
@@ -149,17 +143,7 @@ const edgeStyleMetaOf = (arm: string, meta: Record<string, unknown>) => ({
   lensSwaps: meta.strataEdgeStyleLensSwaps ?? "—",
 });
 
-const occupancyOf = (arm: string, meta: Record<string, unknown>) => ({
-  arm,
-  columns: meta.strataChannelRouteColumns ?? "—",
-  routed: meta.strataChannelRouteRouted ?? "—",
-  guardReverted: meta.strataChannelRouteGuardReverted ?? "—",
-  flat: meta.strataChannelRouteFlat ?? "—",
-  maxTracks: meta.strataChannelRouteMaxTracksInChannel ?? "—",
-  overflow: meta.strataChannelRouteOverflowChannels ?? "—",
-});
-
-describe("badPatterns validation probe — 5 arms, owner-theory decision rule", () => {
+describe("badPatterns validation probe — 3 arms, owner-theory decision rule", () => {
   it(
     "prints predicted vs actual orderings + offenders + SUPPORTED/REFUTED verdict",
     async () => {
@@ -188,17 +172,10 @@ describe("badPatterns validation probe — 5 arms, owner-theory decision rule", 
       );
       // eslint-disable-next-line no-console
       console.table(
-        ARMS.filter((a) => a !== "straight" && a !== "channel").map((a) =>
+        ARMS.filter((a) => a !== "straight").map((a) =>
           edgeStyleMetaOf(a, built.get(a)!.meta),
         ),
       );
-      // eslint-disable-next-line no-console
-      console.log("\n=== channel occupancy (channel arms) ===");
-      // eslint-disable-next-line no-console
-      console.table([
-        occupancyOf("channel", built.get("channel")!.meta),
-        occupancyOf("channel+step", built.get("channel+step")!.meta),
-      ]);
 
       // Offenders top-10 per metric per arm (ids + int world coords).
       for (const arm of ARMS) {
@@ -245,11 +222,7 @@ describe("badPatterns validation probe — 5 arms, owner-theory decision rule", 
         const min = ordering[0]![1];
         const curveVal = m.get("curve")!;
         const curveIsBest = curveVal <= min + 1e-9;
-        const rivalMin = Math.min(
-          m.get("step")!,
-          m.get("channel")!,
-          m.get("channel+step")!,
-        );
+        const rivalMin = m.get("step")!;
         const beaten = rivalMin < curveVal - 1e-9;
         if (curveIsBest) {
           curveBest += 1;
@@ -260,7 +233,7 @@ describe("badPatterns validation probe — 5 arms, owner-theory decision rule", 
         perMetricVerdict[name] = curveIsBest
           ? "curve BEST/tied"
           : beaten
-          ? "curve BEATEN by step/channel"
+          ? "curve BEATEN by step"
           : "curve mid";
         // eslint-disable-next-line no-console
         console.log(

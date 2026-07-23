@@ -1230,22 +1230,9 @@ export async function buildTerraformStrataExcalidrawScene(
       // and a host with zero ancillary cards emits no band at all rather than an
       // empty "Unconnected" box.
       ...(ancillaryBands ? { ancillaryBands } : {}),
-      // Package C spike (W9): the key rides only when the flag is on so the
-      // flag-off input literal (and the scene build) stay byte-identical.
-      ...(strataEdgeRouting ? { edgeRouting: true } : {}),
-      // Loop-2 container-clip pass: key rides only when on (byte-identity
-      // off). Runs FIRST among the edge passes inside the scene build.
-      ...(strataEdgeClip ? { edgeClip: true } : {}),
-      // Probe P1 channel routing: key rides only when on (byte-identity off).
-      ...(strataChannelRoute ? { channelRoute: true } : {}),
-      // P3-pierce border-exit routing: key rides only when on (byte-identity).
-      ...(strataBorderRoute ? { borderRoute: true } : {}),
       // Probe P2 edge style: key rides only for a non-"straight" style so the
       // default input literal (and the scene build) stay byte-identical.
       ...(strataEdgeStyle !== "straight" ? { edgeStyle: strataEdgeStyle } : {}),
-      // Loop-3 E3.1 smoothing: key rides only when on (byte-identity off).
-      // Runs LAST among the edge passes inside the scene build.
-      ...(strataEdgeSmooth ? { edgeSmooth: true } : {}),
       // OD-15 de-band: the scene build's `topologyPathForCluster` call stamps
       // `customData.terraformTopologyPath`, which T9 slice classification
       // reconstructs the hull tree from. It MUST see the same EFFECTIVE level
@@ -1340,80 +1327,6 @@ export async function buildTerraformStrataExcalidrawScene(
                 : {}),
             }
           : {}),
-        // Package C spike (W9) observability — present only when flag-on.
-        ...(scene.edgeRouting
-          ? {
-              strataEdgeRoutingRouted: scene.edgeRouting.routed,
-              strataEdgeRoutingUnroutable: scene.edgeRouting.unroutable,
-              strataEdgeRoutingCappedDetour: scene.edgeRouting.cappedDetour,
-              strataEdgeRoutingWaypoints: scene.edgeRouting.waypointsTotal,
-            }
-          : {}),
-        // P3-pierce border-exit observability — present only when flag-on. The
-        // scored terms (crossings/penetrations/lengthL1/pierce) are INVARIANT
-        // by design. `MaxWaypointPerpDev` is the FAITHFUL headline (how far the
-        // clean side-exit staircase pulls off the interior diagonal);
-        // `InteriorLenSavedL1` is a conservative lower-bound that under-reads it.
-        ...(scene.borderRoute
-          ? {
-              strataBorderRouteRouted: scene.borderRoute.routed,
-              strataBorderRouteUnclean: scene.borderRoute.unclean,
-              strataBorderRouteNoGain: scene.borderRoute.noGain,
-              strataBorderRouteWaypoints: scene.borderRoute.waypointsTotal,
-              strataBorderRouteEntryWaypoints:
-                scene.borderRoute.entryWaypointsTotal,
-              strataBorderRouteEntryBudgetSkipped:
-                scene.borderRoute.entryBudgetSkipped,
-              strataBorderRouteMaxWaypointPerpDev:
-                scene.borderRoute.maxWaypointPerpDev,
-              strataBorderRouteInteriorLenSavedL1:
-                scene.borderRoute.interiorLenSavedL1,
-            }
-          : {}),
-        // Loop-2 clip-pass observability — present only when the pass ran.
-        // `clipped` is eligible net-forward cross-cluster edges the pass owns;
-        // `skippedBackward`/`skippedSameColumn` are the edges deliberately
-        // left for the style-pass orbit / E2.4 lanes; `portFaces` is the
-        // distinct (frame|hull, side) faces that received ports.
-        ...(scene.edgeClip
-          ? {
-              strataEdgeClipClipped: scene.edgeClip.clipped,
-              strataEdgeClipSkippedBackward: scene.edgeClip.skippedBackward,
-              strataEdgeClipSkippedSameColumn: scene.edgeClip.skippedSameColumn,
-              strataEdgeClipSkippedOffGrid: scene.edgeClip.skippedOffGrid,
-              strataEdgeClipSkippedAlreadyRouted:
-                scene.edgeClip.skippedAlreadyRouted,
-              strataEdgeClipPortFaces: scene.edgeClip.portFaces,
-              strataEdgeClipMaxPortsOnFace: scene.edgeClip.maxPortsOnFace,
-              strataEdgeClipWaypoints: scene.edgeClip.waypointsTotal,
-              // E2.4 lane census: edges routed over above/below lanes, the
-              // net-backward subset brought into the pass, and lane
-              // candidates that fell back (Z-detour / unstamped).
-              strataEdgeClipLaneEdges: scene.edgeClip.laneEdges,
-              strataEdgeClipLaneAbove: scene.edgeClip.laneAbove,
-              strataEdgeClipLaneBelow: scene.edgeClip.laneBelow,
-              strataEdgeClipLaneBackward: scene.edgeClip.laneBackward,
-              strataEdgeClipLaneFallback: scene.edgeClip.laneFallback,
-            }
-          : {}),
-        // Probe P1 channel-route observability — present only when the pass ran.
-        // `routed` is inter-rank edges rewritten, `guardReverted` those the
-        // pierce guard kept as chords, `flat` same-rank chords left in v1;
-        // `maxTracksInChannel`/`overflowChannels` gate the P5 reserved-width call.
-        ...(scene.channelRoute
-          ? {
-              strataChannelRouteRouted: scene.channelRoute.routed,
-              strataChannelRouteGuardReverted: scene.channelRoute.guardReverted,
-              strataChannelRouteFlat: scene.channelRoute.flat,
-              strataChannelRouteSkipped: scene.channelRoute.skipped,
-              strataChannelRouteColumns: scene.channelRoute.columns,
-              strataChannelRouteRunsTotal: scene.channelRoute.runsTotal,
-              strataChannelRouteMaxTracksInChannel:
-                scene.channelRoute.maxTracksInChannel,
-              strataChannelRouteOverflowChannels:
-                scene.channelRoute.overflowChannels,
-            }
-          : {}),
         // Probe P2 edge-style observability — present only when a non-"straight"
         // style ran. Topology (crossings/pierce) is essentially invariant;
         // `styled` is how many chords the pass reshaped.
@@ -1427,27 +1340,6 @@ export async function buildTerraformStrataExcalidrawScene(
               strataEdgeStyleOrbitReverted: scene.edgeStyle.orbitReverted,
               strataEdgeStyleReentryClamped: scene.edgeStyle.reentryClamped,
               strataEdgeStyleLensSwaps: scene.edgeStyle.lensSwaps,
-            }
-          : {}),
-        // Loop-3 E3.1 smoothing observability — present only when the pass ran.
-        // `Smoothed` is the routed polylines processed (roundness forced off);
-        // the kink/collinear/corner counters attribute the geometry deltas and
-        // `PointsBefore/After` expose the net simplification.
-        ...(scene.edgeSmooth
-          ? {
-              strataEdgeSmoothSmoothed: scene.edgeSmooth.smoothed,
-              strataEdgeSmoothSkippedStyle: scene.edgeSmooth.skippedStyle,
-              strataEdgeSmoothSkippedUnrouted: scene.edgeSmooth.skippedUnrouted,
-              strataEdgeSmoothKinksRemoved: scene.edgeSmooth.kinksRemoved,
-              strataEdgeSmoothCollinearRemoved:
-                scene.edgeSmooth.collinearRemoved,
-              strataEdgeSmoothCornersRounded: scene.edgeSmooth.cornersRounded,
-              strataEdgeSmoothCornersBlocked: scene.edgeSmooth.cornersBlocked,
-              strataEdgeSmoothCornersBudget: scene.edgeSmooth.cornersBudget,
-              strataEdgeSmoothMidpointRetained:
-                scene.edgeSmooth.midpointRetained,
-              strataEdgeSmoothPointsBefore: scene.edgeSmooth.pointsBefore,
-              strataEdgeSmoothPointsAfter: scene.edgeSmooth.pointsAfter,
             }
           : {}),
         // M3 curve-flatten telemetry — the styled-vs-survived gap made permanent.

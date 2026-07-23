@@ -43,32 +43,11 @@ import {
 } from "./terraformPipelineLayoutShared";
 import { spreadContextFrameColors } from "./terraformPrimaryVisibility";
 import {
-  routeStrataChannelEdges,
-  type StrataChannelRouteMeta,
-} from "./terraformPipelineStrataChannelRoute";
-import {
-  routeStrataEdgeClip,
-  type StrataEdgeClipMeta,
-} from "./terraformPipelineStrataEdgeClip";
-import {
-  routeStrataSkeletonEdges,
-  type StrataEdgeRoutingMeta,
-} from "./terraformPipelineStrataEdgeRouting";
-import {
-  routeStrataBorderExits,
-  type StrataBorderRouteMeta,
-} from "./terraformPipelineStrataBorderRoute";
-import {
   applyStrataEdgeStyle,
   type StrataEdgeStyle,
   type StrataEdgeStyleAnchors,
   type StrataEdgeStyleMeta,
 } from "./terraformPipelineStrataEdgeStyle";
-import {
-  smoothStrataRoutedEdges,
-  type StrataEdgeSmoothMeta,
-  type StrataLeafFrameRect,
-} from "./terraformPipelineStrataEdgeSmooth";
 import {
   collectTerraformResourceRectsByKey,
   collectTerraformStructuralDependencyPairKeysFromItems,
@@ -118,64 +97,12 @@ export type StrataSceneBuildInput = {
    */
   generation?: number;
   /**
-   * Package C spike (W9): when true, TFD arrows whose straight chord
-   * penetrates a foreign box are re-emitted as detour polylines
-   * (terraformPipelineStrataEdgeRouting.ts). Default off — absent, the
-   * routing module never runs and the skeleton is byte-identical to today.
-   */
-  edgeRouting?: boolean;
-  /**
-   * Loop-2 E2.1+E2.2 container-boundary CLIP pass
-   * (terraformPipelineStrataEdgeClip.ts): when true, each eligible net-forward
-   * cross-cluster TFD arrow is rewritten to a Graphviz-lhead/ltail-style clip
-   * polyline whose endpoints sit ON the source/target leaf-cluster frame
-   * borders (egress R face, ingress L face), with perpendicular hull
-   * port-crossing waypoints in between. Runs FIRST among ALL edge passes and
-   * owns the eligible edges (stamps `terraformRoutedPolyline` +
-   * `terraformRoutedBy:"clip"` + `terraformClipAnchor`, so channelRoute /
-   * routers / edgeStyle below skip them). Net-backward and same-column edges
-   * are left unstamped for the style-pass orbit / E2.4 lanes. Default off —
-   * absent, the module never runs (byte-identical).
-   */
-  edgeClip?: boolean;
-  /**
-   * Probe P1 inter-rank channel routing (terraformPipelineStrataChannelRoute.ts):
-   * when true, each inter-rank TFD arrow is rewritten to an orthogonal
-   * exit-stub → per-channel vertical run at an assigned track X → entry-stub
-   * polyline. Runs FIRST among the ROUTER passes (after the clip pass above
-   * when both are on) and owns the polyline topology (stamps
-   * `terraformRoutedPolyline`, so the routers/edgeStyle below skip its
-   * edges). Default off — absent, the module never runs (byte-identical).
-   */
-  channelRoute?: boolean;
-  /**
-   * P3-pierce border-exit routing (terraformPipelineStrataBorderRoute.ts): when
-   * true, a TFD arrow that leaves its own ancestor container as a long interior
-   * diagonal is re-emitted with a clean single-side exit waypoint. Orthogonal
-   * to `edgeRouting` (own-ancestor exits vs foreign-box detours — disjoint edge
-   * sets). Default off — absent, the module never runs (byte-identical).
-   */
-  borderRoute?: boolean;
-  /**
    * Probe P2 edge render style (`"straight"` default | `"step"` | `"curve"`):
    * reshape un-routed TFD arrow chords with React-Flow smoothstep / bezier
-   * geometry (terraformPipelineStrataEdgeStyle.ts). Runs AFTER edgeRouting +
-   * borderRoute and SKIPS arrows they already stamped. Absent / `"straight"`
+   * geometry (terraformPipelineStrataEdgeStyle.ts). Absent / `"straight"`
    * the module never runs (byte-identical).
    */
   edgeStyle?: StrataEdgeStyle;
-  /**
-   * Loop-3 E3.1 GLEE smoothing pass (terraformPipelineStrataEdgeSmooth.ts):
-   * when true, every stamped routed polyline (all four router provenances +
-   * clip; `"style"` records are already smooth and skipped) gets a final
-   * refine-straighten-smooth treatment — inflection shortcut, collinear
-   * dedupe, chamfer corner rounding with a 12px inflated-card clearance test —
-   * and `roundness:null` so the rendered path is EXACTLY the computed
-   * polyline. Runs AFTER all the stampers, BEFORE convert/repair. Endpoints,
-   * provenance and clip anchors are never touched. Default off — absent, the
-   * module never runs (byte-identical).
-   */
-  edgeSmooth?: boolean;
   /**
    * OD-15 de-band level (default `"none"`). MUST be the same level the model
    * tree was built with: this input drives the `terraformTopologyPath` stamped
@@ -276,80 +203,6 @@ function buildStrataEdgeStyleAnchors(
   };
 }
 
-/** The topology hull roles whose frames the E3.1 smoothing pass treats as
- * LR-discipline walls (mirrors the scoreboard's `TOPOLOGY_ROLES` — leaf
- * cluster frames are deliberately NOT walls; clip endpoints sit ON them). */
-const SMOOTH_HULL_ROLES: ReadonlySet<string> = new Set([
-  "provider",
-  "account",
-  "region",
-  "vpc",
-  "subnetZone",
-]);
-
-/** Collect the emitted hull frame rects for the smoothing pass's
- * top/bottom-border guard — read from the SKELETON so the guard sees exactly
- * the frames the wrong-face metric measures against. */
-function collectStrataHullFrameRects(
-  skeleton: readonly ExcalidrawElementSkeleton[],
-): EdgeAnchorRect[] {
-  const rects: EdgeAnchorRect[] = [];
-  for (const el of skeleton) {
-    if ((el as { type?: string }).type !== "frame") {
-      continue;
-    }
-    const cd = (el as { customData?: Record<string, unknown> }).customData;
-    const role = cd?.terraformTopologyRole;
-    if (typeof role !== "string" || !SMOOTH_HULL_ROLES.has(role)) {
-      continue;
-    }
-    const r = el as unknown as EdgeAnchorRect;
-    rects.push({ x: r.x, y: r.y, width: r.width, height: r.height });
-  }
-  return rects;
-}
-
-/** The leaf-cluster frame roles the E3.1 smoothing pass treats as an OBSTACLE
- * class (loop-3 P0-a) — the frames the clip pass routes AROUND. Both carry a
- * `terraformPrimaryAddress` (satellite = its parent primary's address), so an
- * edge's own source/target clusters are exempted by address. */
-const SMOOTH_LEAF_ROLES: ReadonlySet<string> = new Set([
-  "primaryCluster",
-  "satelliteCluster",
-]);
-
-/** Collect the emitted leaf-cluster frame rects (keyed by cluster address) for
- * the smoothing pass's P0-a obstacle class — read from the SKELETON so the pass
- * sees exactly the frames the scoreboard's strict-interior walk measures
- * against. Multiple frames can share an address (a primary + its satellites), so
- * this is a flat list, not a last-wins map — the per-edge exemption filters by
- * address regardless of duplicates. */
-function collectStrataLeafFrameRects(
-  skeleton: readonly ExcalidrawElementSkeleton[],
-): StrataLeafFrameRect[] {
-  const out: StrataLeafFrameRect[] = [];
-  for (const el of skeleton) {
-    if ((el as { type?: string }).type !== "frame") {
-      continue;
-    }
-    const cd = (el as { customData?: Record<string, unknown> }).customData;
-    const role = cd?.terraformTopologyRole;
-    if (typeof role !== "string" || !SMOOTH_LEAF_ROLES.has(role)) {
-      continue;
-    }
-    const address = cd?.terraformPrimaryAddress;
-    if (typeof address !== "string") {
-      continue;
-    }
-    const r = el as unknown as EdgeAnchorRect;
-    out.push({
-      address,
-      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
-    });
-  }
-  return out;
-}
-
 /**
  * Assemble the Strata scene skeleton + the id→box map the shared edge/frame
  * emission reads. Split out from {@link buildStrataScene} so tests can assert
@@ -359,18 +212,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
-  /** Present only when `edgeClip` was requested (flag-OFF byte-identity). */
-  edgeClip?: StrataEdgeClipMeta;
-  /** Present only when `channelRoute` was requested (flag-OFF byte-identity). */
-  channelRoute?: StrataChannelRouteMeta;
-  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
-  edgeRouting?: StrataEdgeRoutingMeta;
-  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
-  borderRoute?: StrataBorderRouteMeta;
   /** Present only when a non-"straight" `edgeStyle` was requested. */
   edgeStyle?: StrataEdgeStyleMeta;
-  /** Present only when `edgeSmooth` was requested (flag-OFF byte-identity). */
-  edgeSmooth?: StrataEdgeSmoothMeta;
 } {
   const { prep, model, placement, nodes } = input;
   const skeleton: ExcalidrawElementSkeleton[] = [];
@@ -545,104 +388,25 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
   );
 
-  // ── Shared body-rect anchor authority. The CARD body rects (+ the structural-
-  // dependency pair keys) `repairTerraformEdgeBindings` re-derives at element
-  // time (terraformEdgeAnchors.ts). Collected ONCE here — BEFORE the edge passes —
-  // so ALL FOUR consumers (channel router, around-boxes router, border router,
-  // edge-style pass) re-origin their polyline endpoints onto the SAME anchors
-  // repair validates against: composite cards put the leaf FRAME border >48px
-  // from the inset body rect, so frame-clipped endpoints get flattened back to
-  // chords. A pure read of the card rectangles — the edge passes rewrite only
-  // arrow points/x/y/customData, never card skeletons, so hoisting ahead of them
-  // is read-only-safe. Computed only when a consumer needs it, so the default-off
-  // scene skips the collection and stays byte-identical. ──
+  // ── Shared body-rect anchor authority for the edge-STYLE pass. The CARD body
+  // rects (+ the structural-dependency pair keys) `repairTerraformEdgeBindings`
+  // re-derives at element time (terraformEdgeAnchors.ts), collected ONCE here —
+  // BEFORE the style pass — so the styled polyline endpoints land on the SAME
+  // anchors repair validates against (composite cards put the leaf FRAME border
+  // >48px from the inset body rect, so frame-clipped endpoints would otherwise
+  // flatten back to chords). A pure read of the card rectangles — the style pass
+  // rewrites only arrow points/x/y/customData, never card skeletons, so hoisting
+  // ahead of it is read-only-safe. Computed only when a non-"straight" style is
+  // requested, so the default-off scene skips the collection and stays
+  // byte-identical. ──
   const needsEdgeAnchors =
-    input.channelRoute === true ||
-    input.edgeRouting === true ||
-    input.borderRoute === true ||
-    // E3.1 smoothing consumes the same CARD body rects as its obstacle class
-    // (triangle-clearance tests), even when only the clip pass stamped edges.
-    input.edgeSmooth === true ||
-    (input.edgeStyle !== undefined && input.edgeStyle !== "straight");
+    input.edgeStyle !== undefined && input.edgeStyle !== "straight";
   const edgeStyleAnchors = needsEdgeAnchors
     ? buildStrataEdgeStyleAnchors(skeleton)
     : undefined;
 
-  // ── Loop-2 E2.1+E2.2 container-boundary CLIP pass (flag-gated; E2.3 gutter
-  // nudging + E2.4 over-the-top lanes). Runs FIRST among ALL the edge passes —
-  // when ON it owns every eligible cross-cluster declared edge (endpoints
-  // clipped ON the leaf-cluster frame borders, LR port discipline, hull port
-  // chains; cross-band X-overlap and net-backward edges ride E2.4 lanes above/
-  // below the transited bands) and stamps `terraformRoutedPolyline` +
-  // `terraformRoutedBy:"clip"` + `terraformClipAnchor`, so the
-  // channel/route/border/style passes below (all first-stamper-wins) skip its
-  // edges; same-column edges (and backward edges no lane fits) are left
-  // unstamped for them. It does NOT consume `edgeStyleAnchors` — its
-  // endpoints are frame-border ports, not card-body anchors; repair validates
-  // them through the typed "clip" gate instead (terraformVisibility.ts).
-  // Absent the flag this never runs (byte-identical). ──
-  const edgeClip = input.edgeClip
-    ? routeStrataEdgeClip(skeleton, input.model, input.placement)
-    : undefined;
-
-  // ── Probe P1 channel routing (flag-gated). Runs FIRST among the router passes
-  // and owns the polyline topology: each inter-rank TFD arrow becomes an
-  // orthogonal exit-stub → per-channel vertical run → entry-stub polyline. It
-  // stamps `terraformRoutedPolyline`, so edgeRouting/borderRoute/edgeStyle below
-  // (all first-stamper-wins) SKIP the edges it routed — no double-routing. When
-  // a non-"straight" edgeStyle is requested, its channel polylines are emitted
-  // with roundness so the renderer softens their corners (minimal integration).
-  // Its polyline endpoints are re-origined onto `edgeStyleAnchors` (the SAME body
-  // rects repair validates) so the stamped channel polylines survive repair.
-  // Absent the flag this never runs (byte-identical). ──
-  const channelRoute = input.channelRoute
-    ? routeStrataChannelEdges(
-        skeleton,
-        input.model,
-        input.placement,
-        input.edgeStyle !== undefined && input.edgeStyle !== "straight",
-        edgeStyleAnchors,
-      )
-    : undefined;
-
-  // ── Package C spike (W9, flag-gated): detour TFD arrows whose straight
-  // chord penetrates a foreign box. Runs on the just-emitted TFD arrows only
-  // (the aggregated frame connectors below are relationship.aggregated and
-  // would be skipped anyway); interior waypoints/customData change and its
-  // polyline endpoints are re-origined onto `edgeStyleAnchors` (E1.5 — the SAME
-  // body rects repair validates, so the stamped detours survive repair instead
-  // of flattening on the frame-vs-body gap). Bindings and card skeletons are
-  // untouched, so frame-parenting below is unaffected. Absent the flag this pass
-  // never runs.
-  const edgeRouting = input.edgeRouting
-    ? routeStrataSkeletonEdges(
-        skeleton,
-        input.model,
-        input.placement,
-        edgeStyleAnchors,
-      )
-    : undefined;
-
-  // ── P3-pierce border-exit routing (flag-gated). Runs AFTER edgeRouting and
-  // is kept DISJOINT from it: border-route SKIPS any arrow already stamped
-  // `terraformRoutedPolyline` by edgeRouting (it would otherwise re-derive
-  // [start,W,end] from the endpoints, discarding edgeRouting's foreign-detour
-  // waypoints). So each edge is owned by whichever pass fired first — no
-  // clobber, no re-pierce. Its exit/entry waypoints and endpoints are re-origined
-  // onto `edgeStyleAnchors` (E1.5), the SAME body rects repair validates. Absent
-  // the flag this never runs. ──
-  const borderRoute = input.borderRoute
-    ? routeStrataBorderExits(
-        skeleton,
-        input.model,
-        input.placement,
-        edgeStyleAnchors,
-      )
-    : undefined;
-
-  // ── Probe P2 edge STYLE (flag-gated). Runs LAST of the edge passes and
-  // SKIPS any arrow the two routers above already stamped, so routing wins and
-  // only un-routed chords get restyled. Absent / "straight" this never runs
+  // ── Probe P2 edge STYLE (flag-gated). Reshapes un-routed TFD arrow chords
+  // with smoothstep / bezier geometry. Absent / "straight" this never runs
   // (byte-identical). The styled polyline's endpoints are clipped against the
   // keyed CARD body rects — the SAME rects `repairTerraformEdgeBindings`
   // validates against — so repair keeps the stamp instead of flattening the
@@ -656,39 +420,9 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
           input.model,
           input.placement,
           input.edgeStyle,
-          // Same shared anchor authority the channel router above consumed —
-          // hoisted so both passes clip endpoints to the identical body rects.
+          // The shared body-rect anchor authority hoisted above, so the styled
+          // polyline endpoints clip to the identical rects repair validates.
           edgeStyleAnchors,
-        )
-      : undefined;
-
-  // ── Loop-3 E3.1 GLEE smoothing pass (flag-gated). Runs AFTER all five
-  // stampers above, BEFORE convert/repair: every stamped routed polyline
-  // (channel/route/border/clip provenance) gets the inflection shortcut +
-  // collinear dedupe + chamfer corner rounding, and `roundness:null` so the
-  // rendered stroke IS the computed path (E1.1 rationale — the routed records
-  // otherwise keep `{type:2}` and RoughJS re-splines them into wiggles/arcs).
-  // "style" records are skipped (already exact-path). Endpoints, provenance
-  // and clip anchors are NEVER touched, so both repair gates (typed clip face
-  // ±2px; card-anchored 48px) validate the smoothed polylines unchanged.
-  // Consumes the CARD body rects from `edgeStyleAnchors` (hull interiors
-  // deliberately untested — cheap obstacle class), the emitted HULL frame
-  // rects for the LR-discipline guard (a smoothing diagonal must never cross a
-  // hull's top/bottom border — it would re-introduce the wrong-face crossings
-  // the clip discipline eliminated), and (P0-a) the emitted LEAF-cluster frame
-  // rects as a third obstacle class so the shortcut/chamfer never re-cuts a
-  // frame the clip pass routed around (each edge exempts its own clusters).
-  // Absent the flag this never runs (byte-identical). ──
-  const edgeSmooth =
-    input.edgeSmooth && edgeStyleAnchors
-      ? smoothStrataRoutedEdges(
-          skeleton,
-          [...edgeStyleAnchors.bodyRectByKey.values()],
-          collectStrataHullFrameRects(skeleton),
-          // P0-a: foreign leaf-cluster frames are a third obstacle class — the
-          // shortcut/chamfer clearance tests must not re-cut a frame the clip
-          // pass routed around (each edge exempts its own source/target).
-          collectStrataLeafFrameRects(skeleton),
         )
       : undefined;
 
@@ -712,12 +446,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     skeleton,
     layoutBoxes,
     frameEdgeCount,
-    ...(edgeClip ? { edgeClip } : {}),
-    ...(channelRoute ? { channelRoute } : {}),
-    ...(edgeRouting ? { edgeRouting } : {}),
-    ...(borderRoute ? { borderRoute } : {}),
     ...(edgeStyle ? { edgeStyle } : {}),
-    ...(edgeSmooth ? { edgeSmooth } : {}),
   };
 }
 
@@ -736,18 +465,8 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
-  /** Present only when `edgeClip` was requested (flag-OFF byte-identity). */
-  edgeClip?: StrataEdgeClipMeta;
-  /** Present only when `channelRoute` was requested (flag-OFF byte-identity). */
-  channelRoute?: StrataChannelRouteMeta;
-  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
-  edgeRouting?: StrataEdgeRoutingMeta;
-  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
-  borderRoute?: StrataBorderRouteMeta;
   /** Present only when a non-"straight" `edgeStyle` was requested. */
   edgeStyle?: StrataEdgeStyleMeta;
-  /** Present only when `edgeSmooth` was requested (flag-OFF byte-identity). */
-  edgeSmooth?: StrataEdgeSmoothMeta;
   /** M3 telemetry: repair's keep/flatten/strip census over the stamped routed
    * polylines this scene fed it. Always present (repair always runs); zeroed on
    * a default/"straight" scene that stamped nothing. */
@@ -765,16 +484,8 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   };
 
   const tSkeleton = spanNow();
-  const {
-    skeleton,
-    frameEdgeCount,
-    edgeClip,
-    channelRoute,
-    edgeRouting,
-    borderRoute,
-    edgeStyle,
-    edgeSmooth,
-  } = assembleStrataSceneSkeleton(input);
+  const { skeleton, frameEdgeCount, edgeStyle } =
+    assembleStrataSceneSkeleton(input);
   spanRecord("strata.sceneBuild.skeleton", tSkeleton);
   const tConvert = spanNow();
   // M3 telemetry: the shared kernel's `repairTerraformEdgeBindings` accumulates
@@ -793,11 +504,6 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
     elements,
     frameEdgeCount,
     repair,
-    ...(edgeClip ? { edgeClip } : {}),
-    ...(channelRoute ? { channelRoute } : {}),
-    ...(edgeRouting ? { edgeRouting } : {}),
-    ...(borderRoute ? { borderRoute } : {}),
     ...(edgeStyle ? { edgeStyle } : {}),
-    ...(edgeSmooth ? { edgeSmooth } : {}),
   };
 }
