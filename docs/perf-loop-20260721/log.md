@@ -315,3 +315,24 @@ Adversarial batch dispatched; verdicts below.
 - Residual owner-clip warts, attributed: 27 cardOverlaps are clip-pass-owned; 4 lane-vs-leaf-frame violations (2 shallow grazes, 1 deep 111px kinesis crossing + 1 log-group 36px, all on the glue→s3 lane family); detourP95 2.558 bracketed by two NON-lane staircase routes (api7 ECS→api9 API: 7,534px poly / 2,870px chord) — loop-3 targets. Port assignment holds under crowding (feasibility-clamp proven; permanent tests added). Render-honesty premise for loop-3 smoothing CONFIRMED (gate never reads interior points; constraints: keep provenance "clip", endpoint drift <1.5px).
 
 Loop 2 CLOSED.
+
+## Aesthetic-edges Loop 3 — smoothing + lane placement + spacing (2026-07-23)
+
+Commits: E3.1 `c89a72987` (strataEdgeSmooth — GLEE kink-shortcut/collinear-dedupe/chamfer + roundness:null exact-path rendering over all routed provenances, LR-discipline guard discovered+added when hull-blind smoothing produced 48 wrongFace), E3.3 `1a935c1c0` (strataColumnGap + strataRowGap, full threading + Spacing UI; 250/1.25 measured on owner config: cardOverlap −38, wrongFace −6, pierce −2, crossings +2), E3.2 `5cf70de1e` (two-tier lane strips + crossing-aware placement + dirty-gutter dodges: crossings 239→215, lane violations 4→0 — they were port-level horizontals, not lanes; cardOverlap 27→14; ≈188 target honestly refuted: residual is port-chain-level + ~19 crossings = the price of frame honesty), fix round `63de2b862` (smoother leaf-frame obstacle class + smooth-arm violation assert red→green + self-cross guard + all-routed frame-cut metric + owner-final arm + rowGap-variant mirror test).
+
+**Adversarial verdicts (Fable + codex):** E3.1 KEEP-WITH-FIX (smoother re-cut 2 frames E3.2 dodged — leaf frames were invisible to its clearance; one-arm probe assert was how it shipped green; both fixed), E3.2 KEEP-WITH-FIX (13 non-lane frame cuts now a watched probe metric; 5 heavy-lane self-crossings logged; tier-2 letter-vs-spirit: 10 transits with in-hull |Δy|>300px, max 2714px), E3.3 KEEP (cleanest; 3 unthreaded rowGap consumers noted). Codex: all claims CONFIRMED/QUALIFIED, none refuted; roundness:null audited compatible through renderer/export/hit-test/bounds/restore; api7 staircase genuinely straightened (2.625→1.002 post-smooth).
+
+**Three-loop trajectory (owner config baseline → owner-final = clip+smooth+colGap250+rowGap1.25):**
+| metric | loop-0 baseline | owner-final |
+|---|---|---|
+| cardOverlapCount | 299 | **9** (−97%) |
+| wrongFaceCrossings | 41 | **0** |
+| repair-flattened | 6 (routing arms: 107ch/25rt) | **0 everywhere** |
+| backward travel | 207px goofy (routing arm) | 0 non-lane; lanes-only sanctioned |
+| detourRatioP95 | 1.054 | 1.161 (crossings-cost 130→200, the face-discipline trade) |
+| frame-cut pairs | unmeasured | 10 (watched metric) |
+Default view (no new flags): byte-identical throughout (30/30 freeze matrix every loop).
+
+**Wave-next queue:** 13 non-lane clip frame cuts (metric watches); 5 heavy-lane self-crossings + 8-13× lane detours (3.4% of edges; spacing knobs help); tier-2 in-hull |Δy| scoreboard metric + placement refinement; crowding-aware port assignment (giant-lane funnels); 3 unthreaded rowGap consumers (ordering band-cost, leafShift dropY, ancillary re-stack); E1.3 hygiene-vs-budget unroutable telemetry split; orbit corner ~22px render bulge; pre-existing gate ordering holes (reveal repair-before-reconcile, conditional scene-apply repair); base vitest config nested-worktree resolution.
+
+Loop 3 CLOSED — aesthetic-edges 3-loop program COMPLETE. New URL/UI surface: strataEdgeClip (Flow preset), strataEdgeSmooth (DEV drawer), strataColumnGap + strataRowGap (Spacing row).
