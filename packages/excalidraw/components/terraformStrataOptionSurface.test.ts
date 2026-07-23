@@ -6,8 +6,8 @@
  *
  *  1. A FULL-surface parse→serialize→parse fixpoint over EVERY user-visible
  *     strata URL param at once (the existing "round-trips strata view + engine
- *     flags" test omits edgeRouting / borderRoute / deBandLevel / sift / penW /
- *     crossW / edgeCap / transpose / heightGate), plus every documented alias.
+ *     flags" test omits deBandLevel / sift / penW / crossW / edgeCap /
+ *     transpose / heightGate / boxEndpoints), plus every documented alias.
  *
  *  2. A THREADING TRIPWIRE: each strata layout option must still be forwarded
  *     by `layoutTerraformFromSources` (the sceneContext + builderOptions +

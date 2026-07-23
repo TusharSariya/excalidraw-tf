@@ -34,11 +34,11 @@
  * "fix" it by bowing same-Y edges: an off-axis control arm would reintroduce the
  * against-flow excursion the monotone clamp exists to prevent.
  *
- * COMPOSES UNDER THE ROUTERS. Runs AFTER edgeRouting + borderRoute in the
- * scene-build seam and SKIPS any arrow already stamped `terraformRoutedPolyline`
- * (first-stamper-wins): routed edges keep their obstacle-aware detour; only the
- * chords the routers left straight get styled. So `style="straight"` (default)
- * never runs — byte-identical off — and a routed scene keeps its routing.
+ * SOLE STAMPER since the 2026-07-23 edge simplification (the channel/around-
+ * boxes/border router passes were deleted). The pass still SKIPS any arrow
+ * already stamped `terraformRoutedPolyline` (first-stamper-wins) — defensive
+ * for legacy scenes carrying old router stamps. `style="straight"` (default)
+ * without box endpoints never runs — byte-identical off.
  *
  * ENDPOINTS = REPAIR'S CHORD ANCHORS. When the caller supplies the keyed body
  * rects (the same `terraformVisibilityRole:"resource"` cards
@@ -747,9 +747,9 @@ export type StrataEdgeStyleAnchors = {
  * Scene-level pass: reshape, IN PLACE in the skeleton array, every un-routed
  * TFD arrow to the requested render style. Only interior path shape (plus the
  * body-clipped endpoints when `anchors` is supplied) changes. Arrows already
- * stamped `terraformRoutedPolyline` (by channel / edgeRouting / borderRoute) are
- * skipped, and every arrow this pass stamps additionally records
- * `terraformRoutedBy:"style"` provenance.
+ * stamped `terraformRoutedPolyline` (legacy router stamps from saved scenes)
+ * are skipped, and every arrow this pass stamps additionally records
+ * `terraformRoutedBy:"style"` provenance ("clip" in box-endpoints mode).
  *
  * When `anchors` is supplied and BOTH of an edge's endpoint keys resolve to a
  * body rect, the styled polyline's start/end are the shared
@@ -858,7 +858,10 @@ export function applyStrataEdgeStyle(
         // Structural-pair chords are EXCLUDED — their 18px perpendicular
         // offset would push the endpoints off the frame face and fail the
         // rigid ±2px clip gate. Same-frame pairs (both addresses resolving to
-        // one frame) keep today's card-to-card "style" chord.
+        // one frame) keep today's card-to-card "style" chord — defensive only:
+        // prep collapses satellite endpoints to their owner primary and drops
+        // same-endpoint edges (terraformPipelineLayoutShared collapseEndpoint),
+        // so two distinct addresses cannot resolve to one frame today.
         const frameA = structuralPair
           ? undefined
           : boxEndpoints?.frameRectByAddress.get(rel.source);

@@ -477,6 +477,31 @@ describe("terraformDemoUrlParams", () => {
       expect(bare!.strataBandDepth).toBeUndefined();
     });
 
+    it("parses strataEdgeStyle, coerces legacy step→curve, rejects bogus values", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=curve",
+        )!.strataEdgeStyle,
+      ).toBe("curve");
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=straight",
+        )!.strataEdgeStyle,
+      ).toBe("straight");
+      // "step" was app-emitted in share URLs until 2026-07-23; it must keep
+      // importing (coerced to curve), NOT null the whole URL → blank canvas.
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=step",
+        )!.strataEdgeStyle,
+      ).toBe("curve");
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=zigzag",
+        ),
+      ).toBeNull();
+    });
+
     it("parses every strataBandDepth role (exact-case, incl. mixed-case subnetZone)", () => {
       for (const role of [
         "root",

@@ -270,18 +270,22 @@ export function collectStrataPrimaryClusterRectsByAddress(
     }
     const x = item.x ?? 0;
     const y = item.y ?? 0;
-    // Conversion falsy-zero trap (see the doc comment above): a frame at
-    // coordinate exactly 0 on either axis gets that axis re-derived from its
+    const width = item.width ?? 0;
+    const height = item.height ?? 0;
+    // Conversion falsy-zero trap (see the doc comment above): a frame with a
+    // falsy coordinate OR dimension gets that axis re-derived from its
     // children at conversion time, so this skeleton rect is not final — skip
-    // it (the styler's per-end card fallback covers its edges).
-    if (x === 0 || y === 0) {
+    // it (the styler's per-end card fallback covers its edges). Zero-sized
+    // frames don't occur in practice; the width/height arm is symmetry with
+    // transform.ts's `frame?.width || …` re-derivation.
+    if (x === 0 || y === 0 || width === 0 || height === 0) {
       continue;
     }
     rects.set(address, {
       x,
       y,
-      width: item.width ?? 0,
-      height: item.height ?? 0,
+      width,
+      height,
     });
   }
   return rects;

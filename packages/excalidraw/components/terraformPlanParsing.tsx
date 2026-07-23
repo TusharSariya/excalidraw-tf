@@ -202,7 +202,7 @@ export type TerraformPlanParsingOptions = {
   strataPackedScoringEpsilon?: number;
   /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
   strataPackedFrontierMeta?: boolean;
-  /** Strata probe P2 edge render style (`straight` default | `step` | `curve`).
+  /** Strata probe P2 edge render style (`straight` default | `curve`).
    * Plain string union (not the engine's `StrataEdgeStyle`) to avoid the
    * planParsing→layout import cycle; mirrors that domain exactly. */
   strataEdgeStyle?: "straight" | "curve";

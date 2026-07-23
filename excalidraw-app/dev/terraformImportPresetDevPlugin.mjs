@@ -343,7 +343,7 @@ const LAYOUT_PARAM_CATALOG = {
     revealedEdgeCount:
       "Count of soft-deleted relationship edges revealed (un-deleted) for the rendered dataflow metrics — the edge geometry the strata toggles optimize.",
     edgeGeometryHash:
-      "strataGeometryHash(visible + revealed edges) — the edge-inclusive fingerprint so edge-only toggles (edgeRouting/borderRoute) can't hide behind the box-only geometryHash.",
+      "strataGeometryHash(visible + revealed edges) — the edge-inclusive fingerprint so edge-only toggles (strataEdgeStyle/strataBoxEndpoints) can't hide behind the box-only geometryHash.",
     topoFrames:
       "Count of topology hull frames (customData.terraformTopologyRole in provider/account/region/vpc/subnetZone — the exact hull set computePierceMetrics's numerator uses) — the pierce denominator (trap #3). NOT a raw terraformTopologyKey count: that key is also on primaryCluster card / ancillaryStrip / satellite frames, which are not pierce hulls.",
     piercePerTopoFrame:
@@ -650,8 +650,8 @@ const buildSceneMetrics = (elements, revealedEdges, bounds, helpers) => {
   // dataflow layer pin (or hover) reveals them, i.e. the geometry the strata
   // toggles actually optimize. Bounds / elementCount / geometryHash stay
   // visible-only for baseline comparability; edgeGeometryHash adds an
-  // edge-inclusive fingerprint so edge-only togs (edgeRouting/borderRoute)
-  // cannot hide behind a box-only hash.
+  // edge-inclusive fingerprint so edge-only toggles (strataEdgeStyle/
+  // strataBoxEndpoints) cannot hide behind a box-only hash.
   const metricsElements = elements.concat(revealedEdges);
   let renderedCrossings = null;
   try {

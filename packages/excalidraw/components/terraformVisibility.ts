@@ -967,12 +967,14 @@ const arrowGeometryEqual = (
   return true;
 };
 
-/** Provenance of a stamped routed polyline, mirrored from the five edge
- * stampers' `customData.terraformRoutedBy`: the style pass ("style"), the three
- * router passes ("channel"/"route"/"border"), and the loop-2 container-clip
- * pass ("clip" — terraformPipelineStrataEdgeClip.ts, whose endpoints sit on
- * FRAME borders and are validated through the typed clip gate below rather
- * than the endpoint-on-card check). */
+/** Provenance of a stamped routed polyline (`customData.terraformRoutedBy`).
+ * Live stampers (2026-07-23 edge simplification): the style pass ("style",
+ * endpoints on cards) and its box-endpoints mode ("clip", endpoints on
+ * leaf-cluster FRAME borders, validated through the typed clip gate below
+ * rather than the endpoint-on-card check). "channel"/"route"/"border" have no
+ * remaining stamper — the router passes were deleted — but stay in the union
+ * so legacy saved scenes carrying those stamps keep validating through the
+ * generic endpoint-on-card gate exactly as before the deletion. */
 export type TerraformRoutedBy =
   | "style"
   | "channel"

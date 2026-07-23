@@ -489,14 +489,20 @@ export const parseTerraformDemoUrlParams = (
   // Probe P2 edge style enum. Hard-fail on an invalid value (same contract as
   // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
   // default downstream. Case-insensitive, matching the band-depth parse.
+  // Legacy exception: "step" was a legal app-emitted value until 2026-07-23
+  // (share URLs in the wild carry it) — coerce to "curve" instead of nulling
+  // the whole URL, which would silently blank the demo import.
   const strataEdgeStyleRaw = params.get("strataEdgeStyle");
   let strataEdgeStyle: "straight" | "curve" | undefined;
   if (strataEdgeStyleRaw != null && strataEdgeStyleRaw.trim() !== "") {
     const normalized = strataEdgeStyleRaw.trim().toLowerCase();
-    if (normalized !== "straight" && normalized !== "curve") {
+    if (normalized === "step") {
+      strataEdgeStyle = "curve";
+    } else if (normalized !== "straight" && normalized !== "curve") {
       return null;
+    } else {
+      strataEdgeStyle = normalized;
     }
-    strataEdgeStyle = normalized;
   }
   const strataBandCompact = parseBooleanParam("strataBandCompact");
   if (strataBandCompact === null) {
