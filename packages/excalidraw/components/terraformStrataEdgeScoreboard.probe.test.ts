@@ -180,11 +180,17 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       const ownerRouting = armMetrics(
         await buildArm(false, { strataEdgeRouting: true }),
       );
+      // Fourth arm: owner config + channel router — full mode is where the
+      // channel's 107-edge frame-vs-body self-flatten signature lived (E1.2).
+      const ownerChannel = armMetrics(
+        await buildArm(false, { strataChannelRoute: true }),
+      );
 
       for (const [arm, m] of [
         ["owner-full", ownerFull],
         ["compact", compact],
         ["owner-routing", ownerRouting],
+        ["owner-channel", ownerChannel],
       ] as const) {
         // eslint-disable-next-line no-console
         console.log(
@@ -203,7 +209,11 @@ describe("strata edge-quality scoreboard — owner-config baseline", () => {
       assertScoreboardSane(ownerFull);
       assertScoreboardSane(compact);
       assertScoreboardSane(ownerRouting);
+      assertScoreboardSane(ownerChannel);
       expect(ownerRouting.scoreboard.edgeCount).toBe(
+        ownerFull.scoreboard.edgeCount,
+      );
+      expect(ownerChannel.scoreboard.edgeCount).toBe(
         ownerFull.scoreboard.edgeCount,
       );
 

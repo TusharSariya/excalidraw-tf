@@ -906,8 +906,12 @@ describe("curve + router combos — provenance + first-stamper-wins + repair kee
       flag: "strataChannelRoute",
       by: "channel",
       routedMetaKey: "strataChannelRouteRouted",
+      // E1.2 drove this to 0: body-rect anchors (frame-vs-body gap) PLUS a
+      // degenerate-collapse fix — the old compact-arm 18 was actually same-Y
+      // pairs simplifying to 2-point lines (flattened by the >2-points gate,
+      // independent of endpoints), not the anchor gap as previously attributed.
       preRepairStamps: 145,
-      selfFlatten: 18,
+      selfFlatten: 0,
     },
     {
       flag: "strataEdgeRouting",
@@ -990,10 +994,9 @@ describe("curve + router combos — provenance + first-stamper-wins + repair kee
 
         // Every ROUTER stamp survives repair EXCEPT the documented self-flatten
         // class: post-repair prov[by] === pre-repair routedMeta − selfFlatten.
-        // channelRoute self-flattens `selfFlatten` (=18) of its OWN edges through
-        // the same frame-vs-body anchor gap M2 fixes for the style pass — a
-        // PRE-EXISTING router issue (wave-4), out of M2 scope; edgeRouting and
-        // borderRoute self-flatten 0 (full survival).
+        // As of E1.2 all three routers self-flatten 0 on this compact arm
+        // (channel's old 18 was degenerate same-Y collapse, fixed alongside the
+        // body-rect anchors; see the COMBOS table comments for history).
         expect(prov[by] ?? 0).toBe(routedMeta - selfFlatten);
         if (preRepairStamps > 0) {
           expect(prov[by] ?? 0).toBeGreaterThan(0);
