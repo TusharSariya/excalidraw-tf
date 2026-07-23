@@ -39,22 +39,28 @@ const v2Sources = () =>
 
 /** Geometry-only fingerprint (ids/seeds/versions are non-deterministic across
  * builds in the same process — see the canonicalize() comment in the rcll
- * threading test for why). Sorted so element ORDER differences don't matter. */
+ * threading test for why). Sorted so element ORDER differences don't matter.
+ *
+ * Deliberately does NOT filter `isDeleted`: the headless import pins every edge
+ * layer OFF, so 161/164 TFD arrows arrive soft-deleted. Filtering them would
+ * shrink a byte-identity check to the ~3 visible arrows and let a mutated (but
+ * still-hidden) routed polyline slip through. Both sides of every identity
+ * comparison carry the same deleted set, so including them is sound. */
 const geometryTuples = (elements: readonly ExcalidrawElement[]): string[] =>
-  elements
-    .filter((el) => !el.isDeleted)
-    .map((el) => `${el.x},${el.y},${el.width},${el.height}`)
-    .sort();
+  elements.map((el) => `${el.x},${el.y},${el.width},${el.height}`).sort();
 
 /** Arrow polyline fingerprint: origin + every relative point + the routed
  * marker. Stronger than geometryTuples (which sees only the bbox), so a
  * default-off byte-identity check catches a mutated polyline that leaves the
- * bounding box unchanged. */
+ * bounding box unchanged. Includes soft-deleted arrows for the same reason
+ * geometryTuples does — the routed TFD arrows the strata togs reshape arrive
+ * `isDeleted` on the headless path, so filtering them out compared only ~3 of
+ * 164 arrows (identity-fingerprint vacuity, wave-1 hardening item 2). */
 const arrowPolySignatures = (
   elements: readonly ExcalidrawElement[],
 ): string[] =>
   elements
-    .filter((el) => !el.isDeleted && el.type === "arrow")
+    .filter((el) => el.type === "arrow")
     .map((el) => {
       const pts =
         (el as unknown as { points?: ReadonlyArray<readonly number[]> })
@@ -212,135 +218,88 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
   );
 
   it(
-    "threads strataEdgeRouting end-to-end (sceneContext literal -> scene build -> meta echo + routed counts)",
+    "threads strataEdgeStyle end-to-end (sceneContext + builderOptions literals -> scene build -> meta echo + styled counts; default byte-identical)",
     async () => {
-      const on = await buildStrata({
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataEdgeRouting: true,
-      });
-      expect(on.meta.rcllV2Degraded).toBeUndefined();
-      expect(on.meta.strataEdgeRouting).toBe(true);
-      // The scene-build pass ran and reported its counters (numbers, and on
-      // this preset the W7 penetration counts guarantee eligible edges exist).
-      expect(typeof on.meta.strataEdgeRoutingRouted).toBe("number");
-      expect(typeof on.meta.strataEdgeRoutingUnroutable).toBe("number");
-      expect(typeof on.meta.strataEdgeRoutingWaypoints).toBe("number");
-      expect(
-        (on.meta.strataEdgeRoutingRouted as number) +
-          (on.meta.strataEdgeRoutingUnroutable as number),
-      ).toBeGreaterThan(0);
-      // Routed arrows carry interior waypoints (>2 points) in the final scene.
-      if ((on.meta.strataEdgeRoutingRouted as number) > 0) {
-        expect(on.meta.strataEdgeRoutingWaypoints).toBeGreaterThan(0);
-        const multiPoint = on.elements.filter((el) => {
-          if (el.type !== "arrow") {
-            return false;
-          }
-          const cd = el.customData as Record<string, unknown> | undefined;
-          const rel = cd?.relationship as Record<string, unknown> | undefined;
-          return (
-            typeof rel?.source === "string" &&
-            rel?.aggregated !== true &&
-            cd?.terraformRoutedPolyline === true &&
-            ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
-          );
-        });
-        expect(multiPoint.length).toBe(on.meta.strataEdgeRoutingRouted);
-      }
-
-      // Flag off (default): no routing meta keys, and geometry of the frames
-      // is unchanged by threading the option surface (byte-identity of the
-      // flag-off scene is separately pinned by the W5/W7/W8/W8b regenerations).
       const off = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
       });
-      expect(off.meta.strataEdgeRouting).toBeUndefined();
-      expect(off.meta.strataEdgeRoutingRouted).toBeUndefined();
-      expect(off.meta.strataEdgeRoutingUnroutable).toBeUndefined();
-      expect(off.meta.strataEdgeRoutingWaypoints).toBeUndefined();
-    },
-    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
-  );
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default "straight": no style meta keys emitted (byte-identical off).
+      expect(off.meta.strataEdgeStyle).toBeUndefined();
+      expect(off.meta.strataEdgeStyleStyled).toBeUndefined();
+      // M3 curve-flatten telemetry: the routed keep/flatten keys are ABSENT on
+      // the default/"straight" scene (nothing stamped ⇒ routedSeen 0 ⇒ meta
+      // byte-identical to pre-M3), including the by-provenance breakdowns.
+      expect(off.meta.strataRoutedPolylinesKept).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesFlattened).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesKeptBy).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesFlattenedBy).toBeUndefined();
+      expect(off.meta.strataRoutedPolylinesUnresolved).toBeUndefined();
 
-  it(
-    "threads strataBorderRoute end-to-end (sceneContext literal -> scene build -> meta echo + P3 exit counts)",
-    async () => {
-      const on = await buildStrata({
+      const curve = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
-        strataBorderRoute: true,
+        strataEdgeStyle: "curve",
       });
-      expect(on.meta.rcllV2Degraded).toBeUndefined();
-      expect(on.meta.strataBorderRoute).toBe(true);
-      // The scene-build pass ran and reported its counters.
-      expect(typeof on.meta.strataBorderRouteRouted).toBe("number");
-      expect(typeof on.meta.strataBorderRouteUnclean).toBe("number");
-      expect(typeof on.meta.strataBorderRouteNoGain).toBe("number");
-      expect(typeof on.meta.strataBorderRouteWaypoints).toBe("number");
-      expect(typeof on.meta.strataBorderRouteInteriorLenSavedL1).toBe("number");
-      expect(typeof on.meta.strataBorderRouteMaxWaypointPerpDev).toBe("number");
-      // Some TFD arrow leaves its own container on this preset (region-level
-      // sinks fed from inside a VPC), so at least one edge is a candidate.
-      expect(
-        (on.meta.strataBorderRouteRouted as number) +
-          (on.meta.strataBorderRouteUnclean as number) +
-          (on.meta.strataBorderRouteNoGain as number),
-      ).toBeGreaterThan(0);
-      // Routed exits carry interior waypoints (>2 points), a positive saving,
-      // and the polyline marker — one multi-point arrow per routed edge.
-      if ((on.meta.strataBorderRouteRouted as number) > 0) {
-        expect(on.meta.strataBorderRouteWaypoints).toBeGreaterThan(0);
-        expect(
-          on.meta.strataBorderRouteInteriorLenSavedL1 as number,
-        ).toBeGreaterThan(0);
-        const routedPolys = on.elements.filter((el) => {
-          if (el.type !== "arrow") {
-            return false;
-          }
-          const cd = el.customData as Record<string, unknown> | undefined;
-          const rel = cd?.relationship as Record<string, unknown> | undefined;
-          return (
-            typeof rel?.source === "string" &&
-            rel?.aggregated !== true &&
-            cd?.terraformRoutedPolyline === true &&
-            ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
-          );
-        });
-        expect(routedPolys.length).toBeGreaterThanOrEqual(
-          on.meta.strataBorderRouteRouted as number,
+      expect(curve.meta.rcllV2Degraded).toBeUndefined();
+      // Survived BOTH literals (sceneContext + builderOptions) → engine echo.
+      expect(curve.meta.strataEdgeStyle).toBe("curve");
+      expect(typeof curve.meta.strataEdgeStyleStyled).toBe("number");
+      expect(curve.meta.strataEdgeStyleStyled as number).toBeGreaterThan(0);
+      // Styled arrows carry a multi-point routed polyline in the final scene.
+      const styledArrows = curve.elements.filter((el) => {
+        if (el.type !== "arrow") {
+          return false;
+        }
+        const cd = el.customData as Record<string, unknown> | undefined;
+        const rel = cd?.relationship as Record<string, unknown> | undefined;
+        return (
+          typeof rel?.source === "string" &&
+          rel?.aggregated !== true &&
+          cd?.terraformRoutedPolyline === true &&
+          ((el as unknown as { points?: unknown[] }).points?.length ?? 0) > 2
         );
-      }
+      });
+      expect(styledArrows.length).toBeGreaterThan(0);
 
-      // Flag off (default): no border-route meta keys.
-      const off = await buildStrata({
+      // M3 curve-flatten telemetry: under "curve" the scene meta carries both
+      // numeric routed keys, and repair KEEPS every styled polyline (M2 fix) —
+      // kept === styled, flattened === 0. This is the permanent, app-observable
+      // proof of the styled-vs-survived gap the M2 bug shipped blind. The clean
+      // scene also carries the by-provenance breakdown, all under "style".
+      expect(typeof curve.meta.strataRoutedPolylinesKept).toBe("number");
+      expect(typeof curve.meta.strataRoutedPolylinesFlattened).toBe("number");
+      expect(curve.meta.strataRoutedPolylinesKept).toBe(
+        curve.meta.strataEdgeStyleStyled,
+      );
+      expect(curve.meta.strataRoutedPolylinesFlattened).toBe(0);
+      expect(curve.meta.strataRoutedPolylinesKeptBy).toEqual({
+        style: curve.meta.strataEdgeStyleStyled,
+      });
+      expect(curve.meta.strataRoutedPolylinesFlattenedBy).toEqual({});
+      // Unresolved is packed only when nonzero — a clean import has none.
+      expect(curve.meta.strataRoutedPolylinesUnresolved).toBeUndefined();
+
+      // Explicit "straight" is byte-identical to the flag-off scene (the module
+      // never runs), checked at bbox AND polyline level.
+      const explicitStraight = await buildStrata({
         strataSweeps: 4,
         strataCoordinateRefine: true,
+        strataEdgeStyle: "straight",
       });
-      expect(off.meta.strataBorderRoute).toBeUndefined();
-      expect(off.meta.strataBorderRouteRouted).toBeUndefined();
-      expect(off.meta.strataBorderRouteUnclean).toBeUndefined();
-      expect(off.meta.strataBorderRouteNoGain).toBeUndefined();
-      expect(off.meta.strataBorderRouteWaypoints).toBeUndefined();
-      expect(off.meta.strataBorderRouteInteriorLenSavedL1).toBeUndefined();
-      expect(off.meta.strataBorderRouteMaxWaypointPerpDev).toBeUndefined();
-
-      // Default-off byte-identity: flag ABSENT and flag explicit-false produce
-      // geometry identical to today's baseline (the module never runs). Checked
-      // at the bbox AND the polyline level so a mutated waypoint that preserved
-      // the bounding box could not slip through.
-      const explicitFalse = await buildStrata({
-        strataSweeps: 4,
-        strataCoordinateRefine: true,
-        strataBorderRoute: false,
-      });
-      expect(geometryTuples(explicitFalse.elements)).toEqual(
+      expect(geometryTuples(explicitStraight.elements)).toEqual(
         geometryTuples(off.elements),
       );
-      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+      expect(arrowPolySignatures(explicitStraight.elements)).toEqual(
         arrowPolySignatures(off.elements),
       );
+      // Explicit "straight" also emits none of the M3 routed keys (byte-identical
+      // meta): the pass never runs, so routedSeen stays 0.
+      expect(explicitStraight.meta.strataRoutedPolylinesKept).toBeUndefined();
+      expect(
+        explicitStraight.meta.strataRoutedPolylinesFlattened,
+      ).toBeUndefined();
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
   );
@@ -675,6 +634,83 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       });
       expect(geometryTuples(explicitFalse.elements)).toEqual(
         geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
+  );
+
+  it(
+    "threads strataBoxEndpoints end-to-end (sceneContext + builderOptions literals -> engine -> meta echo) and is ACTIVE (M6: clip-stamps declared edges on frame borders)",
+    async () => {
+      // Silent-drop guard for the RCLL boundary (memory 'RCLL option threading
+      // boundary'): the flag must survive the sceneContext literal AND the
+      // builderOptions fan-in in terraformLayoutCore.ts, or it is dropped on the
+      // real `layoutTerraformFromSources` app path while looking wired in the
+      // dialog. The engine echoes `strataBoxEndpoints: true` in flagMeta only when
+      // on, so the meta echo is the app-observable end-to-end proof. M6 wired the
+      // consumer: the scene-build edge-style pass terminates declared-dataflow
+      // chords on the labeled leaf-cluster FRAME borders and stamps them with
+      // "clip" provenance, which repair's typed clip gate KEEPS (not flattens).
+      const off = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+      });
+      expect(off.meta.rcllV2Degraded).toBeUndefined();
+      // Default-off: the echo key is ABSENT (not present-with-false).
+      expect(off.meta.strataBoxEndpoints).toBeUndefined();
+      expect(off.meta.strataEdgeStyleBoxEndpoints).toBeUndefined();
+
+      const on = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBoxEndpoints: true,
+      });
+      expect(on.meta.rcllV2Degraded).toBeUndefined();
+      // The flag threaded all the way to the engine's flagMeta echo.
+      expect(on.meta.strataBoxEndpoints).toBe(true);
+      expect(on.elements.length).toBeGreaterThan(0);
+      // M6 ACTIVE: the pass clip-stamped edges (meta count echo), repair kept
+      // them (by-provenance census), and the declared arrows' polylines moved
+      // off the card-clipped chords — while every NON-arrow element (cards,
+      // frames, labels) is byte-identical to the OFF build.
+      const stamped = on.meta.strataEdgeStyleBoxEndpoints as number;
+      expect(stamped).toBeGreaterThan(0);
+      const keptBy = on.meta.strataRoutedPolylinesKeptBy as Record<
+        string,
+        number
+      >;
+      const flattenedBy = on.meta.strataRoutedPolylinesFlattenedBy as Record<
+        string,
+        number
+      >;
+      expect(keptBy.clip).toBe(stamped);
+      expect(flattenedBy.clip ?? 0).toBe(0);
+      expect(arrowPolySignatures(on.elements)).not.toEqual(
+        arrowPolySignatures(off.elements),
+      );
+      expect(
+        geometryTuples(on.elements.filter((el) => el.type !== "arrow")),
+      ).toEqual(
+        geometryTuples(off.elements.filter((el) => el.type !== "arrow")),
+      );
+      expect(on.meta.strataStructural).toEqual({
+        nonAncestorOverlaps: 0,
+        titleCollisions: 0,
+        contiguityViolations: 0,
+      });
+
+      // Explicit-false is byte-identical to today's baseline (default-off
+      // byte-identity survives M6 — the pass does not run at all).
+      const explicitFalse = await buildStrata({
+        strataSweeps: 4,
+        strataCoordinateRefine: true,
+        strataBoxEndpoints: false,
+      });
+      expect(geometryTuples(explicitFalse.elements)).toEqual(
+        geometryTuples(off.elements),
+      );
+      expect(arrowPolySignatures(explicitFalse.elements)).toEqual(
+        arrowPolySignatures(off.elements),
       );
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 8,
@@ -1122,5 +1158,87 @@ describe("layoutTerraformFromSources — Strata (S0a) threading", () => {
       // terraformApiPlacementDebug.test.ts); this test owns the strata CLAMP.
     },
     STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 12,
+  );
+
+  // ─── E3.3 spacing knobs (strataColumnGap / strataRowGap) ────────────────────
+
+  it(
+    "threads strataColumnGap end-to-end (URL/dialog → both seams → engine → meta echo), non-default widens + echoes",
+    async () => {
+      const off = await buildStrata();
+      // Default OFF: no echo key (byte-identity meta), like strataBandDepth.
+      expect(off.meta.strataColumnGap).toBeUndefined();
+
+      const wide = await buildStrata({ strataColumnGap: 250 });
+      expect(wide.meta.rcllV2Degraded).toBeUndefined();
+      expect(wide.meta.strataColumnGap).toBe(250);
+      // The wider gutter MUST change geometry (columns pushed apart).
+      expect(geometryTuples(wide.elements)).not.toEqual(
+        geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "threads strataRowGap end-to-end (URL/dialog → both seams → engine → meta echo), non-default widens + echoes",
+    async () => {
+      const off = await buildStrata();
+      expect(off.meta.strataRowGap).toBeUndefined();
+
+      const wide = await buildStrata({ strataRowGap: 1.25 });
+      expect(wide.meta.rcllV2Degraded).toBeUndefined();
+      expect(wide.meta.strataRowGap).toBe(1.25);
+      expect(geometryTuples(wide.elements)).not.toEqual(
+        geometryTuples(off.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "spacing knobs: knobs ABSENT ≡ explicit-DEFAULT (150 / 1) — byte-identical geometry + no meta key (float-path safe)",
+    async () => {
+      // The gate the task calls out: an explicit-default request must be
+      // byte-identical to omitting the knob — geometry AND the persisted meta.
+      // strataGapBetween rounds (Math.round(k*1)===k) and every seam omits at the
+      // exact default, so this is exact, not approximate.
+      const absent = await buildStrata();
+      const explicitDefaults = await buildStrata({
+        strataColumnGap: 150,
+        strataRowGap: 1,
+      });
+      expect(absent.meta.rcllV2Degraded).toBeUndefined();
+      expect(explicitDefaults.meta.rcllV2Degraded).toBeUndefined();
+      // Meta: explicit-default materializes NO key (normalizes to absent).
+      expect(explicitDefaults.meta.strataColumnGap).toBeUndefined();
+      expect(explicitDefaults.meta.strataRowGap).toBeUndefined();
+      // Geometry: bbox tuples AND full arrow polylines are identical.
+      expect(geometryTuples(explicitDefaults.elements)).toEqual(
+        geometryTuples(absent.elements),
+      );
+      expect(arrowPolySignatures(explicitDefaults.elements)).toEqual(
+        arrowPolySignatures(absent.elements),
+      );
+      expect(frameCount(explicitDefaults.elements)).toBe(
+        frameCount(absent.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
+  );
+
+  it(
+    "strataColumnGap clamps out-of-range: sub-min (100) normalizes to the default (byte-identical to absent)",
+    async () => {
+      const absent = await buildStrata();
+      const subMin = await buildStrata({ strataColumnGap: 100 });
+      // 100 < 150 clamps to 150 = the default, so meta omits it and geometry is
+      // byte-identical to absent (the guard drops garbage to the current value).
+      expect(subMin.meta.strataColumnGap).toBeUndefined();
+      expect(geometryTuples(subMin.elements)).toEqual(
+        geometryTuples(absent.elements),
+      );
+    },
+    STAGING_SEMANTIC_LAYOUT_TEST_TIMEOUT_MS * 6,
   );
 });

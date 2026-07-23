@@ -16,6 +16,20 @@ import {
   resolveSatelliteLinkToPrimaryAddress,
 } from "./terraformTopologySatelliteResolve";
 import { mergeTerraformPlanResourceValues as mergeValues } from "./terraformTopologyIamLinks";
+import {
+  getFallbackScanCount as readFallbackScanCount,
+  getNodesByTypeIndexHitCount as readIndexHitCount,
+  getSatelliteClusterMemoHitCount as readMemoHitCount,
+  getSatelliteClusterMemoMissCount as readMemoMissCount,
+  recordNodesByTypeIndexHit,
+  recordSatelliteClusterMemoHit,
+  recordSatelliteClusterMemoMiss,
+  resetSatelliteInstrumentationCounters,
+} from "./terraformSatelliteFallbackCounter";
+import {
+  isTerraformImportProfilerEnabled,
+  terraformImportProfilerRecord,
+} from "./terraformImportProfiler";
 
 import {
   validateTopologySatelliteKindCatalog,
@@ -56,6 +70,9 @@ export type SatelliteBuildContext = {
  */
 export {
   getFallbackScanCount,
+  getNodesByTypeIndexHitCount,
+  getSatelliteClusterMemoHitCount,
+  getSatelliteClusterMemoMissCount,
   recordNodesByTypeFallbackScan,
   resetFallbackScanCount,
 } from "./terraformSatelliteFallbackCounter";
@@ -78,6 +95,53 @@ export function buildNodesByTypeIndex(
     }
   }
   return out;
+}
+
+/**
+ * Perf-loop E02: per-`nodes` memoization of {@link buildNodesByTypeIndex}.
+ *
+ * The index is a pure function of the `nodes` object; every `buildSatelliteContext`
+ * (427 primaries + 304 ancillary cluster builds on the desktop preset) previously left
+ * `ctx.nodesByType` unset, so every reverse-ref / companion / plugin scan fell back to an
+ * O(all-nodes) `Object.keys(nodes)` walk per kind per address. Keyed by the `nodes`
+ * object reference (exact pattern of `arnIndexByNodes` in `terraformTopologyIamLinks.ts`),
+ * the index is built once and shared across every context for that plan.
+ */
+const nodesByTypeIndexByNodes = new WeakMap<
+  TerraformPlanNodesMap,
+  ReadonlyMap<string, readonly string[]>
+>();
+
+/**
+ * Test-only kill switch. `null`/`false` (default) → contexts receive the memoized index;
+ * `true` → `buildSatelliteContext` leaves `ctx.nodesByType` unset, reproducing the exact
+ * legacy full-scan behavior. Used by the E02 byte-equality gate to build the same scene
+ * with the index ON vs OFF.
+ */
+let nodesByTypeIndexDisabledForTest = false;
+
+export function setNodesByTypeIndexDisabledForTest(disabled: boolean): void {
+  nodesByTypeIndexDisabledForTest = disabled;
+}
+
+export function isNodesByTypeIndexDisabledForTest(): boolean {
+  return nodesByTypeIndexDisabledForTest;
+}
+
+/** Memoized {@link buildNodesByTypeIndex}; `undefined` when the test switch is set. */
+export function getMemoizedNodesByTypeIndex(
+  nodes: TerraformPlanNodesMap,
+): ReadonlyMap<string, readonly string[]> | undefined {
+  if (nodesByTypeIndexDisabledForTest) {
+    return undefined;
+  }
+  let index = nodesByTypeIndexByNodes.get(nodes);
+  if (!index) {
+    index = buildNodesByTypeIndex(nodes);
+    nodesByTypeIndexByNodes.set(nodes, index);
+  }
+  recordNodesByTypeIndexHit();
+  return index;
 }
 
 export type SatelliteClusterBuildResult = {
@@ -308,7 +372,123 @@ function getPlugins(): Map<string, SatellitePluginFn> {
   return pluginRegistry;
 }
 
+/**
+ * Perf-loop E01: scoped per-(address, kind) memo for `buildSatelliteClusterForKind`.
+ *
+ * The build is a pure function of `(ctx.nodes, ctx.primaryAddress, kind,
+ * ctx.primaryType, ctx.plan, ctx.planChanges, ctx.nodesByType, arnIndex)`.
+ * Every input except `arnIndex` is guarded by reference on each hit;
+ * `arnIndex` is intentionally NOT guarded because every call site constructs
+ * it deterministically from the same `nodes` map (`buildArnIndexForTopology`),
+ * so its content is transitively pinned by the `nodes` reference guard.
+ * `planChanges` is ref-stable across contexts because all builders alias
+ * `plan.resource_changes` directly (no copies), so the guard does not defeat
+ * sharing. Results are returned by reference — all known consumers
+ * (stack-height counting, footprint sizing, satellite bundle assembly, edge
+ * spec emission) are read-only over `cluster`/`edges`.
+ *
+ * Null when no scope is active (default): byte-identical legacy behavior.
+ */
+type SatelliteClusterMemoEntry = {
+  nodes: TerraformPlanNodesMap;
+  plan: unknown;
+  planChanges: Array<{ address?: string; type?: string }> | undefined;
+  primaryType: string;
+  nodesByType: ReadonlyMap<string, readonly string[]> | undefined;
+  result: SatelliteClusterBuildResult;
+};
+
+let activeSatelliteClusterMemo: Map<string, SatelliteClusterMemoEntry> | null =
+  null;
+
+/**
+ * Run `fn` with the per-(address, kind) satellite-cluster memo active.
+ * Re-entrant: nested scopes reuse the already-active memo.
+ */
+export function withSatelliteClusterMemoScope<T>(fn: () => T): T {
+  if (activeSatelliteClusterMemo) {
+    return fn();
+  }
+  activeSatelliteClusterMemo = new Map();
+  // Perf-loop E02: bound the satellite index / memo counters to this build so the
+  // per-build values are observable (test getters + profiler flush below).
+  resetSatelliteInstrumentationCounters();
+  try {
+    return fn();
+  } finally {
+    activeSatelliteClusterMemo = null;
+    flushSatelliteInstrumentationToProfiler();
+  }
+}
+
+/**
+ * Perf-loop E02 caveat (a): surface satellite-index / E01-memo engagement in the profiler
+ * JSON. Emitted once per outer build (not per lookup) and only when the profiler is on, so
+ * a disabled profiler pays nothing and the measured spans are not polluted by per-event
+ * records. `callCount` on each span is the counter value.
+ */
+function flushSatelliteInstrumentationToProfiler(): void {
+  if (!isTerraformImportProfilerEnabled()) {
+    return;
+  }
+  terraformImportProfilerRecord(
+    "satellite.nodesByTypeIndex.contextsServed",
+    readIndexHitCount(),
+  );
+  terraformImportProfilerRecord(
+    "satellite.nodesByTypeIndex.fallbackScans",
+    readFallbackScanCount(),
+  );
+  terraformImportProfilerRecord("pipeline.satMemo.hits", readMemoHitCount());
+  terraformImportProfilerRecord("pipeline.satMemo.misses", readMemoMissCount());
+}
+
 export function buildSatelliteClusterForKind(
+  kind: TopologySatelliteKind,
+  ctx: SatelliteBuildContext,
+): SatelliteClusterBuildResult {
+  const memo = activeSatelliteClusterMemo;
+  if (!memo) {
+    return buildSatelliteClusterForKindUncached(kind, ctx);
+  }
+  const key = `${ctx.primaryAddress}\0${kind}`;
+  const hit = memo.get(key);
+  if (
+    hit &&
+    hit.nodes === ctx.nodes &&
+    hit.plan === ctx.plan &&
+    hit.planChanges === ctx.planChanges &&
+    hit.primaryType === ctx.primaryType &&
+    hit.nodesByType === ctx.nodesByType
+  ) {
+    recordSatelliteClusterMemoHit();
+    return hit.result;
+  }
+  recordSatelliteClusterMemoMiss();
+  const result = buildSatelliteClusterForKindUncached(kind, ctx);
+  // Perf-loop E02 caveat (b): dev-guard the shared memoized result against mutation by a
+  // future consumer. All known consumers are read-only over `cluster`/`edges`; freezing in
+  // DEV turns a violation into a loud throw instead of a silent cross-build corruption.
+  // Shallow freeze is sufficient — the memo aliases the top-level `edges` array and
+  // `cluster` object; deep-freezing would walk the whole plan graph they reference.
+  if (import.meta.env.DEV) {
+    Object.freeze(result.edges);
+    if (result.cluster && typeof result.cluster === "object") {
+      Object.freeze(result.cluster);
+    }
+  }
+  memo.set(key, {
+    nodes: ctx.nodes,
+    plan: ctx.plan,
+    planChanges: ctx.planChanges,
+    primaryType: ctx.primaryType,
+    nodesByType: ctx.nodesByType,
+    result,
+  });
+  return result;
+}
+
+function buildSatelliteClusterForKindUncached(
   kind: TopologySatelliteKind,
   ctx: SatelliteBuildContext,
 ): SatelliteClusterBuildResult {

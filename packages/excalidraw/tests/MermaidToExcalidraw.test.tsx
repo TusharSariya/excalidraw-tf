@@ -99,7 +99,15 @@ describe("Test <MermaidToExcalidraw/>", () => {
   it("should open mermaid popup when active tool is mermaid", async () => {
     const dialog = document.querySelector(".ttd-dialog")!;
     await waitFor(() => expect(dialog.querySelector("canvas")).not.toBeNull());
-    expect(dialog.outerHTML).toMatchSnapshot();
+    // Radix stamps `animation-duration: 0s` on the active tabpanel
+    // asynchronously; under a loaded full-suite run it can land before this
+    // snapshot is taken (flaky mismatch). Normalize the volatile style away.
+    expect(
+      dialog.outerHTML.replace(
+        / style="animation-duration: 0s;"/g,
+        ' style=""',
+      ),
+    ).toMatchSnapshot();
   });
 
   it("should show error in preview when mermaid library throws error", async () => {

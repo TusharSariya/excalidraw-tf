@@ -20,6 +20,10 @@ import {
   repairTerraformEdgeBindings,
 } from "./terraformVisibility";
 import {
+  terraformImportProfilerReset,
+  terraformImportProfilerSummary,
+} from "./terraformImportProfiler";
+import {
   updateTerraformImportSessionLodEnabled,
   updateTerraformImportSessionLodPreset,
   updateTerraformImportSessionMinimapEnabled,
@@ -128,6 +132,25 @@ export const TerraformDemoAutoImport = ({
   useEffect(() => {
     return () => {
       layoutAbortRef.current?.abort();
+    };
+  }, []);
+
+  // Dev-only benchmark hooks: expose the import profiler to Playwright
+  // (scripts/terraform/benchmark-import-time.mjs). Compiled out of prod builds
+  // unless VITE_TERRAFORM_IMPORT_PROFILE is set at build time.
+  useEffect(() => {
+    if (
+      !(import.meta.env.DEV || import.meta.env.VITE_TERRAFORM_IMPORT_PROFILE)
+    ) {
+      return;
+    }
+    window.__terraformImportProfilerSummary = () =>
+      terraformImportProfilerSummary();
+    window.__terraformImportProfilerReset = () =>
+      terraformImportProfilerReset();
+    return () => {
+      delete window.__terraformImportProfilerSummary;
+      delete window.__terraformImportProfilerReset;
     };
   }, []);
 

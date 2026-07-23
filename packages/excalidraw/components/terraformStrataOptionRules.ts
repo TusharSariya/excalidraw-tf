@@ -37,8 +37,7 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataCoordinateRefine",
   "strataPackedScoring",
   "strataPackedScoringEpsilon",
-  "strataEdgeRouting",
-  "strataBorderRoute",
+  "strataEdgeStyle",
   "strataBandCompact",
   "strataBandDepth",
   "strataDeBandLevel",
@@ -53,6 +52,16 @@ export const STRATA_RULE_OPTION_KEYS = [
   "strataHeightGate",
   "strataLeafShift",
   "strataJointNsRank",
+  // M5 box-endpoint anchoring — no conflict/implication/inertness relations
+  // (opt-in); listed here only to keep the key domain in sync
+  // with the resolver + registry (the anti-drift guard asserts referenced keys
+  // exist).
+  "strataBoxEndpoints",
+  // E3.3 spacing knobs — always-active (no conflict/implication/inertness), so
+  // they carry no relation rows; listed here to keep the key domain in sync with
+  // the resolver + registry (the anti-drift guard asserts referenced keys exist).
+  "strataColumnGap",
+  "strataRowGap",
 ] as const;
 
 export type StrataRuleOptionKey = typeof STRATA_RULE_OPTION_KEYS[number];
@@ -213,7 +222,6 @@ export const STRATA_INDEPENDENT_PAIRS: ReadonlyArray<
   [StrataRuleOptionKey, StrataRuleOptionKey]
 > = [
   ["strataSweeps", "strataCoordinateRefine"],
-  ["strataEdgeRouting", "strataBorderRoute"],
   // NOTE: bandDepth × deBandLevel is NOT independent — it is a declared
   // value-conflict (STRATA_VALUE_CONFLICTS), so it is deliberately absent here.
 ];

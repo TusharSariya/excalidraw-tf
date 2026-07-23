@@ -139,19 +139,19 @@ export const STRATA_REGRESSION_CONFIGS: readonly StrataRegressionConfig[] = [
     options: { strataHeightGate: true },
   },
   {
-    name: "edgeRouting",
-    note: "W9 post-A7 obstacle-avoiding edge routing, solo",
-    options: { strataEdgeRouting: true },
-  },
-  {
-    name: "borderRoute",
-    note: "P3 clean container-exit border routing, solo",
-    options: { strataBorderRoute: true },
-  },
-  {
     name: "bandDepth-root",
     note: "v3.2 band-depth cut = root on otherwise-default",
     options: { strataBandDepth: "root" },
+  },
+  {
+    name: "boxEndpoints",
+    note: "M6 box-endpoint anchoring on the owner-baseline curve + spacing set",
+    options: {
+      strataEdgeStyle: "curve",
+      strataColumnGap: 250,
+      strataRowGap: 1.5,
+      strataBoxEndpoints: true,
+    },
   },
 ];
 

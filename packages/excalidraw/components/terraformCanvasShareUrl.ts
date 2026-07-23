@@ -121,8 +121,13 @@ const sessionToDemoSnapshot = (
   strataPackedScoringEpsilon:
     session.strataPackedScoringEpsilon ??
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
-  strataEdgeRouting: session.strataEdgeRouting ?? false,
-  strataBorderRoute: session.strataBorderRoute ?? false,
+  // Raw forward — omit at default ("straight")/absent so the demo snapshot (and
+  // the URL built from it) never carries a default style key. Non-default
+  // styles forward.
+  ...(session.strataEdgeStyle !== undefined &&
+  session.strataEdgeStyle !== "straight"
+    ? { strataEdgeStyle: session.strataEdgeStyle }
+    : {}),
   strataBandCompact: session.strataBandCompact ?? false,
   // Raw forward — omit at default ("account")/absent so the demo snapshot (and
   // the URL built from it) never carries a default cut key, matching
@@ -139,6 +144,15 @@ const sessionToDemoSnapshot = (
   ...(session.strataEdgeCrossCap !== undefined
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
+  // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent so the
+  // demo snapshot (and the URL built from it) never carries a default key,
+  // matching hand-built/legacy snapshots that omit it. Non-default forwards.
+  ...(session.strataColumnGap !== undefined && session.strataColumnGap !== 150
+    ? { strataColumnGap: session.strataColumnGap }
+    : {}),
+  ...(session.strataRowGap !== undefined && session.strataRowGap !== 1
+    ? { strataRowGap: session.strataRowGap }
+    : {}),
   strataPackedConverge: session.strataPackedConverge ?? false,
   strataTransitiveAdopt: session.strataTransitiveAdopt ?? false,
   strataBlockClamp: session.strataBlockClamp ?? false,
@@ -151,6 +165,10 @@ const sessionToDemoSnapshot = (
   // on share and reopened with default-off geometry. `?? false` is byte-
   // identical for field-absent sessions (false ⇒ never emitted).
   strataLeafShift: session.strataLeafShift ?? false,
+  // M5 box-endpoint anchoring — default off; forward the retained session state
+  // (`?? false` is byte-identical for field-absent sessions: false ⇒ never
+  // emitted by the truthy-only serializer).
+  strataBoxEndpoints: session.strataBoxEndpoints ?? false,
   // De-band ladder: omit at the default `"none"` (a TRUTHY string — the
   // explicit compare is load-bearing) so a shared URL of a default scene is
   // byte-identical to today's.

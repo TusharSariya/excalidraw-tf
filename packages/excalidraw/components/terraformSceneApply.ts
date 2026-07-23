@@ -230,11 +230,8 @@ export type RunTerraformImportFromSourcesOptions = {
   /** Strata W8b: ε-constraint crossings budget for the packed scorer.
    * Default 0 (strict rule; inert without `strataPackedScoring`). */
   strataPackedScoringEpsilon?: number;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
-   * Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: import("./terraformPipelineStrataEdgeStyle").StrataEdgeStyle;
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -264,6 +261,10 @@ export type RunTerraformImportFromSourcesOptions = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
+  strataBoxEndpoints?: boolean;
   /** Exclusive-downstream chain relocate: post-A7 rigid Y co-translation of a
    * unit with its incoming-dominated downstream group. Default off. */
   strataChainRelocate?: boolean;
@@ -287,6 +288,10 @@ export type RunTerraformImportFromSourcesOptions = {
   /** OD-15 de-band port: dissolve this hierarchy level and every deeper one at
    * the Strata model build. Default "none" (byte-identical). */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   /** Frame tint mode for pipeline/semantic topology views. */
   colorMode?: TerraformColorMode;
   importedTfdTexts?: string[];
@@ -332,8 +337,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataRankSeparate"
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
-  | "strataEdgeRouting"
-  | "strataBorderRoute"
+  | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
   | "strataSiftRelocate"
@@ -344,6 +348,7 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataTransitiveAdopt"
   | "strataBlockClamp"
   | "strataTranspose"
+  | "strataBoxEndpoints"
   | "strataChainRelocate"
   | "strataCoordCascade"
   | "strataHeightGate"
@@ -353,6 +358,8 @@ export const terraformPipelineReplayOptionsFromSession = (
   | "strataLeafShiftRankBudget"
   | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
+  | "strataColumnGap"
+  | "strataRowGap"
 > => ({
   pipelineLayoutVariant:
     session.layoutMode === "rcll"
@@ -384,8 +391,12 @@ export const terraformPipelineReplayOptionsFromSession = (
   strataRankSeparate: session.strataRankSeparate === true,
   strataPackedScoring: session.strataPackedScoring === true,
   strataPackedScoringEpsilon: session.strataPackedScoringEpsilon ?? 0,
-  strataEdgeRouting: session.strataEdgeRouting === true,
-  strataBorderRoute: session.strataBorderRoute === true,
+  // Raw forward — omit at default ("straight")/absent so a replayed session
+  // never re-materializes a default style key. Non-default styles forward.
+  ...(session.strataEdgeStyle !== undefined &&
+  session.strataEdgeStyle !== "straight"
+    ? { strataEdgeStyle: session.strataEdgeStyle }
+    : {}),
   strataBandCompact: session.strataBandCompact === true,
   // Raw forward — omit at default ("account")/absent so a replayed session
   // never re-materializes a default cut. A bare `strataBandCompact` session
@@ -403,10 +414,21 @@ export const terraformPipelineReplayOptionsFromSession = (
   ...(session.strataEdgeCrossCap !== undefined
     ? { strataEdgeCrossCap: session.strataEdgeCrossCap }
     : {}),
+  // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent so a
+  // replayed session never re-materializes a default own key (byte-identity).
+  // The scene-apply totality tripwire (terraformSceneApplyThreading.test.ts)
+  // exercises these with a +1 non-default value, so a dropped forward fails there.
+  ...(session.strataColumnGap !== undefined && session.strataColumnGap !== 150
+    ? { strataColumnGap: session.strataColumnGap }
+    : {}),
+  ...(session.strataRowGap !== undefined && session.strataRowGap !== 1
+    ? { strataRowGap: session.strataRowGap }
+    : {}),
   strataPackedConverge: session.strataPackedConverge === true,
   strataTransitiveAdopt: session.strataTransitiveAdopt === true,
   strataBlockClamp: session.strataBlockClamp === true,
   strataTranspose: session.strataTranspose === true,
+  strataBoxEndpoints: session.strataBoxEndpoints === true,
   strataChainRelocate: session.strataChainRelocate === true,
   strataCoordCascade: session.strataCoordCascade === true,
   strataHeightGate: session.strataHeightGate === true,
@@ -440,20 +462,7 @@ export const terraformPipelineReplayOptionsFromSession = (
     : {}),
 });
 
-/**
- * Pipeline/RCLL/Strata option-forwarding literal shared by the engine-layout
- * request (`layoutTerraformSceneFromSources`) and the session-snapshot
- * request (`runTerraformImportFromSources`, on `updateSession`). Both call
- * sites must forward byte-identical option sets — this is the single source
- * of truth. Returns `{}` outside the pipeline family; every field here is
- * optional on `RunTerraformImportFromSourcesOptions`, so `{}` is a valid
- * value of the return type.
- */
-function buildPipelineFamilyLayoutOptions(
-  layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode,
-  options: RunTerraformImportFromSourcesOptions,
-): Pick<
-  RunTerraformImportFromSourcesOptions,
+type PipelineForwardOptionKeys =
   | "pipelineCompact"
   | "pipelineLayoutVariant"
   | "pipelinePacked"
@@ -471,15 +480,16 @@ function buildPipelineFamilyLayoutOptions(
   | "pipelineDeDensify"
   | "pipelineColumnPacking"
   | "pipelineLayoutProfile"
-  | "pipelineStaircaseBandOverlap"
+  | "pipelineStaircaseBandOverlap";
+
+type StrataForwardOptionKeys =
   | "strataNetworkSimplexRank"
   | "strataSweeps"
   | "strataCoordinateRefine"
   | "strataRankSeparate"
   | "strataPackedScoring"
   | "strataPackedScoringEpsilon"
-  | "strataEdgeRouting"
-  | "strataBorderRoute"
+  | "strataEdgeStyle"
   | "strataBandCompact"
   | "strataBandDepth"
   | "strataSiftRelocate"
@@ -490,6 +500,7 @@ function buildPipelineFamilyLayoutOptions(
   | "strataTransitiveAdopt"
   | "strataBlockClamp"
   | "strataTranspose"
+  | "strataBoxEndpoints"
   | "strataChainRelocate"
   | "strataCoordCascade"
   | "strataHeightGate"
@@ -499,6 +510,111 @@ function buildPipelineFamilyLayoutOptions(
   | "strataLeafShiftRankBudget"
   | "strataLeafShiftRightEdgeGuardPx"
   | "strataDeBandLevel"
+  | "strataColumnGap"
+  | "strataRowGap";
+
+/**
+ * Strata-only forward subset of {@link buildPipelineFamilyLayoutOptions},
+ * split out so each builder stays under the sonarjs cognitive-complexity
+ * budget. Field order and omit-at-default semantics are verbatim from the
+ * previous single literal — the combined spread output is byte-identical.
+ */
+function buildStrataForwardOptions(
+  options: RunTerraformImportFromSourcesOptions,
+): Pick<RunTerraformImportFromSourcesOptions, StrataForwardOptionKeys> {
+  return {
+    strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
+    strataSweeps: options.strataSweeps ?? 0,
+    strataCoordinateRefine: options.strataCoordinateRefine === true,
+    strataRankSeparate: options.strataRankSeparate === true,
+    strataPackedScoring: options.strataPackedScoring === true,
+    strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
+    // Raw forward — omit at default ("straight")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default style key.
+    ...(options.strataEdgeStyle !== undefined &&
+    options.strataEdgeStyle !== "straight"
+      ? { strataEdgeStyle: options.strataEdgeStyle }
+      : {}),
+    strataBandCompact: options.strataBandCompact === true,
+    // Raw forward — omit at default ("account")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default cut key.
+    // Non-default cuts forward.
+    ...(options.strataBandDepth !== undefined &&
+    options.strataBandDepth !== "account"
+      ? { strataBandDepth: options.strataBandDepth }
+      : {}),
+    strataSiftRelocate: options.strataSiftRelocate === true,
+    strataCrossWeightPenetration: options.strataCrossWeightPenetration ?? 1,
+    strataCrossWeightEdge: options.strataCrossWeightEdge ?? 1,
+    // Optional-only forward: no default materialized (absent ⇒ engine
+    // inherits `strataPackedScoringEpsilon`).
+    ...(options.strataEdgeCrossCap !== undefined
+      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
+    // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent so
+    // neither the engine request nor the persisted session snapshot carries a
+    // default key (byte-identity). Non-default forwards; the engine clamps.
+    ...(options.strataColumnGap !== undefined && options.strataColumnGap !== 150
+      ? { strataColumnGap: options.strataColumnGap }
+      : {}),
+    ...(options.strataRowGap !== undefined && options.strataRowGap !== 1
+      ? { strataRowGap: options.strataRowGap }
+      : {}),
+    strataPackedConverge: options.strataPackedConverge === true,
+    strataTransitiveAdopt: options.strataTransitiveAdopt === true,
+    strataBlockClamp: options.strataBlockClamp === true,
+    strataTranspose: options.strataTranspose === true,
+    strataBoxEndpoints: options.strataBoxEndpoints === true,
+    strataChainRelocate: options.strataChainRelocate === true,
+    strataCoordCascade: options.strataCoordCascade === true,
+    strataHeightGate: options.strataHeightGate === true,
+    strataLeafShift: options.strataLeafShift === true,
+    // Budget knobs are optional numbers — forward ONLY when explicitly set so the
+    // engine inherits its own defaults and the all-off/on-with-default shape stays
+    // byte-identical (same optional-only pattern as strataEdgeCrossCap above).
+    ...(options.strataLeafShiftHeightBudgetPx !== undefined
+      ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
+      : {}),
+    ...(options.strataLeafShiftHeightBudgetFrac !== undefined
+      ? {
+          strataLeafShiftHeightBudgetFrac:
+            options.strataLeafShiftHeightBudgetFrac,
+        }
+      : {}),
+    ...(options.strataLeafShiftRankBudget !== undefined
+      ? { strataLeafShiftRankBudget: options.strataLeafShiftRankBudget }
+      : {}),
+    ...(options.strataLeafShiftRightEdgeGuardPx !== undefined
+      ? {
+          strataLeafShiftRightEdgeGuardPx:
+            options.strataLeafShiftRightEdgeGuardPx,
+        }
+      : {}),
+    // Raw forward — omit at default ("none")/absent so neither the engine
+    // request nor the persisted session snapshot carries a default level key.
+    ...(options.strataDeBandLevel !== undefined &&
+    options.strataDeBandLevel !== "none"
+      ? { strataDeBandLevel: options.strataDeBandLevel }
+      : {}),
+  };
+}
+
+/**
+ * Pipeline/RCLL/Strata option-forwarding literal shared by the engine-layout
+ * request (`layoutTerraformSceneFromSources`) and the session-snapshot
+ * request (`runTerraformImportFromSources`, on `updateSession`). Both call
+ * sites must forward byte-identical option sets — this is the single source
+ * of truth. Returns `{}` outside the pipeline family; every field here is
+ * optional on `RunTerraformImportFromSourcesOptions`, so `{}` is a valid
+ * value of the return type. The strata-side forwards live in
+ * {@link buildStrataForwardOptions} (spread at the end, preserving key order).
+ */
+function buildPipelineFamilyLayoutOptions(
+  layoutMode: import("./terraformImportDialogUtils").TerraformLayoutMode,
+  options: RunTerraformImportFromSourcesOptions,
+): Pick<
+  RunTerraformImportFromSourcesOptions,
+  PipelineForwardOptionKeys | StrataForwardOptionKeys
 > {
   if (
     layoutMode !== "pipeline" &&
@@ -535,65 +651,7 @@ function buildPipelineFamilyLayoutOptions(
     // Default-on: undefined ⇒ engine default (true). Only an explicit
     // false (Stacked) flows through.
     pipelineStaircaseBandOverlap: options.pipelineStaircaseBandOverlap,
-    strataNetworkSimplexRank: options.strataNetworkSimplexRank === true,
-    strataSweeps: options.strataSweeps ?? 0,
-    strataCoordinateRefine: options.strataCoordinateRefine === true,
-    strataRankSeparate: options.strataRankSeparate === true,
-    strataPackedScoring: options.strataPackedScoring === true,
-    strataPackedScoringEpsilon: options.strataPackedScoringEpsilon ?? 0,
-    strataEdgeRouting: options.strataEdgeRouting === true,
-    strataBorderRoute: options.strataBorderRoute === true,
-    strataBandCompact: options.strataBandCompact === true,
-    // Raw forward — omit at default ("account")/absent so neither the engine
-    // request nor the persisted session snapshot carries a default cut key.
-    // Non-default cuts forward.
-    ...(options.strataBandDepth !== undefined &&
-    options.strataBandDepth !== "account"
-      ? { strataBandDepth: options.strataBandDepth }
-      : {}),
-    strataSiftRelocate: options.strataSiftRelocate === true,
-    strataCrossWeightPenetration: options.strataCrossWeightPenetration ?? 1,
-    strataCrossWeightEdge: options.strataCrossWeightEdge ?? 1,
-    // Optional-only forward: no default materialized (absent ⇒ engine
-    // inherits `strataPackedScoringEpsilon`).
-    ...(options.strataEdgeCrossCap !== undefined
-      ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
-      : {}),
-    strataPackedConverge: options.strataPackedConverge === true,
-    strataTransitiveAdopt: options.strataTransitiveAdopt === true,
-    strataBlockClamp: options.strataBlockClamp === true,
-    strataTranspose: options.strataTranspose === true,
-    strataChainRelocate: options.strataChainRelocate === true,
-    strataCoordCascade: options.strataCoordCascade === true,
-    strataHeightGate: options.strataHeightGate === true,
-    strataLeafShift: options.strataLeafShift === true,
-    // Budget knobs are optional numbers — forward ONLY when explicitly set so the
-    // engine inherits its own defaults and the all-off/on-with-default shape stays
-    // byte-identical (same optional-only pattern as strataEdgeCrossCap above).
-    ...(options.strataLeafShiftHeightBudgetPx !== undefined
-      ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
-      : {}),
-    ...(options.strataLeafShiftHeightBudgetFrac !== undefined
-      ? {
-          strataLeafShiftHeightBudgetFrac:
-            options.strataLeafShiftHeightBudgetFrac,
-        }
-      : {}),
-    ...(options.strataLeafShiftRankBudget !== undefined
-      ? { strataLeafShiftRankBudget: options.strataLeafShiftRankBudget }
-      : {}),
-    ...(options.strataLeafShiftRightEdgeGuardPx !== undefined
-      ? {
-          strataLeafShiftRightEdgeGuardPx:
-            options.strataLeafShiftRightEdgeGuardPx,
-        }
-      : {}),
-    // Raw forward — omit at default ("none")/absent so neither the engine
-    // request nor the persisted session snapshot carries a default level key.
-    ...(options.strataDeBandLevel !== undefined &&
-    options.strataDeBandLevel !== "none"
-      ? { strataDeBandLevel: options.strataDeBandLevel }
-      : {}),
+    ...buildStrataForwardOptions(options),
   };
 }
 

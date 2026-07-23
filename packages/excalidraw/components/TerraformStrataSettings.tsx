@@ -6,9 +6,11 @@ import {
 } from "./TerraformImportPipelineSettings";
 
 import { TerraformStrataSettingsHeight } from "./TerraformStrataSettingsHeight";
+import { TerraformStrataSettingsEdges } from "./TerraformStrataSettingsEdges";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 // Re-exported from their new home so this module's public surface is unchanged
 // by the "Height & packing" extraction — both moved with the section that is
@@ -52,9 +54,9 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon,
   strataBlockClamp,
   strataTranspose,
+  strataBoxEndpoints,
   strataHeightGate,
-  strataEdgeRouting,
-  strataBorderRoute,
+  strataEdgeStyle,
   strataBandDepth,
   strataDeBandLevel,
   pipelineCompact,
@@ -65,6 +67,8 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
+  strataColumnGap,
+  strataRowGap,
   setStrataSweeps,
   setStrataCoordinateRefine,
   setStrataRankSeparate,
@@ -72,9 +76,9 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon,
   setStrataBlockClamp,
   setStrataTranspose,
+  setStrataBoxEndpoints,
   setStrataHeightGate,
-  setStrataEdgeRouting,
-  setStrataBorderRoute,
+  setStrataEdgeStyle,
   setStrataBandDepth,
   setStrataDeBandLevel,
   setPipelineCompact,
@@ -85,6 +89,8 @@ export const TerraformStrataSettings = ({
   setStrataCrossWeightPenetration,
   setStrataCrossWeightEdge,
   setStrataEdgeCrossCap,
+  setStrataColumnGap,
+  setStrataRowGap,
 }: {
   strataSweeps: number;
   strataCoordinateRefine: boolean;
@@ -93,9 +99,10 @@ export const TerraformStrataSettings = ({
   strataPackedScoringEpsilon: number;
   strataBlockClamp: boolean;
   strataTranspose: boolean;
+  /** Box-endpoint anchoring (strata-only, default off). */
+  strataBoxEndpoints: boolean;
   strataHeightGate: boolean;
-  strataEdgeRouting: boolean;
-  strataBorderRoute: boolean;
+  strataEdgeStyle: StrataEdgeStyle;
   strataBandDepth: StrataHullRole;
   strataDeBandLevel: DeBandLevel;
   /** Content filter, not an engine pass — already honored end-to-end by the
@@ -117,6 +124,10 @@ export const TerraformStrataSettings = ({
   strataCrossWeightPenetration: number;
   strataCrossWeightEdge: number;
   strataEdgeCrossCap: number | undefined;
+  /** E3.3 inter-column gutter override (px). `undefined` ⇒ default (150). */
+  strataColumnGap: number | undefined;
+  /** E3.3 row-gap scale factor. `undefined` ⇒ default (1). */
+  strataRowGap: number | undefined;
   setStrataSweeps: (sweeps: number) => void;
   setStrataCoordinateRefine: (coordinateRefine: boolean) => void;
   setStrataRankSeparate: (rankSeparate: boolean) => void;
@@ -124,9 +135,9 @@ export const TerraformStrataSettings = ({
   setStrataPackedScoringEpsilon: (epsilon: number) => void;
   setStrataBlockClamp: (blockClamp: boolean) => void;
   setStrataTranspose: (transpose: boolean) => void;
+  setStrataBoxEndpoints: (boxEndpoints: boolean) => void;
   setStrataHeightGate: (heightGate: boolean) => void;
-  setStrataEdgeRouting: (edgeRouting: boolean) => void;
-  setStrataBorderRoute: (borderRoute: boolean) => void;
+  setStrataEdgeStyle: (edgeStyle: StrataEdgeStyle) => void;
   setStrataBandDepth: (bandDepth: StrataHullRole) => void;
   setStrataDeBandLevel: (deBandLevel: DeBandLevel) => void;
   setPipelineCompact: (compact: boolean) => void;
@@ -137,6 +148,10 @@ export const TerraformStrataSettings = ({
   setStrataCrossWeightPenetration: (penetrationWeight: number) => void;
   setStrataCrossWeightEdge: (edgeWeight: number) => void;
   setStrataEdgeCrossCap: (cap: number | undefined) => void;
+  /** E3.3 — `undefined` clears back to the default gap. */
+  setStrataColumnGap: (columnGap: number | undefined) => void;
+  /** E3.3 — `undefined` clears back to the default factor. */
+  setStrataRowGap: (rowGap: number | undefined) => void;
 }) => {
   const [hoverKey, setHoverKey] = React.useState<OptionHelpKey | null>(null);
   const [stickyKey, setStickyKey] = React.useState<OptionHelpKey>(
@@ -631,78 +646,25 @@ export const TerraformStrataSettings = ({
             setStrataPackedScoring={setStrataPackedScoring}
             setStrataPackedScoringEpsilon={setStrataPackedScoringEpsilon}
           />
-          <div className="TerraformImportModal__settingsSection">
-            <div className="TerraformImportModal__settingsSectionHeader">
-              Edges
-            </div>
-            {/* Advanced (owner-decisions.md 2026-07-17): edge routing is a niche
-                +192cr/−140pierce trade (SDEC-61 closed-adverse), so both edge
-                passes live behind a collapsed disclosure — off the always-visible
-                Standard surface. */}
-            <details className="TerraformImportModal__advancedDisclosure">
-              <summary
-                className="TerraformImportModal__advancedSummary"
-                aria-label="Advanced edge routing"
-              >
-                Advanced: edge routing
-              </summary>
-              <div role="group" aria-label="Strata edge routing">
-                <span className="TerraformImportModal__controlLabel">
-                  Route edges around boxes{" "}
-                  <span>
-                    detour arrows that would tunnel through unrelated boxes
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataEdgeRouting,
-                    "strata.edgerouting.off",
-                    () => setStrataEdgeRouting(false),
-                  )}
-                  {option(
-                    "On",
-                    strataEdgeRouting,
-                    "strata.edgerouting.on",
-                    () => setStrataEdgeRouting(true),
-                  )}
-                </div>
-              </div>
-              <div role="group" aria-label="Strata container-exit routing">
-                <span className="TerraformImportModal__controlLabel">
-                  Exit containers through the nearest side{" "}
-                  <span>
-                    route an edge leaving its own container out the facing side
-                    instead of slashing diagonally across the interior
-                  </span>
-                </span>
-                <div className="TerraformImportModal__segmentedControl">
-                  {option(
-                    "Off",
-                    !strataBorderRoute,
-                    "strata.borderroute.off",
-                    () => setStrataBorderRoute(false),
-                  )}
-                  {option(
-                    "On",
-                    strataBorderRoute,
-                    "strata.borderroute.on",
-                    () => setStrataBorderRoute(true),
-                  )}
-                </div>
-                {strataBorderRoute && strataEdgeRouting && (
-                  <div className="TerraformImportModal__couplingHint">
-                    <span aria-hidden="true">ⓘ</span>
-                    <span>
-                      Composes with <strong>Route edges around boxes</strong> —
-                      they rewrite disjoint edge sets (own-container exits vs
-                      detours around unrelated boxes) and run in sequence.
-                    </span>
-                  </div>
-                )}
-              </div>
-            </details>
-          </div>
+          {/* Edge routing & style (M5 presentation redesign): a VISIBLE titled
+              section, no longer a collapsed <details>. Style first, then a
+              Routing segmented control that maps ONE-HOT onto the three raw
+              router booleans, a live scene diagnostic, and a DEV-only drawer that
+              still exposes the raw router toggles for composition. Extracted to a
+              sibling component (mirroring "Height & packing") to keep this file
+              under the max-lines cap; URL params and option semantics unchanged. */}
+          <TerraformStrataSettingsEdges
+            setHoverKey={setHoverKey}
+            setStickyKey={setStickyKey}
+            strataEdgeStyle={strataEdgeStyle}
+            strataBoxEndpoints={strataBoxEndpoints}
+            strataColumnGap={strataColumnGap}
+            strataRowGap={strataRowGap}
+            setStrataEdgeStyle={setStrataEdgeStyle}
+            setStrataBoxEndpoints={setStrataBoxEndpoints}
+            setStrataColumnGap={setStrataColumnGap}
+            setStrataRowGap={setStrataRowGap}
+          />
           {/* Private API placement is no longer a control. owner-decisions.md
               2026-07-17 (Q9): private REST APIs are ALWAYS regional in strata —
               the engine clamps `pipelinePrivateApiRegional` true at the
@@ -723,19 +685,25 @@ export const TerraformStrataSettings = ({
           <p className="TerraformImportModal__layoutHelpBody">
             {activeHelp.body}
           </p>
-          <div className="TerraformImportModal__layoutHelpDev">
-            <span className="TerraformImportModal__layoutHelpDevLabel">
-              Implements
-            </span>
-            <span className="TerraformImportModal__layoutHelpDevText">
-              {activeHelp.dev.implements}
-            </span>
-            {activeHelp.dev.refs && activeHelp.dev.refs.length > 0 && (
-              <span className="TerraformImportModal__layoutHelpDevRefs">
-                {activeHelp.dev.refs.join(" · ")}
+          {/* DEV-only: the technical "Implements"/refs jargon (algorithm names,
+              paper citations). User-facing help is the plain title + body above;
+              the dev attribution is developer-menu detail, gated like the raw
+              router toggles. */}
+          {import.meta.env.DEV && (
+            <div className="TerraformImportModal__layoutHelpDev">
+              <span className="TerraformImportModal__layoutHelpDevLabel">
+                Implements
               </span>
-            )}
-          </div>
+              <span className="TerraformImportModal__layoutHelpDevText">
+                {activeHelp.dev.implements}
+              </span>
+              {activeHelp.dev.refs && activeHelp.dev.refs.length > 0 && (
+                <span className="TerraformImportModal__layoutHelpDevRefs">
+                  {activeHelp.dev.refs.join(" · ")}
+                </span>
+              )}
+            </div>
+          )}
         </aside>
       </div>
     </div>

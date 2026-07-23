@@ -1,11 +1,27 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
 import { TerraformStrataSettings } from "./TerraformStrataSettings";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
+
+// The live edge diagnostic reads the current scene via `useExcalidrawElements`
+// (the ONLY thing this component tree imports from ./App). Override it to serve
+// a per-test element list from a hoisted holder so the provenance-breakdown test
+// can inject clip-stamped arrows; the default [] leaves every other test in its
+// pre-import (declared 0 → placeholder) state, byte-identical to before.
+const hoistedScene = vi.hoisted(() => ({
+  elements: [] as NonDeletedExcalidrawElement[],
+}));
+vi.mock("./App", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./App")>()),
+  useExcalidrawElements: () => hoistedScene.elements,
+}));
 
 /**
  * DOM-identity harness for the TerraformStrataSettings panel.
@@ -29,9 +45,9 @@ const baseProps = (): Props => ({
   strataPackedScoringEpsilon: 0,
   strataBlockClamp: false,
   strataTranspose: false,
+  strataBoxEndpoints: false,
   strataHeightGate: false,
-  strataEdgeRouting: false,
-  strataBorderRoute: false,
+  strataEdgeStyle: "straight" as const,
   strataBandDepth: "account" as StrataHullRole,
   strataDeBandLevel: "none" as DeBandLevel,
   pipelineCompact: true,
@@ -42,6 +58,8 @@ const baseProps = (): Props => ({
   strataCrossWeightPenetration: 1,
   strataCrossWeightEdge: 1,
   strataEdgeCrossCap: undefined,
+  strataColumnGap: undefined,
+  strataRowGap: undefined,
   setStrataSweeps: vi.fn(),
   setStrataCoordinateRefine: vi.fn(),
   setStrataRankSeparate: vi.fn(),
@@ -49,9 +67,9 @@ const baseProps = (): Props => ({
   setStrataPackedScoringEpsilon: vi.fn(),
   setStrataBlockClamp: vi.fn(),
   setStrataTranspose: vi.fn(),
+  setStrataBoxEndpoints: vi.fn(),
   setStrataHeightGate: vi.fn(),
-  setStrataEdgeRouting: vi.fn(),
-  setStrataBorderRoute: vi.fn(),
+  setStrataEdgeStyle: vi.fn(),
   setStrataBandDepth: vi.fn(),
   setStrataDeBandLevel: vi.fn(),
   setPipelineCompact: vi.fn(),
@@ -62,6 +80,8 @@ const baseProps = (): Props => ({
   setStrataCrossWeightPenetration: vi.fn(),
   setStrataCrossWeightEdge: vi.fn(),
   setStrataEdgeCrossCap: vi.fn(),
+  setStrataColumnGap: vi.fn(),
+  setStrataRowGap: vi.fn(),
 });
 
 const renderPanel = (overrides: Partial<Props> = {}) =>
@@ -150,22 +170,6 @@ describe("TerraformStrataSettings DOM identity", () => {
     expect(
       screen.queryByRole("group", { name: "Strata stable adoption order" }),
     ).toBeNull();
-  });
-
-  it("keeps edge routing off the always-visible Standard surface (advanced disclosure)", () => {
-    // owner-decisions.md 2026-07-17: 'Route edges around boxes' (strataEdgeRouting)
-    // is advanced-only. It still renders (inside a collapsed <details>) so its URL
-    // param round-trips, but it must sit within an advanced disclosure, not the
-    // Standard flow.
-    renderPanel();
-    const edgeGroup = screen.getByRole("group", {
-      name: "Strata edge routing",
-    });
-    expect(edgeGroup.closest("details")).not.toBeNull();
-    const disclosure = edgeGroup.closest("details");
-    expect(
-      within(disclosure as HTMLElement).getByText(/Advanced: edge routing/i),
-    ).toBeTruthy();
   });
 
   it("keeps chain relocate + coordinate cascade off the Standard surface (advanced disclosure)", () => {
@@ -261,8 +265,6 @@ describe("TerraformStrataSettings DOM identity", () => {
       strataBlockClamp: true,
       strataTranspose: true,
       strataHeightGate: true,
-      strataEdgeRouting: true,
-      strataBorderRoute: true,
       strataSiftRelocate: true,
       strataChainRelocate: true,
       strataCoordCascade: true,
@@ -321,6 +323,310 @@ describe("TerraformStrataSettings hover help", () => {
     fireEvent.mouseEnter(slider);
     expect(screen.getByLabelText("Option explanation").textContent).toContain(
       "Band depth",
+    );
+  });
+});
+
+// A stateful harness so keyboard/one-hot interactions can be observed through the
+// component's OWN re-render (controlled setters actually update the value), not
+// just the mock call log.
+const StatefulPanel = (initial: Partial<Props> = {}) => {
+  const Harness = () => {
+    const [edgeStyle, setEdgeStyle] = React.useState<StrataEdgeStyle>(
+      (initial.strataEdgeStyle as StrataEdgeStyle) ?? "straight",
+    );
+    return (
+      <TerraformStrataSettings
+        {...baseProps()}
+        {...initial}
+        strataEdgeStyle={edgeStyle}
+        setStrataEdgeStyle={setEdgeStyle}
+      />
+    );
+  };
+  return render(<Harness />);
+};
+
+describe("TerraformStrataSettings — M5 edge routing & style", () => {
+  // (a) Mutual-exclusion click surfaces the hint at the CLICKED control.
+  it("surfaces a coupling hint when Compact height auto-disables Packed edge scoring", () => {
+    const setPacked = vi.fn();
+    renderPanel({
+      strataPackedScoring: true,
+      setStrataPackedScoring: setPacked,
+    });
+    const compact = screen.getByRole("group", {
+      name: "Strata compact height",
+    });
+    // No hint before the click.
+    expect(within(compact).queryByRole("status")).toBeNull();
+
+    fireEvent.click(within(compact).getByRole("button", { name: "On" }));
+
+    expect(setPacked).toHaveBeenCalledWith(false); // the silent flip, now explained
+    expect(within(compact).getByRole("status").textContent).toMatch(
+      /Packed edge scoring/i,
+    );
+  });
+
+  it("surfaces a coupling hint when Packed edge scoring auto-disables Compact height", () => {
+    const setRank = vi.fn();
+    renderPanel({ strataRankSeparate: true, setStrataRankSeparate: setRank });
+    const packed = screen.getByRole("group", {
+      name: "Strata packed edge scoring",
+    });
+    expect(within(packed).queryByRole("status")).toBeNull();
+
+    fireEvent.click(within(packed).getByRole("button", { name: "On" }));
+
+    expect(setRank).toHaveBeenCalledWith(false);
+    expect(within(packed).getByRole("status").textContent).toMatch(
+      /Compact height/i,
+    );
+  });
+
+  // (b) Radiogroup keyboard nav — arrow keys move aria-checked AND focus.
+  it("moves radiogroup selection and aria-checked with Arrow keys", () => {
+    StatefulPanel({ strataEdgeStyle: "straight" });
+    const styleGroup = screen.getByRole("radiogroup", {
+      name: "Strata edge style",
+    });
+    const straight = within(styleGroup).getByRole("radio", {
+      name: "Straight",
+    });
+    const curve = within(styleGroup).getByRole("radio", { name: "Curve" });
+    expect(straight.getAttribute("aria-checked")).toBe("true");
+    expect(curve.getAttribute("aria-checked")).toBe("false");
+
+    // Focus + arrow move both selection and focus; the programmatic focus()
+    // inside the handler drives an onFocus state update, so wrap in act().
+    act(() => straight.focus());
+    act(() => {
+      fireEvent.keyDown(straight, { key: "ArrowRight" });
+    });
+    expect(curve.getAttribute("aria-checked")).toBe("true");
+    expect(straight.getAttribute("aria-checked")).toBe("false");
+    expect(document.activeElement).toBe(
+      within(styleGroup).getByRole("radio", { name: "Curve" }),
+    );
+
+    act(() => {
+      fireEvent.keyDown(curve, { key: "ArrowLeft" });
+    });
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Straight" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    // Wraps: ArrowLeft from the first radio selects the last (Curve).
+    act(() => {
+      fireEvent.keyDown(
+        within(styleGroup).getByRole("radio", { name: "Straight" }),
+        { key: "ArrowLeft" },
+      );
+    });
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Curve" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(curve).toBeTruthy();
+  });
+
+  it("uses roving tabindex so only the checked radio is tab-reachable", () => {
+    renderPanel({ strataEdgeStyle: "curve" });
+    const styleGroup = screen.getByRole("radiogroup", {
+      name: "Strata edge style",
+    });
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Curve" })
+        .getAttribute("tabindex"),
+    ).toBe("0");
+    expect(
+      within(styleGroup)
+        .getByRole("radio", { name: "Straight" })
+        .getAttribute("tabindex"),
+    ).toBe("-1");
+  });
+
+  // (d) M5 box-endpoint anchoring — a one-hot boolean segmented control mirroring
+  // the Style row: "Resource" writes false, "Box" writes true.
+  it("Endpoints row writes strataBoxEndpoints per segment (Resource=false / Box=true)", () => {
+    const setBoxEndpoints = vi.fn();
+    renderPanel({ setStrataBoxEndpoints: setBoxEndpoints });
+    const group = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Box" }));
+    expect(setBoxEndpoints).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Resource" }));
+    expect(setBoxEndpoints).toHaveBeenLastCalledWith(false);
+  });
+
+  it("Endpoints row reflects the current value as the checked segment (default OFF ⇒ Resource)", () => {
+    renderPanel();
+    const group = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+    expect(
+      within(group)
+        .getByRole("radio", { name: "Resource" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // Help copy is wired: hovering the Box segment drives the shared help panel.
+    fireEvent.mouseEnter(within(group).getByRole("radio", { name: "Box" }));
+    expect(screen.getByLabelText("Option explanation").textContent).toContain(
+      "labeled box",
+    );
+  });
+
+  it("Endpoints row shows Box as the checked segment when strataBoxEndpoints is on", () => {
+    renderPanel({ strataBoxEndpoints: true });
+    const group = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+    expect(
+      within(group)
+        .getByRole("radio", { name: "Box" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("shows the pre-import diagnostic placeholder with no scene elements", () => {
+    // The mocked useExcalidrawElements serves hoistedScene.elements (default []),
+    // matching the real pre-import context default → declared 0.
+    renderPanel();
+    expect(screen.getByText("Edge stats appear after import")).toBeTruthy();
+  });
+
+  it("surfaces clip provenance in the live scene diagnostic breakdown", () => {
+    // Inject two declared dataflow arrows: one clip-stamped multi-point polyline
+    // (counts as reshaped under 'clip') and one plain straight chord (declared
+    // but not reshaped) — the breakdown must attribute the reshaped one to the
+    // clip stamper's plain word ('clipped') and count the other as straight.
+    const clipArrow = {
+      id: "clip-1",
+      type: "arrow",
+      isDeleted: false,
+      points: [
+        [0, 0],
+        [10, 5],
+        [20, 0],
+      ],
+      customData: {
+        terraformEdgeLayer: "declaredDataFlow",
+        terraformRoutedPolyline: true,
+        terraformRoutedBy: "clip",
+      },
+    } as unknown as NonDeletedExcalidrawElement;
+    const straightArrow = {
+      id: "straight-1",
+      type: "arrow",
+      isDeleted: false,
+      points: [
+        [0, 0],
+        [30, 0],
+      ],
+      customData: { terraformEdgeLayer: "declaredDataFlow" },
+    } as unknown as NonDeletedExcalidrawElement;
+    hoistedScene.elements = [clipArrow, straightArrow];
+    try {
+      renderPanel();
+      const diagnostic = screen.getByText(/Current scene:/i);
+      expect(diagnostic.textContent).toMatch(/1 of 2 edges reshaped/);
+      expect(diagnostic.textContent).toMatch(/1 clipped/);
+      expect(diagnostic.textContent).toMatch(/1 straight/);
+    } finally {
+      hoistedScene.elements = [];
+    }
+  });
+});
+
+describe("TerraformStrataSettings — E3.3 spacing controls", () => {
+  // (a) Column gap one-hot: each segment writes its NUMERIC param; Default clears
+  // to undefined (absent). This is the "URL wiring" — the value written is exactly
+  // what the demo-URL layer serializes as strataColumnGap=<n> (or omits at 150).
+  it("Column gap writes the numeric param per segment; Default clears to undefined (one-hot)", () => {
+    const setColumnGap = vi.fn();
+    renderPanel({ setStrataColumnGap: setColumnGap });
+    const group = screen.getByRole("radiogroup", { name: "Strata column gap" });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Wide 200" }));
+    expect(setColumnGap).toHaveBeenLastCalledWith(200);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Extra 250" }));
+    expect(setColumnGap).toHaveBeenLastCalledWith(250);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Default 150" }));
+    expect(setColumnGap).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it("Row gap writes the numeric factor per segment; Default clears to undefined (one-hot)", () => {
+    const setRowGap = vi.fn();
+    renderPanel({ setStrataRowGap: setRowGap });
+    const group = screen.getByRole("radiogroup", { name: "Strata row gap" });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "1.25×" }));
+    expect(setRowGap).toHaveBeenLastCalledWith(1.25);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "1.5×" }));
+    expect(setRowGap).toHaveBeenLastCalledWith(1.5);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Default" }));
+    expect(setRowGap).toHaveBeenLastCalledWith(undefined);
+  });
+
+  // (b) The active segment is derived from the current value (undefined ⇒ Default).
+  it("reflects the current value as the checked segment (undefined ⇒ Default; 200 ⇒ Wide; 1.5 ⇒ 1.5×)", () => {
+    renderPanel();
+    const colGroupDefault = screen.getByRole("radiogroup", {
+      name: "Strata column gap",
+    });
+    expect(
+      within(colGroupDefault)
+        .getByRole("radio", { name: "Default 150" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    renderPanel({ strataColumnGap: 200, strataRowGap: 1.5 });
+    const colGroup = screen.getAllByRole("radiogroup", {
+      name: "Strata column gap",
+    })[1]!;
+    expect(
+      within(colGroup)
+        .getByRole("radio", { name: "Wide 200" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    const rowGroup = screen.getAllByRole("radiogroup", {
+      name: "Strata row gap",
+    })[1]!;
+    expect(
+      within(rowGroup)
+        .getByRole("radio", { name: "1.5×" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  // (c) Both controls are independent radiogroups rendered below the Style row.
+  it("renders Column gap and Row gap as separate radiogroups", () => {
+    renderPanel();
+    expect(
+      screen.getByRole("radiogroup", { name: "Strata column gap" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("radiogroup", { name: "Strata row gap" }),
+    ).toBeTruthy();
+    // Help copy is wired: hovering a segment drives the shared help panel.
+    const rowGroup = screen.getByRole("radiogroup", { name: "Strata row gap" });
+    fireEvent.mouseEnter(
+      within(rowGroup).getByRole("radio", { name: "1.25×" }),
+    );
+    expect(screen.getByLabelText("Option explanation").textContent).toContain(
+      "vertical space",
     );
   });
 });

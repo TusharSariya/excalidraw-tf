@@ -6,8 +6,8 @@
  *
  *  1. A FULL-surface parse→serialize→parse fixpoint over EVERY user-visible
  *     strata URL param at once (the existing "round-trips strata view + engine
- *     flags" test omits edgeRouting / borderRoute / deBandLevel / sift / penW /
- *     crossW / edgeCap / transpose / heightGate), plus every documented alias.
+ *     flags" test omits deBandLevel / sift / penW / crossW / edgeCap /
+ *     transpose / heightGate / boxEndpoints), plus every documented alias.
  *
  *  2. A THREADING TRIPWIRE: each strata layout option must still be forwarded
  *     by `layoutTerraformFromSources` (the sceneContext + builderOptions +
@@ -47,8 +47,6 @@ describe("strata option-surface regression (W0-I4)", () => {
       strataRankSeparate: true,
       strataPackedScoring: true,
       strataPackedEps: 2,
-      strataEdgeRouting: true,
-      strataBorderRoute: true,
       strataBandCompact: true,
       strataBandDepth: "root",
       strataDeBandLevel: "vpc",
@@ -62,6 +60,7 @@ describe("strata option-surface regression (W0-I4)", () => {
       strataTranspose: true,
       strataHeightGate: true,
       strataLeafShift: true,
+      strataBoxEndpoints: true,
       strataChainRelocate: true,
       strataCoordCascade: true,
     };
@@ -220,8 +219,6 @@ describe("strata option-surface regression (W0-I4)", () => {
       "strataCoordinateRefine",
       "strataPackedScoring",
       "strataPackedScoringEpsilon",
-      "strataEdgeRouting",
-      "strataBorderRoute",
       "strataBandCompact",
       "strataBandDepth",
       "strataDeBandLevel",
@@ -235,6 +232,7 @@ describe("strata option-surface regression (W0-I4)", () => {
       "strataTranspose",
       "strataHeightGate",
       "strataLeafShift",
+      "strataBoxEndpoints",
       "strataChainRelocate",
       "strataCoordCascade",
     ];

@@ -141,10 +141,142 @@ export interface ExcalidrawElementWithCanvas {
   canvasOffsetX: number;
   canvasOffsetY: number;
   boundTextElementVersion: number | null;
+  /**
+   * Content signature of the bound-text label (see
+   * {@link getBoundTextContentSignature}). Used as the real regeneration key so
+   * that a bound label being *co-moved* with its container during a drag — which
+   * bumps the label's `version`/`versionNonce` without changing anything the
+   * container bitmap depends on — does not needlessly re-rasterize the container.
+   */
+  boundTextSignature: string | null;
   imageCrop: ExcalidrawImageElement["crop"] | null;
   containingFrameOpacity: number;
   boundTextCanvas: HTMLCanvasElement;
+  /**
+   * E09.3: the effective (optionally dpr-capped) devicePixelRatio actually used
+   * to rasterize `canvas`. Part of the cache key (a mid-session dprCap toggle or
+   * a monitor dpr change must invalidate a stale bitmap) and the divisor the draw
+   * path scales by, so the blit matches the bitmap it was baked at.
+   */
+  devicePixelRatio: number;
 }
+
+/**
+ * Content signature of a container's bound-text label, used as the container
+ * canvas regeneration key in place of the label's raw `version`.
+ *
+ * DERIVATION — what a container's cached bitmap actually bakes in from its bound
+ * text. `generateElementCanvas` reads `boundTextElement` in exactly one place:
+ * the `if (isArrowElement(element) && boundTextElement)` block (the arrow branch
+ * ~L264-320). There it, and only there, (a) sizes and `clearRect`s a rectangle
+ * from `boundTextElement.width`/`.height`, and (b) positions that clearRect from
+ * the label's coordinates taken RELATIVE to the container
+ * (`boundTextCx - x1`, `boundTextCy - y1` — invariant under a rigid co-move).
+ * The label's text, font, colour, alignment, line-height, opacity, etc. are
+ * NEVER painted into the container canvas — the label is rasterized as its own
+ * separate `ExcalidrawElement`. So the only container-bitmap-affecting inputs are
+ * the label's width, height and position relative to the container.
+ *
+ * We still fold the full set of label-appearance fields into the signature as a
+ * conservative superset: including a field the bitmap does not actually depend on
+ * can only ever cause an *extra* regen, never a *stale* one, so pixel-identity is
+ * preserved regardless of any code path this enumeration might have missed.
+ *
+ * Position is encoded RELATIVE to the container (`dx`/`dy`) so that a pure drag
+ * co-move — where container and label translate by the same delta — produces an
+ * unchanged signature and the cached canvas is reused. Absolute coordinates must
+ * NOT be used here, or every drag frame would mint a fresh signature and defeat
+ * the optimization.
+ */
+export const getBoundTextContentSignature = (
+  container: ExcalidrawElement,
+  boundTextElement: ExcalidrawTextElementWithContainer | null,
+): string | null => {
+  if (!boundTextElement) {
+    return null;
+  }
+  const dx = boundTextElement.x - container.x;
+  const dy = boundTextElement.y - container.y;
+  return [
+    boundTextElement.width,
+    boundTextElement.height,
+    dx,
+    dy,
+    boundTextElement.angle,
+    boundTextElement.fontSize,
+    boundTextElement.fontFamily,
+    boundTextElement.textAlign,
+    boundTextElement.verticalAlign,
+    boundTextElement.lineHeight,
+    boundTextElement.strokeColor,
+    boundTextElement.opacity,
+    boundTextElement.text,
+  ].join(" ");
+};
+
+/**
+ * E09 "hint bundle" runtime toggles for the canvas cache. These live in the
+ * element package (mirroring the module-level `elementCanvasRegenStats` pattern)
+ * rather than being imported from `@excalidraw/excalidraw`, which would invert
+ * the package dependency arrow (element → excalidraw). The static scene renderer
+ * pushes the current `TerraformRuntimePerformanceSettings` values here each frame
+ * via {@link setTerraformCanvasHints}; both default OFF so behavior is
+ * byte-identical unless an experiment enables them.
+ */
+const terraformCanvasHints = {
+  /** E09.1: bucket the zoom cache key so micro zoom-ticks reuse a bitmap. */
+  zoomQuantize: false,
+  /** E09.3: cap the effective devicePixelRatio (see {@link TERRAFORM_CANVAS_DPR_CAP}). */
+  dprCap: false,
+};
+
+export const setTerraformCanvasHints = (hints: {
+  zoomQuantize: boolean;
+  dprCap: boolean;
+}) => {
+  terraformCanvasHints.zoomQuantize = hints.zoomQuantize;
+  terraformCanvasHints.dprCap = hints.dprCap;
+};
+
+/** Effective devicePixelRatio cap applied when `terraformDprCap` is ON (E09.3). */
+export const TERRAFORM_CANVAS_DPR_CAP = 1.5;
+
+/**
+ * Effective devicePixelRatio for element-canvas rasterization (E09.3). When
+ * `terraformDprCap` is ON, the raw `window.devicePixelRatio` is clamped to
+ * {@link TERRAFORM_CANVAS_DPR_CAP}, shrinking every cached bitmap on hi-DPI /
+ * super-res displays (inert at dpr ≤ cap, e.g. the dpr-1 desktop). This value
+ * is threaded through BOTH the size computation (`cappedElementCanvasSize`) AND
+ * the draw path (`generateElementCanvas` context scale, `drawElementFromCanvas`)
+ * so the two stay consistent — the dpr cancels in `canvas.width / scale`, so
+ * geometry is unchanged and only bitmap resolution drops. It is also recorded on
+ * each cached {@link ExcalidrawElementWithCanvas} (`devicePixelRatio`) so the
+ * cache key and the draw path both key off the dpr the bitmap was baked at.
+ */
+const getEffectiveDevicePixelRatio = (): number =>
+  terraformCanvasHints.dprCap
+    ? Math.min(window.devicePixelRatio, TERRAFORM_CANVAS_DPR_CAP)
+    : window.devicePixelRatio;
+
+/**
+ * Log-spaced bucket base for the E09.1 zoom cache-key quantization. Chosen
+ * strictly finer than the tightest spacing between adjacent Terraform LOD
+ * thresholds (`getTerraformLodThresholds` — the closest pair is ~1.14× apart, at
+ * icon 0.4 / label 0.35), so a single bucket can never straddle two LOD
+ * thresholds. Two zooms in the same bucket therefore differ by < ~10% resolution;
+ * that residual is absorbed by `drawElementFromCanvas`, which draws the cached
+ * bitmap at absolute element coords scaled by the *current* outer-context zoom
+ * (the stored `scale`/dpr cancel in `canvas.width / scale`), so geometry stays
+ * exact and only crispness varies — the identical mechanism already exercised
+ * today whenever `appState.shouldCacheIgnoreZoom` is true.
+ */
+export const TERRAFORM_ZOOM_QUANTIZE_LOG_BASE = 1.1;
+
+const LOG_ZOOM_QUANTIZE_BASE = Math.log(TERRAFORM_ZOOM_QUANTIZE_LOG_BASE);
+
+/** Integer log-spaced bucket index for a zoom value (E09.1). */
+export const terraformZoomBucket = (zoomValue: number): number =>
+  Math.round(Math.log(zoomValue) / LOG_ZOOM_QUANTIZE_BASE);
 
 const cappedElementCanvasSize = (
   element: NonDeletedExcalidrawElement,
@@ -177,8 +309,9 @@ const cappedElementCanvasSize = (
       ? distance(y1, y2)
       : element.height;
 
-  let width = elementWidth * window.devicePixelRatio + padding * 2;
-  let height = elementHeight * window.devicePixelRatio + padding * 2;
+  const devicePixelRatio = getEffectiveDevicePixelRatio();
+  let width = elementWidth * devicePixelRatio + padding * 2;
+  let height = elementHeight * devicePixelRatio + padding * 2;
 
   let scale: number = zoom.value;
 
@@ -198,6 +331,27 @@ const cappedElementCanvasSize = (
   width = Math.floor(width * scale);
   height = Math.floor(height * scale);
 
+  // E09.3: when the dpr cap is ACTIVE, capping the effective dpr must never flip
+  // an element that rasterizes at raw dpr into a 0-size canvas — that would make
+  // `generateElementCanvas` return null every frame (uncached), re-entering the
+  // per-frame regen loop AND vanishing an element that drew a ≥1px bitmap at raw
+  // dpr. Clamp each floored dimension to ≥1, but ONLY when that dimension is
+  // ≥1 at the raw (uncapped) dpr — elements that are already 0-size at raw dpr
+  // keep today's null behavior and are not resurrected.
+  if (terraformCanvasHints.dprCap) {
+    const rawDpr = window.devicePixelRatio;
+    const rawWidth = Math.floor((elementWidth * rawDpr + padding * 2) * scale);
+    const rawHeight = Math.floor(
+      (elementHeight * rawDpr + padding * 2) * scale,
+    );
+    if (rawWidth >= 1) {
+      width = Math.max(1, width);
+    }
+    if (rawHeight >= 1) {
+      height = Math.max(1, height);
+    }
+  }
+
   return { width, height, scale };
 };
 
@@ -208,10 +362,17 @@ const generateElementCanvas = (
   renderConfig: StaticCanvasRenderConfig,
   appState: StaticCanvasAppState | InteractiveCanvasAppState,
 ): ExcalidrawElementWithCanvas | null => {
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d")!;
   const padding = getCanvasPadding(element);
+  // E09.3: same effective (optionally capped) dpr used to size the canvas in
+  // `cappedElementCanvasSize`, so the draw scale below matches the bitmap size.
+  const devicePixelRatio = getEffectiveDevicePixelRatio();
 
+  // E05a: compute the (possibly 0-size) capped canvas dimensions and take the
+  // null path BEFORE allocating any canvas. `cappedElementCanvasSize` can cap an
+  // element to 0×0 at the current zoom (returning null below); allocating the
+  // throwaway `<canvas>` first wasted ~4,200 canvas allocations/frame during
+  // fitted-zoom drags. Reordering is behavior-preserving — neither `padding` nor
+  // the size computation touches the canvas.
   const { width, height, scale } = cappedElementCanvasSize(
     element,
     elementsMap,
@@ -221,6 +382,9 @@ const generateElementCanvas = (
   if (!width || !height) {
     return null;
   }
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d")!;
 
   canvas.width = width;
   canvas.height = height;
@@ -232,24 +396,17 @@ const generateElementCanvas = (
     const [x1, y1] = getElementAbsoluteCoords(element, elementsMap);
 
     canvasOffsetX =
-      element.x > x1
-        ? distance(element.x, x1) * window.devicePixelRatio * scale
-        : 0;
+      element.x > x1 ? distance(element.x, x1) * devicePixelRatio * scale : 0;
 
     canvasOffsetY =
-      element.y > y1
-        ? distance(element.y, y1) * window.devicePixelRatio * scale
-        : 0;
+      element.y > y1 ? distance(element.y, y1) * devicePixelRatio * scale : 0;
 
     context.translate(canvasOffsetX, canvasOffsetY);
   }
 
   context.save();
   context.translate(padding * scale, padding * scale);
-  context.scale(
-    window.devicePixelRatio * scale,
-    window.devicePixelRatio * scale,
-  );
+  context.scale(devicePixelRatio * scale, devicePixelRatio * scale);
 
   const rc = rough.canvas(canvas);
 
@@ -267,9 +424,9 @@ const generateElementCanvas = (
     // the arrow doesn't get clipped
     const maxDim = Math.max(distance(x1, x2), distance(y1, y2));
     boundTextCanvas.width =
-      maxDim * window.devicePixelRatio * scale + padding * scale * 10;
+      maxDim * devicePixelRatio * scale + padding * scale * 10;
     boundTextCanvas.height =
-      maxDim * window.devicePixelRatio * scale + padding * scale * 10;
+      maxDim * devicePixelRatio * scale + padding * scale * 10;
     boundTextCanvasContext.translate(
       boundTextCanvas.width / 2,
       boundTextCanvas.height / 2,
@@ -293,29 +450,29 @@ const generateElementCanvas = (
     const offsetY = (boundTextCanvas.height - canvas!.height) / 2;
     const shiftX =
       boundTextCanvas.width / 2 -
-      (boundTextCx - x1) * window.devicePixelRatio * scale -
+      (boundTextCx - x1) * devicePixelRatio * scale -
       offsetX -
       padding * scale;
 
     const shiftY =
       boundTextCanvas.height / 2 -
-      (boundTextCy - y1) * window.devicePixelRatio * scale -
+      (boundTextCy - y1) * devicePixelRatio * scale -
       offsetY -
       padding * scale;
     boundTextCanvasContext.translate(-shiftX, -shiftY);
     // Clear the bound text area
     boundTextCanvasContext.clearRect(
       -(boundTextElement.width / 2 + BOUND_TEXT_PADDING) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
       -(boundTextElement.height / 2 + BOUND_TEXT_PADDING) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
       (boundTextElement.width + BOUND_TEXT_PADDING * 2) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
       (boundTextElement.height + BOUND_TEXT_PADDING * 2) *
-        window.devicePixelRatio *
+        devicePixelRatio *
         scale,
     );
   }
@@ -330,11 +487,14 @@ const generateElementCanvas = (
     canvasOffsetY,
     boundTextElementVersion:
       getBoundTextElement(element, elementsMap)?.version || null,
+    boundTextSignature: getBoundTextContentSignature(element, boundTextElement),
     containingFrameOpacity:
       getContainingFrame(element, elementsMap)?.opacity || 100,
     boundTextCanvas,
     angle: element.angle,
     imageCrop: isImageElement(element) ? element.crop : null,
+    // E09.3: record the effective dpr this bitmap was baked at (see interface).
+    devicePixelRatio,
   };
 };
 
@@ -600,9 +760,44 @@ const drawElementOnCanvas = (
   }
 };
 
+/**
+ * E05b: null-verdict sentinel cached in place of a canvas for elements that
+ * `cappedElementCanvasSize` caps to 0×0 at the current zoom. `generateElementCanvas`
+ * returns `null` for such elements; before E05b that `null` was never cached, so
+ * every visible frame re-attempted rasterization (~37% of drag regens — the
+ * `sameObjectRemiss`/`nullReturns` waste seen in E04 byCause data).
+ *
+ * The sentinel lives in the SAME identity-keyed `elementWithCanvasCache` WeakMap
+ * and carries EVERY field the regeneration predicate in `generateElementWithCanvas`
+ * reads, so all existing invalidation terms apply automatically (zoom, theme,
+ * bound-text signature/version, imageCrop, containing-frame opacity, arrow angle,
+ * plus element identity — a re-clone misses, and `ShapeCache.delete` drops the
+ * entry on geometry change). It also carries `devicePixelRatio`: DPR is the one
+ * remaining input to the 0-size verdict (see `cappedElementCanvasSize`:
+ * `elementWidth * window.devicePixelRatio + padding * 2`) that is NOT already a
+ * predicate term, so it must be part of the sentinel key or a DPR change could
+ * leave a stale "draw nothing" verdict.
+ *
+ * `canvas: null` is the discriminator. Consumers NEVER receive a sentinel:
+ * `generateElementWithCanvas` converts a still-valid sentinel back to `null` (its
+ * pre-existing "draw nothing" contract), so rendering behavior is byte-identical —
+ * only the wasted rasterization is removed.
+ */
+export type ElementCanvasNullVerdict = {
+  canvas: null;
+  zoomValue: AppState["zoom"]["value"];
+  theme: AppState["theme"];
+  devicePixelRatio: number;
+  angle: number;
+  boundTextElementVersion: number | null;
+  boundTextSignature: string | null;
+  imageCrop: ExcalidrawImageElement["crop"] | null;
+  containingFrameOpacity: number;
+};
+
 export const elementWithCanvasCache = new WeakMap<
   ExcalidrawElement,
-  ExcalidrawElementWithCanvas
+  ExcalidrawElementWithCanvas | ElementCanvasNullVerdict
 >();
 
 /**
@@ -624,11 +819,104 @@ export const elementCanvasRegenStats = {
   total: 0,
   /** subset attributable to a zoom-value change (the LOD-relevant cost) */
   zoom: 0,
+  /**
+   * Per-cause breakdown of `total`, attributed to the FIRST failing predicate
+   * term in the exact source order of the regen `if` (see
+   * `generateElementWithCanvas`): miss → zoom → theme → boundText → imageCrop →
+   * frameOpacity → arrowAngle. Every regen increments exactly one bucket, so
+   * `sum(byCause) === total`. `byCause.zoom === zoom` by construction: a
+   * zoom-value change can only be the first failing term when a cache entry
+   * already exists (a fresh element is a `miss`), so the two never double-count.
+   * Answers "which term trips the 11.2k drag regens?" without wall-clock timing.
+   */
+  byCause: {
+    /** no cache entry — a new element identity (re-clone / first paint) */
+    miss: 0,
+    /** cached, but the zoom value changed */
+    zoom: 0,
+    /** cached at same zoom, but the theme changed */
+    theme: 0,
+    /** cached, but the bound-text content signature changed (E03) */
+    boundText: 0,
+    /** cached, but the image crop changed */
+    imageCrop: 0,
+    /** cached, but the containing frame's opacity changed */
+    frameOpacity: 0,
+    /** cached arrow-with-label, but the arrow angle changed */
+    arrowAngle: 0,
+  },
+  /**
+   * Decomposition of `byCause.miss` by *why* the WeakMap had no entry, keyed by
+   * element `id` vs object identity (see `elementCanvasRegenLastSeenById`). This
+   * disambiguates the three mechanically distinct miss causes that the bare
+   * `miss` count conflates:
+   *
+   * - `firstSeen`: this `id` was never rendered before under this measurement —
+   *   a genuine first paint / newly-visible element. Unavoidable.
+   * - `identitySwap`: same `id`, but a DIFFERENT object than last seen — the
+   *   element was re-cloned (new identity), so the identity-keyed WeakMap can
+   *   never hit. This is the re-clone/reconcile smell (the hover-unrender root
+   *   cause; see docs/terraform-canvas-hover-unrender-investigation.md).
+   * - `sameObjectRemiss`: same `id` AND the same object as last seen, yet it
+   *   missed again — the cache entry never persisted. Happens when
+   *   `generateElementCanvas` returned null (0-size cap → not cached, see
+   *   `nullReturns`) or the WeakMap entry was otherwise dropped.
+   *
+   * `firstSeen + identitySwap + sameObjectRemiss === byCause.miss`.
+   */
+  missDetail: {
+    firstSeen: 0,
+    identitySwap: 0,
+    sameObjectRemiss: 0,
+  },
+  /**
+   * Count of `generateElementCanvas` calls that returned null (0-width/height
+   * cap) while enabled. A null result is never written to the cache, so such an
+   * element re-misses on every visible frame → shows up as `sameObjectRemiss`.
+   */
+  nullReturns: 0,
+  /**
+   * E05b: count of frames on which a cached null-verdict sentinel (see
+   * {@link ElementCanvasNullVerdict}) still matched the current key fields, so
+   * the element short-circuited to "draw nothing" WITHOUT re-rasterizing. This
+   * is the engagement counter for the E05b optimization: pre-E05b these frames
+   * were `total`/`nullReturns` regens (a `sameObjectRemiss` re-miss every frame);
+   * post-E05b they move here and never touch `generateElementCanvas`. Not part of
+   * `byCause` — a sentinel hit is the ABSENCE of a regen, so folding it into
+   * `byCause` would break the `sum(byCause) === total` invariant.
+   */
+  nullVerdictHits: 0,
 };
+
+/**
+ * DEV-only id→last-object map backing `missDetail`. Only written when
+ * `elementCanvasRegenStats.enabled`; cleared by `resetElementCanvasRegenStats`.
+ * Holds strong refs, but is bounded by element count and lives only for the
+ * duration of an instrumented benchmark window.
+ */
+const elementCanvasRegenLastSeenById = new Map<
+  string,
+  NonDeletedExcalidrawElement
+>();
 
 export const resetElementCanvasRegenStats = () => {
   elementCanvasRegenStats.total = 0;
   elementCanvasRegenStats.zoom = 0;
+  const byCause = elementCanvasRegenStats.byCause;
+  byCause.miss = 0;
+  byCause.zoom = 0;
+  byCause.theme = 0;
+  byCause.boundText = 0;
+  byCause.imageCrop = 0;
+  byCause.frameOpacity = 0;
+  byCause.arrowAngle = 0;
+  const missDetail = elementCanvasRegenStats.missDetail;
+  missDetail.firstSeen = 0;
+  missDetail.identitySwap = 0;
+  missDetail.sameObjectRemiss = 0;
+  elementCanvasRegenStats.nullReturns = 0;
+  elementCanvasRegenStats.nullVerdictHits = 0;
+  elementCanvasRegenLastSeenById.clear();
 };
 
 const generateElementWithCanvas = (
@@ -643,36 +931,112 @@ const generateElementWithCanvas = (
         value: 1 as NormalizedZoomValue,
       };
   const prevElementWithCanvas = elementWithCanvasCache.get(element);
-  const shouldRegenerateBecauseZoom =
-    prevElementWithCanvas &&
-    prevElementWithCanvas.zoomValue !== zoom.value &&
-    !appState?.shouldCacheIgnoreZoom;
+  // E09.1: with `terraformZoomQuantize` ON, a real cached bitmap is reused as
+  // long as the new zoom lands in the same log-spaced bucket, killing the
+  // micro-tick re-raster storm; the residual resolution mismatch is blit-scaled
+  // by `drawElementFromCanvas` (see `terraformZoomBucket`).
+  let shouldRegenerateBecauseZoom = false;
+  if (prevElementWithCanvas && !appState?.shouldCacheIgnoreZoom) {
+    const quantize = terraformCanvasHints.zoomQuantize;
+    shouldRegenerateBecauseZoom = quantize
+      ? terraformZoomBucket(prevElementWithCanvas.zoomValue) !==
+        terraformZoomBucket(zoom.value)
+      : prevElementWithCanvas.zoomValue !== zoom.value;
+  }
   const boundTextElement = getBoundTextElement(element, elementsMap);
   const boundTextElementVersion = boundTextElement?.version || null;
+  // Regenerate the container canvas only when the label actually changed the
+  // container's bitmap, not merely its version. The version is a fast-path: if
+  // it is unchanged the label is byte-identical, so we skip signature work
+  // entirely. Only when the version differs do we compute the content signature
+  // (see getBoundTextContentSignature) — a pure drag co-move bumps the version
+  // but leaves the signature identical, so the cached canvas is reused.
+  const boundTextChanged =
+    !!prevElementWithCanvas &&
+    prevElementWithCanvas.boundTextElementVersion !== boundTextElementVersion &&
+    prevElementWithCanvas.boundTextSignature !==
+      getBoundTextContentSignature(element, boundTextElement);
   const imageCrop = isImageElement(element) ? element.crop : null;
 
   const containingFrameOpacity =
     getContainingFrame(element, elementsMap)?.opacity || 100;
 
+  // since we rotate the canvas when copying from cached canvas, we don't
+  // regenerate the cached canvas. But we need to in case of labels which are
+  // cached alongside the arrow, and we want the labels to remain unrotated
+  // with respect to the arrow. (Guarded on `prevElementWithCanvas` so this is a
+  // safe standalone boolean — in the OR below a missing cache entry already
+  // short-circuits via the leading `!prevElementWithCanvas` term.)
+  const arrowAngleChanged =
+    !!prevElementWithCanvas &&
+    isArrowElement(element) &&
+    !!boundTextElement &&
+    element.angle !== prevElementWithCanvas.angle;
+
   if (
     !prevElementWithCanvas ||
     shouldRegenerateBecauseZoom ||
     prevElementWithCanvas.theme !== appState.theme ||
-    prevElementWithCanvas.boundTextElementVersion !== boundTextElementVersion ||
+    boundTextChanged ||
     prevElementWithCanvas.imageCrop !== imageCrop ||
     prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity ||
-    // since we rotate the canvas when copying from cached canvas, we don't
-    // regenerate the cached canvas. But we need to in case of labels which are
-    // cached alongside the arrow, and we want the labels to remain unrotated
-    // with respect to the arrow.
-    (isArrowElement(element) &&
-      boundTextElement &&
-      element.angle !== prevElementWithCanvas.angle)
+    arrowAngleChanged ||
+    // E09.3: the effective dpr the bitmap was baked at is part of the cache key.
+    // A mid-session `terraformDprCap` toggle (or the window moving to a monitor
+    // with a different dpr) changes `getEffectiveDevicePixelRatio()` without any
+    // other key changing — regenerate so the draw path never divides a stale
+    // dpr-N bitmap by a different effective dpr. This term also subsumes E05b's
+    // former sentinel-only DPR re-check: sentinels store the same effective dpr
+    // (the 0-size verdict in `cappedElementCanvasSize` is a function of it), and
+    // this comparison is not narrowed to `canvas === null`, so both entry kinds
+    // re-evaluate on any effective-dpr change.
+    prevElementWithCanvas.devicePixelRatio !== getEffectiveDevicePixelRatio()
   ) {
     if (elementCanvasRegenStats.enabled) {
       elementCanvasRegenStats.total += 1;
       if (shouldRegenerateBecauseZoom) {
         elementCanvasRegenStats.zoom += 1;
+      }
+      // Attribute the regen to the FIRST failing term, in the exact predicate
+      // order above, so every regen lands in exactly one byCause bucket
+      // (sum(byCause) === total). This is a diagnostic breakdown only; the
+      // whole block is gated on `enabled` so production pays nothing.
+      const byCause = elementCanvasRegenStats.byCause;
+      if (!prevElementWithCanvas) {
+        byCause.miss += 1;
+        // Decompose the miss by id-vs-object identity to name the mechanism.
+        const lastSeen = elementCanvasRegenLastSeenById.get(element.id);
+        if (lastSeen === undefined) {
+          elementCanvasRegenStats.missDetail.firstSeen += 1;
+        } else if (lastSeen !== element) {
+          // same id, different object = the element was re-cloned
+          elementCanvasRegenStats.missDetail.identitySwap += 1;
+        } else {
+          // same id AND same object, yet uncached = never persisted last time
+          elementCanvasRegenStats.missDetail.sameObjectRemiss += 1;
+        }
+        elementCanvasRegenLastSeenById.set(element.id, element);
+      } else if (shouldRegenerateBecauseZoom) {
+        byCause.zoom += 1;
+      } else if (prevElementWithCanvas.theme !== appState.theme) {
+        byCause.theme += 1;
+      } else if (boundTextChanged) {
+        byCause.boundText += 1;
+      } else if (prevElementWithCanvas.imageCrop !== imageCrop) {
+        byCause.imageCrop += 1;
+      } else if (
+        prevElementWithCanvas.containingFrameOpacity !== containingFrameOpacity
+      ) {
+        byCause.frameOpacity += 1;
+      } else if (arrowAngleChanged) {
+        byCause.arrowAngle += 1;
+      } else {
+        // Only remaining term: the effective-dpr cache-key mismatch (E09.3 —
+        // mid-session dprCap toggle or monitor-dpr change; also covers E05b's
+        // former sentinel-only DPR re-check). Rare (never during a fixed-DPR
+        // benchmark), so it is folded into `arrowAngle` rather than adding a
+        // bucket — the `sum(byCause) === total` invariant is preserved.
+        byCause.arrowAngle += 1;
       }
     }
 
@@ -685,12 +1049,49 @@ const generateElementWithCanvas = (
     );
 
     if (!elementWithCanvas) {
+      if (elementCanvasRegenStats.enabled) {
+        elementCanvasRegenStats.nullReturns += 1;
+      }
+      // E05b: cache a null-verdict sentinel instead of leaving the element
+      // uncached. It carries every field the regen predicate reads (plus DPR),
+      // so subsequent frames short-circuit to "draw nothing" via the fall-through
+      // below without re-rasterizing, while any invalidating change (zoom, theme,
+      // bound text, imageCrop, frame opacity, arrow angle, DPR, or re-clone /
+      // ShapeCache.delete) correctly forces a regen through the predicate above.
+      elementWithCanvasCache.set(element, {
+        canvas: null,
+        zoomValue: zoom.value,
+        theme: appState.theme,
+        // Effective (possibly capped) dpr — the same value real entries store
+        // and the E09.3 predicate term compares against; the 0-size verdict is
+        // a function of the EFFECTIVE dpr, so keying the sentinel on raw dpr
+        // would thrash under an active dprCap.
+        devicePixelRatio: getEffectiveDevicePixelRatio(),
+        angle: element.angle,
+        boundTextElementVersion,
+        boundTextSignature: getBoundTextContentSignature(
+          element,
+          boundTextElement,
+        ),
+        imageCrop,
+        containingFrameOpacity,
+      });
       return null;
     }
 
     elementWithCanvasCache.set(element, elementWithCanvas);
 
     return elementWithCanvas;
+  }
+  // Fall-through: no invalidation term fired. If the cached entry is a
+  // null-verdict sentinel (E05b), the element still caps to 0×0 at this zoom, so
+  // reproduce today's null return ("draw nothing") WITHOUT re-rasterizing — this
+  // is the regen win. Consumers therefore never receive a sentinel object.
+  if (prevElementWithCanvas.canvas === null) {
+    if (elementCanvasRegenStats.enabled) {
+      elementCanvasRegenStats.nullVerdictHits += 1;
+    }
+    return null;
   }
   return prevElementWithCanvas;
 };
@@ -705,12 +1106,19 @@ const drawElementFromCanvas = (
   const element = elementWithCanvas.element;
   const padding = getCanvasPadding(element);
   const zoom = elementWithCanvas.scale;
+  // E09.3: divide by the STORED effective dpr the bitmap was actually baked at,
+  // not the current one. It cancels in `canvas.width / scale`, so this only sets
+  // bitmap resolution; positions/size stay identical to the uncapped path. Using
+  // the stored value keeps the blit consistent even if the effective dpr changed
+  // since raster time (the regen predicate invalidates on that change, but a
+  // caller could still draw a just-fetched entry from a prior effective dpr).
+  const devicePixelRatio = elementWithCanvas.devicePixelRatio;
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, allElementsMap);
-  const cx = ((x1 + x2) / 2 + appState.scrollX) * window.devicePixelRatio;
-  const cy = ((y1 + y2) / 2 + appState.scrollY) * window.devicePixelRatio;
+  const cx = ((x1 + x2) / 2 + appState.scrollX) * devicePixelRatio;
+  const cy = ((y1 + y2) / 2 + appState.scrollY) * devicePixelRatio;
 
   context.save();
-  context.scale(1 / window.devicePixelRatio, 1 / window.devicePixelRatio);
+  context.scale(1 / devicePixelRatio, 1 / devicePixelRatio);
 
   const boundTextElement = getBoundTextElement(element, allElementsMap);
 
@@ -726,8 +1134,8 @@ const drawElementFromCanvas = (
     context.translate(cx, cy);
     context.drawImage(
       elementWithCanvas.boundTextCanvas,
-      (-(x2 - x1) / 2) * window.devicePixelRatio - offsetX / zoom - padding,
-      (-(y2 - y1) / 2) * window.devicePixelRatio - offsetY / zoom - padding,
+      (-(x2 - x1) / 2) * devicePixelRatio - offsetX / zoom - padding,
+      (-(y2 - y1) / 2) * devicePixelRatio - offsetY / zoom - padding,
       elementWithCanvas.boundTextCanvas.width / zoom,
       elementWithCanvas.boundTextCanvas.height / zoom,
     );
@@ -753,9 +1161,9 @@ const drawElementFromCanvas = (
 
     context.drawImage(
       elementWithCanvas.canvas!,
-      (x1 + appState.scrollX) * window.devicePixelRatio -
+      (x1 + appState.scrollX) * devicePixelRatio -
         (padding * elementWithCanvas.scale) / elementWithCanvas.scale,
-      (y1 + appState.scrollY) * window.devicePixelRatio -
+      (y1 + appState.scrollY) * devicePixelRatio -
         (padding * elementWithCanvas.scale) / elementWithCanvas.scale,
       elementWithCanvas.canvas!.width / elementWithCanvas.scale,
       elementWithCanvas.canvas!.height / elementWithCanvas.scale,
@@ -774,10 +1182,10 @@ const drawElementFromCanvas = (
       context.strokeStyle = "#c92a2a";
       context.lineWidth = 3;
       context.strokeRect(
-        (coords.x + appState.scrollX) * window.devicePixelRatio,
-        (coords.y + appState.scrollY) * window.devicePixelRatio,
-        getBoundTextMaxWidth(element, textElement) * window.devicePixelRatio,
-        getBoundTextMaxHeight(element, textElement) * window.devicePixelRatio,
+        (coords.x + appState.scrollX) * devicePixelRatio,
+        (coords.y + appState.scrollY) * devicePixelRatio,
+        getBoundTextMaxWidth(element, textElement) * devicePixelRatio,
+        getBoundTextMaxHeight(element, textElement) * devicePixelRatio,
       );
     }
   }
@@ -824,12 +1232,23 @@ export const renderElement = (
     !appState.selectedElementIds[element.id] &&
     !appState.hoveredElementIds[element.id];
 
+  // E08: fold the terraform focus wash overlay's per-element alpha multiplier
+  // (set by the static-scene renderer) into the blit opacity. Undefined on every
+  // other render path ⇒ 1 (no wash). Applied here so it multiplies the cached
+  // bitmap on draw without forcing any re-rasterization.
+  const terraformWashAlpha =
+    "elementWashAlpha" in renderConfig &&
+    typeof renderConfig.elementWashAlpha === "number"
+      ? renderConfig.elementWashAlpha
+      : 1;
+
   context.globalAlpha = getRenderOpacity(
     element,
     getContainingFrame(element, elementsMap),
     renderConfig.elementsPendingErasure,
     renderConfig.pendingFlowchartNodes,
-    reduceAlphaForSelection ? DEFAULT_REDUCED_GLOBAL_ALPHA : 1,
+    (reduceAlphaForSelection ? DEFAULT_REDUCED_GLOBAL_ALPHA : 1) *
+      terraformWashAlpha,
   );
 
   switch (element.type) {

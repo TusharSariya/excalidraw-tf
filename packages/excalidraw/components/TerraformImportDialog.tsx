@@ -76,9 +76,9 @@ export const TerraformImportModal = ({
     strataPackedScoringEpsilon,
     strataBlockClamp,
     strataTranspose,
+    strataBoxEndpoints,
     strataHeightGate,
-    strataEdgeRouting,
-    strataBorderRoute,
+    strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
@@ -87,6 +87,8 @@ export const TerraformImportModal = ({
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
+    strataColumnGap,
+    strataRowGap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -658,9 +660,9 @@ terraform show -json tfplan > plan.json`}</code>
               strataPackedScoringEpsilon={strataPackedScoringEpsilon}
               strataBlockClamp={strataBlockClamp}
               strataTranspose={strataTranspose}
+              strataBoxEndpoints={strataBoxEndpoints}
               strataHeightGate={strataHeightGate}
-              strataEdgeRouting={strataEdgeRouting}
-              strataBorderRoute={strataBorderRoute}
+              strataEdgeStyle={strataEdgeStyle}
               strataBandDepth={strataBandDepth}
               strataDeBandLevel={strataDeBandLevel}
               pipelineCompact={pipelineCompact}
@@ -671,6 +673,8 @@ terraform show -json tfplan > plan.json`}</code>
               strataCrossWeightPenetration={strataCrossWeightPenetration}
               strataCrossWeightEdge={strataCrossWeightEdge}
               strataEdgeCrossCap={strataEdgeCrossCap}
+              strataColumnGap={strataColumnGap}
+              strataRowGap={strataRowGap}
               setStrataSweeps={dialog.setStrataSweeps}
               setStrataCoordinateRefine={dialog.setStrataCoordinateRefine}
               setStrataRankSeparate={dialog.setStrataRankSeparate}
@@ -680,9 +684,9 @@ terraform show -json tfplan > plan.json`}</code>
               }
               setStrataBlockClamp={dialog.setStrataBlockClamp}
               setStrataTranspose={dialog.setStrataTranspose}
+              setStrataBoxEndpoints={dialog.setStrataBoxEndpoints}
               setStrataHeightGate={dialog.setStrataHeightGate}
-              setStrataEdgeRouting={dialog.setStrataEdgeRouting}
-              setStrataBorderRoute={dialog.setStrataBorderRoute}
+              setStrataEdgeStyle={dialog.setStrataEdgeStyle}
               setStrataBandDepth={dialog.setStrataBandDepth}
               setStrataDeBandLevel={dialog.setStrataDeBandLevel}
               setPipelineCompact={dialog.setPipelineCompact}
@@ -695,6 +699,8 @@ terraform show -json tfplan > plan.json`}</code>
               }
               setStrataCrossWeightEdge={dialog.setStrataCrossWeightEdge}
               setStrataEdgeCrossCap={dialog.setStrataEdgeCrossCap}
+              setStrataColumnGap={dialog.setStrataColumnGap}
+              setStrataRowGap={dialog.setStrataRowGap}
             />
           )}
           {view === "module" && (

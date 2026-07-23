@@ -83,10 +83,8 @@ export type TerraformImportSession = {
   strataPackedScoring?: boolean;
   /** Strata W8b: ε-constraint crossings budget for the packed scorer (0 = strict). */
   strataPackedScoringEpsilon?: number;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: "straight" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -116,6 +114,10 @@ export type TerraformImportSession = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs to
    * remove leftover diagonal crossings. Default off. */
   strataTranspose?: boolean;
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
+  strataBoxEndpoints?: boolean;
   /** Exclusive-downstream chain relocate: post-A7 rigid Y co-translation of a
    * unit with its incoming-dominated downstream group. Default off. */
   strataChainRelocate?: boolean;
@@ -137,6 +139,10 @@ export type TerraformImportSession = {
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   /** Frame tint mode: category/hierarchy vs plan-action default frames. */
   colorMode?: TerraformColorMode;
   preset: TerraformImportPreset | null;

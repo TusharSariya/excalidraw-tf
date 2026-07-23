@@ -22,6 +22,20 @@ export type TerraformRuntimePerformanceSettings = {
   debounceHoverFocus: boolean;
   suppressFrameClippingBelowZoom: boolean;
   skipBindingRepairDuringFocus: boolean;
+  /**
+   * E08 — apply relationship-focus dimming as a draw-time radial wash overlay
+   * instead of re-cloning ~6.5k elements to blend their colors. Opt-in; default
+   * OFF keeps the legacy color-mutation path byte-identical. Not a below-zoom
+   * experiment, so deliberately excluded from the "enable all" group and the
+   * threshold radios.
+   */
+  terraformFocusWashOverlay: boolean;
+  /** E09.1: bucket the per-element canvas zoom cache key (default OFF). */
+  terraformZoomQuantize: boolean;
+  /** E09.2: request an opaque (alpha:false) static-scene 2D context (default OFF). */
+  terraformStaticCanvasOpaque: boolean;
+  /** E09.3: cap the effective devicePixelRatio for element bitmaps (default OFF). */
+  terraformDprCap: boolean;
   lowZoomThreshold: 0.2 | 0.3 | 0.4;
 };
 
@@ -32,6 +46,10 @@ export const TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS: TerraformRuntimePerformance
     debounceHoverFocus: false,
     suppressFrameClippingBelowZoom: false,
     skipBindingRepairDuringFocus: false,
+    terraformFocusWashOverlay: false,
+    terraformZoomQuantize: false,
+    terraformStaticCanvasOpaque: false,
+    terraformDprCap: false,
     lowZoomThreshold: 0.3,
   };
 
@@ -41,6 +59,9 @@ const BOOLEAN_SETTING_KEYS = [
   "debounceHoverFocus",
   "suppressFrameClippingBelowZoom",
   "skipBindingRepairDuringFocus",
+  "terraformZoomQuantize",
+  "terraformStaticCanvasOpaque",
+  "terraformDprCap",
 ] as const;
 
 const isLowZoomThreshold = (
@@ -61,6 +82,11 @@ export const parseTerraformRuntimePerformanceSettings = (
     if (typeof parsed[key] === "boolean") {
       settings[key] = parsed[key];
     }
+  }
+  // Parsed outside BOOLEAN_SETTING_KEYS so it stays out of the "enable all"
+  // experiments group (it is an alternate focus render path, not a perf gate).
+  if (typeof parsed.terraformFocusWashOverlay === "boolean") {
+    settings.terraformFocusWashOverlay = parsed.terraformFocusWashOverlay;
   }
   if (isLowZoomThreshold(parsed.lowZoomThreshold)) {
     settings.lowZoomThreshold = parsed.lowZoomThreshold;
@@ -106,6 +132,39 @@ const persistSettings = (settings: TerraformRuntimePerformanceSettings) => {
     // Experiments continue in memory when storage is unavailable or full.
   }
 };
+
+// Cross-tab sync: `loadPersistedSettings()` above only hydrates once at
+// module init, so toggling a setting in one tab left an already-open second
+// tab's snapshot stale until its next reload. `storage` events fire in every
+// OTHER same-origin tab (never the tab that wrote the key) whenever
+// `localStorage.setItem`/`removeItem` runs, so re-hydrating from `event.newValue`
+// here and pushing it through the existing `store.set` (which already
+// dedupes via `isShallowEqual` and notifies subscribers) keeps every open
+// tab's snapshot — and anything subscribed via `subscribeTerraformRuntimePerformance`
+// (e.g. `useTerraformRelationshipFocusEffect`'s `useSyncExternalStore`) — in
+// sync without polling.
+if (!isProdEnv() && typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== TERRAFORM_RUNTIME_PERFORMANCE_STORAGE_KEY) {
+      return;
+    }
+    // `newValue` is `null` when the key was removed (e.g. `localStorage.clear()`
+    // or `removeItem`) — treat that the same as a reset to defaults.
+    let nextSettings: TerraformRuntimePerformanceSettings;
+    if (event.newValue == null) {
+      nextSettings = { ...TERRAFORM_RUNTIME_PERFORMANCE_DEFAULTS };
+    } else {
+      try {
+        nextSettings = parseTerraformRuntimePerformanceSettings(
+          JSON.parse(event.newValue),
+        );
+      } catch {
+        return;
+      }
+    }
+    store.set(nextSettings);
+  });
+}
 
 export const getTerraformRuntimePerformanceSnapshot = () => currentSnapshot;
 

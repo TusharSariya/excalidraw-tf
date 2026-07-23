@@ -24,17 +24,57 @@ describe("elementCanvasRegenStats", () => {
   it("starts zeroed", () => {
     expect(elementCanvasRegenStats.total).toBe(0);
     expect(elementCanvasRegenStats.zoom).toBe(0);
+    expect(elementCanvasRegenStats.byCause).toEqual({
+      miss: 0,
+      zoom: 0,
+      theme: 0,
+      boundText: 0,
+      imageCrop: 0,
+      frameOpacity: 0,
+      arrowAngle: 0,
+    });
+    expect(elementCanvasRegenStats.missDetail).toEqual({
+      firstSeen: 0,
+      identitySwap: 0,
+      sameObjectRemiss: 0,
+    });
+    expect(elementCanvasRegenStats.nullReturns).toBe(0);
+    expect(elementCanvasRegenStats.nullVerdictHits).toBe(0);
   });
 
-  it("reset zeroes both counters without touching the enabled flag", () => {
+  it("reset zeroes all counters (including byCause) without touching the enabled flag", () => {
     elementCanvasRegenStats.enabled = true;
     elementCanvasRegenStats.total = 42;
     elementCanvasRegenStats.zoom = 17;
+    elementCanvasRegenStats.byCause.miss = 5;
+    elementCanvasRegenStats.byCause.zoom = 17;
+    elementCanvasRegenStats.byCause.frameOpacity = 20;
+    elementCanvasRegenStats.missDetail.firstSeen = 3;
+    elementCanvasRegenStats.missDetail.identitySwap = 9;
+    elementCanvasRegenStats.missDetail.sameObjectRemiss = 4;
+    elementCanvasRegenStats.nullReturns = 11;
+    elementCanvasRegenStats.nullVerdictHits = 7;
 
     resetElementCanvasRegenStats();
 
     expect(elementCanvasRegenStats.total).toBe(0);
     expect(elementCanvasRegenStats.zoom).toBe(0);
+    expect(elementCanvasRegenStats.byCause).toEqual({
+      miss: 0,
+      zoom: 0,
+      theme: 0,
+      boundText: 0,
+      imageCrop: 0,
+      frameOpacity: 0,
+      arrowAngle: 0,
+    });
+    expect(elementCanvasRegenStats.missDetail).toEqual({
+      firstSeen: 0,
+      identitySwap: 0,
+      sameObjectRemiss: 0,
+    });
+    expect(elementCanvasRegenStats.nullReturns).toBe(0);
+    expect(elementCanvasRegenStats.nullVerdictHits).toBe(0);
     // reset is a measurement boundary, not a teardown — it must leave the
     // counter armed so the next workload keeps counting.
     expect(elementCanvasRegenStats.enabled).toBe(true);

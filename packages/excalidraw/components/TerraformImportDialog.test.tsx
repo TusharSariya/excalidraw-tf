@@ -53,6 +53,9 @@ vi.mock("./App", () => ({
     state: { viewBackgroundColor: "#ffffff" },
   }),
   useExcalidrawSetAppState: () => hoisted.setAppState,
+  // TerraformStrataSettings reads the live scene for its edge diagnostic
+  // (M5). No scene in these dialog tests → the pre-import placeholder.
+  useExcalidrawElements: () => [],
 }));
 
 function textFileLike(contents: string, name = "file"): File {
@@ -156,6 +159,9 @@ describe("TerraformImportModal", () => {
       pipelineCoordRepack: false,
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
+      // pipelineLayoutProfile threads for every view (undefined until a named
+      // RCLL profile is picked); pre-existing stale gap in this full-bag pin.
+      pipelineLayoutProfile: undefined,
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
       // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
@@ -171,14 +177,15 @@ describe("TerraformImportModal", () => {
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
       strataTranspose: true,
+      // M5 box-endpoint anchoring threads for every view (default off); inert
+      // downstream (consumed by the strata scene build's edge-style pass).
+      strataBoxEndpoints: false,
       strataChainRelocate: false,
       strataCoordCascade: false,
       strataHeightGate: false,
       // strataLeafShift threads for every view (default off); pin was missing it
       // (pre-existing stale full-bag pin, unrelated to the default flip).
       strataLeafShift: false,
-      strataEdgeRouting: false,
-      strataBorderRoute: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -218,6 +225,9 @@ describe("TerraformImportModal", () => {
       pipelineCoordRepack: false,
       pipelineDeDensify: false,
       pipelineColumnPacking: "none",
+      // pipelineLayoutProfile threads for every view (undefined until a named
+      // RCLL profile is picked); pre-existing stale gap in this full-bag pin.
+      pipelineLayoutProfile: undefined,
       pipelineStaircaseBandOverlap: true,
       strataNetworkSimplexRank: false,
       // Dialog state threads for every view; K=4+A7 seed ON since the W5 flip,
@@ -233,14 +243,15 @@ describe("TerraformImportModal", () => {
       strataTransitiveAdopt: false,
       strataBlockClamp: false,
       strataTranspose: true,
+      // M5 box-endpoint anchoring threads for every view (default off); inert
+      // downstream (consumed by the strata scene build's edge-style pass).
+      strataBoxEndpoints: false,
       strataChainRelocate: false,
       strataCoordCascade: false,
       strataHeightGate: false,
       // strataLeafShift threads for every view (default off); pin was missing it
       // (pre-existing stale full-bag pin, unrelated to the default flip).
       strataLeafShift: false,
-      strataEdgeRouting: false,
-      strataBorderRoute: false,
       strataBandCompact: false,
       strataSiftRelocate: true,
       strataCrossWeightPenetration: 1,
@@ -1081,7 +1092,6 @@ describe("TerraformImportModal", () => {
         strataRankSeparate: false,
         strataPackedScoring: true,
         strataPackedScoringEpsilon: 1,
-        strataEdgeRouting: false,
         strataBandCompact: false,
         // Private-API regional placement defaults ON in the strata view (the
         // only view wired for it; every other view forces it false — see the
@@ -1202,6 +1212,34 @@ describe("TerraformImportModal", () => {
     await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
     expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
       expect.objectContaining({ strataCoordinateRefine: true }),
+    );
+  });
+
+  it("Strata view: Endpoints · Box threads strataBoxEndpoints true (M5)", async () => {
+    vi.mocked(layoutTerraformViaWorkers).mockResolvedValue({
+      elements: [],
+      files: {},
+    });
+    render(<TerraformImportModal onCloseRequest={vi.fn()} />);
+    fillFirstBundle();
+    fireEvent.click(screen.getByRole("radio", { name: /strata/i }));
+
+    // Default OFF: Resource is the checked segment.
+    const endpoints = screen.getByRole("radiogroup", {
+      name: "Strata edge endpoints",
+    });
+    expect(
+      within(endpoints)
+        .getByRole("radio", { name: "Resource" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    fireEvent.click(within(endpoints).getByRole("radio", { name: "Box" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /import & open/i }));
+    await waitFor(() => expect(layoutTerraformViaWorkers).toHaveBeenCalled());
+    expect(vi.mocked(layoutTerraformViaWorkers).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ strataBoxEndpoints: true }),
     );
   });
 

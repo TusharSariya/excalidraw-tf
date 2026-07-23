@@ -14,8 +14,33 @@ interface Window {
     enabled: boolean;
     total: number;
     zoom: number;
+    // First-failing-term breakdown of `total` (sum(byCause) === total). Lets
+    // the canvas-stress harness attribute regens without wall-clock timing.
+    byCause: {
+      miss: number;
+      zoom: number;
+      theme: number;
+      boundText: number;
+      imageCrop: number;
+      frameOpacity: number;
+      arrowAngle: number;
+    };
+    // Decomposition of byCause.miss by id-vs-object identity: firstSeen +
+    // identitySwap + sameObjectRemiss === byCause.miss. Names the miss cause
+    // (genuine first paint vs re-clone vs never-persisted/null-return).
+    missDetail: {
+      firstSeen: number;
+      identitySwap: number;
+      sameObjectRemiss: number;
+    };
+    // generateElementCanvas calls that returned null (0-size cap; never cached).
+    nullReturns: number;
   };
   __resetElementCanvasRegenStats?: () => void;
+  // Import-time benchmark hooks (scripts/terraform/benchmark-import-time.mjs).
+  // Only assigned in dev builds (or VITE_TERRAFORM_IMPORT_PROFILE builds).
+  __terraformImportProfilerSummary?: () => import("./components/terraformImportProfiler").TerraformImportProfilerSpan[];
+  __terraformImportProfilerReset?: () => void;
 }
 
 interface CanvasRenderingContext2D {

@@ -1,7 +1,10 @@
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { buildTerraformPipelineV2ExcalidrawScene } from "./terraformPipelineLayoutV2";
-import { preparePipelineLayout } from "./terraformPipelineLayoutShared";
+import {
+  preparePipelineLayout,
+  PIPELINE_COLUMN_GAP,
+} from "./terraformPipelineLayoutShared";
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
 import { buildStrataModel } from "./terraformPipelineStrataModel";
 import { repairStrataCycles } from "./terraformPipelineStrataCycleRepair";
@@ -23,6 +26,7 @@ import { refineStrataChainRelocate } from "./terraformPipelineStrataChainRelocat
 import { refineStrataBlockClamp } from "./terraformPipelineStrataBlockClamp";
 import { refineStrataLeafShift } from "./terraformPipelineStrataLeafShift";
 import { buildStrataScene } from "./terraformPipelineStrataSceneBuild";
+
 import {
   buildAncillaryStrips,
   countAncillaryCards,
@@ -38,6 +42,8 @@ import {
   isTerraformImportProfilerEnabled,
   terraformImportProfilerRecord,
 } from "./terraformImportProfiler";
+
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
 import type { StrataPackedTrialRecord } from "./terraformPipelineStrataPackedScoring";
@@ -203,6 +209,13 @@ export type TerraformStrataSceneOptions = {
    */
   strataTranspose?: boolean;
   /**
+   * Box-endpoint anchoring (default off, opt-in): edge endpoints terminate on
+   * the labeled leaf-cluster frame border instead of the resource card. Threaded
+   * through every seam, echoed truthy-only in `flagMeta`, and consumed by the
+   * scene build's edge-style pass (M6 geometry).
+   */
+  strataBoxEndpoints?: boolean;
+  /**
    * Exclusive-downstream CHAIN relocate (default off, opt-in): a post-A7 pass
    * that rigidly co-translates a unit U together with its exclusive downstream
    * group G(U) in Y (each member within its own stationary parent hull box), so
@@ -270,25 +283,19 @@ export type TerraformStrataSceneOptions = {
    * `engineOptions.strataDeBandLevel` only when non-`"none"` (byte-identity).
    */
   strataDeBandLevel?: DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ PIPELINE_COLUMN_GAP
+   * (150). Clamped to [150, 400]; ≤0/absent drops to the default. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. Clamped to [1, 3]; ≤0/absent
+   * drops to the default. */
+  strataRowGap?: number;
   /**
-   * Package C spike (W9, default off): post-A7 obstacle-avoiding edge routing
-   * in "penetrating-only" mode — at scene build, TFD arrows whose straight
-   * chord penetrates a foreign box (non-ancestor hull or unrelated card) are
-   * re-emitted as bounded detour polylines
-   * (terraformPipelineStrataEdgeRouting.ts). Placement is untouched; unrouted
-   * arrows are byte-identical; flag-off the routing module never runs.
+   * Probe P2 edge render style (`"straight"` default | `"curve"`):
+   * a post-geometry pass (terraformPipelineStrataEdgeStyle.ts) that reshapes
+   * TFD arrow chords with React-Flow bezier geometry.
+   * `"straight"`/absent the module never runs (byte-identical).
    */
-  strataEdgeRouting?: boolean;
-  /**
-   * P3-pierce border-exit routing (default off): a post-geometry pass
-   * (terraformPipelineStrataBorderRoute.ts) that re-emits a TFD arrow leaving
-   * its OWN ancestor container as a long interior diagonal with a clean
-   * single-side exit waypoint. Orthogonal to `strataEdgeRouting` (disjoint edge
-   * sets) and to every SCORED objective — the win is un-scored readability
-   * (`strataBorderRouteInteriorLenSavedL1`). Placement is untouched; flag-off
-   * the module never runs (byte-identical).
-   */
-  strataBorderRoute?: boolean;
+  strataEdgeStyle?: StrataEdgeStyle;
   /** A7 (M1b): slice-A coordinate refinement flag. Threaded at S0a and consumed
    * by `refineStrataCoordinates` (per-hull Y median/PAV nudge) between placement
    * and scene build. Default off (the T2+R4 gate decides the default). */
@@ -423,6 +430,12 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataAncillaryAllocator = options?.strataAncillaryAllocator !== false;
   // P2 within-column transpose (post-A7), default off.
   const strataTranspose = options?.strataTranspose === true;
+  // M6 box-endpoint anchoring, default off: declared-dataflow edge endpoints
+  // terminate on the labeled leaf-cluster FRAME border instead of the resource
+  // card (scene-build edge-style pass clip-stamps them; repair's typed clip
+  // gate validates against the live frame faces). Echoed truthy-only in
+  // flagMeta so the proof API can observe it end-to-end.
+  const strataBoxEndpoints = options?.strataBoxEndpoints === true;
   // Exclusive-downstream chain relocate (post-A7), default off.
   const strataChainRelocate = options?.strataChainRelocate === true;
   // A7 tie-cascade (extends coordinateRefine), default off. Lets a net-zero
@@ -439,10 +452,28 @@ export async function buildTerraformStrataExcalidrawScene(
   const strataLeafShiftRankBudget = options?.strataLeafShiftRankBudget;
   const strataLeafShiftRightEdgeGuardPx =
     options?.strataLeafShiftRightEdgeGuardPx;
-  // Package C spike (W9): scene-build edge routing, default off.
-  const strataEdgeRouting = options?.strataEdgeRouting === true;
-  // P3-pierce border-exit routing (scene-build), default off.
-  const strataBorderRoute = options?.strataBorderRoute === true;
+  // E3.3 spacing knobs (default off ⇒ byte-identical). Both clamp to a sane
+  // window and DROP ≤0/absent to the current value, so a garbage/absent input can
+  // never widen the layout: strataColumnGap → [150, 400] (default
+  // PIPELINE_COLUMN_GAP=150), strataRowGap → [1, 3] (default 1, never compress
+  // below the base gap). Integer column-gap (px); the row-gap factor stays
+  // fractional (the engine rounds each scaled constant). These resolved values
+  // ride flagMeta/engineOptions ONLY when non-default, so the off path is
+  // byte-identical.
+  const rawColumnGap = options?.strataColumnGap;
+  const strataColumnGap =
+    typeof rawColumnGap === "number" && rawColumnGap > 0
+      ? Math.min(400, Math.max(150, Math.round(rawColumnGap)))
+      : PIPELINE_COLUMN_GAP;
+  const rawRowGap = options?.strataRowGap;
+  const strataRowGap =
+    typeof rawRowGap === "number" && rawRowGap > 0
+      ? Math.min(3, Math.max(1, rawRowGap))
+      : 1;
+  // Probe P2 edge render style (scene-build), default "straight" (byte-identical
+  // off — the module never runs unless a non-"straight" style is requested).
+  const strataEdgeStyle: StrataEdgeStyle =
+    options?.strataEdgeStyle ?? "straight";
   // Band-depth cut. `strataBandCompact` is the LEGACY ALIAS for
   // `strataBandDepth: "root"`; explicit `strataBandDepth` always wins, so the
   // alias only applies when the enum is absent. Default "account" = the frozen
@@ -503,13 +534,17 @@ export async function buildTerraformStrataExcalidrawScene(
     strataPackedScoringEpsilon !== 0
       ? { strataPackedScoringEpsilon }
       : {}),
-    ...(strataEdgeRouting ? { strataEdgeRouting } : {}),
-    ...(strataBorderRoute ? { strataBorderRoute } : {}),
+    // Probe P2 edge style echo — present only for a non-"straight" style so the
+    // default/off meta stays byte-identical.
+    ...(strataEdgeStyle !== "straight" ? { strataEdgeStyle } : {}),
     // OD-15 relocate master flag echo — present only when live (flag-off meta
     // byte-identical).
     ...(strataSiftRelocate ? { strataSiftRelocate: true } : {}),
     // P2 transpose echo — present only when on (byte-identity).
     ...(strataTranspose ? { strataTranspose: true } : {}),
+    // Box-endpoint echo — present only when on (byte-identity); boolean-only
+    // (no weights/cap).
+    ...(strataBoxEndpoints ? { strataBoxEndpoints: true } : {}),
     // Chain-relocate echo — present only when on (byte-identity).
     ...(strataChainRelocate ? { strataChainRelocate: true } : {}),
     // Relocate objective weights/cap echoes — the OD-15 vertical-relocate, the
@@ -556,6 +591,12 @@ export async function buildTerraformStrataExcalidrawScene(
             : {}),
         }
       : {}),
+    // E3.3 spacing knob echoes — present only when NON-DEFAULT so the flag-off
+    // (and explicit-default) scene meta stays byte-identical. The resolved values
+    // are already clamped, so an out-of-range input that normalizes to the default
+    // (e.g. strataColumnGap=100 → 150, strataRowGap=0.5 → 1) is correctly omitted.
+    ...(strataColumnGap !== PIPELINE_COLUMN_GAP ? { strataColumnGap } : {}),
+    ...(strataRowGap !== 1 ? { strataRowGap } : {}),
     // OD-15 de-band echo — the EFFECTIVE (post-suppression) level, present only
     // when non-default. `"none"` is a TRUTHY string, so an `&&`-truthy gate here
     // would materialize the key on every default run and break flag-off meta
@@ -616,6 +657,12 @@ export async function buildTerraformStrataExcalidrawScene(
     // truthy-string trap as the cut above — `"none"` is truthy, so the
     // `!== "none"` guard is load-bearing for flag-off byte-identity.
     ...(strataDeBandLevel !== "none" ? { strataDeBandLevel } : {}),
+    // E3.3 spacing knobs: spread ONLY when non-default so the flag-off
+    // engineOptions object shape is byte-identical. strataColumnGap reaches A1
+    // rank via the rank-opts `columnGap` below; strataRowGap reaches placement
+    // (read from `options.strataRowGap`) and coordRefine (threaded into its opts).
+    ...(strataColumnGap !== PIPELINE_COLUMN_GAP ? { strataColumnGap } : {}),
+    ...(strataRowGap !== 1 ? { strataRowGap } : {}),
     // Relocate objective weights/cap: these ride when ANY relocate-family
     // operator is on — the OD-15 sift/vertical-relocate, the block clamp, the
     // transpose, the A01 leaf X-shift, OR the P0.2 transitive adoption —
@@ -744,6 +791,13 @@ export async function buildTerraformStrataExcalidrawScene(
         const cluster = model.clusters.get(id);
         return cluster ? clusterFrameLocalRect(cluster).width : 0;
       },
+      // E3.3 inter-column gutter — passed ONLY when non-default (absent ⇒ rank
+      // falls back to PIPELINE_COLUMN_GAP), so the rank-opts object shape is
+      // byte-identical off. `engineOptions.strataColumnGap` is itself present only
+      // when non-default (rides above).
+      ...(engineOptions.strataColumnGap !== undefined
+        ? { columnGap: engineOptions.strataColumnGap }
+        : {}),
     });
     spanRecord("strata.rank", tRank);
 
@@ -819,13 +873,31 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
-          { cascade: strataCoordCascade },
+          {
+            cascade: strataCoordCascade,
+            // E3.3 row-gap factor — threaded ONLY when non-default (absent ⇒
+            // coordRefine falls back to 1), keeping the opts object byte-identical
+            // off. Reads the SAME resolved factor A0 placement used, so minGap
+            // mirrors A0 byte-for-byte.
+            ...(engineOptions.strataRowGap !== undefined
+              ? { rowGap: engineOptions.strataRowGap }
+              : {}),
+          },
         );
         const legacyFinal = refineStrataCoordinates(
           packedScored.baselinePlacement,
           model,
           repair.edgesPrime,
-          { cascade: strataCoordCascade },
+          {
+            cascade: strataCoordCascade,
+            // E3.3 row-gap factor — threaded ONLY when non-default (absent ⇒
+            // coordRefine falls back to 1), keeping the opts object byte-identical
+            // off. Reads the SAME resolved factor A0 placement used, so minGap
+            // mirrors A0 byte-for-byte.
+            ...(engineOptions.strataRowGap !== undefined
+              ? { rowGap: engineOptions.strataRowGap }
+              : {}),
+          },
         );
         spanRecord("strata.trialRelayout", tTrial);
         // Score = the never-worse selection between the two trial arms.
@@ -878,7 +950,16 @@ export async function buildTerraformStrataExcalidrawScene(
           placement,
           model,
           repair.edgesPrime,
-          { cascade: strataCoordCascade },
+          {
+            cascade: strataCoordCascade,
+            // E3.3 row-gap factor — threaded ONLY when non-default (absent ⇒
+            // coordRefine falls back to 1), keeping the opts object byte-identical
+            // off. Reads the SAME resolved factor A0 placement used, so minGap
+            // mirrors A0 byte-for-byte.
+            ...(engineOptions.strataRowGap !== undefined
+              ? { rowGap: engineOptions.strataRowGap }
+              : {}),
+          },
         );
         spanRecord("strata.a7", tA7);
       }
@@ -1093,11 +1174,12 @@ export async function buildTerraformStrataExcalidrawScene(
       // and a host with zero ancillary cards emits no band at all rather than an
       // empty "Unconnected" box.
       ...(ancillaryBands ? { ancillaryBands } : {}),
-      // Package C spike (W9): the key rides only when the flag is on so the
-      // flag-off input literal (and the scene build) stay byte-identical.
-      ...(strataEdgeRouting ? { edgeRouting: true } : {}),
-      // P3-pierce border-exit routing: key rides only when on (byte-identity).
-      ...(strataBorderRoute ? { borderRoute: true } : {}),
+      // Probe P2 edge style: key rides only for a non-"straight" style so the
+      // default input literal (and the scene build) stay byte-identical.
+      ...(strataEdgeStyle !== "straight" ? { edgeStyle: strataEdgeStyle } : {}),
+      // M6 box endpoints: key rides only when on (the flag-off input literal
+      // and the scene build stay byte-identical).
+      ...(strataBoxEndpoints ? { boxEndpoints: true } : {}),
       // OD-15 de-band: the scene build's `topologyPathForCluster` call stamps
       // `customData.terraformTopologyPath`, which T9 slice classification
       // reconstructs the hull tree from. It MUST see the same EFFECTIVE level
@@ -1192,29 +1274,54 @@ export async function buildTerraformStrataExcalidrawScene(
                 : {}),
             }
           : {}),
-        // Package C spike (W9) observability — present only when flag-on.
-        ...(scene.edgeRouting
+        // Probe P2 edge-style observability — present when a non-"straight"
+        // style ran OR box endpoints clip-stamped under "straight".
+        // Topology (crossings/pierce) is essentially invariant;
+        // `styled` is how many chords the pass reshaped.
+        ...(scene.edgeStyle
           ? {
-              strataEdgeRoutingRouted: scene.edgeRouting.routed,
-              strataEdgeRoutingUnroutable: scene.edgeRouting.unroutable,
-              strataEdgeRoutingWaypoints: scene.edgeRouting.waypointsTotal,
+              strataEdgeStyleStyled: scene.edgeStyle.styled,
+              strataEdgeStyleSkipped: scene.edgeStyle.skipped,
+              strataEdgeStylePoints: scene.edgeStyle.pointsTotal,
+              // W3-1 orbit + Stage-C refinement touched-edge counts.
+              strataEdgeStyleOrbited: scene.edgeStyle.orbited,
+              strataEdgeStyleOrbitReverted: scene.edgeStyle.orbitReverted,
+              strataEdgeStyleReentryClamped: scene.edgeStyle.reentryClamped,
+              strataEdgeStyleLensSwaps: scene.edgeStyle.lensSwaps,
+              // M6: clip-stamped (frame-border) edge count — present only when
+              // nonzero, so box-endpoints-off scenes' meta stays byte-identical.
+              ...(scene.edgeStyle.boxEndpointsStamped > 0
+                ? {
+                    strataEdgeStyleBoxEndpoints:
+                      scene.edgeStyle.boxEndpointsStamped,
+                  }
+                : {}),
             }
           : {}),
-        // P3-pierce border-exit observability — present only when flag-on. The
-        // scored terms (crossings/penetrations/lengthL1/pierce) are INVARIANT
-        // by design. `MaxWaypointPerpDev` is the FAITHFUL headline (how far the
-        // clean side-exit staircase pulls off the interior diagonal);
-        // `InteriorLenSavedL1` is a conservative lower-bound that under-reads it.
-        ...(scene.borderRoute
+        // M3 curve-flatten telemetry — the styled-vs-survived gap made permanent.
+        // `strataEdgeStyleStyled` above counts styling ATTEMPTS; these count how
+        // many of those stamped routed polylines repair actually KEPT vs
+        // FLATTENED downstream (the M2 bug shipped invisibly because this pair
+        // did not exist). Packed ONLY when a routing/style pass actually stamped
+        // a polyline (`routedSeen > 0`), so every default/"straight" scene stays
+        // meta byte-identical. The by-provenance breakdowns (keyed by
+        // `terraformRoutedBy`) ALWAYS ride along with the headline pair —
+        // attribution matters most on the failure path (which stamper's edges
+        // got flattened). `Unresolved` appears only when nonzero: stamped
+        // arrows repair could not evaluate, meaning the headline pair
+        // understates the stamped population.
+        ...(scene.repair.routedSeen > 0
           ? {
-              strataBorderRouteRouted: scene.borderRoute.routed,
-              strataBorderRouteUnclean: scene.borderRoute.unclean,
-              strataBorderRouteNoGain: scene.borderRoute.noGain,
-              strataBorderRouteWaypoints: scene.borderRoute.waypointsTotal,
-              strataBorderRouteMaxWaypointPerpDev:
-                scene.borderRoute.maxWaypointPerpDev,
-              strataBorderRouteInteriorLenSavedL1:
-                scene.borderRoute.interiorLenSavedL1,
+              strataRoutedPolylinesKept: scene.repair.routedKept,
+              strataRoutedPolylinesFlattened: scene.repair.routedFlattened,
+              strataRoutedPolylinesKeptBy: scene.repair.keptBy,
+              strataRoutedPolylinesFlattenedBy: scene.repair.flattenedBy,
+              ...(scene.repair.routedUnresolved > 0
+                ? {
+                    strataRoutedPolylinesUnresolved:
+                      scene.repair.routedUnresolved,
+                  }
+                : {}),
             }
           : {}),
         // R2 evidence (all-zero on the success path).

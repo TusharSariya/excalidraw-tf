@@ -233,6 +233,7 @@ export function buildLambdaPermissionCluster(
   lambdaAddress: string,
   arnIndex: Map<string, string>,
   plan?: unknown,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): { cluster: LambdaPermissionCluster | null; edges: TopologyIamEdge[] } {
   installSatellitePlugins();
   const result = buildSatelliteClusterForKind("lambda_permission", {
@@ -241,6 +242,7 @@ export function buildLambdaPermissionCluster(
     primaryType: "aws_lambda_function",
     arnIndex,
     plan,
+    nodesByType,
   });
   return {
     cluster: result.cluster as LambdaPermissionCluster | null,

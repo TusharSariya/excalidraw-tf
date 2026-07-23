@@ -37,12 +37,11 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * scorer. Owner default flip (owner-decisions.md 2026-07-17): ε=1 — the S1-1
    * fix makes ε=1 behave correctly, and the new default stack measures at ε=1. */
   strataPackedScoringEpsilon: 1,
-  /** Package C spike (W9): post-A7 obstacle-avoiding edge routing — probe
-   * lever, default off pending its gate battery. */
-  strataEdgeRouting: false,
-  /** P3-pierce clean container-exit routing — probe lever, default off /
-   * byte-identical (NOT in the frozen measurement config). */
-  strataBorderRoute: false,
+  /** Probe P2 edge render style (React-Flow smoothstep/bezier transplant):
+   * `"straight"` default is byte-identical (the style module never runs);
+   * `"curve"` reshapes un-routed TFD arrow chords. Plain string
+   * literal (not `StrataEdgeStyle`) per the no-layout-import rule above. */
+  strataEdgeStyle: "straight",
   /** W10 (SDEC-63): banded row-share compaction lever — probe lever, default
    * off pending owner adjudication (primarily effective with rankSeparate). */
   strataBandCompact: false,
@@ -97,6 +96,17 @@ export const TERRAFORM_STRATA_LAYOUT_DEFAULTS = {
    * identical: `"none"` truncates no topology path). Plain string literal (not
    * `DeBandLevel`) per the no-layout-import rule above. */
   strataDeBandLevel: "none",
+  /** E3.3 inter-column gutter override (px). Plain literal (no layout import per
+   * the no-layout-import rule above): 150 mirrors PIPELINE_COLUMN_GAP. Default off
+   * ⇒ 150 (byte-identical); the resolver omits it at the default (raw-forward). */
+  strataColumnGap: 150,
+  /** E3.3 row-gap scale factor. Default off ⇒ 1 (byte-identical); the resolver
+   * omits it at the default (raw-forward). */
+  strataRowGap: 1,
+  /** Box-endpoint anchoring (strata-only, opt-in): edge endpoints terminate on
+   * the labeled leaf-cluster frame border instead of the resource card. Default
+   * OFF (byte-identical). Consumed by the scene build's edge-style pass (M6). */
+  strataBoxEndpoints: false,
 } as const;
 
 /**
@@ -113,8 +123,9 @@ export const resolveStrataDemoOptions = (params: {
   strataRankSeparate?: boolean;
   strataPackedScoring?: boolean;
   strataPackedEps?: number;
-  strataEdgeRouting?: boolean;
-  strataBorderRoute?: boolean;
+  /** Probe P2 edge render style. Plain string union (not `StrataEdgeStyle`) per
+   * the no-layout-import rule above. */
+  strataEdgeStyle?: "straight" | "curve";
   strataBandCompact?: boolean;
   /** Plain string union (not `StrataHullRole`) per the no-layout-import rule
    * above — mirrors the engine's `StrataHullRole` domain exactly. */
@@ -158,6 +169,12 @@ export const resolveStrataDemoOptions = (params: {
     | "region"
     | "account"
     | "provider";
+  /** E3.3 inter-column gutter override (px). */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. */
+  strataRowGap?: number;
+  /** M5 box-endpoint anchoring (strata-only). Default off. */
+  strataBoxEndpoints?: boolean;
 }) => {
   // Band-depth cut: explicit `strataBandDepth` always wins; the legacy
   // `strataBandCompact` boolean aliases to `"root"` ONLY when the enum is
@@ -190,12 +207,17 @@ export const resolveStrataDemoOptions = (params: {
     strataPackedScoringEpsilon:
       params.strataPackedEps ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataPackedScoringEpsilon,
-    strataEdgeRouting:
-      params.strataEdgeRouting ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting,
-    strataBorderRoute:
-      params.strataBorderRoute ??
-      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute,
+    // Forward the style RAW: omit at the default "straight" (never materialize a
+    // default own key), matching the band-depth/de-band cuts above. Non-default
+    // styles forward and reach the engine.
+    ...((params.strataEdgeStyle ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle) !== "straight"
+      ? {
+          strataEdgeStyle:
+            params.strataEdgeStyle ??
+            TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle,
+        }
+      : {}),
     strataBandCompact:
       params.strataBandCompact ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBandCompact,
@@ -229,6 +251,11 @@ export const resolveStrataDemoOptions = (params: {
     strataLeafShift:
       params.strataLeafShift ??
       TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataLeafShift,
+    // Box-endpoint anchoring: emit unconditionally like the other strata
+    // booleans (strataTranspose above). Default false.
+    strataBoxEndpoints:
+      params.strataBoxEndpoints ??
+      TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBoxEndpoints,
     // De-band ladder: forward RAW and omit at the default `"none"` (never
     // materialize a default own key). `"none"` is a TRUTHY string, so the
     // explicit `!== "none"` compare is load-bearing — an `&&`-truthy gate would
@@ -252,6 +279,19 @@ export const resolveStrataDemoOptions = (params: {
     // `TERRAFORM_STRATA_LAYOUT_DEFAULTS`'s comment above.
     ...(params.strataEdgeCap !== undefined
       ? { strataEdgeCrossCap: params.strataEdgeCap }
+      : {}),
+    // E3.3 spacing knobs: forward RAW and OMIT at the default (150 / 1), so a
+    // bare/explicit-default URL never materializes a default own key (the
+    // resolver-output byte-identity the terraformStrataDefaults tests pin — same
+    // raw-forward discipline as strataBandDepth/strataEdgeStyle). A non-default
+    // value forwards and the engine clamps it.
+    ...(params.strataColumnGap !== undefined &&
+    params.strataColumnGap !== TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataColumnGap
+      ? { strataColumnGap: params.strataColumnGap }
+      : {}),
+    ...(params.strataRowGap !== undefined &&
+    params.strataRowGap !== TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataRowGap
+      ? { strataRowGap: params.strataRowGap }
       : {}),
   };
 };

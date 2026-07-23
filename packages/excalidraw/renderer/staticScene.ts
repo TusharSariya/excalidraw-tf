@@ -18,7 +18,7 @@ import {
   shouldApplyFrameClip,
 } from "@excalidraw/element";
 
-import { renderElement } from "@excalidraw/element";
+import { renderElement, setTerraformCanvasHints } from "@excalidraw/element";
 
 import { getElementAbsoluteCoords } from "@excalidraw/element";
 
@@ -37,6 +37,10 @@ import {
   getTerraformRuntimePerformanceSnapshot,
   shouldSuppressTerraformFrameClip,
 } from "../components/terraformRuntimePerformance";
+import {
+  getTerraformFocusWashDescriptor,
+  terraformFocusWashAlphaForElement,
+} from "../components/terraformFocusWash";
 
 import { bootstrapCanvas, getNormalizedCanvasDimensions } from "./helpers";
 
@@ -248,6 +252,41 @@ const _renderStaticScene = ({
   const terraformRuntimeSettings =
     getTerraformRuntimePerformanceSnapshot().value;
 
+  // E08 focus wash overlay: apply relationship-focus dimming as a draw-time
+  // per-element alpha wash (radial sweep) instead of mutating element colors.
+  // Skipped on export so exports render undimmed (documented view-only wash).
+  // E08 bugfix: scope the wash descriptor read to THIS App instance's static
+  // canvas, so two mounted `<Excalidraw/>` instances never read each other's
+  // wash state.
+  const focusWashDescriptor =
+    terraformRuntimeSettings.terraformFocusWashOverlay && !isExporting
+      ? getTerraformFocusWashDescriptor(canvas)
+      : null;
+  const focusWashNowTs = focusWashDescriptor ? performance.now() : 0;
+  const washAlphaForElement = (
+    element: Pick<
+      NonDeletedExcalidrawElement,
+      "id" | "x" | "y" | "width" | "height"
+    >,
+  ): number | undefined =>
+    focusWashDescriptor
+      ? terraformFocusWashAlphaForElement(
+          focusWashDescriptor,
+          element.id,
+          element.x + element.width / 2,
+          element.y + element.height / 2,
+          focusWashNowTs,
+        )
+      : undefined;
+
+  // E09 hint bundle: push the current toggles into the element-package canvas
+  // cache (zoom quantization / DPR cap) before rendering any element. Both
+  // default OFF, so this is inert unless an experiment enables them.
+  setTerraformCanvasHints({
+    zoomQuantize: terraformRuntimeSettings.terraformZoomQuantize,
+    dprCap: terraformRuntimeSettings.terraformDprCap,
+  });
+
   const [normalizedWidth, normalizedHeight] = getNormalizedCanvasDimensions(
     canvas,
     scale,
@@ -261,6 +300,9 @@ const _renderStaticScene = ({
     theme: appState.theme,
     isExporting,
     viewBackgroundColor: appState.viewBackgroundColor,
+    // E09.2: opaque static context (skips the alpha compositing pass) — only for
+    // the static layer, and internally re-guarded on an opaque background.
+    requestOpaque: terraformRuntimeSettings.terraformStaticCanvasOpaque,
   });
 
   // Apply zoom
@@ -321,6 +363,14 @@ const _renderStaticScene = ({
 
         context.save();
 
+        // NB: renderConfig is a shared/frozen memoized object — never mutate it
+        // (writing to it triggers a render-retry loop). When the wash is active
+        // we pass a shallow copy carrying the per-element alpha; the OFF path
+        // passes the original reference untouched (byte-identical, no alloc).
+        const elementRenderConfig = focusWashDescriptor
+          ? { ...renderConfig, elementWashAlpha: washAlphaForElement(element) }
+          : renderConfig;
+
         if (
           frameId &&
           appState.frameRendering.enabled &&
@@ -351,7 +401,7 @@ const _renderStaticScene = ({
             allElementsMap,
             rc,
             context,
-            renderConfig,
+            elementRenderConfig,
             appState,
           );
         } else {
@@ -361,20 +411,26 @@ const _renderStaticScene = ({
             allElementsMap,
             rc,
             context,
-            renderConfig,
+            elementRenderConfig,
             appState,
           );
         }
 
         const boundTextElement = getBoundTextElement(element, elementsMap);
         if (boundTextElement) {
+          const boundTextRenderConfig = focusWashDescriptor
+            ? {
+                ...renderConfig,
+                elementWashAlpha: washAlphaForElement(boundTextElement),
+              }
+            : renderConfig;
           renderElement(
             boundTextElement,
             elementsMap,
             allElementsMap,
             rc,
             context,
-            renderConfig,
+            boundTextRenderConfig,
             appState,
           );
         }
@@ -401,6 +457,9 @@ const _renderStaticScene = ({
     .filter((el) => isIframeLikeElement(el))
     .forEach((element) => {
       try {
+        const elementRenderConfig = focusWashDescriptor
+          ? { ...renderConfig, elementWashAlpha: washAlphaForElement(element) }
+          : renderConfig;
         const render = () => {
           renderElement(
             element,
@@ -408,7 +467,7 @@ const _renderStaticScene = ({
             allElementsMap,
             rc,
             context,
-            renderConfig,
+            elementRenderConfig,
             appState,
           );
 
@@ -428,7 +487,7 @@ const _renderStaticScene = ({
               allElementsMap,
               rc,
               context,
-              renderConfig,
+              elementRenderConfig,
               appState,
             );
           }

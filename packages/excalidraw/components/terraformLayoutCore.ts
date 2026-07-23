@@ -94,6 +94,7 @@ import {
 
 import type { TerraformModuleLayoutOptions } from "./terraformModuleLayoutOptions";
 import type { StrataHullRole } from "./terraformPipelineStrataTypes";
+import type { StrataEdgeStyle } from "./terraformPipelineStrataEdgeStyle";
 
 export type TerraformLayoutOptions = TerraformPlanParsingOptions;
 
@@ -483,11 +484,8 @@ type LayoutSceneContext = {
   strataBandDepth?: StrataHullRole;
   /** Strata W8b frontier instrumentation (report-only dev seam; harness-only). */
   strataPackedFrontierMeta?: boolean;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
-   * Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: StrataEdgeStyle;
   /** Strata OD-2: directional sweep count for A2 ordering. S0a: accepted + threaded,
    * unused until the engine lands (M1). Default 0. */
   strataSweeps?: number;
@@ -531,6 +529,10 @@ type LayoutSceneContext = {
    * column between source and current rank, Y-redrop, grow ancestor chain. Default
    * off. Carries the mandatory right-edge column guard. */
   strataLeafShift?: boolean;
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
+  strataBoxEndpoints?: boolean;
   /** A01 slack height gate absolute px budget (default 150). */
   strataLeafShiftHeightBudgetPx?: number;
   /** A01 slack height gate relative budget fraction (default 0.01). */
@@ -545,6 +547,10 @@ type LayoutSceneContext = {
   /** OD-15 de-band: dissolve this hierarchy level and every deeper one at the
    * Strata model build. Default `"none"` (byte-identical). */
   strataDeBandLevel?: DeBandLevel;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   colorMode?: TerraformColorMode;
 };
 
@@ -656,8 +662,12 @@ async function buildPipelineLayoutSceneBody(
           ? { strataBandDepth: ctx.strataBandDepth }
           : {}),
         strataPackedFrontierMeta: ctx.strataPackedFrontierMeta,
-        strataEdgeRouting: ctx.strataEdgeRouting,
-        strataBorderRoute: ctx.strataBorderRoute,
+        // Raw forward — omit at default ("straight")/absent so builderOptions
+        // never carries a default style into the engine. Non-default forwards.
+        ...(ctx.strataEdgeStyle !== undefined &&
+        ctx.strataEdgeStyle !== "straight"
+          ? { strataEdgeStyle: ctx.strataEdgeStyle }
+          : {}),
         strataSweeps: ctx.strataSweeps,
         strataCoordinateRefine: ctx.strataCoordinateRefine,
         strataSiftRelocate: ctx.strataSiftRelocate,
@@ -669,6 +679,9 @@ async function buildPipelineLayoutSceneBody(
         strataCoordCascade: ctx.strataCoordCascade,
         strataHeightGate: ctx.strataHeightGate,
         strataLeafShift: ctx.strataLeafShift,
+        // M5 box-endpoint anchoring — SEAM 2 (builderOptions fan-in). Forwarded
+        // as a plain boolean; the strata scene build's edge-style pass consumes it.
+        strataBoxEndpoints: ctx.strataBoxEndpoints,
         // A01 leaf-shift budget knobs: optional-only forward (no default
         // materialized — absent ⇒ engine defaults 150/0.01/8/300).
         ...(ctx.strataLeafShiftHeightBudgetPx !== undefined
@@ -706,6 +719,16 @@ async function buildPipelineLayoutSceneBody(
         // inherits `strataPackedScoringEpsilon`).
         ...(ctx.strataEdgeCrossCap !== undefined
           ? { strataEdgeCrossCap: ctx.strataEdgeCrossCap }
+          : {}),
+        // E3.3 spacing knobs — SEAM 2 (this builderOptions fan-in; the second
+        // silent-drop point the trap-#4 comment names). Raw forward, omit at the
+        // default (150 / 1)/absent so builderOptions never carries a default into
+        // the engine (byte-identity). Non-default forwards; the engine clamps.
+        ...(ctx.strataColumnGap !== undefined && ctx.strataColumnGap !== 150
+          ? { strataColumnGap: ctx.strataColumnGap }
+          : {}),
+        ...(ctx.strataRowGap !== undefined && ctx.strataRowGap !== 1
+          ? { strataRowGap: ctx.strataRowGap }
           : {}),
       };
       const pipelineScene = await buildPipeline(
@@ -1280,8 +1303,12 @@ export async function layoutTerraformFromSources(
       ? { strataBandDepth: options.strataBandDepth }
       : {}),
     strataPackedFrontierMeta: options?.strataPackedFrontierMeta === true,
-    strataEdgeRouting: options?.strataEdgeRouting === true,
-    strataBorderRoute: options?.strataBorderRoute === true,
+    // Raw forward — omit at default ("straight")/absent so the sceneContext
+    // never materializes a default style key. Non-default forwards.
+    ...(options?.strataEdgeStyle !== undefined &&
+    options?.strataEdgeStyle !== "straight"
+      ? { strataEdgeStyle: options.strataEdgeStyle }
+      : {}),
     strataSweeps: options?.strataSweeps ?? 0,
     strataCoordinateRefine: options?.strataCoordinateRefine === true,
     strataSiftRelocate: options?.strataSiftRelocate === true,
@@ -1300,6 +1327,10 @@ export async function layoutTerraformFromSources(
     // threaded everywhere else. Budget knobs are optional-only forwards (absent ⇒
     // engine defaults 150/0.01/8/300), so the default shape is byte-identical.
     strataLeafShift: options?.strataLeafShift === true,
+    // M5 box-endpoint anchoring — SEAM 1 (sceneContext literal). MUST be listed
+    // here or it is silently dropped on the real app path (RCLL threading
+    // boundary), however correctly it is threaded everywhere else.
+    strataBoxEndpoints: options?.strataBoxEndpoints === true,
     ...(options?.strataLeafShiftHeightBudgetPx !== undefined
       ? { strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx }
       : {}),
@@ -1337,6 +1368,18 @@ export async function layoutTerraformFromSources(
     // inherits `strataPackedScoringEpsilon`).
     ...(options?.strataEdgeCrossCap !== undefined
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
+      : {}),
+    // E3.3 spacing knobs — SEAM 1 (this sceneContext literal; trap-#4). Raw
+    // forward, omit at the default (150 / 1) or when absent so the literal never
+    // materializes a default own key (byte-identity). The engine clamps
+    // out-of-range values; here we only gate exact-default so an explicit default
+    // normalizes to absent.
+    ...(options?.strataColumnGap !== undefined &&
+    options?.strataColumnGap !== 150
+      ? { strataColumnGap: options.strataColumnGap }
+      : {}),
+    ...(options?.strataRowGap !== undefined && options?.strataRowGap !== 1
+      ? { strataRowGap: options.strataRowGap }
       : {}),
     colorMode: options?.colorMode,
   };

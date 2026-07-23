@@ -10,7 +10,7 @@
  * the parser, the panel IA, the share-URL emitter, the proof-API `?describe`
  * catalog, and the dependency-rule module all still maintain their own hand-kept
  * lists. The panel now DOES implement a basic/advanced disclosure split (the
- * 2026-07-17 declutter: edgeRouting, borderRoute, blockClamp, and heightGate
+ * 2026-07-17 declutter: blockClamp and heightGate
  * moved into collapsed advanced `<details>` disclosures; packedConverge and
  * transitiveAdopt controls removed entirely), but that split is HAND-CODED in
  * `TerraformStrataSettings.tsx` / `TerraformStrataSettingsHeight.tsx` — it merely
@@ -156,24 +156,25 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     note: "owner-decisions.md 2026-07-17: default ε=1 (S1-1 fix makes ε=1 correct); non-default-only emit (absent resolves to 1)",
   },
   {
-    urlParam: "strataEdgeRouting",
-    optionKey: "strataEdgeRouting",
-    kind: "boolean",
-    default: false,
+    urlParam: "strataEdgeStyle",
+    optionKey: "strataEdgeStyle",
+    kind: "enum",
+    default: "straight",
+    domain: ["straight", "curve"],
     surface: "advanced",
-    emitClass: "C2",
-    decidedNow: true,
-    note: "M2 'Route edges' with borderRoute; owner-decisions.md 2026-07-17: ADVANCED-ONLY (SDEC-61 closed-adverse +192cr/−140pierce). SHIPPED: the 'Route edges around boxes' control now renders inside the panel's collapsed 'Advanced: edge routing' <details> disclosure (with borderRoute) — off the always-visible Standard surface",
+    emitClass: "C3",
+    decidedNow: false,
+    note: "probe P2 (edge-routing-research 2026-07-22): React-Flow smoothstep/bezier render styles for TFD chords; default 'straight' byte-identical (module never runs) and omitted from URLs (non-default-only emit); scored on angle metrics + eyeball A/B",
   },
   {
-    urlParam: "strataBorderRoute",
-    optionKey: "strataBorderRoute",
+    urlParam: "strataBoxEndpoints",
+    optionKey: "strataBoxEndpoints",
     kind: "boolean",
     default: false,
-    surface: "advanced",
+    surface: "basic",
     emitClass: "C2",
     decidedNow: false,
-    note: "M2 'Route edges'; composes with edgeRouting; owner-decisions.md 2026-07-17 declutter: SHIPPED into the same collapsed 'Advanced: edge routing' <details> disclosure as edgeRouting; parses independently forever",
+    note: "'Box endpoints' — edge endpoints terminate on the labeled resource box border instead of the resource card. M5 box-endpoint anchoring: opt-in boolean threaded through every seam, default off (byte-identical). Geometry shipped (M6): endpoints re-anchor to the labeled leaf-cluster frame border. Emitted truthy-only (C2)",
   },
   {
     urlParam: "strataBandCompact",
@@ -348,6 +349,26 @@ export const STRATA_OPTION_REGISTRY: readonly StrataOptionRegistryEntry[] = [
     emitClass: "C2",
     decidedNow: true,
     note: "NS-rank all forms NO-GO (W5b); mutual exclusion with rankSeparate engine-suppressed with echo",
+  },
+  {
+    urlParam: "strataColumnGap",
+    optionKey: "strataColumnGap",
+    kind: "number",
+    default: 150,
+    surface: "advanced",
+    emitClass: "C3",
+    decidedNow: true,
+    note: "E3.3 spacing knob: inter-column gutter px, clamped [150,400] (default = PIPELINE_COLUMN_GAP=150). Non-default-only emit (absent/150 byte-identical). Widens edge-routing corridors between columns",
+  },
+  {
+    urlParam: "strataRowGap",
+    optionKey: "strataRowGap",
+    kind: "number",
+    default: 1,
+    surface: "advanced",
+    emitClass: "C3",
+    decidedNow: true,
+    note: "E3.3 spacing knob: row-gap scale factor, clamped [1,3]. Scales PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y at the strataGapBetween choke point + banded stack. Non-default-only emit (absent/1 byte-identical)",
   },
 ];
 

@@ -156,8 +156,12 @@ export type SkylineRect = {
  * `dropY` is only used by the packed policy; the banded policy stacks with
  * LANE_GAP_Y directly in `layoutHull`.
  */
-function gapBetween(aIsHull: boolean, bIsHull: boolean): number {
-  return strataGapBetween("packed", aIsHull, bIsHull);
+function gapBetween(
+  aIsHull: boolean,
+  bIsHull: boolean,
+  rowGap: number = 1,
+): number {
+  return strataGapBetween("packed", aIsHull, bIsHull, rowGap);
 }
 
 /**
@@ -177,6 +181,7 @@ export function dropY(
   x1: number,
   startY: number,
   isHull: boolean,
+  rowGap: number = 1,
 ): number {
   let y = startY;
   let moved = true;
@@ -184,7 +189,7 @@ export function dropY(
     moved = false;
     for (const rect of rects) {
       if (x0 < rect.x1 && rect.x0 < x1 && y < rect.y1) {
-        const floor = rect.y1 + gapBetween(rect.isHull, isHull);
+        const floor = rect.y1 + gapBetween(rect.isHull, isHull, rowGap);
         if (floor > y) {
           y = floor;
           moved = true;
@@ -255,6 +260,12 @@ export function placeStrataHulls(
    */
   candidateCache?: StrataCandidateCache,
 ): StrataPlacementResult {
+  // E3.3 row-gap scale factor (default 1 ⇒ byte-identical). Threaded into BOTH
+  // the packed `dropY` skyline AND the banded full-width stack below so A0
+  // placement stays internally consistent — and so coordRefine's `minGap` (which
+  // reads the SAME factor) still mirrors A0 byte-for-byte at any factor. Already
+  // clamped by the orchestrator; read once here (SDEC NaN rule: no derived const).
+  const rowGap = options.strataRowGap ?? 1;
   const rankOf = (clusterId: string): number => {
     const r = rank.rank.get(clusterId);
     if (r === undefined) {
@@ -459,16 +470,21 @@ export function placeStrataHulls(
       for (const unit of ordered) {
         const info = infoByUnitId.get(strataUnitId(unit))!;
         const isHull = unit.kind === "hull";
-        const y = dropY(rects, info.x0, info.x1, topInset, isHull);
+        const y = dropY(rects, info.x0, info.x1, topInset, isHull, rowGap);
         placed.push({ info, localYTop: y });
         rects.push({ x0: info.x0, x1: info.x1, y1: y + info.height, isHull });
       }
     } else {
+      // Banded full-width stack. This site does NOT go through `strataGapBetween`
+      // (dropY does), so the E3.3 row-gap factor is applied HERE too — otherwise a
+      // scaled coordRefine `minGap` (banded branch) would disagree with the gap A0
+      // placed and shift the bands. `Math.round(k * 1) === k` ⇒ byte-identical off.
+      const laneGap = Math.round(PIPELINE_LANE_GAP_Y * rowGap);
       let cursor = topInset;
       for (const unit of ordered) {
         const info = infoByUnitId.get(strataUnitId(unit))!;
         placed.push({ info, localYTop: cursor });
-        cursor += info.height + PIPELINE_LANE_GAP_Y;
+        cursor += info.height + laneGap;
       }
     }
 

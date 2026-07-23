@@ -43,13 +43,17 @@ import {
 } from "./terraformPipelineLayoutShared";
 import { spreadContextFrameColors } from "./terraformPrimaryVisibility";
 import {
-  routeStrataSkeletonEdges,
-  type StrataEdgeRoutingMeta,
-} from "./terraformPipelineStrataEdgeRouting";
+  applyStrataEdgeStyle,
+  type StrataEdgeStyle,
+  type StrataEdgeStyleAnchors,
+  type StrataEdgeStyleMeta,
+} from "./terraformPipelineStrataEdgeStyle";
 import {
-  routeStrataBorderExits,
-  type StrataBorderRouteMeta,
-} from "./terraformPipelineStrataBorderRoute";
+  collectTerraformResourceRectsByKey,
+  collectTerraformStructuralDependencyPairKeysFromItems,
+  createTerraformEdgeRepairStats,
+} from "./terraformVisibility";
+
 import { finalizeStrataScene } from "./terraformPipelineStrataFinalize";
 import {
   isTerraformImportProfilerEnabled,
@@ -63,6 +67,9 @@ import {
   type TopologyFrameRole,
 } from "./terraformPipelineTopologyFrames";
 import { clusterFrameLocalRect } from "./terraformPipelineV2Pack";
+
+import type { EdgeAnchorRect } from "./terraformEdgeAnchors";
+import type { TerraformEdgeRepairStats } from "./terraformVisibility";
 
 import type { TerraformDependencyLayoutBox } from "./terraformElkLayout";
 import type { DeBandLevel } from "./terraformPipelineLayoutProfiles";
@@ -92,20 +99,12 @@ export type StrataSceneBuildInput = {
    */
   generation?: number;
   /**
-   * Package C spike (W9): when true, TFD arrows whose straight chord
-   * penetrates a foreign box are re-emitted as detour polylines
-   * (terraformPipelineStrataEdgeRouting.ts). Default off — absent, the
-   * routing module never runs and the skeleton is byte-identical to today.
+   * Probe P2 edge render style (`"straight"` default | `"curve"`):
+   * reshape un-routed TFD arrow chords with React-Flow bezier
+   * geometry (terraformPipelineStrataEdgeStyle.ts). Absent / `"straight"`
+   * the module never runs (byte-identical).
    */
-  edgeRouting?: boolean;
-  /**
-   * P3-pierce border-exit routing (terraformPipelineStrataBorderRoute.ts): when
-   * true, a TFD arrow that leaves its own ancestor container as a long interior
-   * diagonal is re-emitted with a clean single-side exit waypoint. Orthogonal
-   * to `edgeRouting` (own-ancestor exits vs foreign-box detours — disjoint edge
-   * sets). Default off — absent, the module never runs (byte-identical).
-   */
-  borderRoute?: boolean;
+  edgeStyle?: StrataEdgeStyle;
   /**
    * OD-15 de-band level (default `"none"`). MUST be the same level the model
    * tree was built with: this input drives the `terraformTopologyPath` stamped
@@ -124,6 +123,18 @@ export type StrataSceneBuildInput = {
    * when non-empty (flag-OFF byte-identity).
    */
   ancillaryBands?: ReadonlyMap<string, StrataAncillaryBand>;
+  /**
+   * M6 box-endpoint anchoring (default off): when set, declared-dataflow edge
+   * endpoints terminate on the labeled leaf-cluster frame border instead of the
+   * resource card. Consumed by the edge-STYLE pass below: the styler substitutes
+   * the frame rect (collected by
+   * {@link collectStrataPrimaryClusterRectsByAddress}) for the card body rect
+   * in the shared chord-anchor clip and stamps `terraformRoutedBy:"clip"` +
+   * `terraformClipAnchor`, which repair's typed clip gate validates against the
+   * LIVE frame faces. Also forces the style pass to run at the default
+   * `"straight"` style (clip-stamped edges only — 3 collinear points).
+   */
+  boxEndpoints?: boolean;
 };
 
 /** Hull-frame display label (mirrors terraformPipelineTopologyFrames.ts's
@@ -172,6 +183,117 @@ function firstLeafOf(
 }
 
 /**
+ * Build the keyed-anchor inputs `applyStrataEdgeStyle` consumes so a styled
+ * polyline's endpoints coincide with the anchors `repairTerraformEdgeBindings`
+ * re-derives at element time (see terraformEdgeAnchors.ts). Both are collected
+ * from the skeleton BEFORE the frame connectors are appended:
+ *  - `bodyRectByKey`: the resource CARD body rects, keyed EXACTLY as
+ *    `collectTerraformResourceRects` keys the converted elements (same
+ *    last-wins). Icon injection only restacks the card's groupIds and repair
+ *    reads x/y/width/height, so the skeleton rect geometry equals the converted
+ *    body rect repair validates against.
+ *  - `structuralPairKeys`: the 18px structural-dependency offset set (empty in
+ *    strata scenes today — only `topologyFrameFlow`/`declaredDataFlow` edges
+ *    exist — but collected for parity so the offset can never drift from repair).
+ */
+function buildStrataEdgeStyleAnchors(
+  skeleton: readonly ExcalidrawElementSkeleton[],
+): StrataEdgeStyleAnchors {
+  const rectByKey = collectTerraformResourceRectsByKey(skeleton);
+  const bodyRectByKey = new Map<string, EdgeAnchorRect>();
+  for (const [key, rect] of rectByKey) {
+    const r = rect as unknown as EdgeAnchorRect;
+    bodyRectByKey.set(key, {
+      x: r.x,
+      y: r.y,
+      width: r.width,
+      height: r.height,
+    });
+  }
+  return {
+    bodyRectByKey,
+    structuralPairKeys:
+      collectTerraformStructuralDependencyPairKeysFromItems(skeleton),
+  };
+}
+
+/**
+ * M6 `strataBoxEndpoints` — labeled LEAF-CLUSTER frame rects by cluster
+ * address, collected from the SKELETON: every `type:"frame"` skeleton whose
+ * customData carries `terraformTopologyRole:"primaryCluster"` and a string
+ * `terraformPrimaryAddress`, keyed by that address, LAST-WINS on duplicates.
+ *
+ * DELIBERATE SKELETON-SIDE TWIN of `collectTerraformClusterFrameRectsByAddress`
+ * (terraformVisibility.ts) — the element-time collector repair's typed clip
+ * gate resolves LIVE frame rects from. The two MUST STAY IN LOCKSTEP (same
+ * frame/role/address predicate, same last-wins duplicate policy): the style
+ * pass stamps clip endpoints against THIS map at skeleton time and repair
+ * validates them against THAT map at element time — any predicate drift
+ * flattens every clip-stamped edge. Parity is pinned by
+ * terraformStrataBoxEndpoints.test.ts.
+ *
+ * ONE deliberate skeleton-side EXTRA exclusion — the conversion FALSY-ZERO
+ * TRAP: `convertToExcalidrawElements` re-derives a frame's x (or y) from its
+ * children whenever the skeleton value is falsy (`frame?.x || minX`,
+ * packages/element/src/transform.ts) — so a frame sitting at coordinate
+ * EXACTLY 0 on either axis lands at a children-derived coordinate at element
+ * time (+28px observed on compact scenes) and its skeleton rect is NOT the
+ * final rect. A clip endpoint stamped on that skeleton face would be
+ * flattened by the gate's rigid ±2px check against the LIVE frame. Such
+ * frames are therefore NOT resolvable here — the styler falls back to the
+ * per-end `side:"card"` stamp for them, which validates against the card rect
+ * and survives. The element-time twin has no such exclusion (its input IS the
+ * final geometry).
+ */
+export function collectStrataPrimaryClusterRectsByAddress(
+  skeleton: readonly ExcalidrawElementSkeleton[],
+): Map<string, EdgeAnchorRect> {
+  const rects = new Map<string, EdgeAnchorRect>();
+  for (const el of skeleton) {
+    const item = el as {
+      type?: string;
+      isDeleted?: boolean;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+      customData?: Record<string, unknown> | null;
+    };
+    if (item.isDeleted || item.type !== "frame") {
+      continue;
+    }
+    const cd = item.customData ?? {};
+    if (cd.terraformTopologyRole !== "primaryCluster") {
+      continue;
+    }
+    const address = cd.terraformPrimaryAddress;
+    if (typeof address !== "string") {
+      continue;
+    }
+    const x = item.x ?? 0;
+    const y = item.y ?? 0;
+    const width = item.width ?? 0;
+    const height = item.height ?? 0;
+    // Conversion falsy-zero trap (see the doc comment above): a frame with a
+    // falsy coordinate OR dimension gets that axis re-derived from its
+    // children at conversion time, so this skeleton rect is not final — skip
+    // it (the styler's per-end card fallback covers its edges). Zero-sized
+    // frames don't occur in practice; the width/height arm is symmetry with
+    // transform.ts's `frame?.width || …` re-derivation.
+    if (x === 0 || y === 0 || width === 0 || height === 0) {
+      continue;
+    }
+    rects.set(address, {
+      x,
+      y,
+      width,
+      height,
+    });
+  }
+  return rects;
+}
+
+/**
  * Assemble the Strata scene skeleton + the id→box map the shared edge/frame
  * emission reads. Split out from {@link buildStrataScene} so tests can assert
  * on pure geometry without the async icon-injection / z-stack passes.
@@ -180,10 +302,9 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
   skeleton: ExcalidrawElementSkeleton[];
   layoutBoxes: Map<string, TerraformDependencyLayoutBox>;
   frameEdgeCount: number;
-  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
-  edgeRouting?: StrataEdgeRoutingMeta;
-  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
-  borderRoute?: StrataBorderRouteMeta;
+  /** Present only when a non-"straight" `edgeStyle` was requested OR
+   * `boxEndpoints` is on (the style pass runs in both cases). */
+  edgeStyle?: StrataEdgeStyleMeta;
 } {
   const { prep, model, placement, nodes } = input;
   const skeleton: ExcalidrawElementSkeleton[] = [];
@@ -358,27 +479,68 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     layoutBoxes,
   );
 
-  // ── Package C spike (W9, flag-gated): detour TFD arrows whose straight
-  // chord penetrates a foreign box. Runs on the just-emitted TFD arrows only
-  // (the aggregated frame connectors below are relationship.aggregated and
-  // would be skipped anyway); endpoints/bindings/customData are untouched, so
-  // frame-parenting below is unaffected. Absent the flag this pass never runs.
-  const edgeRouting = input.edgeRouting
-    ? routeStrataSkeletonEdges(skeleton, input.model, input.placement)
+  // ── Shared body-rect anchor authority for the edge-STYLE pass. The CARD body
+  // rects (+ the structural-dependency pair keys) `repairTerraformEdgeBindings`
+  // re-derives at element time (terraformEdgeAnchors.ts), collected ONCE here —
+  // BEFORE the style pass — so the styled polyline endpoints land on the SAME
+  // anchors repair validates against (composite cards put the leaf FRAME border
+  // >48px from the inset body rect, so frame-clipped endpoints would otherwise
+  // flatten back to chords). A pure read of the card rectangles — the style pass
+  // rewrites only arrow points/x/y/customData, never card skeletons, so hoisting
+  // ahead of it is read-only-safe. Computed only when a non-"straight" style is
+  // requested, so the default-off scene skips the collection and stays
+  // byte-identical. M6: box endpoints ALSO needs the anchors (per-end card
+  // fallback + the structural-pair exclusion), even at the default "straight"
+  // style. ──
+  const boxEndpointsOn = input.boxEndpoints === true;
+  const needsEdgeAnchors =
+    (input.edgeStyle !== undefined && input.edgeStyle !== "straight") ||
+    boxEndpointsOn;
+  const edgeStyleAnchors = needsEdgeAnchors
+    ? buildStrataEdgeStyleAnchors(skeleton)
     : undefined;
 
-  // ── P3-pierce border-exit routing (flag-gated). Runs AFTER edgeRouting and
-  // is kept DISJOINT from it: border-route SKIPS any arrow already stamped
-  // `terraformRoutedPolyline` by edgeRouting (it would otherwise re-derive
-  // [start,W,end] from the endpoints, discarding edgeRouting's foreign-detour
-  // waypoints). So each edge is owned by whichever pass fired first — no
-  // clobber, no re-pierce. Absent the flag this never runs. ──
-  const borderRoute = input.borderRoute
-    ? routeStrataBorderExits(skeleton, input.model, input.placement)
+  // ── Probe P2 edge STYLE (flag-gated). Reshapes un-routed TFD arrow chords
+  // with bezier geometry. Absent / "straight" this never runs
+  // (byte-identical). The styled polyline's endpoints are clipped against the
+  // keyed CARD body rects — the SAME rects `repairTerraformEdgeBindings`
+  // validates against — so repair keeps the stamp instead of flattening the
+  // curve. Both the rect map (keyed exactly as `collectTerraformResourceRects`)
+  // and the structural-dependency pair keys (repair's 18px offset) are collected
+  // from the skeleton HERE, before the frame connectors below are appended.
+  //
+  // M6 `strataBoxEndpoints`: the pass ALSO runs (even at the default
+  // "straight" style) to terminate declared chords on their labeled
+  // leaf-cluster FRAME borders — the styler substitutes the frame rects
+  // collected by `collectStrataPrimaryClusterRectsByAddress` (the skeleton-side
+  // twin of repair's element-time collector) and stamps "clip" provenance +
+  // `terraformClipAnchor` for repair's typed clip gate. ──
+  const edgeStyle = needsEdgeAnchors
+    ? applyStrataEdgeStyle(
+        skeleton,
+        input.model,
+        input.placement,
+        input.edgeStyle ?? "straight",
+        // The shared body-rect anchor authority hoisted above, so the styled
+        // polyline endpoints clip to the identical rects repair validates.
+        edgeStyleAnchors,
+        boxEndpointsOn
+          ? {
+              frameRectByAddress:
+                collectStrataPrimaryClusterRectsByAddress(skeleton),
+            }
+          : undefined,
+      )
     : undefined;
 
   // ── aggregated hull-to-hull connectors + edge frame-parenting (geometry-
   // preserving; neither moves a frame — SEAM #6 safe). ──
+  // NOTE: these aggregated `topologyFrameFlow` hull connectors are intentionally
+  // NOT edge-styled. They are appended AFTER the style pass above, and the style
+  // pass is layer/aggregated-filtered (it only touches per-resource TFD chords),
+  // so it would skip them anyway. Their curvature is whatever hardcoded roundness
+  // this appender emits — the curve-fix track leaves that untouched. Wave-4 owns
+  // the decision on whether hull connectors should participate in edge styling.
   const frameEdgeCount = appendCompoundTopologyFrameEdgeSkeletons(
     prep.collapsedEdges,
     prep.clusters,
@@ -391,8 +553,7 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
     skeleton,
     layoutBoxes,
     frameEdgeCount,
-    ...(edgeRouting ? { edgeRouting } : {}),
-    ...(borderRoute ? { borderRoute } : {}),
+    ...(edgeStyle ? { edgeStyle } : {}),
   };
 }
 
@@ -411,10 +572,13 @@ export function assembleStrataSceneSkeleton(input: StrataSceneBuildInput): {
 export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   elements: ExcalidrawElement[];
   frameEdgeCount: number;
-  /** Present only when `edgeRouting` was requested (flag-OFF byte-identity). */
-  edgeRouting?: StrataEdgeRoutingMeta;
-  /** Present only when `borderRoute` was requested (flag-OFF byte-identity). */
-  borderRoute?: StrataBorderRouteMeta;
+  /** Present only when a non-"straight" `edgeStyle` was requested OR
+   * `boxEndpoints` is on (the style pass runs in both cases). */
+  edgeStyle?: StrataEdgeStyleMeta;
+  /** M3 telemetry: repair's keep/flatten/strip census over the stamped routed
+   * polylines this scene fed it. Always present (repair always runs); zeroed on
+   * a default/"straight" scene that stamped nothing. */
+  repair: TerraformEdgeRepairStats;
 }> {
   // Closure-free stage timing (see terraformPipelineStrata.ts): zero overhead
   // when the profiler is disabled, and the async span is timed around its await
@@ -428,11 +592,16 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   };
 
   const tSkeleton = spanNow();
-  const { skeleton, frameEdgeCount, edgeRouting, borderRoute } =
+  const { skeleton, frameEdgeCount, edgeStyle } =
     assembleStrataSceneSkeleton(input);
   spanRecord("strata.sceneBuild.skeleton", tSkeleton);
   const tConvert = spanNow();
-  const converted = await convertPipelineSkeletonToElements(skeleton);
+  // M3 telemetry: the shared kernel's `repairTerraformEdgeBindings` accumulates
+  // its keep/flatten/strip verdict here, so the scene can report how many styled
+  // routed polylines actually survived repair (vs the styling COUNT the M2 bug
+  // exposed a gap against). Zeroed on a default/"straight" scene (nothing stamped).
+  const repair = createTerraformEdgeRepairStats();
+  const converted = await convertPipelineSkeletonToElements(skeleton, repair);
   spanRecord("strata.sceneBuild.convert", tConvert);
   const tFinalize = spanNow();
   const elements = finalizeStrataScene(converted, {
@@ -442,7 +611,7 @@ export async function buildStrataScene(input: StrataSceneBuildInput): Promise<{
   return {
     elements,
     frameEdgeCount,
-    ...(edgeRouting ? { edgeRouting } : {}),
-    ...(borderRoute ? { borderRoute } : {}),
+    repair,
+    ...(edgeStyle ? { edgeStyle } : {}),
   };
 }

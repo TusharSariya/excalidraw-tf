@@ -69,6 +69,14 @@ export function rankStrataClusters(
      * `rankSeparate`. Never a shipping lever; harness-only.
      */
     jointNsProbe?: boolean;
+    /**
+     * E3.3 inter-column gutter override (px). Absent ⇒ `PIPELINE_COLUMN_GAP`
+     * (150), byte-identical. Passed straight to `columnOffsetsFromWidths` as the
+     * third (gap) arg — the ONLY column-gap consumer; placement pins X to
+     * `columnX` and everything downstream (channel router, clip) re-derives from
+     * the placed boxes. Already clamped by the orchestrator.
+     */
+    columnGap?: number;
   },
 ): StrataRankResult {
   // Effective (E′) edges: true-direction edges kept as-is; F-edges consumed
@@ -191,7 +199,11 @@ export function rankStrataClusters(
         .map((id) => opts.unitWidthOf(id)),
     ),
   );
-  const columnX = columnOffsetsFromWidths(columnWidths, 0, PIPELINE_COLUMN_GAP);
+  const columnX = columnOffsetsFromWidths(
+    columnWidths,
+    0,
+    opts.columnGap ?? PIPELINE_COLUMN_GAP,
+  );
 
   return {
     rank,

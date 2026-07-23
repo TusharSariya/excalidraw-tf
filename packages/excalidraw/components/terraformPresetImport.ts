@@ -103,6 +103,10 @@ export type RunTerraformImportFromSourcesArgs = {
   /** P2 within-column transpose: swap Y-adjacent X-overlapping sibling pairs.
    * Default off. */
   strataTranspose?: boolean;
+  /** Box-endpoint anchoring (M5 threading + M6 geometry): edge endpoints
+   * terminate on the labeled leaf-cluster frame border instead of the resource
+   * card. Default off. */
+  strataBoxEndpoints?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
   /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
@@ -119,11 +123,8 @@ export type RunTerraformImportFromSourcesArgs = {
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  /** Strata Package C spike (W9): post-A7 obstacle-avoiding edge routing.
-   * Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: "straight" | "curve";
   /** Strata W10 (SDEC-63): banded row-share compaction lever. Default off;
    * primarily effective with rankSeparate. LEGACY ALIAS for
    * `strataBandDepth: "root"`. */
@@ -144,6 +145,10 @@ export type RunTerraformImportFromSourcesArgs = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   importedTfdTexts?: string[];
   preset?: TerraformImportPreset | null;
   signal?: AbortSignal;
@@ -185,6 +190,7 @@ export const runTerraformImportWithView = async ({
   strataTransitiveAdopt,
   strataBlockClamp,
   strataTranspose,
+  strataBoxEndpoints,
   strataHeightGate,
   strataLeafShift,
   strataLeafShiftHeightBudgetPx,
@@ -192,8 +198,7 @@ export const runTerraformImportWithView = async ({
   strataLeafShiftRankBudget,
   strataLeafShiftRightEdgeGuardPx,
   strataDeBandLevel,
-  strataEdgeRouting,
-  strataBorderRoute,
+  strataEdgeStyle,
   strataBandCompact,
   strataBandDepth,
   strataSiftRelocate,
@@ -202,6 +207,8 @@ export const runTerraformImportWithView = async ({
   strataCrossWeightPenetration,
   strataCrossWeightEdge,
   strataEdgeCrossCap,
+  strataColumnGap,
+  strataRowGap,
   importedTfdTexts,
   preset = null,
   signal,
@@ -260,6 +267,7 @@ export const runTerraformImportWithView = async ({
           strataTransitiveAdopt,
           strataBlockClamp,
           strataTranspose,
+          strataBoxEndpoints,
           strataHeightGate,
           strataLeafShift,
           // Budget knobs are optional numbers — forward ONLY when explicitly set so
@@ -278,8 +286,7 @@ export const runTerraformImportWithView = async ({
             ? { strataLeafShiftRightEdgeGuardPx }
             : {}),
           strataDeBandLevel,
-          strataEdgeRouting,
-          strataBorderRoute,
+          strataEdgeStyle,
           strataBandCompact,
           strataBandDepth,
           strataSiftRelocate,
@@ -290,6 +297,14 @@ export const runTerraformImportWithView = async ({
           // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
           // inherits `strataPackedScoringEpsilon`).
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+          // E3.3 spacing knobs — raw forward, omit at the default (150 / 1)/absent
+          // (byte-identity). The engine clamps out-of-range values.
+          ...(strataColumnGap !== undefined && strataColumnGap !== 150
+            ? { strataColumnGap }
+            : {}),
+          ...(strataRowGap !== undefined && strataRowGap !== 1
+            ? { strataRowGap }
+            : {}),
         }
       : {}),
     importedTfdTexts,
@@ -338,6 +353,9 @@ export type RunTerraformPresetImportOptions = {
   strataBlockClamp?: boolean;
   /** P2 within-column transpose. Default off. */
   strataTranspose?: boolean;
+  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled
+   * leaf-cluster frame border instead of the resource card. Default off. */
+  strataBoxEndpoints?: boolean;
   /** P5 (Lever C) per-hull height maintain-or-decrease gate. Default off. */
   strataHeightGate?: boolean;
   /** A01 post-A7 degree-1 pure-sink leaf X-shift toward its source. Default off. */
@@ -354,9 +372,8 @@ export type RunTerraformPresetImportOptions = {
    * the Strata model build (structure phase). Default "none" (byte-identical);
    * suppressed when the absorbing parent stays banded under `strataBandDepth`. */
   strataDeBandLevel?: import("./terraformPipelineLayoutProfiles").DeBandLevel;
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce: clean single-side container-exit routing. Default off. */
-  strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style. Default "straight" (byte-identical). */
+  strataEdgeStyle?: "straight" | "curve";
   /** LEGACY ALIAS for `strataBandDepth: "root"`. */
   strataBandCompact?: boolean;
   /** Strata v3.2: band-depth slider cut — the deepest role still banded.
@@ -375,6 +392,10 @@ export type RunTerraformPresetImportOptions = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** E3.3 inter-column gutter override (px). Default off ⇒ 150. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Default off ⇒ 1. */
+  strataRowGap?: number;
   signal?: AbortSignal;
   onLayoutProgress?: (progress: TerraformLayoutProgress) => void;
 };
@@ -441,6 +462,7 @@ export const runTerraformPresetImport = async (
     strataTransitiveAdopt: options.strataTransitiveAdopt,
     strataBlockClamp: options.strataBlockClamp,
     strataTranspose: options.strataTranspose,
+    strataBoxEndpoints: options.strataBoxEndpoints,
     strataHeightGate: options.strataHeightGate,
     strataLeafShift: options.strataLeafShift,
     strataLeafShiftHeightBudgetPx: options.strataLeafShiftHeightBudgetPx,
@@ -448,8 +470,7 @@ export const runTerraformPresetImport = async (
     strataLeafShiftRankBudget: options.strataLeafShiftRankBudget,
     strataLeafShiftRightEdgeGuardPx: options.strataLeafShiftRightEdgeGuardPx,
     strataDeBandLevel: options.strataDeBandLevel,
-    strataEdgeRouting: options.strataEdgeRouting,
-    strataBorderRoute: options.strataBorderRoute,
+    strataEdgeStyle: options.strataEdgeStyle,
     strataBandCompact: options.strataBandCompact,
     strataBandDepth: options.strataBandDepth,
     strataSiftRelocate: options.strataSiftRelocate,
@@ -462,6 +483,10 @@ export const runTerraformPresetImport = async (
     ...(options.strataEdgeCrossCap !== undefined
       ? { strataEdgeCrossCap: options.strataEdgeCrossCap }
       : {}),
+    // E3.3 spacing knobs — direct passthrough (absent ⇒ undefined); the
+    // downstream `runTerraformImportWithView` literal omits them at the default.
+    strataColumnGap: options.strataColumnGap,
+    strataRowGap: options.strataRowGap,
     importedTfdTexts: presetSources.tfdTexts,
     preset,
     signal: options.signal,

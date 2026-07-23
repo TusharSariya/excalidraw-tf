@@ -15,6 +15,7 @@ import {
   type TopologyIamEdge,
 } from "./terraformTopologyIamLinks";
 import { recordNodesByTypeFallbackScan } from "./terraformSatelliteFallbackCounter";
+import { getMemoizedNodesByTypeIndex } from "./terraformTopologySatelliteEngine";
 import {
   pickResourceValuesForTopologyPlacement,
   type TerraformPlanProviderContext,
@@ -911,8 +912,14 @@ export function apiGatewaySatelliteStackHeightPx(
   tier1SatelliteH: number,
   tier2SatelliteH: number,
   satelliteGap: number,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
-  const { cluster } = buildApiGatewayCompanionCluster(nodes, restApiAddress);
+  const { cluster } = buildApiGatewayCompanionCluster(
+    nodes,
+    restApiAddress,
+    undefined,
+    nodesByType,
+  );
   if (!cluster) {
     return 0;
   }
@@ -950,7 +957,12 @@ export function collectApiGatewayClusterSatelliteAddressesForTopologyList(
     if (!pr || pr.type !== "aws_api_gateway_rest_api") {
       continue;
     }
-    const { cluster } = buildApiGatewayCompanionCluster(nodes, addr);
+    const { cluster } = buildApiGatewayCompanionCluster(
+      nodes,
+      addr,
+      undefined,
+      getMemoizedNodesByTypeIndex(nodes),
+    );
     if (cluster) {
       for (const s of apiGatewayCompanionSatellitePaths(cluster)) {
         consumed.add(s);
@@ -984,7 +996,12 @@ export function isApiGatewayCompanionConsumedAsSatellite(
     if (!pr || pr.type !== "aws_api_gateway_rest_api") {
       continue;
     }
-    const { cluster } = buildApiGatewayCompanionCluster(nodes, path);
+    const { cluster } = buildApiGatewayCompanionCluster(
+      nodes,
+      path,
+      undefined,
+      getMemoizedNodesByTypeIndex(nodes),
+    );
     if (
       cluster &&
       apiGatewayCompanionSatellitePaths(cluster).some(
@@ -1008,6 +1025,7 @@ export function apiGatewayVpcLinkLeftSpanPx(
     nodes,
     restApiAddress,
     plan,
+    getMemoizedNodesByTypeIndex(nodes),
   );
   if (!cluster?.vpcLinks.length) {
     return 0;

@@ -145,8 +145,6 @@ const STRATA_DEMO_KEYS = new Set<string>([
   "strataRankSeparate",
   "strataPackedScoring",
   "strataPackedEps",
-  "strataEdgeRouting",
-  "strataBorderRoute",
   "strataBandCompact",
   "strataBandDepth",
   "strataSift",

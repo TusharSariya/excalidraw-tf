@@ -718,6 +718,22 @@ describe("A7 band-depth cut — constraint policy follows the resolved hull poli
     expect(fingerprint(refined)).toBe(fingerprint(a0));
   });
 
+  it("mirrors the A0 CLUSTER gap through A7 at rowGap 1.25 (packed cut root)", () => {
+    // Same packed leaf-leaf skyline as above, but the E3.3 row-gap factor
+    // widens the stacked gap multiplicatively: round(36 * 1.25) = 45. A0
+    // places at that gap and A7 mirrors it byte-for-byte at the SAME factor —
+    // both `dropY` and `minGap` read the resolved `strataRowGap`, so the
+    // "minGap mirrors A0" invariant holds off the default rowGap=1 too.
+    const ROW_CUT: StrataEngineOptions = { ...ROOT_CUT, strataRowGap: 1.25 };
+    const { model, primes, a0 } = leafBearingAccount(ROW_CUT);
+    expect(leafGapOf(a0)).toBe(45); // A0 skyline: CLUSTER × 1.25 between leaves
+    const refined = refineStrataCoordinates(a0, model, primes, {
+      rowGap: 1.25,
+    });
+    expect(leafGapOf(refined)).toBe(45);
+    expect(fingerprint(refined)).toBe(fingerprint(a0));
+  });
+
   it("default cut keeps the account banded: leaf-leaf gap is LANE (the contrast)", () => {
     const { model, primes, a0 } = leafBearingAccount(OPTS);
     // Banded account: A0 stacks the two leaf bands at LANE; A7 preserves it.

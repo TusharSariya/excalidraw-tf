@@ -457,44 +457,85 @@ export const OPTION_HELP: Record<string, OptionHelpEntry> = {
         "strataTransitiveAdopt / transitiveAdopt — replace the ε adoption gate with a strict total order (weightedC, lengthL1, crossings, penetrations); ε kept as a feasibility crossing-cap. Opt-in; descent-scoped; gated on the preference-calibration work. Small crossings tradeoff vs converge.",
     },
   },
-  "strata.edgerouting.off": {
-    title: "Route edges around containers · Off",
-    body: "Every dependency arrow stays a straight centre-to-centre segment, even when it passes through a container box (hull frame or resource card) that is unrelated to both endpoints — W7/W8 measured 65–123 such penetrations per preset.",
+  "strata.edgestyle.straight": {
+    title: "Edge style · Straight",
+    body: "No reshaping — edges are direct lines (default).",
     dev: {
       implements:
-        "strataEdgeRouting=false: the scene build emits the legacy straight chords; the routing module never runs (byte-identical scenes).",
+        'strataEdgeStyle="straight" (default): the terraformPipelineStrataEdgeStyle module never runs; TFD arrows keep their two-point chords (byte-identical).',
     },
   },
-  "strata.edgerouting.on": {
-    title: "Route edges around containers · On — W9 spike",
-    body: "Arrows whose straight line would tunnel through an unrelated container are re-drawn as short detours around it (endpoint ancestors stay permeable; everything else keeps its straight line). Bounded bends: an edge that cannot be routed cleanly within the cap falls back to its straight chord.",
+  "strata.edgestyle.curve": {
+    title: "Edge style · Curve",
+    body: "Draws each data-flow edge as a smooth curve that keeps its direction easy to follow. Edges that would cut through a card stay straight.",
     dev: {
       implements:
-        "strataEdgeRouting=true (Package C / W9): routeStrataSkeletonEdges detours penetrating TFD arrows around clearance-inflated foreign boxes (≤6 waypoints, min added L1, deterministic ties).",
-      refs: [
-        "Wybrow/Marriott/Stuckey 2006 — Incremental Connector Routing",
-        "Bouts & Speckmann 2015 — Clustered Edge Routing",
-      ],
+        'strataEdgeStyle="curve": applyStrataEdgeStyle samples a cubic bezier (control offset 0.5·distance forward / 0.25·25·√|distance| backward) to a 14-point polyline per un-routed TFD chord, stamping terraformRoutedPolyline; skips already-routed arrows.',
+      refs: ["React Flow (xyflow) — getBezierPath (MIT)"],
     },
   },
-  "strata.borderroute.off": {
-    title: "Exit containers through the nearest side · Off",
-    body: "An arrow from a resource inside a container to a target outside it keeps its straight centre-to-centre line — a long diagonal slashing across the container interior on its way out (the P3-pierce look). Byte-identical scenes.",
+  "strata.endpoints.resource": {
+    title: "Endpoints · Resource",
+    body: "Edges start and end at the resource cards themselves (default). This is how the diagram looks today.",
     dev: {
       implements:
-        "strataBorderRoute=false: the border-exit module never runs; the scene build emits the legacy straight chords (byte-identical).",
+        "strataBoxEndpoints=false (default): edge endpoints anchor to the resource card, unchanged from today (byte-identical).",
     },
   },
-  "strata.borderroute.on": {
-    title: "Exit containers through the nearest side · On — P3-pierce",
-    body: "An arrow leaving its own container is re-drawn to exit cleanly at the side facing its target (a single boundary waypoint), so the interior diagonal becomes a short perpendicular exit. The boundary crossing itself cannot be removed (Jordan curve) — only made clean. Endpoints never move; an exit that would not shorten the interior span, or would re-enter a box, keeps its straight line. This is a purely visual win: it changes no scored metric (crossings, penetrations, edge length, and pierce.total all EXCLUDE own-container exits by design).",
+  "strata.endpoints.box": {
+    title: "Endpoints · Box",
+    body: "Edges start and end at the labeled box around a resource (its leaf-cluster frame) instead of the card. Note: dragging a card re-anchors that edge back to the card until the next re-import or repair.",
     dev: {
       implements:
-        "strataBorderRoute=true: routeStrataBorderExits re-emits each TFD arrow whose ancestor exit set is non-empty with an inner→outer facing-side boundary waypoint per exited hull (≤6, clamped to the side inset by PIPELINE_FRAME_PAD/2, strict interior-span decrease + no-re-penetration + no-new-foreign guards, deterministic ties). Post-geometry realization of Sander border-node insertion; disjoint from strataEdgeRouting.",
-      refs: [
-        "Sander 1996 — Layout of Compound Directed Graphs",
-        "Bouts & Speckmann 2015 — Clustered Edge Routing",
-      ],
+        "strataBoxEndpoints=true: declared-dataflow edge endpoints terminate on the labeled leaf-cluster frame border (chord clip at the box, validated by the typed repair gate); dragging a card re-anchors that edge to the card until the next repair.",
+    },
+  },
+  "strata.spacing.columngap.default": {
+    title: "Column gap · Default",
+    body: "The standard horizontal gap between columns of cards (150 px). Leave this on unless arrows between columns look cramped.",
+    dev: {
+      implements:
+        "strataColumnGap absent ⇒ engine uses PIPELINE_COLUMN_GAP (150). Byte-identical: the knob materializes no key anywhere (resolver/meta/URL all omit at the default).",
+    },
+  },
+  "strata.spacing.columngap.wide": {
+    title: "Column gap · Wide",
+    body: "Widens the horizontal gap between columns to 200 px, giving edge-routing more room to run arrows between columns without crowding the cards.",
+    dev: {
+      implements:
+        "strataColumnGap=200 → columnOffsetsFromWidths(columnWidths, 0, 200) in rankStrataClusters (A1). Placement pins X to columnX; the channel router and clip pass re-derive corridors from the placed boxes.",
+    },
+  },
+  "strata.spacing.columngap.extra": {
+    title: "Column gap · Extra",
+    body: "Widens the horizontal gap between columns to 250 px — the roomiest setting, for dense diagrams with many arrows crossing between columns.",
+    dev: {
+      implements:
+        "strataColumnGap=250 → columnOffsetsFromWidths gap arg. Clamped to [150, 400] at the engine; a garbage/≤0 value falls back to 150.",
+    },
+  },
+  "strata.spacing.rowgap.default": {
+    title: "Row gap · Default",
+    body: "The standard vertical gap between stacked cards. Leave this on unless arrows running between rows look cramped.",
+    dev: {
+      implements:
+        "strataRowGap absent ⇒ factor 1 ⇒ PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y unchanged (Math.round(k*1)===k). Byte-identical: no key is materialized.",
+    },
+  },
+  "strata.spacing.rowgap.wide": {
+    title: "Row gap · 1.25×",
+    body: "Adds 25% more vertical space between stacked cards, opening up the horizontal corridors edge routing uses to run arrows between rows.",
+    dev: {
+      implements:
+        "strataRowGap=1.25 scales PIPELINE_LANE_GAP_Y/CLUSTER_GAP_Y multiplicatively (rounded to int px) at the single strataGapBetween choke point (placement dropY, coordRefine minGap, movers) AND the banded full-width stack, so placement and coordRefine stay consistent.",
+    },
+  },
+  "strata.spacing.rowgap.extra": {
+    title: "Row gap · 1.5×",
+    body: "Adds 50% more vertical space between stacked cards — the roomiest setting, for dense diagrams with many arrows routing between rows.",
+    dev: {
+      implements:
+        "strataRowGap=1.5 scales the vertical gap constants (rounded to int px). Clamped to [1, 3] at the engine; a garbage/≤0 value falls back to 1.",
     },
   },
   "strata.banddepth": {

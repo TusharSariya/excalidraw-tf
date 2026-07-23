@@ -231,6 +231,7 @@ describe("diagnosePipelineScene crossingAngles", () => {
     expect(d.crossingAngles).toEqual({
       nCross: 1,
       sharpShare: 0,
+      sharpShare70: 0,
       p10Deg: 90,
       minDeg: 90,
     });
@@ -264,6 +265,7 @@ describe("diagnosePipelineScene crossingAngles", () => {
     expect(d.crossingAngles).toEqual({
       nCross: 0,
       sharpShare: 0,
+      sharpShare70: 0,
       p10Deg: 0,
       minDeg: 0,
     });

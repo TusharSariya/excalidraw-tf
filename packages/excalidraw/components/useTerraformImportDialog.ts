@@ -173,21 +173,22 @@ export const useTerraformImportDialog = ({
   const [strataTranspose, setStrataTranspose] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataTranspose as boolean,
   );
+  // M5 box-endpoint anchoring (strata-only): edge endpoints terminate on the
+  // labeled leaf-cluster frame border instead of the resource card. Default OFF
+  // (byte-identical when off).
+  const [strataBoxEndpoints, setStrataBoxEndpoints] = useState(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBoxEndpoints as boolean,
+  );
   // Strata P5 (Lever C, strata-only): per-hull implied-height maintain-or-
   // decrease referee on the sink-pull-in / block-clamp adoptions. Default OFF
   // (inert under phase 1 — byte-identical).
   const [strataHeightGate, setStrataHeightGate] = useState(
     TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataHeightGate as boolean,
   );
-  // Strata Package C spike (W9, strata-only): post-A7 obstacle-avoiding edge
-  // routing — penetrating edges only. Default OFF pending its gate battery.
-  const [strataEdgeRouting, setStrataEdgeRouting] = useState(
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeRouting as boolean,
-  );
-  // Strata P3-pierce (strata-only): clean single-side container-exit routing.
-  // Default OFF / byte-identical pending owner adjudication.
-  const [strataBorderRoute, setStrataBorderRoute] = useState(
-    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataBorderRoute as boolean,
+  // Strata probe P2 (strata-only): edge render style (straight | curve).
+  // Default "straight" / byte-identical (the style module never runs).
+  const [strataEdgeStyle, setStrataEdgeStyle] = useState<"straight" | "curve">(
+    TERRAFORM_STRATA_LAYOUT_DEFAULTS.strataEdgeStyle as "straight" | "curve",
   );
   // Strata band-depth slider (v3.2, strata-only): the deepest role still
   // banded — deeper roles pack X-disjoint siblings into shared rows. Default
@@ -235,6 +236,15 @@ export const useTerraformImportDialog = ({
   const [strataEdgeCrossCap, setStrataEdgeCrossCap] = useState<
     number | undefined
   >(undefined);
+  // E3.3 spacing knobs — OPTIONAL, no seeded default (absent ⇒ the engine uses
+  // the current gap, byte-identical). The "Default" UI segment clears each back
+  // to undefined so a default import materializes no key anywhere downstream.
+  const [strataColumnGap, setStrataColumnGap] = useState<number | undefined>(
+    undefined,
+  );
+  const [strataRowGap, setStrataRowGap] = useState<number | undefined>(
+    undefined,
+  );
   // Private REST APIs at account+region level instead of nested in a VPC.
   // Strata-only: seeded ON (the strata view is the only one wired for it), but
   // `runTerraformImportWithView` view-scopes the value so it never reaches a
@@ -551,9 +561,9 @@ export const useTerraformImportDialog = ({
         strataTransitiveAdopt,
         strataBlockClamp,
         strataTranspose,
+        strataBoxEndpoints,
         strataHeightGate,
-        strataEdgeRouting,
-        strataBorderRoute,
+        strataEdgeStyle,
         strataBandDepth,
         strataDeBandLevel,
         strataSiftRelocate,
@@ -564,6 +574,10 @@ export const useTerraformImportDialog = ({
         // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
         // inherits `strataPackedScoringEpsilon`).
         ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+        // E3.3 spacing knobs — forward only when set (absent ⇒ current gap). The
+        // downstream layers omit at the exact default, so byte-identity holds.
+        ...(strataColumnGap !== undefined ? { strataColumnGap } : {}),
+        ...(strataRowGap !== undefined ? { strataRowGap } : {}),
         importedTfdTexts: opts.importedTfdTexts,
         preset: opts.preset ?? null,
         signal: layoutAbortRef.current?.signal,
@@ -713,9 +727,9 @@ export const useTerraformImportDialog = ({
           strataTransitiveAdopt,
           strataBlockClamp,
           strataTranspose,
+          strataBoxEndpoints,
           strataHeightGate,
-          strataEdgeRouting,
-          strataBorderRoute,
+          strataEdgeStyle,
           strataBandDepth,
           strataDeBandLevel,
           strataSiftRelocate,
@@ -726,6 +740,9 @@ export const useTerraformImportDialog = ({
           // Optional-only forward: no explicit `undefined` key (absent ⇒ engine
           // inherits `strataPackedScoringEpsilon`).
           ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+          // E3.3 spacing knobs — forward only when set (absent ⇒ current gap).
+          ...(strataColumnGap !== undefined ? { strataColumnGap } : {}),
+          ...(strataRowGap !== undefined ? { strataRowGap } : {}),
           signal: layoutAbortRef.current?.signal,
           onLayoutProgress: (p) => {
             const label =
@@ -838,9 +855,9 @@ export const useTerraformImportDialog = ({
         strataTransitiveAdopt,
         strataBlockClamp,
         strataTranspose,
+        strataBoxEndpoints,
         strataHeightGate,
-        strataEdgeRouting,
-        strataBorderRoute,
+        strataEdgeStyle,
         strataBandDepth,
         strataDeBandLevel,
         // Keep this handler's strata option shape identical to the regular
@@ -853,6 +870,9 @@ export const useTerraformImportDialog = ({
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         ...(strataEdgeCrossCap !== undefined ? { strataEdgeCrossCap } : {}),
+        // E3.3 spacing knobs — forward only when set (absent ⇒ current gap).
+        ...(strataColumnGap !== undefined ? { strataColumnGap } : {}),
+        ...(strataRowGap !== undefined ? { strataRowGap } : {}),
         signal: layoutAbortRef.current?.signal,
         onLayoutProgress: (p) => {
           const label =
@@ -1084,9 +1104,9 @@ export const useTerraformImportDialog = ({
         strataTransitiveAdopt,
         strataBlockClamp,
         strataTranspose,
+        strataBoxEndpoints,
         strataHeightGate,
-        strataEdgeRouting,
-        strataBorderRoute,
+        strataEdgeStyle,
         // Legacy alias field on `TerraformDemoSettingsSnapshot` — the UI writes
         // the band-depth cut exclusively via `strataBandDepth` below; always
         // false so a new share URL never re-emits the old `strataBandCompact`
@@ -1100,6 +1120,10 @@ export const useTerraformImportDialog = ({
         strataCrossWeightPenetration,
         strataCrossWeightEdge,
         strataEdgeCrossCap,
+        // E3.3 spacing knobs — persisted like strataEdgeCrossCap (undefined when
+        // at the default), so replay/share omit them at the default.
+        strataColumnGap,
+        strataRowGap,
         moduleLayoutMode: moduleLayoutOptions.mode,
       },
       { origin },
@@ -1134,9 +1158,9 @@ export const useTerraformImportDialog = ({
     strataTransitiveAdopt,
     strataBlockClamp,
     strataTranspose,
+    strataBoxEndpoints,
     strataHeightGate,
-    strataEdgeRouting,
-    strataBorderRoute,
+    strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
@@ -1145,6 +1169,8 @@ export const useTerraformImportDialog = ({
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
+    strataColumnGap,
+    strataRowGap,
     moduleLayoutOptions.mode,
   ]);
 
@@ -1180,9 +1206,9 @@ export const useTerraformImportDialog = ({
     strataTransitiveAdopt,
     strataBlockClamp,
     strataTranspose,
+    strataBoxEndpoints,
     strataHeightGate,
-    strataEdgeRouting,
-    strataBorderRoute,
+    strataEdgeStyle,
     strataBandDepth,
     strataDeBandLevel,
     strataSiftRelocate,
@@ -1191,6 +1217,8 @@ export const useTerraformImportDialog = ({
     strataCrossWeightPenetration,
     strataCrossWeightEdge,
     strataEdgeCrossCap,
+    strataColumnGap,
+    strataRowGap,
     moduleLayoutOptions,
     loading,
     layoutProgress,
@@ -1248,9 +1276,9 @@ export const useTerraformImportDialog = ({
     setStrataTransitiveAdopt,
     setStrataBlockClamp,
     setStrataTranspose,
+    setStrataBoxEndpoints,
     setStrataHeightGate,
-    setStrataEdgeRouting,
-    setStrataBorderRoute,
+    setStrataEdgeStyle,
     setStrataBandDepth,
     setStrataDeBandLevel,
     setStrataSiftRelocate,
@@ -1259,6 +1287,8 @@ export const useTerraformImportDialog = ({
     setStrataCrossWeightPenetration,
     setStrataCrossWeightEdge,
     setStrataEdgeCrossCap,
+    setStrataColumnGap,
+    setStrataRowGap,
     setModuleLayoutOptions,
     setSelectedPresetId,
     setArtifactRepoName,

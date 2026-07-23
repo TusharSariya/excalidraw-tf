@@ -49,7 +49,11 @@ type TerraformPerfBooleanKey =
   | "suppressHoverFocusBelowZoom"
   | "debounceHoverFocus"
   | "suppressFrameClippingBelowZoom"
-  | "skipBindingRepairDuringFocus";
+  | "skipBindingRepairDuringFocus"
+  | "terraformFocusWashOverlay"
+  | "terraformZoomQuantize"
+  | "terraformStaticCanvasOpaque"
+  | "terraformDprCap";
 
 /** Short codes for each boolean canvas-performance experiment in the `canvasPerf=` param. */
 const RUNTIME_PERF_CODES: ReadonlyArray<[TerraformPerfBooleanKey, string]> = [
@@ -58,6 +62,11 @@ const RUNTIME_PERF_CODES: ReadonlyArray<[TerraformPerfBooleanKey, string]> = [
   ["debounceHoverFocus", "debouncehover"],
   ["suppressFrameClippingBelowZoom", "noclip"],
   ["skipBindingRepairDuringFocus", "nobindrepair"],
+  ["terraformFocusWashOverlay", "focuswash"],
+  // E09 hint bundle
+  ["terraformZoomQuantize", "zoomquant"],
+  ["terraformStaticCanvasOpaque", "opaquestatic"],
+  ["terraformDprCap", "dprcap"],
 ];
 
 const VALID_LOD_PRESETS = new Set<TerraformLodPreset>([
@@ -128,12 +137,9 @@ export type TerraformDemoUrlParams = {
   /** W8b: ε-constraint crossings budget for the packed scorer (`strataPackedEps`;
    * 0 = strict rule; 0<ε<1 = relative mode). */
   strataPackedEps?: number;
-  /** Package C spike (W9): post-A7 obstacle-avoiding edge routing
-   * (`strataEdgeRouting=1/0`). Default off. */
-  strataEdgeRouting?: boolean;
-  /** Strata P3-pierce clean container-exit routing (`strataBorderRoute=1/0`).
-   * Default off. */
-  strataBorderRoute?: boolean;
+  /** Strata probe P2 edge render style
+   * (`strataEdgeStyle=straight|curve`). Default `"straight"`. */
+  strataEdgeStyle?: "straight" | "curve";
   /** W10 (SDEC-63): banded row-share compaction lever
    * (`strataBandCompact=1/0`). Default off; primarily effective with
    * rankSeparate. LEGACY ALIAS for `strataBandDepth: "root"` — kept for old
@@ -158,6 +164,12 @@ export type TerraformDemoUrlParams = {
   /** Edge-edge regression cap (`strataEdgeCap`). Optional — absent inherits
    * `strataPackedEps`. */
   strataEdgeCap?: number;
+  /** E3.3 inter-column gutter override in px (`strataColumnGap`). Default off ⇒
+   * 150 (byte-identical); the engine clamps to [150, 400]. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor (`strataRowGap`). Default off ⇒ 1
+   * (byte-identical); the engine clamps to [1, 3]. */
+  strataRowGap?: number;
   /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
    * snapshot instead of the rolling incumbent (`strataPackedConverge=1/0`).
    * Default off; inert at ε=0. */
@@ -184,6 +196,10 @@ export type TerraformDemoUrlParams = {
   /** A01 leaf X-shift: pull degree-1 pure-sink leaves left toward their source
    * (`strataLeafShift=1/0`). Default off. Carries the right-edge column guard. */
   strataLeafShift?: boolean;
+  /** M5 box-endpoint anchoring: edge endpoints terminate on the labeled resource
+   * box border instead of the resource card (`strataBoxEndpoints=1/0`). Default
+   * off (byte-identical — no consumer yet; M6 lands the geometry). */
+  strataBoxEndpoints?: boolean;
 
   // ─── Runtime canvas view settings (applied after import, not layout inputs) ───
   /** Zoom LOD master switch (`lodEnabled=1/0`). */
@@ -470,14 +486,23 @@ export const parseTerraformDemoUrlParams = (
   if (strataPackedScoring === null) {
     return null;
   }
-  // W8b ε budget: nonnegative finite number (fractional = relative mode).
-  const strataEdgeRouting = parseBooleanParam("strataEdgeRouting");
-  if (strataEdgeRouting === null) {
-    return null;
-  }
-  const strataBorderRoute = parseBooleanParam("strataBorderRoute");
-  if (strataBorderRoute === null) {
-    return null;
+  // Probe P2 edge style enum. Hard-fail on an invalid value (same contract as
+  // the band-depth cut); absent ⇒ undefined ⇒ resolves to the "straight"
+  // default downstream. Case-insensitive, matching the band-depth parse.
+  // Legacy exception: "step" was a legal app-emitted value until 2026-07-23
+  // (share URLs in the wild carry it) — coerce to "curve" instead of nulling
+  // the whole URL, which would silently blank the demo import.
+  const strataEdgeStyleRaw = params.get("strataEdgeStyle");
+  let strataEdgeStyle: "straight" | "curve" | undefined;
+  if (strataEdgeStyleRaw != null && strataEdgeStyleRaw.trim() !== "") {
+    const normalized = strataEdgeStyleRaw.trim().toLowerCase();
+    if (normalized === "step") {
+      strataEdgeStyle = "curve";
+    } else if (normalized !== "straight" && normalized !== "curve") {
+      return null;
+    } else {
+      strataEdgeStyle = normalized;
+    }
   }
   const strataBandCompact = parseBooleanParam("strataBandCompact");
   if (strataBandCompact === null) {
@@ -560,6 +585,10 @@ export const parseTerraformDemoUrlParams = (
   if (strataLeafShift === null) {
     return null;
   }
+  const strataBoxEndpoints = parseBooleanParam("strataBoxEndpoints");
+  if (strataBoxEndpoints === null) {
+    return null;
+  }
   const strataPenWRaw = params.get("strataPenW");
   let strataPenW: number | undefined;
   if (strataPenWRaw != null && strataPenWRaw.trim() !== "") {
@@ -586,6 +615,29 @@ export const parseTerraformDemoUrlParams = (
       return null;
     }
     strataEdgeCap = parsed;
+  }
+  // E3.3 inter-column gutter (px). Parse ANY finite positive number here (the
+  // engine owns the [150, 400] clamp — the parser only rejects garbage/negatives,
+  // mirroring strataEdgeCap). Absent ⇒ undefined ⇒ resolves to the default.
+  const strataColumnGapRaw = params.get("strataColumnGap");
+  let strataColumnGap: number | undefined;
+  if (strataColumnGapRaw != null && strataColumnGapRaw.trim() !== "") {
+    const parsed = Number(strataColumnGapRaw.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    strataColumnGap = parsed;
+  }
+  // E3.3 row-gap scale factor (fractional allowed, e.g. 1.25). Engine clamps to
+  // [1, 3]; the parser only rejects garbage/non-positive.
+  const strataRowGapRaw = params.get("strataRowGap");
+  let strataRowGap: number | undefined;
+  if (strataRowGapRaw != null && strataRowGapRaw.trim() !== "") {
+    const parsed = Number(strataRowGapRaw.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    strataRowGap = parsed;
   }
 
   // ─── Runtime canvas view settings ───
@@ -752,8 +804,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataRankSeparate != null ? { strataRankSeparate } : {}),
     ...(strataPackedScoring != null ? { strataPackedScoring } : {}),
     ...(strataPackedEps != null ? { strataPackedEps } : {}),
-    ...(strataEdgeRouting != null ? { strataEdgeRouting } : {}),
-    ...(strataBorderRoute != null ? { strataBorderRoute } : {}),
+    ...(strataEdgeStyle != null ? { strataEdgeStyle } : {}),
     ...(strataBandCompact != null ? { strataBandCompact } : {}),
     ...(strataBandDepth != null ? { strataBandDepth } : {}),
     ...(strataDeBandLevel != null ? { strataDeBandLevel } : {}),
@@ -761,6 +812,8 @@ export const parseTerraformDemoUrlParams = (
     ...(strataPenW != null ? { strataPenW } : {}),
     ...(strataCrossW != null ? { strataCrossW } : {}),
     ...(strataEdgeCap != null ? { strataEdgeCap } : {}),
+    ...(strataColumnGap != null ? { strataColumnGap } : {}),
+    ...(strataRowGap != null ? { strataRowGap } : {}),
     ...(strataPackedConverge != null ? { strataPackedConverge } : {}),
     ...(strataTransitiveAdopt != null ? { strataTransitiveAdopt } : {}),
     ...(strataBlockClamp != null ? { strataBlockClamp } : {}),
@@ -769,6 +822,7 @@ export const parseTerraformDemoUrlParams = (
     ...(strataCoordCascade != null ? { strataCoordCascade } : {}),
     ...(strataHeightGate != null ? { strataHeightGate } : {}),
     ...(strataLeafShift != null ? { strataLeafShift } : {}),
+    ...(strataBoxEndpoints != null ? { strataBoxEndpoints } : {}),
     ...(lodEnabled != null ? { lodEnabled } : {}),
     ...(lodPreset != null ? { lodPreset } : {}),
     ...(minimap != null ? { minimap } : {}),
@@ -837,8 +891,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataRankSep", params.strataRankSeparate);
   setBool("strataPackedScoring", params.strataPackedScoring);
   setNum("strataPackedEps", params.strataPackedEps);
-  setBool("strataEdgeRouting", params.strataEdgeRouting);
-  setBool("strataBorderRoute", params.strataBorderRoute);
+  setEnum("strataEdgeStyle", params.strataEdgeStyle);
   setBool("strataBandCompact", params.strataBandCompact);
   setEnum("strataBandDepth", params.strataBandDepth);
   setEnum("strataDeBand", params.strataDeBandLevel);
@@ -846,6 +899,8 @@ export const buildTerraformDemoUrl = (
   setNum("strataPenW", params.strataPenW);
   setNum("strataCrossW", params.strataCrossW);
   setNum("strataEdgeCap", params.strataEdgeCap);
+  setNum("strataColumnGap", params.strataColumnGap);
+  setNum("strataRowGap", params.strataRowGap);
   setBool("strataPackedConverge", params.strataPackedConverge);
   setBool("strataTransitiveAdopt", params.strataTransitiveAdopt);
   setBool("strataBlockClamp", params.strataBlockClamp);
@@ -854,6 +909,7 @@ export const buildTerraformDemoUrl = (
   setBool("strataCoordCascade", params.strataCoordCascade);
   setBool("strataHeightGate", params.strataHeightGate);
   setBool("strataLeafShift", params.strataLeafShift);
+  setBool("strataBoxEndpoints", params.strataBoxEndpoints);
 
   // ─── Runtime canvas view settings ───
   setBool("lodEnabled", params.lodEnabled);
@@ -951,8 +1007,10 @@ export type TerraformDemoSettingsSnapshot = {
   strataRankSeparate: boolean;
   strataPackedScoring: boolean;
   strataPackedScoringEpsilon: number;
-  strataEdgeRouting: boolean;
-  strataBorderRoute: boolean;
+  /** Probe P2 edge render style. Optional (like `strataBandDepth`) so a
+   * snapshot literal predating this field still type-checks; absent ⇒
+   * "straight". */
+  strataEdgeStyle?: "straight" | "curve";
   strataBandCompact: boolean;
   /** v3.2 band-depth slider. Optional (unlike the other Strata flags above)
    * so a snapshot literal that predates this field still type-checks;
@@ -967,6 +1025,12 @@ export type TerraformDemoSettingsSnapshot = {
   /** Edge-edge regression cap. Optional — absent inherits
    * `strataPackedScoringEpsilon`. */
   strataEdgeCrossCap?: number;
+  /** E3.3 inter-column gutter override (px). Optional (default off ⇒ 150) so
+   * pre-existing snapshot literals still type-check. */
+  strataColumnGap?: number;
+  /** E3.3 row-gap scale factor. Optional (default off ⇒ 1) so pre-existing
+   * snapshot literals still type-check. */
+  strataRowGap?: number;
   /** G-DESCENT remedy: packed-scoring descent returns the best-seen ADOPTED
    * snapshot. Optional (no dialog control; default off) so pre-existing
    * snapshot literals still type-check. */
@@ -992,6 +1056,9 @@ export type TerraformDemoSettingsSnapshot = {
   /** A01 leaf X-shift. Optional (default off) so pre-existing snapshot literals
    * still type-check. */
   strataLeafShift?: boolean;
+  /** M5 box-endpoint anchoring. Optional (default off) so pre-existing snapshot
+   * literals still type-check. */
+  strataBoxEndpoints?: boolean;
   /** OD-15 de-band ladder. Optional (default `"none"`) so pre-existing snapshot
    * literals still type-check. */
   strataDeBandLevel?: DeBandLevel;
@@ -1091,9 +1158,11 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataPackedScoringEpsilon !== 1
         ? { strataPackedEps: snapshot.strataPackedScoringEpsilon }
         : {}),
-      // Package C spike (W9): default-off — truthy-only, like packed scoring.
-      ...(snapshot.strataEdgeRouting ? { strataEdgeRouting: true } : {}),
-      ...(snapshot.strataBorderRoute ? { strataBorderRoute: true } : {}),
+      // Probe P2 edge style: default "straight" omitted (non-default only),
+      // like the band-depth cut.
+      ...((snapshot.strataEdgeStyle ?? "straight") !== "straight"
+        ? { strataEdgeStyle: snapshot.strataEdgeStyle }
+        : {}),
       // W10 (SDEC-63): default-off — truthy-only, like packed scoring.
       ...(snapshot.strataBandCompact ? { strataBandCompact: true } : {}),
       // v3.2 band-depth slider: emit only when it diverges from the default
@@ -1117,6 +1186,16 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataEdgeCrossCap !== undefined
         ? { strataEdgeCap: snapshot.strataEdgeCrossCap }
         : {}),
+      // E3.3 spacing knobs: default 150 / 1 — non-default-only emit (absent
+      // resolves to the default in resolveStrataDemoOptions), so a share URL of a
+      // default scene is byte-identical while an explicit gap round-trips. The
+      // `?? default` guards the optional snapshot field (like strataEdgeStyle).
+      ...((snapshot.strataColumnGap ?? 150) !== 150
+        ? { strataColumnGap: snapshot.strataColumnGap }
+        : {}),
+      ...((snapshot.strataRowGap ?? 1) !== 1
+        ? { strataRowGap: snapshot.strataRowGap }
+        : {}),
       // G-DESCENT converge: default-off — truthy-only, like packed scoring.
       ...(snapshot.strataPackedConverge ? { strataPackedConverge: true } : {}),
       // Transitive adopt: default-off — truthy-only, like packed scoring.
@@ -1138,6 +1217,8 @@ export const collectTerraformDemoParams = (
       ...(snapshot.strataHeightGate ? { strataHeightGate: true } : {}),
       // A01 leaf X-shift: default-off — truthy-only.
       ...(snapshot.strataLeafShift ? { strataLeafShift: true } : {}),
+      // M5 box-endpoint anchoring: default-off — truthy-only.
+      ...(snapshot.strataBoxEndpoints ? { strataBoxEndpoints: true } : {}),
       // OD-15 de-band ladder: emit only when it diverges from the default.
       // `strataDeBandLevel` is a TRUTHY string at every value (including the
       // default `"none"`), so — like the band-depth cut above — this must

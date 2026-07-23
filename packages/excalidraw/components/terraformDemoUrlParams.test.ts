@@ -42,8 +42,6 @@ const baseSnapshot: TerraformDemoSettingsSnapshot = {
   strataRankSeparate: false,
   strataPackedScoring: false,
   strataPackedScoringEpsilon: 0,
-  strataEdgeRouting: false,
-  strataBorderRoute: false,
   strataBandCompact: false,
   strataSiftRelocate: false,
   strataCrossWeightPenetration: 1,
@@ -479,6 +477,31 @@ describe("terraformDemoUrlParams", () => {
       expect(bare!.strataBandDepth).toBeUndefined();
     });
 
+    it("parses strataEdgeStyle, coerces legacy step→curve, rejects bogus values", () => {
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=curve",
+        )!.strataEdgeStyle,
+      ).toBe("curve");
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=straight",
+        )!.strataEdgeStyle,
+      ).toBe("straight");
+      // "step" was app-emitted in share URLs until 2026-07-23; it must keep
+      // importing (coerced to curve), NOT null the whole URL → blank canvas.
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=step",
+        )!.strataEdgeStyle,
+      ).toBe("curve");
+      expect(
+        parseTerraformDemoUrlParams(
+          "?preset=demo&view=strata&strataEdgeStyle=zigzag",
+        ),
+      ).toBeNull();
+    });
+
     it("parses every strataBandDepth role (exact-case, incl. mixed-case subnetZone)", () => {
       for (const role of [
         "root",
@@ -584,24 +607,6 @@ describe("terraformDemoUrlParams", () => {
           "?preset=demo&view=strata&strataPackedEps=2",
         )!.strataPackedEps,
       ).toBe(2);
-    });
-
-    it("parses strataEdgeRouting and omits it when the URL does not carry it", () => {
-      const on = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeRouting=1",
-      );
-      expect(on).toMatchObject({ strataEdgeRouting: true });
-      const off = parseTerraformDemoUrlParams(
-        "?preset=demo&view=strata&strataEdgeRouting=0",
-      );
-      expect(off).toMatchObject({ strataEdgeRouting: false });
-      const absent = parseTerraformDemoUrlParams("?preset=demo&view=strata");
-      expect(absent!.strataEdgeRouting).toBeUndefined();
-      expect(
-        parseTerraformDemoUrlParams(
-          "?preset=demo&view=strata&strataEdgeRouting=maybe",
-        ),
-      ).toBeNull();
     });
 
     it("omits strataPackedEps when the URL does not carry it", () => {
@@ -715,6 +720,20 @@ describe("terraformDemoUrlParams", () => {
       // default-off ⇒ no param emitted (byte-identity).
       const off = buildTerraformDemoUrl({ presetId: "demo", view: "strata" });
       expect(queryOf(off)).not.toContain("strataLeafShift");
+    });
+
+    it("round-trips strataBoxEndpoints on/off through build+parse (M5)", () => {
+      const on: TerraformDemoUrlParams = {
+        presetId: "staging-extended-localstack-v2",
+        view: "strata",
+        strataBoxEndpoints: true,
+      };
+      expect(
+        parseTerraformDemoUrlParams(queryOf(buildTerraformDemoUrl(on))),
+      ).toEqual(on);
+      // default-off ⇒ no param emitted (byte-identity).
+      const off = buildTerraformDemoUrl({ presetId: "demo", view: "strata" });
+      expect(queryOf(off)).not.toContain("strataBoxEndpoints");
     });
 
     it("round-trips strataBandDepth through build+parse", () => {
@@ -905,6 +924,20 @@ describe("terraformDemoUrlParams", () => {
       expect(on.strataLeafShift).toBe(true);
     });
 
+    it("strataBoxEndpoints emits truthy-only in the strata collect (M5)", () => {
+      const off = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+      });
+      expect("strataBoxEndpoints" in off).toBe(false);
+      const on = collectTerraformDemoParams({
+        ...baseSnapshot,
+        view: "strata",
+        strataBoxEndpoints: true,
+      });
+      expect(on.strataBoxEndpoints).toBe(true);
+    });
+
     it("strataPackedScoring emits explicitly in both states (owner default-ON flip 2026-07-17)", () => {
       const off = collectTerraformDemoParams({
         ...baseSnapshot,
@@ -936,20 +969,6 @@ describe("terraformDemoUrlParams", () => {
       });
       expect(on.strataSift).toBe(true);
       expect(on.strataTranspose).toBe(true);
-    });
-
-    it("strataEdgeRouting emits truthy-only (like strataPackedScoring)", () => {
-      const off = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "strata",
-      });
-      expect("strataEdgeRouting" in off).toBe(false);
-      const on = collectTerraformDemoParams({
-        ...baseSnapshot,
-        view: "strata",
-        strataEdgeRouting: true,
-      });
-      expect(on.strataEdgeRouting).toBe(true);
     });
 
     it("strataBandCompact emits truthy-only (like strataPackedScoring)", () => {
@@ -1341,6 +1360,10 @@ describe("terraformDemoUrlParams", () => {
           debounceHoverFocus: true,
           suppressFrameClippingBelowZoom: false,
           skipBindingRepairDuringFocus: true,
+          terraformFocusWashOverlay: true,
+          terraformZoomQuantize: true,
+          terraformStaticCanvasOpaque: false,
+          terraformDprCap: true,
           lowZoomThreshold: 0.2,
         },
       };

@@ -1171,12 +1171,14 @@ export function ecsEc2SatelliteStackHeightPx(
   tier2SatelliteH: number,
   satelliteGap: number,
   plan?: unknown,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
   const chains = buildEcsEc2CapacityChainsForService(
     nodes,
     serviceAddress,
     arnIndex,
     plan,
+    nodesByType,
   );
   return chainStackHeightPx(
     chains,
@@ -1193,11 +1195,13 @@ export function ecsClusterSatelliteStackHeightPx(
   tier2SatelliteH: number,
   satelliteGap: number,
   plan?: unknown,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
   const { cluster } = buildEcsClusterCompanionCluster(
     nodes,
     serviceAddress,
     plan,
+    nodesByType,
   );
   if (!cluster?.clusterPath) {
     return 0;
@@ -1216,11 +1220,13 @@ export function ecsSatelliteStackHeightPx(
   tier1SatelliteH: number,
   tier2SatelliteH: number,
   satelliteGap: number,
+  nodesByType?: ReadonlyMap<string, readonly string[]>,
 ): number {
   const { cluster } = buildEcsServiceCompanionCluster(
     nodes,
     serviceAddress,
     arnIndex,
+    nodesByType,
   );
   if (!cluster || cluster.stack.length === 0) {
     return 0;
