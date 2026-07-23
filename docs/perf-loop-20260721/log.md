@@ -260,3 +260,27 @@ Go/no-go outcomes vs plan: E10 hit-index = pending hover-rate workload (still ow
   - **Demo plugin `configurePreviewServer` port**: `terraformImportPresetDevPlugin.mjs` wires the dev proof API on the dev server only; the compiled preview server (`configurePreviewServer`) needs the same wiring per the owner's compiled-server rule, else API arms no-op under `vite preview`.
 
 **Curve-fix track close-out (M5/M6).** M5 UI redesign landed `143a74503` (visible "Edge routing & style" section, Style-first, one-hot Routing segmented control over the unchanged three router URL params, DEV-gated composition drawer + jargon, live scene diagnostic — scene-derived only after codex P1 fixes: declaredDataFlow-only denominator, neutral verb, green=fully-reshaped-or-fully-straight; 31/31 RTL, 163 URL/registry tests green, codex VALID-WITH-FIX both fixes applied). Track totals: 5 commits M1-M5 (`53ff2df1b`..`143a74503`), owner's symptom (straight edges under curve) cured 48/145→145/145 on the exact owner URL, verified live in-browser + probe + proof API. Done-criteria met: flattened===0 both compact arms, survivors===styled, pierce/re-entry/crossings under frozen ceilings (120/113/143), zero new own-card re-entries. Watch item: none new; wave-4 queue as listed above.
+
+---
+
+## Aesthetic-edges track (2026-07-23) — Loop 1 of 3
+
+Owner asks (three screenshots): container-boundary ingress/egress (left-in/right-out only), no backward detours ("around boxes is not a hard rule"), curves must not overlap boxes, wider column/row gaps. Plan: `~/.claude/plans/take-a-look-at-ticklish-biscuit.md` (research: 3 Fable agents + codex memo, converged on 4 root causes).
+
+**Loop 0 — scoreboard** (`96bf63e29` + `a92aa601f` + owner-channel arm in `c8a59fa27`): `computeStrataEdgeScoreboard` (backwardXPx, cardOverlapCount, wrongFaceCrossings, hullBoundaryCrossings, detourRatioP95, minCardClearancePx) + 4-arm probe (owner-full / compact / owner-routing / owner-channel). Baseline owner-full: cardOverlap 299, wrongFace 41, hullCross 148, pierce 19, crossings 130. owner-routing baseline: backwardXPx **207.33** (the owner's goofy loop, quantified), route self-flatten 25/40.
+
+**Loop 1 experiments (all integrated on perf-loop-exp):**
+
+| Exp | Commit | What | Key delta |
+|---|---|---|---|
+| E1.1 render fidelity (Sonnet) | `c67535fe1` | `roundness:null` + 24 samples on curve records — rendered path == computed path (RoughJS Catmull-Rom overshoot eliminated); orbit keeps `{type:2}` (step-shaped, deliberate) | pierce 19→18, crossings 130→128; overlap fix is render-side (not in polyline metrics) |
+| E1.3 soft router (Fable) | `3ba05e308` | Hulls soft (γ_hull=40), backtrack penalty λ=1.5, right-before-left ties, 1.8× detour cap (`cappedDetour` meta), card clearance 14→24, eligibility narrowed to card-penetrating chords | **backwardXPx 207→0**; crossings 142→131; route stamps 68→59 |
+| E1.4 border ingress (Opus) | `7ef36c3a2` | Symmetric entry chains (`tgtAnc−srcAnc`, outer→inner), shared `buildBorderChain`, budget favors outermost, entry telemetry | wrongFace 39→37, pierce 18→16; +7 edges routed; exposed border anchor gap (flatten 6→10 pre-E1.5) |
+| E1.2 channel anchors (Opus) | `aac96d103` | Channel endpoints from shared anchor authority + degenerate same-Y collapse fix (collinear stub) — the compact-arm 18 was collapse, NOT the anchor gap (re-attributed) | full-mode channel survival **38/145→145/145**; channel-arm cardOverlap **4** (lanes work) at crossings 225 (the "stairs" trade) |
+| E1.5 router anchors (Opus) | `70fca111e` | E1.2 pattern applied to route+border routers; anchors threaded pre-eligibility; degenerate class proven unreachable | **flattenedBy:{} on all 4 arms**; owner-routing cardOverlap 256→**183**, keptBy.route 11→46; crossings 132→140 |
+
+**Owner-full end state vs loop-0 baseline:** routedFlattened 6→**0** (145/145 routed survive), wrongFace 41→38, hullCross 148→144, pierce 19→17, crossings 130→130, cardOverlap 299→299 (curve styler still obstacle-blind — Loop 2 clip + Loop 3 GLEE own this), backwardXPx 0→0.
+
+**Watch items for adversarial:** compact ownCardReentry 274→290 (+16 net); owner-routing crossings +8 (buys −73 cardOverlap); compact crossings 88→96 (denser 25-pt sampling measures the same bezier more honestly); E1.3 pushes 6 hull-only edges to the obstacle-blind styler (owner-routing cardOverlap 237→256 pre-E1.5).
+
+Screenshots delivered (sqs-consumer crop + 100% + 30% overview). Adversarial batch (Fable impl-attacker + codex results attack) dispatched at loop end; verdicts below.
