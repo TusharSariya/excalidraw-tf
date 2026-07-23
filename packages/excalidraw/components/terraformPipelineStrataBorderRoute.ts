@@ -11,6 +11,19 @@
  * diagonal. This pass rewrites such an edge to `[start, W, end]` where W sits on
  * the boundary of the exited container, on the side facing the target.
  *
+ * SYMMETRY (E1.4). The dual defect is INGRESS: an edge whose target is nested
+ * enters the target's container(s) at an arbitrary angle. The pass is now
+ * symmetric — it also inserts one clean single-side ENTRY waypoint per hull the
+ * edge legitimately ENTERS (ancestor of target, NOT of source), on the side
+ * facing the SOURCE (`facingSide(entryOuter, start)`). Full path order becomes
+ * `[start, exit inner→outer, entry outer→inner, end]` (the entry chain is the
+ * mirror of the exit chain). Both chains share ONE waypoint budget
+ * (STRATA_EDGE_ROUTING_MAX_WAYPOINTS); when they overflow, the entry chain is
+ * trimmed to its OUTERMOST (largest-area, visually dominant) hulls. Entries are
+ * as orthogonal-by-construction as exits: the target's own ancestor hulls are
+ * permeable to the router and free to the scorers, so ingress waypoints move no
+ * scored term either — only un-scored readability.
+ *
  * ORTHOGONAL BY CONSTRUCTION (the value story). Every existing accounting
  * system treats "exit your own ancestor hull" as LEGITIMATE and IGNORES it:
  *  - packed-scoring penetration term skips it (terraformPipelineStrataPacked-
@@ -34,7 +47,8 @@
  * crossing, which spreads exits by source position).
  *
  * Determinism (C4′): no RNG, no clock. Edge order = skeleton emission order;
- * exit-box order = area (nesting); side/candidate ties fixed deterministically.
+ * exit/entry-box order = area (nesting); side/candidate ties fixed
+ * deterministically.
  * Clearance is computed inside the function, never as a module-level const
  * (SDEC-34: the planParsing→layoutCore import cycle makes such consts
  * entry-order-dependent NaNs).
@@ -69,8 +83,17 @@ export type StrataBorderRouteMeta = {
   /** Eligible edges left straight: the side exit did not strictly shorten the
    * interior span (no readability improvement to bank). */
   noGain: number;
-  /** Total interior waypoints added across all routed edges. */
+  /** Total interior waypoints added across all routed edges (exit + entry). */
   waypointsTotal: number;
+  /** ENTRY-side interior waypoints added across all routed edges (E1.4; a
+   * subset of `waypointsTotal`). The symmetric partner of the exit chain: one
+   * clean single-side ingress waypoint per hull the edge ENTERS to reach a
+   * nested target. */
+  entryWaypointsTotal: number;
+  /** Entry hulls dropped because the exit+entry chains together exceeded the
+   * waypoint budget (E1.4). The OUTERMOST (visually dominant) entry hulls are
+   * kept; the innermost are dropped and counted here. */
+  entryBudgetSkipped: number;
   /** Σ (straight interior span − routed interior span), L1 px. A conservative
    * lower-bound accountant (it credits only the outermost box's interior span),
    * so it badly UNDER-reads the visible change; prefer `maxWaypointPerpDev`
@@ -175,6 +198,60 @@ const straightInteriorL1 = (start: Pt, end: Pt, b: StrataBox): number => {
   return t * (Math.abs(dx) + Math.abs(dy));
 };
 
+type ChainOutcome =
+  | {
+      kind: "waypoints";
+      waypoints: Pt[];
+      outerBox: StrataBox;
+      straightSpan: number;
+      routedSpan: number;
+    }
+  | { kind: "empty" }
+  | { kind: "degenerate" }
+  | { kind: "noGain" };
+
+/**
+ * One side of the symmetric border route. `inside` is strictly inside every box
+ * in `boxes`; `outside` is strictly outside the outermost. `boxes` are ordered
+ * inner→outer (area asc). Emits one waypoint per box, all on the SINGLE side of
+ * the outermost box that faces `outside`, at that side's chord crossing (clamped
+ * inset by `pad`) — ordered inner→outer from `inside`. Used for BOTH chains:
+ * the exit chain passes (start, end); the entry chain passes (end, start) so its
+ * facing side is the one toward the SOURCE and its crossing is the same chord
+ * line (direction-independent). Rejects (kind ≠ "waypoints") when the box set is
+ * empty, the endpoints are degenerate (`inside` not strictly inside, or
+ * `outside` strictly inside, the outermost box), or the routed interior span
+ * does not STRICTLY shorten the straight interior diagonal (no readability to
+ * bank). Re-penetration / foreign guards run on the assembled poly by the caller.
+ */
+const buildBorderChain = (
+  inside: Pt,
+  outside: Pt,
+  boxes: { id: string; box: StrataBox }[],
+  pad: number,
+): ChainOutcome => {
+  if (boxes.length === 0) {
+    return { kind: "empty" };
+  }
+  const outerBox = boxes[boxes.length - 1]!.box;
+  if (!strictlyInside(inside, outerBox) || strictlyInside(outside, outerBox)) {
+    return { kind: "degenerate" };
+  }
+  const side = facingSide(outerBox, outside);
+  const waypoints: Pt[] = boxes.map(({ box }) =>
+    borderWaypoint(box, side, inside, outside, pad),
+  );
+  const straightSpan = straightInteriorL1(inside, outside, outerBox);
+  let routedSpan = L1(inside, waypoints[0]!);
+  for (let w = 0; w + 1 < waypoints.length; w++) {
+    routedSpan += L1(waypoints[w]!, waypoints[w + 1]!);
+  }
+  if (!(routedSpan < straightSpan)) {
+    return { kind: "noGain" };
+  }
+  return { kind: "waypoints", waypoints, outerBox, straightSpan, routedSpan };
+};
+
 /** leaf clusterId → ids of every hull whose subtree contains it (local copy of
  * the edge-routing helper; the 10-line walk is pinned by the unit tests). */
 function leafAncestorsOf(root: StrataHullNode): Map<string, Set<string>> {
@@ -256,6 +333,8 @@ export function routeStrataBorderExits(
     unclean: 0,
     noGain: 0,
     waypointsTotal: 0,
+    entryWaypointsTotal: 0,
+    entryBudgetSkipped: 0,
     interiorLenSavedL1: 0,
     maxWaypointPerpDev: 0,
   };
@@ -306,8 +385,8 @@ export function routeStrataBorderExits(
       continue;
     }
     // EXIT SET: hulls the edge legitimately LEAVES — ancestor of source, not of
-    // target (the mirror image of edgeRouting's foreign set). Ordered by area
-    // (nesting): innermost first, outermost last.
+    // target (the mirror image of edgeRouting's foreign set). Collected in key
+    // order; sorted by area (nesting) — innermost first, outermost last — below.
     const exitBoxes: { id: string; box: StrataBox }[] = [];
     for (const id of [...srcAnc].sort(compareStrataContentKeys)) {
       if (tgtAnc?.has(id)) {
@@ -318,66 +397,131 @@ export function routeStrataBorderExits(
         exitBoxes.push({ id, box });
       }
     }
-    if (exitBoxes.length === 0) {
-      continue; // no ancestor exit — edgeRouting owns foreign-box detours.
+    // ENTRY SET (E1.4): hulls the edge legitimately ENTERS — ancestor of target,
+    // NOT of source. The exact mirror of the exit set; emitted OUTER→INNER in
+    // path order (see below), so the ingress reflects the egress.
+    const entryBoxes: { id: string; box: StrataBox }[] = [];
+    if (tgtAnc) {
+      for (const id of [...tgtAnc].sort(compareStrataContentKeys)) {
+        if (srcAnc.has(id)) {
+          continue;
+        }
+        const box = hullBox.get(id);
+        if (box) {
+          entryBoxes.push({ id, box });
+        }
+      }
     }
+    if (exitBoxes.length === 0 && entryBoxes.length === 0) {
+      continue; // neither leaves nor enters an ancestor hull — nothing to route.
+    }
+    // The exit chain keeps its legacy WHOLESALE cap: a source nested deeper than
+    // the whole budget is left as a chord rather than emitted as an over-bent
+    // mess. (Entries, by contrast, TRIM to the remaining budget — see below.)
     if (exitBoxes.length > STRATA_EDGE_ROUTING_MAX_WAYPOINTS) {
       meta.unclean += 1;
-      continue; // waypoint cap: never emit an over-bent mess.
+      continue;
     }
     exitBoxes.sort(
       (a, b) => a.box.width * a.box.height - b.box.width * b.box.height,
     );
-    const outer = exitBoxes[exitBoxes.length - 1]!.box;
-
-    // Degenerate guards: start must be strictly inside the outermost box and
-    // end strictly outside it, else the "single clean exit" is ill-defined.
-    if (!strictlyInside(start, outer) || strictlyInside(end, outer)) {
-      continue;
-    }
-    const side = facingSide(outer, end);
-
-    // Interior waypoints: one per exit box on the SAME facing side, inner→outer.
-    const waypoints: Pt[] = exitBoxes.map(({ box }) =>
-      borderWaypoint(box, side, start, end, pad),
+    entryBoxes.sort(
+      (a, b) => a.box.width * a.box.height - b.box.width * b.box.height,
     );
-    const wOuter = waypoints[waypoints.length - 1]!;
 
-    // Never emit worse (1): the routed interior span must STRICTLY shorten the
-    // straight interior diagonal through the outermost box.
-    const straightSpan = straightInteriorL1(start, end, outer);
-    let routedSpan = L1(start, waypoints[0]!);
-    for (let w = 0; w + 1 < waypoints.length; w++) {
-      routedSpan += L1(waypoints[w]!, waypoints[w + 1]!);
+    // Total-waypoint budget (E1.4): exit + entry ≤ STRATA_EDGE_ROUTING_MAX_-
+    // WAYPOINTS. Exits are already within budget; the remainder funds the entry
+    // chain, keeping the OUTERMOST (largest-area, visually dominant) entry hulls
+    // — the tail of the ascending sort — and dropping the innermost on overflow.
+    const entryBudget = STRATA_EDGE_ROUTING_MAX_WAYPOINTS - exitBoxes.length;
+    let entryUsed = entryBoxes;
+    if (entryBoxes.length > entryBudget) {
+      meta.entryBudgetSkipped += entryBoxes.length - Math.max(0, entryBudget);
+      entryUsed =
+        entryBudget > 0
+          ? entryBoxes.slice(entryBoxes.length - entryBudget)
+          : [];
     }
-    if (!(routedSpan < straightSpan)) {
-      meta.noGain += 1;
+
+    // Build both chains. Exit passes (start, end); entry passes (end, start) so
+    // its facing side is the one toward the SOURCE. Each returns waypoints
+    // ordered inner→outer from its `inside` endpoint.
+    const exitChain = buildBorderChain(start, end, exitBoxes, pad);
+    const entryChain = buildBorderChain(end, start, entryUsed, pad);
+
+    if (exitChain.kind !== "waypoints" && entryChain.kind !== "waypoints") {
+      // Neither side yields a clean chain: fall back to the straight chord,
+      // accounting for it as the exit-only pass always has (noGain when a side
+      // gained no interior span; degenerate/empty stay silent, matching the
+      // legacy bare `continue`).
+      if (exitChain.kind === "noGain" || entryChain.kind === "noGain") {
+        meta.noGain += 1;
+      }
       continue;
     }
 
+    const exitWaypoints: Pt[] =
+      exitChain.kind === "waypoints" ? exitChain.waypoints : [];
+    // Entry waypoints are inner→outer from the target; in path order (source→
+    // target) they read OUTER→INNER, so reverse them.
+    const entryWaypoints: Pt[] =
+      entryChain.kind === "waypoints"
+        ? [...entryChain.waypoints].reverse()
+        : [];
+    const waypoints: Pt[] = [...exitWaypoints, ...entryWaypoints];
     const poly: Pt[] = [start, ...waypoints, end];
 
-    // Never emit worse (2): the exit segment W→end must not re-penetrate the
-    // outermost box interior (exactly-one-crossing guarantee).
-    if (
-      segmentIntersectsStrataBoxInterior(
-        wOuter[0],
-        wOuter[1],
-        end[0],
-        end[1],
-        outer.x,
-        outer.y,
-        outer.x + outer.width,
-        outer.y + outer.height,
-      )
-    ) {
-      meta.unclean += 1;
-      continue;
+    // Never emit worse (exit): the segment LEAVING the outermost exit box must
+    // not re-penetrate it (exactly-one-crossing). Its continuation is the first
+    // entry waypoint when present, else `end`.
+    if (exitChain.kind === "waypoints") {
+      const wExitOuter = exitWaypoints[exitWaypoints.length - 1]!;
+      const afterExit = poly[exitWaypoints.length + 1]!;
+      const eb = exitChain.outerBox;
+      if (
+        segmentIntersectsStrataBoxInterior(
+          wExitOuter[0],
+          wExitOuter[1],
+          afterExit[0],
+          afterExit[1],
+          eb.x,
+          eb.y,
+          eb.x + eb.width,
+          eb.y + eb.height,
+        )
+      ) {
+        meta.unclean += 1;
+        continue;
+      }
     }
 
-    // Never emit worse (3): the detour must not NEWLY penetrate any foreign box
-    // (ancestor of neither endpoint, nor an endpoint card) that the straight
-    // chord did not already pierce.
+    // Never emit worse (entry, mirror): the segment ARRIVING at the outermost
+    // entry box must not penetrate it BEFORE the waypoint. Its predecessor is
+    // the outermost exit waypoint when present, else `start`.
+    if (entryChain.kind === "waypoints") {
+      const wEntryOuter = entryWaypoints[0]!;
+      const beforeEntry = poly[exitWaypoints.length]!;
+      const nb = entryChain.outerBox;
+      if (
+        segmentIntersectsStrataBoxInterior(
+          beforeEntry[0],
+          beforeEntry[1],
+          wEntryOuter[0],
+          wEntryOuter[1],
+          nb.x,
+          nb.y,
+          nb.x + nb.width,
+          nb.y + nb.height,
+        )
+      ) {
+        meta.unclean += 1;
+        continue;
+      }
+    }
+
+    // Never emit worse (foreign): the detour must not NEWLY penetrate any
+    // foreign box (ancestor of neither endpoint, nor an endpoint card) that the
+    // straight chord did not already pierce. Covers exit AND entry segments.
     let newForeign = false;
     for (const o of obstacles) {
       if (o.kind === "hull") {
@@ -452,7 +596,15 @@ export function routeStrataBorderExits(
     } as ExcalidrawElementSkeleton;
     meta.routed += 1;
     meta.waypointsTotal += waypoints.length;
-    meta.interiorLenSavedL1 += straightSpan - routedSpan;
+    meta.entryWaypointsTotal += entryWaypoints.length;
+    // Conservative lower-bound accountant: each side credits only its outermost
+    // box's interior span saved (see the meta doc).
+    if (exitChain.kind === "waypoints") {
+      meta.interiorLenSavedL1 += exitChain.straightSpan - exitChain.routedSpan;
+    }
+    if (entryChain.kind === "waypoints") {
+      meta.interiorLenSavedL1 += entryChain.straightSpan - entryChain.routedSpan;
+    }
     for (const w of waypoints) {
       meta.maxWaypointPerpDev = Math.max(
         meta.maxWaypointPerpDev,

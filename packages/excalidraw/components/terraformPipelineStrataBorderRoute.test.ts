@@ -7,7 +7,10 @@
  * strict interior-span decrease, marker set); an intra-VPC edge (ancestor of
  * both) left straight; a detour that would newly pierce a foreign card falling
  * back to the chord (unclean); the no-gain case; the deep-nesting waypoint cap;
- * and determinism.
+ * and determinism. E1.4 symmetry: a root-level-source → nested-target chord
+ * getting clean single-side ENTRY waypoints (outer→inner); the combined
+ * exit+entry waypoint budget with the innermost entry hulls trimmed; and an
+ * entry-side foreign-pierce falling back cleanly (edge left unstamped).
  *
  * Run: yarn vitest run packages/excalidraw/components/terraformPipelineStrataBorderRoute.test.ts --exclude "**\/.claude/**"
  */
@@ -203,6 +206,8 @@ describe("routeStrataBorderExits (P3 border-exit)", () => {
       unclean: 0,
       noGain: 0,
       waypointsTotal: 0,
+      entryWaypointsTotal: 0,
+      entryBudgetSkipped: 0,
       interiorLenSavedL1: 0,
       maxWaypointPerpDev: 0,
     });
@@ -285,6 +290,164 @@ describe("routeStrataBorderExits (P3 border-exit)", () => {
       expect(abs[i]![0]).toBeGreaterThanOrEqual(abs[i - 1]![0]);
       expect(abs[i]![1]).toBeGreaterThanOrEqual(abs[i - 1]![1]);
     }
+  });
+
+  it("E1.4: inserts one ENTRY waypoint per nested-target hull, outer→inner", () => {
+    // root → { src at root level, tgt-outer → tgt-inner(tgt) }. The chord runs
+    // from a region-level source INTO a doubly-nested target — the mirror of the
+    // P3 exit case. Exit set empty; entry set = { tgt-outer, tgt-inner }.
+    const root = hull("__root__", [], ["src"]);
+    const tgtInner = hull("tgt-inner", ["t", "u"], ["tgt"]);
+    const tgtOuter = hull("tgt-outer", ["t"], [], [tgtInner]);
+    root.children = [tgtOuter];
+    const { model, placement } = mkModelPlacement(
+      root,
+      [
+        ["__root__", root, box(-100, -100, 1000, 1000)],
+        ["tgt-outer", tgtOuter, box(400, 400, 300, 300)],
+        ["tgt-inner", tgtInner, box(450, 450, 200, 200)],
+      ],
+      [
+        ["src", box(50, 50, 20, 20)],
+        ["tgt", box(520, 520, 20, 20)],
+      ],
+    );
+    const skeleton = [tfdArrow("src", "tgt", [60, 60], [530, 530])];
+    const meta = routeStrataBorderExits(skeleton, model, placement);
+    expect(meta.routed).toBe(1);
+    expect(meta.waypointsTotal).toBe(2);
+    expect(meta.entryWaypointsTotal).toBe(2);
+    expect(meta.entryBudgetSkipped).toBe(0);
+    expect(meta.interiorLenSavedL1).toBeGreaterThan(0);
+    expect(meta.maxWaypointPerpDev).toBeGreaterThan(0);
+
+    const routed = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      points: Array<[number, number]>;
+      customData: Record<string, unknown>;
+    };
+    // Endpoints frozen: only interior ENTRY waypoints were added.
+    expect(routed.x).toBe(60);
+    expect(routed.y).toBe(60);
+    expect(routed.points[0]).toEqual([0, 0]);
+    expect(routed.points[routed.points.length - 1]).toEqual([470, 470]);
+    expect(routed.points.length).toBe(4); // start + 2 entry waypoints + end
+    expect(routed.customData.terraformRoutedPolyline).toBe(true);
+    expect(routed.customData.terraformRoutedBy).toBe("border");
+
+    const abs: Pt[] = routed.points.map(([px, py]) => [
+      routed.x + px,
+      routed.y + py,
+    ]);
+    // Path order OUTER→INNER: the first interior point sits on the OUTER hull's
+    // facing side (x = tgt-outer.x0 = 400), the second on the INNER hull's
+    // (x = tgt-inner.x0 = 450).
+    expect(abs[1]![0]).toBe(400);
+    expect(abs[2]![0]).toBe(450);
+    // Each entered hull is crossed EXACTLY once (clean single-side ingress).
+    for (const id of ["tgt-outer", "tgt-inner"]) {
+      expect(boundaryCrossings(abs, placement.boxedHulls.get(id)!.box)).toBe(1);
+    }
+    // Monotone staircase toward the down-right target — no doubling back.
+    for (let i = 1; i < abs.length; i++) {
+      expect(abs[i]![0]).toBeGreaterThanOrEqual(abs[i - 1]![0]);
+      expect(abs[i]![1]).toBeGreaterThanOrEqual(abs[i - 1]![1]);
+    }
+  });
+
+  it("E1.4: exit+entry share the waypoint budget; innermost entries trimmed (outermost kept)", () => {
+    // Source nested 3 deep (sA⊃sB⊃sC(src)); target nested 4 deep
+    // (tA⊃tB⊃tC⊃tD(tgt)). Exit=3 + entry=4 = 7 > budget(6) ⇒ the entry chain is
+    // trimmed by 1, keeping its 3 OUTERMOST hulls (tA,tB,tC) and dropping the
+    // innermost (tD). Total waypoints land exactly on the budget.
+    const root = hull("__root__", [], []);
+    const sC = hull("sC", ["sC"], ["src"]);
+    const sB = hull("sB", ["sB"], [], [sC]);
+    const sA = hull("sA", ["sA"], [], [sB]);
+    const tD = hull("tD", ["tD"], ["tgt"]);
+    const tC = hull("tC", ["tC"], [], [tD]);
+    const tB = hull("tB", ["tB"], [], [tC]);
+    const tA = hull("tA", ["tA"], [], [tB]);
+    root.children = [sA, tA];
+    const { model, placement } = mkModelPlacement(
+      root,
+      [
+        ["__root__", root, box(-100, -100, 2000, 2000)],
+        ["sA", sA, box(0, 0, 300, 300)],
+        ["sB", sB, box(30, 30, 240, 240)],
+        ["sC", sC, box(60, 60, 180, 180)],
+        ["tA", tA, box(1000, 1000, 400, 400)],
+        ["tB", tB, box(1040, 1040, 320, 320)],
+        ["tC", tC, box(1080, 1080, 240, 240)],
+        ["tD", tD, box(1120, 1120, 160, 160)],
+      ],
+      [
+        ["src", box(140, 140, 20, 20)],
+        ["tgt", box(1180, 1180, 20, 20)],
+      ],
+    );
+    const skeleton = [tfdArrow("src", "tgt", [150, 150], [1190, 1190])];
+    const meta = routeStrataBorderExits(skeleton, model, placement);
+    expect(meta.routed).toBe(1);
+    // Budget respected: 3 exit + 3 entry = 6 (never over the cap).
+    expect(meta.waypointsTotal).toBe(6);
+    expect(meta.waypointsTotal).toBeLessThanOrEqual(6);
+    expect(meta.entryWaypointsTotal).toBe(3);
+    expect(meta.entryBudgetSkipped).toBe(1); // tD (innermost) dropped
+
+    const routed = skeleton[0] as unknown as {
+      x: number;
+      y: number;
+      points: Array<[number, number]>;
+    };
+    expect(routed.points.length).toBe(8); // start + 6 waypoints + end
+    const abs: Pt[] = routed.points.map(([px, py]) => [
+      routed.x + px,
+      routed.y + py,
+    ]);
+    // Entry waypoints (after the 3 exit waypoints) are the 3 OUTERMOST target
+    // hulls in OUTER→INNER order: tA (x0=1000), tB (1040), tC (1080).
+    expect(abs[4]![0]).toBe(1000);
+    expect(abs[5]![0]).toBe(1040);
+    expect(abs[6]![0]).toBe(1080);
+    // The dropped innermost hull tD (x0=1120) carries NO waypoint.
+    expect(abs.every((p) => p[0] !== 1120)).toBe(true);
+  });
+
+  it("E1.4: an entry-side detour that would newly pierce a foreign card falls back cleanly (unstamped)", () => {
+    // Same nested-target fixture as the outer→inner entry test, but a foreign
+    // card sits ON the outer→inner entry leg (which rides y=x+14) while missing
+    // the straight y=x chord — so the ingress detour is rejected and the edge is
+    // left byte-identical (never emit worse).
+    const root = hull("__root__", [], ["src"]);
+    const tgtInner = hull("tgt-inner", ["t", "u"], ["tgt"]);
+    const tgtOuter = hull("tgt-outer", ["t"], [], [tgtInner]);
+    root.children = [tgtOuter];
+    const { model, placement } = mkModelPlacement(
+      root,
+      [
+        ["__root__", root, box(-100, -100, 1000, 1000)],
+        ["tgt-outer", tgtOuter, box(400, 400, 300, 300)],
+        ["tgt-inner", tgtInner, box(450, 450, 200, 200)],
+      ],
+      [
+        ["src", box(50, 50, 20, 20)],
+        ["tgt", box(520, 520, 20, 20)],
+      ],
+    );
+    // On the entry leg (400,414)→(450,464) [y = x + 14], off the y=x chord.
+    (placement.leafBoxes as Map<string, StrataBox>).set(
+      "obs",
+      box(416, 430, 8, 8),
+    );
+    const arrow = tfdArrow("src", "tgt", [60, 60], [530, 530]);
+    const frozen = JSON.stringify(arrow);
+    const skeleton = [arrow];
+    const meta = routeStrataBorderExits(skeleton, model, placement);
+    expect(meta.routed).toBe(0);
+    expect(meta.unclean).toBe(1);
+    expect(JSON.stringify(skeleton[0])).toBe(frozen);
   });
 
   it("is DISJOINT from edgeRouting: skips an arrow already carrying the routed-polyline marker", () => {

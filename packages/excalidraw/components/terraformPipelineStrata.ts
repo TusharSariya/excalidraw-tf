@@ -1247,6 +1247,10 @@ export async function buildTerraformStrataExcalidrawScene(
               strataBorderRouteUnclean: scene.borderRoute.unclean,
               strataBorderRouteNoGain: scene.borderRoute.noGain,
               strataBorderRouteWaypoints: scene.borderRoute.waypointsTotal,
+              strataBorderRouteEntryWaypoints:
+                scene.borderRoute.entryWaypointsTotal,
+              strataBorderRouteEntryBudgetSkipped:
+                scene.borderRoute.entryBudgetSkipped,
               strataBorderRouteMaxWaypointPerpDev:
                 scene.borderRoute.maxWaypointPerpDev,
               strataBorderRouteInteriorLenSavedL1:
